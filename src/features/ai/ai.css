@@ -1,0 +1,170 @@
+.ai-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ai-section {
+  padding: 8px 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+.ai-section h3 {
+  margin: 4px 0 6px;
+  font-size: 14px;
+}
+.ai-section > button,
+.ai-add button,
+.ai-provider button:not(.ai-icon) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-provider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.ai-provider-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-provider-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+.ai-provider-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ai-provider-row > input {
+  flex: 1;
+}
+.ai-kind {
+  font-size: 12px;
+}
+.ai-badge {
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--bg-active);
+  color: var(--accent);
+  font-size: 11px;
+}
+.ai-enabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.ai-key-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 150px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.ai-key-status.ok {
+  color: var(--accent);
+}
+.ai-key-form {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+}
+.ai-key-form input {
+  flex: 1;
+  min-width: 0;
+}
+.ai-icon {
+  display: inline-flex;
+  padding: 3px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.ai-icon:hover:not(:disabled) {
+  color: var(--fg);
+}
+.ai-ok,
+.ai-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.ai-ok {
+  color: var(--accent);
+}
+.ai-error {
+  color: var(--danger);
+}
+.spin {
+  animation: ai-spin 1s linear infinite;
+}
+@keyframes ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ai-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ai-add select,
+.ai-section > select,
+.ai-rules select {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.ai-fallback,
+.ai-rules {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.ai-rules {
+  padding: 0;
+  list-style: none;
+}
+.ai-fallback li,
+.ai-rules li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.ai-fallback li span,
+.ai-rule-path {
+  flex: 1;
+}
+
+.ai-log {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.ai-log th,
+.ai-log td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.ai-status-error,
+.ai-status-blocked {
+  color: var(--danger);
+}

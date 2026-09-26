@@ -108,3 +108,12 @@
 .filetree-menu button.danger {
   color: var(--danger);
 }
+.filetree-ai {
+  display: inline-flex;
+  flex: none;
+  margin-left: 4px;
+  color: var(--fg-muted);
+}
+.filetree-ai.ai-never {
+  color: var(--danger);
+}

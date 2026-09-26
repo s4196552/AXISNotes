@@ -1,9 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Backend, VaultChange } from "./types";
+import type { AiRunResult, Backend, VaultChange } from "./types";
 
 export const VAULT_CHANGED_EVENT = "vault://changed";
+export const AI_DELTA_EVENT = "ai://delta";
 
 export function createTauriBackend(): Backend {
   return {
@@ -32,6 +33,25 @@ export function createTauriBackend(): Backend {
     graph: () => invoke("graph"),
     listTasks: () => invoke("list_tasks"),
     timeEntries: () => invoke("time_entries"),
+    aiSettings: () => invoke("ai_settings"),
+    aiSaveSettings: (settings) => invoke("ai_save_settings", { settings }),
+    aiSetKey: (providerId, key) => invoke("ai_set_key", { providerId, key }),
+    aiDeleteKey: (providerId) => invoke("ai_delete_key", { providerId }),
+    aiTestProvider: (providerId) => invoke("ai_test_provider", { providerId }),
+    aiListModels: (providerId) => invoke("ai_list_models", { providerId }),
+    aiPlan: (request) => invoke("ai_plan", { request }),
+    async aiRun(runId, request, onDelta) {
+      const unlisten = await listen<{ runId: string; delta: string }>(AI_DELTA_EVENT, (e) => {
+        if (e.payload.runId === runId) onDelta(e.payload.delta);
+      });
+      try {
+        return await invoke<AiRunResult>("ai_run", { runId, request });
+      } finally {
+        unlisten();
+      }
+    },
+    aiCancel: (runId) => invoke("ai_cancel", { runId }),
+    aiLog: (limit) => invoke("ai_log", { limit }),
     async onVaultChanged(cb) {
       return listen<{ changes: VaultChange[] }>(VAULT_CHANGED_EVENT, (e) => cb(e.payload.changes));
     },

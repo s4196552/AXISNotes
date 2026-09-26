@@ -37,7 +37,18 @@ export interface VaultChange {
 }
 
 export type ErrorCode =
-  "NoVault" | "NotFound" | "AlreadyExists" | "Conflict" | "OutsideVault" | "InvalidName" | "Io";
+  | "NoVault"
+  | "NotFound"
+  | "AlreadyExists"
+  | "Conflict"
+  | "OutsideVault"
+  | "InvalidName"
+  | "Io"
+  /** An AI request refused by privacy rules or cost limits. */
+  | "Blocked"
+  /** An AI provider failed (after retries and fallbacks). */
+  | "Ai"
+  | "Cancelled";
 
 /** Shape of every rejected command. */
 export interface BackendError {
@@ -142,6 +153,131 @@ export interface TimeEntry {
   project: string | null;
 }
 
+// ---- AI (Phase 4); see src-tauri/src/ai ----
+
+export type AiProviderKind =
+  "openai" | "anthropic" | "gemini" | "openrouter" | "ollama" | "lmstudio" | "custom";
+export type AiTask = "handwriting" | "diagrams" | "textFixes" | "chat";
+export type AiEffort = "quick" | "balanced" | "deep";
+/** Per-folder AI access: `local` = only models on this machine. */
+export type AiRule = "any" | "local" | "never";
+
+export interface AiProviderConfig {
+  id: string;
+  kind: AiProviderKind;
+  name: string;
+  /** Empty = the provider's default endpoint. */
+  baseUrl: string;
+  enabled: boolean;
+}
+
+/** A provider as the UI sees it. Whether a key exists — never the key itself. */
+export interface AiProviderStatus extends AiProviderConfig {
+  hasKey: boolean;
+  requiresKey: boolean;
+  local: boolean;
+  defaultBaseUrl: string;
+}
+
+export interface AiTaskChoice {
+  provider: string;
+  model: string;
+}
+
+export interface AiSettings {
+  providers: AiProviderConfig[];
+  tasks: Partial<Record<AiTask, AiTaskChoice>>;
+  /** Provider ids tried in order when the task's provider fails. */
+  fallback: string[];
+  maxInputTokens: number | null;
+  confirmAboveTokens: number;
+  effort: AiEffort;
+  logRequests: boolean;
+}
+
+export interface AiSettingsView {
+  settings: AiSettings;
+  providers: AiProviderStatus[];
+}
+
+export interface AiModel {
+  id: string;
+  name: string;
+  vision: boolean;
+  json: boolean;
+  context: number | null;
+}
+
+export interface AiModelList {
+  models: AiModel[];
+  /** Set when the live list failed and the built-in list was returned instead. */
+  error: string | null;
+}
+
+export type AiPart = { type: "text"; text: string } | { type: "image"; mime: string; data: string };
+
+export interface AiMessage {
+  role: "system" | "user" | "assistant";
+  content: AiPart[];
+}
+
+export interface AiRunRequest {
+  task?: AiTask;
+  messages: AiMessage[];
+  /** Notes whose text is in `messages` (privacy rules apply to them). */
+  sources?: string[];
+  /** Notes the backend reads and attaches itself. */
+  attach?: string[];
+  provider?: string;
+  model?: string;
+  maxOutputTokens?: number;
+  temperature?: number;
+  effort?: AiEffort;
+  json?: boolean;
+}
+
+export interface AiPlan {
+  providerId: string;
+  providerName: string;
+  model: string;
+  local: boolean;
+  estimatedInputTokens: number;
+  needsConfirm: boolean;
+  estimatedCost: number | null;
+  rule: AiRule;
+}
+
+export interface AiUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface AiRunResult {
+  text: string;
+  providerId: string;
+  providerName: string;
+  model: string;
+  local: boolean;
+  usage: AiUsage | null;
+  /** Set when a fallback provider answered. */
+  fallbackFrom: string | null;
+}
+
+export interface AiLogEntry {
+  time: number;
+  task: AiTask;
+  provider: string;
+  model: string;
+  local: boolean;
+  status: "ok" | "error" | "cancelled" | "blocked";
+  error?: string;
+  estimatedInputTokens: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  durationMs: number;
+  sources: number;
+}
+
 /** Everything the UI may ask of the backend. UI code depends on this, never on `invoke`. */
 export interface Backend {
   /** Show a native folder picker; resolves null if cancelled. */
@@ -181,4 +317,24 @@ export interface Backend {
   listTasks(): Promise<TaskRef[]>;
   /** Every `time_log` entry in the vault, oldest first. */
   timeEntries(): Promise<TimeEntry[]>;
+
+  aiSettings(): Promise<AiSettingsView>;
+  aiSaveSettings(settings: AiSettings): Promise<AiSettingsView>;
+  /** Store a key in the OS keychain (empty = delete). Keys are never read back. */
+  aiSetKey(providerId: string, key: string): Promise<void>;
+  aiDeleteKey(providerId: string): Promise<void>;
+  /** Check endpoint and key; resolves to the number of models offered. */
+  aiTestProvider(providerId: string): Promise<number>;
+  aiListModels(providerId: string): Promise<AiModelList>;
+  /** Where a request would go and its estimated size, before sending. */
+  aiPlan(request: AiRunRequest): Promise<AiPlan>;
+  /** Run a request, streaming text to `onDelta`. Rejects with "Cancelled" on `aiCancel`. */
+  aiRun(
+    runId: string,
+    request: AiRunRequest,
+    onDelta: (text: string) => void,
+  ): Promise<AiRunResult>;
+  aiCancel(runId: string): Promise<void>;
+  /** Recent AI requests (metadata only), newest first. */
+  aiLog(limit?: number): Promise<AiLogEntry[]>;
 }

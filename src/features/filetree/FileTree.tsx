@@ -9,10 +9,12 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  HardDrive,
+  Lock,
   Shapes,
   Sheet,
 } from "lucide-react";
-import { backend, isBackendError, type VaultEntry } from "../../ipc";
+import { type AiRule, backend, isBackendError, type VaultEntry } from "../../ipc";
 import { CANVAS_EXT, docKind, GRID_EXT, PATH_MIME } from "../../lib/fileKinds";
 import { emptySheet, serializeSheet } from "../../lib/formula/sheet";
 import { emptyCanvas, serializeCanvas } from "../../lib/canvas";
@@ -79,6 +81,7 @@ export function FileTree() {
   const vault = useAppStore((s) => s.vault);
   const tree = useAppStore((s) => s.tree);
   const folderIcons = useConfig((s) => s.config.folderIcons);
+  const aiFolders = useConfig((s) => s.config.ai.folders);
   const activePath = useAppStore((s) => s.activePath);
   const { expanded, toggle, collapseAll, update: updateExpanded } = useExpanded(vault?.root ?? "");
 
@@ -351,6 +354,7 @@ export function FileTree() {
             renaming={entry.path === renaming}
             dropTarget={entry.path === dropTarget}
             customIcon={folderIcons[entry.path]}
+            aiRule={aiFolders[entry.path]}
             actions={actions}
           />
         ))}
@@ -385,6 +389,7 @@ export function FileTree() {
           />
           {menu.entry && (
             <>
+              <AiRuleItems path={menu.entry.path} close={setMenu} />
               <MenuItem
                 label="Rename"
                 onClick={() => setRenaming(menu.entry!.path)}
@@ -406,6 +411,35 @@ export function FileTree() {
         </div>
       )}
     </div>
+  );
+}
+
+/** "AI access" choices for an entry; the current rule is checked. */
+function AiRuleItems({ path, close }: { path: string; close(v: null): void }) {
+  const rule = useConfig((s) => s.config.ai.folders[path]);
+  const set = (r: AiRule | null) =>
+    void useConfig.getState().update((c) => {
+      const folders = { ...c.ai.folders };
+      if (r === null) delete folders[path];
+      else folders[path] = r;
+      return { ...c, ai: { ...c.ai, folders } };
+    });
+  const items: [AiRule | null, string][] = [
+    [null, "AI access: inherit"],
+    ["never", "AI access: never"],
+    ["local", "AI access: local models only"],
+  ];
+  return (
+    <>
+      {items.map(([r, label]) => (
+        <MenuItem
+          key={label}
+          label={(rule ?? null) === r ? `✓ ${label}` : label}
+          onClick={() => set(r)}
+          close={close}
+        />
+      ))}
+    </>
   );
 }
 
@@ -438,6 +472,7 @@ interface TreeRowProps {
   renaming: boolean;
   dropTarget: boolean;
   customIcon?: FolderIcon;
+  aiRule?: AiRule;
   actions: RowActions;
 }
 
@@ -450,6 +485,7 @@ const TreeRow = memo(function TreeRow({
   renaming,
   dropTarget,
   customIcon,
+  aiRule,
   actions,
 }: TreeRowProps) {
   const isDir = entry.kind === "dir";
@@ -520,6 +556,21 @@ const TreeRow = memo(function TreeRow({
         <RenameInput entry={entry} actions={actions} />
       ) : (
         <span className="filetree-name">{displayName(entry)}</span>
+      )}
+      {aiRule && aiRule !== "any" && (
+        <span
+          className={`filetree-ai ai-${aiRule}`}
+          title={aiRule === "never" ? "AI: never" : "AI: local models only"}
+        >
+          {aiRule === "never" ? (
+            <Lock size={11} aria-hidden />
+          ) : (
+            <HardDrive size={11} aria-hidden />
+          )}
+          <span className="visually-hidden">
+            {aiRule === "never" ? ", AI: never" : ", AI: local models only"}
+          </span>
+        </span>
       )}
     </div>
   );

@@ -4,15 +4,17 @@ import { backend } from "../../ipc";
 import { type AxisConfig, useConfig } from "../../app/config";
 import { formatDate } from "../../lib/dates";
 import { SLASH_COMMANDS } from "../editor/quickCommands";
+import { AiSettingsPanel } from "../ai/AiSettings";
 import "./settings.css";
 
-type Section = "appearance" | "daily" | "templates" | "commands";
+type Section = "appearance" | "daily" | "templates" | "commands" | "ai";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "appearance", label: "Appearance" },
   { id: "daily", label: "Daily notes" },
   { id: "templates", label: "Templates" },
   { id: "commands", label: "Quick commands" },
+  { id: "ai", label: "AI" },
 ];
 
 export function Settings({ onClose }: { onClose(): void }) {
@@ -60,6 +62,7 @@ export function Settings({ onClose }: { onClose(): void }) {
             </Field>
           )}
           {section === "commands" && <Commands config={config} set={set} />}
+          {section === "ai" && <AiSettingsPanel />}
         </div>
       </div>
     </div>

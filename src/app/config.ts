@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { backend, isBackendError } from "../ipc";
+import { type AiRule, backend, isBackendError } from "../ipc";
 
 // Per-vault settings in `.axis/config.json`. Unknown keys are preserved on save.
 
@@ -19,6 +19,8 @@ export interface FolderIcon {
 }
 
 export interface AxisConfig {
+  /** Per-folder AI access, enforced by the Rust AI layer (`src-tauri/src/ai/privacy.rs`). */
+  ai: { folders: Record<string, AiRule> };
   /** "system", "light", "dark", or the name of a theme in `.axis/themes/<name>.css`. */
   theme: string;
   /** Enabled CSS snippets from `.axis/snippets/<name>.css`. */
@@ -43,6 +45,7 @@ export interface AxisConfig {
 }
 
 export const DEFAULT_CONFIG: AxisConfig = {
+  ai: { folders: {} },
   theme: "system",
   snippets: [],
   folderIcons: {},

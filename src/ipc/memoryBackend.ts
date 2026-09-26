@@ -8,6 +8,7 @@ import {
   splitFrontmatter,
 } from "../lib/markdown";
 import { compareTasks, findTasks } from "../lib/tasks";
+import { createMemoryAi } from "./memoryAi";
 import type {
   Backend,
   BackendError,
@@ -41,6 +42,9 @@ const PREFIX: Record<ErrorCode, string> = {
   OutsideVault: "path is outside the vault: ",
   InvalidName: "invalid name: ",
   Io: "",
+  Blocked: "",
+  Ai: "",
+  Cancelled: "",
 };
 
 function fail(code: ErrorCode, detail: string): never {
@@ -253,7 +257,13 @@ export function createMemoryBackend(
         .map((l) => ({ source: n.path, text: n.text, link: l })),
     );
 
+  const ai = createMemoryAi((path) => {
+    const n = nodes.get(normalize(path));
+    return n && n.kind === "file" ? n.content : null;
+  });
+
   return {
+    ...ai,
     async pickFolder() {
       return "/memory";
     },
