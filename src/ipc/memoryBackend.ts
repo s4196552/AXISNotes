@@ -7,6 +7,7 @@ import {
   noteName,
   splitFrontmatter,
 } from "../lib/markdown";
+import { compareTasks, findTasks } from "../lib/tasks";
 import type {
   Backend,
   BackendError,
@@ -417,6 +418,12 @@ export function createMemoryBackend(
       }
       return out.sort((a, b) => (a.source < b.source ? -1 : 1));
     },
+    async listTasks() {
+      requireVault();
+      return notes()
+        .flatMap((n) => findTasks(n.text).map((t) => ({ ...t, path: n.path })))
+        .sort(compareTasks);
+    },
     async graph() {
       requireVault();
       const data: GraphData = { nodes: [], edges: [] };
@@ -529,6 +536,8 @@ export const DEMO_VAULT: Record<string, string> = {
     "# Biology\n\n## Cells\n\nThe *mitochondria* is the powerhouse of the cell.\n",
   "School/Math/Calculus.md": "# Calculus\n\n```\nd/dx x^2 = 2x\n```\n",
   "Personal/Ideas.md": "# Ideas\n\n1. Build AXIS\n2. Ship it\n",
+  "Personal/Todo.md":
+    "# Todo\n\n- [ ] Renew passport 📅 2026-09-20 ⏫\n- [ ] Call the dentist 📅 2026-09-26\n- [ ] Plan the trip 📅 2026-10-01 🔼 #travel\n- [ ] Read *Mitochondria* chapter #school\n- [x] Buy notebook ✅ 2026-09-25\n",
   "Personal/Budget.axgrid": JSON.stringify({
     version: 1,
     rows: 100,

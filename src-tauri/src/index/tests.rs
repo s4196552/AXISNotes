@@ -307,3 +307,31 @@ fn canvases_are_searchable_by_their_text_elements() {
     assert!(idx.search("removed", 10).unwrap().is_empty());
     assert_eq!(idx.canvas_paths().unwrap(), vec!["Boards/Study.axcanvas"]);
 }
+
+#[test]
+fn tasks_are_indexed_with_file_line_numbers() {
+    let (_d, vault, mut idx) = vault_with(&[
+        (
+            "Work.md",
+            "---\ntitle: Work\n---\n# Todo\n- [ ] Ship 📅 2026-10-02 🔽\n- [x] Plan\n```\n- [ ] in code\n```\n",
+        ),
+        ("Home.md", "- [ ] Rent 📅 2026-10-01\n- [ ] Groceries ⏫\n"),
+    ]);
+    let t = idx.tasks().unwrap();
+    let summary: Vec<(&str, usize, &str, bool)> = t
+        .iter()
+        .map(|t| (t.path.as_str(), t.line, t.text.as_str(), t.done))
+        .collect();
+    assert_eq!(
+        summary,
+        vec![
+            ("Home.md", 1, "Rent", false),
+            ("Work.md", 5, "Ship", false),
+            ("Home.md", 2, "Groceries", false),
+            ("Work.md", 6, "Plan", true),
+        ]
+    );
+    vault.write_file("Home.md", "nothing", None).unwrap();
+    idx.update_path(&vault, "Home.md").unwrap();
+    assert_eq!(idx.tasks().unwrap().len(), 2);
+}

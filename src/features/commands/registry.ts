@@ -60,6 +60,12 @@ registerCommands([
     shortcut: { key: "n", mod: true },
     run: () => void newNote(),
   },
+  {
+    id: "tasks",
+    label: "Open tasks",
+    shortcut: { key: "t", mod: true, shift: true },
+    run: () => useAppStore.getState().setMainView("tasks"),
+  },
   { id: "new-grid", label: "New grid (spreadsheet)", run: () => void newGrid() },
   { id: "new-canvas", label: "New canvas (whiteboard)", run: () => void newCanvas() },
   {

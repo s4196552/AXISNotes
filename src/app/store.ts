@@ -14,7 +14,7 @@ export interface OpenTarget {
 export type PendingTarget = OpenTarget & { path: string };
 
 export type LeftPanel = "files" | "search" | "tags";
-export type MainView = "note" | "graph";
+export type MainView = "note" | "graph" | "tasks";
 
 export interface AppState {
   vault: VaultInfo | null;

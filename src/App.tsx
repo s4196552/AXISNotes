@@ -11,6 +11,7 @@ import { Grid } from "./features/grid/Grid";
 import { Canvas } from "./features/canvas/Canvas";
 import { docKind } from "./lib/fileKinds";
 import { GraphView } from "./features/graph/GraphView";
+import { TasksView } from "./features/tasks/TasksView";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
 
 export default function App() {
@@ -68,6 +69,8 @@ export default function App() {
       <main className="content">
         {mainView === "graph" ? (
           <GraphView />
+        ) : mainView === "tasks" ? (
+          <TasksView />
         ) : activePath && docKind(activePath) === "grid" ? (
           <Grid key={activePath} path={activePath} />
         ) : activePath && docKind(activePath) === "canvas" ? (

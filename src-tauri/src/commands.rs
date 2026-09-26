@@ -11,6 +11,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::error::{AppError, AppResult};
 use crate::index::graph::GraphData;
 use crate::index::search::SearchHit;
+use crate::index::tasks::TaskRef;
 use crate::index::{rename, Backlink, Index, Mention, NoteRef, TagCount};
 use crate::vault::watcher::{self, ChangeKind, SelfWrites, VaultChange, VaultWatcher};
 use crate::vault::{FileContent, Vault, VaultEntry, VaultInfo, WriteResult};
@@ -236,6 +237,11 @@ pub async fn search(
 #[tauri::command]
 pub fn list_tags(state: State<AppState>) -> AppResult<Vec<TagCount>> {
     state.with_index(|idx| idx.tags())
+}
+
+#[tauri::command]
+pub fn list_tasks(state: State<AppState>) -> AppResult<Vec<TaskRef>> {
+    state.with_index(|idx| idx.tasks())
 }
 
 #[tauri::command]
