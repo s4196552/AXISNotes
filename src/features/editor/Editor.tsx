@@ -2,13 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { languages } from "@codemirror/language-data";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { Annotation, EditorState } from "@codemirror/state";
+import { Annotation, EditorSelection, EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, keymap } from "@codemirror/view";
 import { backend, isBackendError, type VaultChange } from "../../ipc";
 import { useAppStore } from "../../app/store";
+import { type Props, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
+import { links, refreshLinks, wikilinkCompletions } from "./links";
+import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
+import { PropertiesPanel } from "./PropertiesPanel";
 import { axisTheme } from "./theme";
 import "./editor.css";
 
@@ -50,6 +55,27 @@ export function Editor({ path }: EditorProps) {
 
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [banner, setBannerState] = useState<Banner>(null);
+  const [ready, setReady] = useState(false);
+  const [props, setProps] = useState<Props>({});
+  const propsJson = useRef("{}");
+
+  const syncProps = useCallback((state: EditorState) => {
+    const head = state.sliceDoc(0, Math.min(state.doc.length, 20_000));
+    const next = splitFrontmatter(head).props;
+    const json = JSON.stringify(next);
+    if (json !== propsJson.current) {
+      propsJson.current = json;
+      setProps(next);
+    }
+  }, []);
+
+  const changeProps = useCallback((next: Props) => {
+    const v = view.current;
+    if (!v) return;
+    const text = v.state.doc.toString();
+    const change = minimalChange(text, withFrontmatter(text, next));
+    if (change.from !== change.to || change.insert) v.dispatch({ changes: change });
+  }, []);
 
   const setBanner = useCallback((b: Banner) => {
     paused.current = b !== null;
@@ -77,6 +103,7 @@ export function Editor({ path }: EditorProps) {
         try {
           const res = await backend.writeFile(path, content, force ? undefined : mtime.current);
           mtime.current = res.modifiedMs;
+          useAppStore.getState().bumpIndex(); // tags/links may have changed
           if (v.state.doc.toString() === content) {
             dirty.current = false;
             setStatus("saved");
@@ -133,23 +160,35 @@ export function Editor({ path }: EditorProps) {
       .then((file) => {
         if (cancelled || !host.current) return;
         mtime.current = file.modifiedMs;
+        const store = useAppStore.getState;
         created = new EditorView({
           parent: host.current,
           state: EditorState.create({
             doc: file.content,
+            // Start below the frontmatter so it shows as the properties chip.
+            selection: EditorSelection.cursor(splitFrontmatter(file.content).length),
             extensions: [
               history(),
               drawSelection(),
               search({ top: true }),
               highlightSelectionMatches(),
-              autocompletion({ activateOnTyping: false }),
+              autocompletion({ override: [wikilinkCompletions] }),
               EditorView.lineWrapping,
-              markdown({ base: markdownLanguage, codeLanguages: languages }),
+              yamlFrontmatter({
+                content: markdown({ base: markdownLanguage, codeLanguages: languages }),
+              }),
               livePreview,
+              links({
+                openLink: (inner) => void store().openLink(inner, path),
+                openTag: (tag) => store().search(`tag:${tag}`),
+                isKnown: (target) => isKnownTarget(store().notes, target),
+                notes: () => store().notes,
+              }),
               axisTheme,
               keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
               EditorView.contentAttributes.of({ "aria-label": `Note ${titleOf(path)}` }),
               EditorView.updateListener.of((u) => {
+                if (u.docChanged) syncProps(u.state);
                 if (u.docChanged && !u.transactions.some((tr) => tr.annotation(fromDisk))) {
                   dirty.current = true;
                   setStatus("dirty");
@@ -161,7 +200,9 @@ export function Editor({ path }: EditorProps) {
           }),
         });
         view.current = created;
+        syncProps(created.state);
         setStatus("saved");
+        setReady(true);
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -183,7 +224,29 @@ export function Editor({ path }: EditorProps) {
       created?.destroy();
       view.current = null;
     };
-  }, [path, save, scheduleSave]);
+  }, [path, save, scheduleSave, syncProps]);
+
+  // Jump to a heading/block/line requested by the link that opened this note.
+  const pendingTarget = useAppStore((s) => s.pendingTarget);
+  useEffect(() => {
+    const v = view.current;
+    if (!ready || !v || pendingTarget?.path !== path) return;
+    const pos = findTarget(v.state, pendingTarget);
+    useAppStore.getState().clearPendingTarget();
+    if (pos !== null) {
+      v.dispatch({
+        selection: { anchor: pos },
+        effects: EditorView.scrollIntoView(pos, { y: "start", yMargin: 40 }),
+      });
+      v.focus();
+    }
+  }, [ready, pendingTarget, path]);
+
+  // Re-style links when notes appear or disappear.
+  const notes = useAppStore((s) => s.notes);
+  useEffect(() => {
+    view.current?.dispatch({ effects: refreshLinks.of(null) });
+  }, [notes]);
 
   // React to edits made outside the app.
   useEffect(() => {
@@ -262,6 +325,8 @@ export function Editor({ path }: EditorProps) {
           </button>
         </div>
       )}
+
+      {ready && <PropertiesPanel props={props} onChange={changeProps} />}
 
       <div ref={host} className="editor-host" />
     </div>

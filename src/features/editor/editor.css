@@ -135,3 +135,98 @@
 .cm-lp-fence {
   color: var(--fg-muted);
 }
+
+/* Wikilinks and tags */
+.cm-lp-wikilink {
+  color: var(--accent);
+  cursor: pointer;
+}
+.cm-lp-wikilink:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.cm-lp-unresolved {
+  opacity: 0.65;
+  text-decoration: underline dashed;
+  text-underline-offset: 2px;
+}
+.cm-lp-tag {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--accent);
+  font-size: 0.92em;
+  cursor: pointer;
+}
+.cm-lp-props-chip {
+  display: inline-block;
+  margin: 2px 0 8px;
+  padding: 1px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Properties panel */
+.props {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: calc(100% - 48px);
+  max-width: 712px;
+  margin: 6px auto 4px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.props-empty {
+  border-bottom: none;
+  padding: 0;
+}
+.props-row {
+  display: grid;
+  grid-template-columns: 140px 92px 1fr 28px;
+  align-items: center;
+  gap: 6px;
+}
+.props-key,
+.props-value,
+.props-type {
+  min-width: 0;
+  padding: 3px 6px;
+  font-size: 13px;
+}
+.props-key {
+  color: var(--fg-muted);
+  border-color: transparent;
+  background: transparent;
+}
+.props-key:hover,
+.props-key:focus {
+  border-color: var(--border);
+}
+.props-type {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg-muted);
+}
+.props-remove,
+.props-add {
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  padding: 3px 6px;
+  font-size: 13px;
+}
+.props-add {
+  justify-self: start;
+  width: fit-content;
+}
+.props-remove:hover,
+.props-add:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
