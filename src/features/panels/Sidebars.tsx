@@ -1,5 +1,6 @@
 import { FolderTree, Hash, Search } from "lucide-react";
 import { type LeftPanel, useAppStore } from "../../app/store";
+import { Calendar } from "../daily/Calendar";
 import { FileTree } from "../filetree";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { SearchPanel } from "./SearchPanel";
@@ -48,6 +49,7 @@ export function LeftSidebar() {
 export function RightSidebar() {
   return (
     <aside className="sidebar sidebar-right" aria-label="Links">
+      <Calendar />
       <div className="sidebar-body">
         <BacklinksPanel />
       </div>

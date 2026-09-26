@@ -230,3 +230,52 @@
   color: var(--fg);
   background: var(--bg-hover);
 }
+
+/* Page styles (frontmatter `axis-style`). Lines are 26px so paper lines up with text. */
+.page-lined .cm-scroller,
+.page-dotted .cm-scroller,
+.page-math-grid .cm-scroller,
+.page-cornell .cm-scroller {
+  line-height: 26px;
+}
+.page-lined .cm-content,
+.page-cornell .cm-content {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 25px,
+    var(--border) 25px,
+    var(--border) 26px
+  );
+  background-position: 0 8px;
+}
+.page-cornell .cm-content {
+  background-image:
+    linear-gradient(
+      to right,
+      transparent 150px,
+      var(--danger) 150px,
+      var(--danger) 151px,
+      transparent 151px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 25px,
+      var(--border) 25px,
+      var(--border) 26px
+    );
+}
+.page-math-grid .cm-content {
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 26px 26px;
+  background-position: 0 8px;
+}
+.page-dotted .cm-content {
+  background-image: radial-gradient(circle, var(--fg-muted) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+  background-position: 0 8px;
+  background-color: transparent;
+}
