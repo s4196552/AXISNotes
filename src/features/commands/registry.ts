@@ -1,7 +1,7 @@
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { effectiveMode } from "../../app/appearance";
-import { newNote, openDailyNote } from "./actions";
+import { copyBlockLink, newNote, openDailyNote } from "./actions";
 import { useUi } from "./ui";
 import { useEditorPrefs } from "../editor/prefs";
 
@@ -90,6 +90,17 @@ registerCommands([
     run: () => useUi.getState().open({ kind: "templates", mode: "new" }),
   },
   { id: "close-note", label: "Close note", run: () => useAppStore.getState().openFile(null) },
+  {
+    id: "copy-block-link",
+    label: "Copy link to block",
+    shortcut: { key: "b", mod: true, shift: true },
+    run: () => void copyBlockLink(false),
+  },
+  {
+    id: "copy-block-embed",
+    label: "Copy embed of block",
+    run: () => void copyBlockLink(true),
+  },
   {
     id: "outline-view",
     label: "Toggle outline view",

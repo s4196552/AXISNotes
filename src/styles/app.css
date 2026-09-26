@@ -132,3 +132,6 @@ input {
   border-top: 1px solid var(--border);
   background: var(--bg-sidebar);
 }
+.notice {
+  color: var(--accent);
+}

@@ -30,6 +30,8 @@ export interface AppState {
   searchQuery: string;
   /** Last user-facing error, shown in the status bar. */
   error: string | null;
+  /** Short-lived confirmation shown in the status bar. */
+  notice: string | null;
 
   openVault(path: string): Promise<void>;
   createVault(parentDir: string, name: string): Promise<void>;
@@ -53,7 +55,11 @@ export interface AppState {
   /** Call after a trash so an open note inside it is closed. */
   onEntryRemoved(path: string): void;
   setError(message: string | null): void;
+  /** Show a confirmation in the status bar for a few seconds. */
+  notify(message: string): void;
 }
+
+let noticeTimer: ReturnType<typeof setTimeout> | null = null;
 
 function describe(e: unknown): string {
   return isBackendError(e) ? e.message : String(e);
@@ -71,6 +77,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   leftPanel: "files",
   searchQuery: "",
   error: null,
+  notice: null,
 
   async openVault(path) {
     try {
@@ -165,5 +172,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setError(message) {
     set({ error: message });
+  },
+
+  notify(message) {
+    if (noticeTimer) clearTimeout(noticeTimer);
+    set({ notice: message });
+    noticeTimer = setTimeout(() => set({ notice: null }), 3000);
   },
 }));
