@@ -192,7 +192,9 @@ export function Editor({ path }: EditorProps) {
     const onChanges = (changes: VaultChange[]) => {
       for (const c of changes) {
         if (!c.paths.includes(path)) continue;
-        if (c.kind === "removed" || c.kind === "renamed") {
+        // For "renamed" ([from, to]) only moving *away* from this path removes the note.
+        const movedAway = c.kind === "renamed" && c.paths[0] === path;
+        if (c.kind === "removed" || movedAway) {
           // A rename done inside the app remounts the editor on the new path;
           // this only fires for moves/deletes made elsewhere.
           clearTimer();

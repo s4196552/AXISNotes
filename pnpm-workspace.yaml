@@ -1,0 +1,6 @@
+# Install scripts that pnpm may run. These only download browser drivers
+# (wdio auto-setup) or verify binaries; AXIS E2E uses tauri-driver instead.
+allowBuilds:
+  edgedriver: false
+  esbuild: false
+  geckodriver: false

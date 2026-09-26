@@ -35,6 +35,11 @@ impl AppState {
         Ok(())
     }
 
+    /// Open `path` as the vault at startup (used by `AXIS_OPEN_VAULT`, e.g. in E2E tests).
+    pub fn open_at_startup(&self, app: &AppHandle, path: &str) -> AppResult<VaultInfo> {
+        self.activate(app, Vault::open(&PathBuf::from(path))?)
+    }
+
     fn activate(&self, app: &AppHandle, vault: Vault) -> AppResult<VaultInfo> {
         let emitter = app.clone();
         let w = watcher::start(vault.clone(), self.self_writes.clone(), move |changes| {
@@ -88,7 +93,11 @@ pub fn write_file(
 ) -> AppResult<WriteResult> {
     let v = state.vault()?;
     state.touch(&v, &path)?;
-    v.write_file(&path, &content, expected_modified_ms)
+    let res = v.write_file(&path, &content, expected_modified_ms)?;
+    state
+        .self_writes
+        .record_write(&v.resolve(&path)?, res.modified_ms);
+    Ok(res)
 }
 
 #[tauri::command]

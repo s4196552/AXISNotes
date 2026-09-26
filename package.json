@@ -8,13 +8,15 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b --noEmit && tsc -p e2e --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:rust"
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:rust",
+    "e2e:build": "tauri build --debug --no-bundle",
+    "e2e": "wdio run e2e/wdio.conf.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -43,6 +45,11 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "@wdio/cli": "^9.32.0",
+    "@wdio/globals": "^9.31.3",
+    "@wdio/local-runner": "^9.32.0",
+    "@wdio/mocha-framework": "^9.32.0",
+    "@wdio/spec-reporter": "^9.32.0",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
@@ -52,7 +59,8 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.1",
     "vite": "^8.3.1",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "webdriverio": "^9.32.0"
   },
   "packageManager": "pnpm@12.6.0"
 }

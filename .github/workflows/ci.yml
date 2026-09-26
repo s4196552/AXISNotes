@@ -42,3 +42,28 @@ jobs:
         working-directory: src-tauri
       - run: cargo test
         working-directory: src-tauri
+
+  e2e-linux:
+    # Real app + real files via tauri-driver (WebKitWebDriver). Windows E2E runs locally
+    # with msedgedriver; see docs/DECISIONS.md.
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: System deps (Tauri, WebKitWebDriver, Xvfb)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb
+      - run: cargo install tauri-driver --locked
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm e2e:build
+      - run: xvfb-run pnpm e2e

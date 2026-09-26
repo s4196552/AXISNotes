@@ -52,6 +52,8 @@ export interface MemoryBackend extends Backend {
   externalWrite(path: string, content: string): void;
   /** Simulate another program deleting a file or folder (fires onVaultChanged). */
   externalRemove(path: string): void;
+  /** Emit raw watcher changes without touching files (for edge cases in tests). */
+  emitChanges(changes: VaultChange[]): void;
   /** Direct access for assertions in tests. */
   files(): Record<string, string>;
 }
@@ -204,6 +206,9 @@ export function createMemoryBackend(
       const p = normalize(path);
       for (const k of [...nodes.keys()]) if (k === p || k.startsWith(p + "/")) nodes.delete(k);
       listeners.forEach((l) => l([{ kind: "removed", paths: [p] }]));
+    },
+    emitChanges(changes) {
+      listeners.forEach((l) => l(changes));
     },
     files() {
       return Object.fromEntries(
