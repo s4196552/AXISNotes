@@ -68,7 +68,7 @@ describe("SearchPanel", () => {
     const list = await screen.findByRole("list", { name: "Search results" });
     await waitFor(() => expect(within(list).getAllByRole("button")).toHaveLength(1));
     expect(list.querySelector("mark")?.textContent).toBe("late");
-    expect(screen.getByText(/1 results/)).toBeInTheDocument();
+    expect(screen.getByText(/^1 result\b/)).toBeInTheDocument();
     fireEvent.click(within(list).getByRole("button"));
     expect(useAppStore.getState().activePath).toBe("Notes.md");
   });
