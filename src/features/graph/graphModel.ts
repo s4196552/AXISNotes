@@ -111,7 +111,7 @@ export function buildGraph(
       label: n.name,
       x: ((h % 10007) / 10007) * 100,
       y: (((h >>> 13) % 10007) / 10007) * 100,
-      size: 3 + Math.sqrt(d) * 2 + (id === opts.center ? 3 : 0),
+      size: 5 + Math.sqrt(d) * 3 + (id === opts.center ? 3 : 0),
       color: n.unresolved ? colors.muted : folderColor(folder, colors.accent),
       folder,
       unresolved: n.unresolved,

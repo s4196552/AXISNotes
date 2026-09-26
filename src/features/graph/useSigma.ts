@@ -14,6 +14,47 @@ const cssVar = (name: string, fallback: string) =>
 const SYNC_LIMIT = 400;
 const WORKER_MS = 2500;
 
+interface LabelData {
+  x: number;
+  y: number;
+  size: number;
+  label?: string | null;
+  color?: string;
+}
+
+/** Hover/highlight label drawn with theme colors (sigma's default is a white box). */
+function themedHoverDrawer(bg: string, fg: string, border: string) {
+  return (
+    ctx: CanvasRenderingContext2D,
+    data: LabelData,
+    settings: { labelSize: number; labelFont: string; labelWeight: string },
+  ) => {
+    const size = settings.labelSize;
+    ctx.font = `${settings.labelWeight} ${size}px ${settings.labelFont}`;
+    const label = data.label ?? "";
+    const width = label ? ctx.measureText(label).width + 10 : 0;
+    const h = size + 8;
+    const x = data.x + data.size + 4;
+    const y = data.y - h / 2;
+    ctx.fillStyle = bg;
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x - 2, y, width, h, 4);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(data.x, data.y, data.size + 2, 0, Math.PI * 2);
+    ctx.strokeStyle = data.color ?? fg;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (label) {
+      ctx.fillStyle = fg;
+      ctx.fillText(label, x + 3, data.y + size / 3);
+    }
+  };
+}
+
 /**
  * Lay out `graph` (mutating positions) and render it into `el`. Resolves to a disposer,
  * or null if `cancelled()` became true while the libraries were loading.
@@ -29,13 +70,15 @@ async function mountSigma(
   // A newer graph replaced this one while loading: don't start a second renderer.
   if (cancelled()) return null;
   const faded = cssVar("--border", "#e3e4e8");
+  const edgeColor = cssVar("--fg-muted", "#8d9199");
   const accent = cssVar("--accent", "#4f5bd5");
   let hovered: string | null = null;
 
   let layout: InstanceType<typeof FA2Layout> | null = null;
   let stopTimer: ReturnType<typeof setTimeout> | null = null;
   if (graph.order > 1) {
-    const settings = forceAtlas2.inferSettings(graph);
+    // Strong gravity keeps small graphs (and their orphans) compact.
+    const settings = { ...forceAtlas2.inferSettings(graph), strongGravityMode: true, gravity: 0.5 };
     if (graph.order <= SYNC_LIMIT) {
       forceAtlas2.assign(graph, { iterations: 150, settings });
     } else {
@@ -45,16 +88,27 @@ async function mountSigma(
     }
   }
 
-  const focus = () => hovered ?? highlight;
+  // Only hovering fades the rest; the open note is just emphasized.
+  const focus = () => hovered;
   const renderer = new Sigma(graph, el, {
     renderEdgeLabels: false,
     labelColor: { color: cssVar("--fg", "#1f2328") },
-    labelRenderedSizeThreshold: 7,
-    defaultEdgeColor: faded,
+    // Label everything in small graphs; only prominent nodes in big ones.
+    labelRenderedSizeThreshold: graph.order <= 200 ? 0 : 8,
+    defaultEdgeColor: edgeColor,
+    defaultDrawNodeHover: themedHoverDrawer(
+      cssVar("--bg-sidebar", "#f6f6f7"),
+      cssVar("--fg", "#1f2328"),
+      cssVar("--border", "#e3e4e8"),
+    ),
     zIndex: true,
     nodeReducer: (node, data) => {
       const f = focus();
-      if (!f || !graph.hasNode(f)) return data;
+      if (!f || !graph.hasNode(f)) {
+        return node === highlight
+          ? { ...data, forceLabel: true, highlighted: true, zIndex: 1 }
+          : data;
+      }
       if (node === f || graph.areNeighbors(node, f))
         return { ...data, zIndex: 1, forceLabel: node === f };
       return { ...data, color: faded, label: "", zIndex: 0 };

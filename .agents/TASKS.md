@@ -16,6 +16,11 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-010 | 1     | Themes, CSS snippets, folder icons, settings                               | claude | merged    | agent/claude/T-010 | `src/features/{icons,settings}/**`, `src/app/appearance.ts` |
 | T-011 | 1     | Phase 1 E2E (real app) + 5,000-note performance                            | claude | merged    | agent/claude/T-011 | `e2e/**` |
 
+| T-012 | 2     | Outliner: indent/outdent, move, fold, outline view with drag handles        | claude | merged    | agent/claude/T-012 | `src/features/editor/outliner*.ts`, `prefs.ts` |
+| T-013 | 2     | Block ids, `[[Note#^` completion, editable embeds, copy block link          | claude | merged    | agent/claude/T-013 | `src/lib/blocks.ts`, `src/features/editor/embeds.ts` |
+| T-014 | 2     | Graph view (global + local), Rust graph builder                             | claude | merged    | agent/claude/T-014 | `src/features/graph/**`, `src-tauri/src/index/graph.rs` |
+| T-015 | 2     | Phase 2 E2E + polish                                                        | claude | merged    | agent/claude/T-015 | `e2e/**` |
+
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
 _Codex could not run commands (Windows sandbox provisioning failed: `helper_sandbox_lock_failed`), so per the user Claude builds T-003/T-004 itself. Codex cross-reviews are owed once the sandbox is fixed._

@@ -58,6 +58,11 @@ const SEEDS: Record<string, (dir: string) => void> = {
       "# Cells\n\nThe mitochondria is the powerhouse of the cell. #biology\n",
     );
   },
+  blocks(dir) {
+    write(dir, "Groceries.md", "# Groceries\n\n- eggs\n- milk ^m1\n  - oat\n- bread\n");
+    write(dir, "Plan.md", "# Plan\n\nThis week:\n\n![[Groceries#^m1]]\n\nMore text.\n");
+    write(dir, "Outline.md", "- a\n- b\n  - b1\n- c\n");
+  },
   perf(dir) {
     const words = [
       "cell",

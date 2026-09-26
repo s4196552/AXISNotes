@@ -1,6 +1,7 @@
 import { CompletionContext } from "@codemirror/autocomplete";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { yamlFrontmatter } from "@codemirror/lang-yaml";
+import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import type { Decoration } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
@@ -37,6 +38,8 @@ function stateFor(doc: string, cursorLine = 1) {
   state = state.update({
     selection: EditorSelection.cursor(state.doc.line(cursorLine).from),
   }).state;
+  // Parse fully up front so results don't depend on the parser's time budget.
+  ensureSyntaxTree(state, state.doc.length, 10_000);
   return state;
 }
 
