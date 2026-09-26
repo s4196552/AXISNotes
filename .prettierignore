@@ -3,3 +3,6 @@ src-tauri/target
 src-tauri/gen
 pnpm-lock.yaml
 .agents
+
+# Recorded provider responses: kept byte-for-byte as recorded.
+src-tauri/src/ai/fixtures/
