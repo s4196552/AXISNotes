@@ -112,6 +112,11 @@ const SEEDS: Record<string, (dir: string) => void> = {
       "---\nflights: 420\nnights: 3\nrate: 95\ntotal: =flights + nights * rate\n---\n# Trip\n",
     );
   },
+  ai(dir) {
+    write(dir, "School/Bio.md", "# Bio\n\nMitochondria make ATP.\n");
+    write(dir, "Medical/scan.md", "# Scan\n\nPrivate results.\n");
+    write(dir, ".axis/config.json", JSON.stringify({ ai: { folders: { Medical: "never" } } }));
+  },
   perf(dir) {
     const words = [
       "cell",
@@ -176,6 +181,10 @@ export const config: WebdriverIO.Config = {
     // Read by the spec (same worker) and by the app launched through tauri-driver.
     process.env.AXIS_E2E_VAULT = vault;
     process.env.AXIS_OPEN_VAULT = vault;
+    // AI settings, model registry and request log go to a throwaway folder, and keys stay
+    // in memory, so tests never touch the user's settings or keychain.
+    process.env.AXIS_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "axis-e2e-config-"));
+    process.env.AXIS_AI_MEMORY_KEYS = "1";
     const native = findNativeDriver();
     const args = native ? ["--native-driver", native] : [];
     const bin = path.join(os.homedir(), ".cargo", "bin", "tauri-driver");
@@ -187,6 +196,10 @@ export const config: WebdriverIO.Config = {
 
   afterSession() {
     driver?.kill();
+    const config = process.env.AXIS_CONFIG_DIR;
+    if (config?.includes("axis-e2e-config-")) {
+      setTimeout(() => fs.rmSync(config, { recursive: true, force: true, maxRetries: 5 }), 500);
+    }
     const vault = process.env.AXIS_E2E_VAULT;
     if (vault?.includes("axis-e2e-")) {
       // The app may still hold files open for a moment after the session ends.
