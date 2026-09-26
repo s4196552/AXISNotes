@@ -125,6 +125,17 @@ describe("Editor", () => {
     await waitFor(() => expect(h.b.files()["Note.md"]).toMatch(/!$/));
   });
 
+  it("treats a rename onto this note as an edit, and a rename away as a move", async () => {
+    const { view } = await open();
+    act(() => h.b.externalWrite("Note.md", "saved by another editor"));
+    act(() => h.b.emitChanges([{ kind: "renamed", paths: ["Other.md", "Note.md"] }]));
+    await waitFor(() => expect(view.state.doc.toString()).toBe("saved by another editor"));
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    act(() => h.b.emitChanges([{ kind: "renamed", paths: ["Note.md", "Moved.md"] }]));
+    expect(await screen.findByRole("alert")).toHaveTextContent("moved or deleted");
+  });
+
   it("reports a missing note as an error", async () => {
     render(<Editor path="Missing.md" />);
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Save failed"));
