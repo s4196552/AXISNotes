@@ -1,7 +1,7 @@
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { effectiveMode } from "../../app/appearance";
-import { copyBlockLink, newNote, openDailyNote } from "./actions";
+import { copyBlockLink, newGrid, newNote, openDailyNote } from "./actions";
 import { useUi } from "./ui";
 import { useEditorPrefs } from "../editor/prefs";
 
@@ -60,6 +60,7 @@ registerCommands([
     shortcut: { key: "n", mod: true },
     run: () => void newNote(),
   },
+  { id: "new-grid", label: "New grid (spreadsheet)", run: () => void newGrid() },
   {
     id: "daily",
     label: "Open today's daily note",

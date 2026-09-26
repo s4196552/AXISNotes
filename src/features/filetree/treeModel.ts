@@ -1,4 +1,5 @@
 import type { VaultEntry } from "../../ipc";
+import { docKind, hiddenExt } from "../../lib/fileKinds";
 
 // Pure helpers for the file tree. Paths are vault-relative with "/" separators; root is "".
 
@@ -48,15 +49,15 @@ export function isMarkdown(name: string): boolean {
   return name.toLowerCase().endsWith(".md");
 }
 
-/** Files the editor can open. Others are shown dimmed. */
+/** Files the app can open (notes, grids). Others are shown dimmed. */
 export function isOpenable(entry: VaultEntry): boolean {
-  const n = entry.name.toLowerCase();
-  return entry.kind === "file" && (n.endsWith(".md") || n.endsWith(".txt"));
+  return entry.kind === "file" && docKind(entry.name) !== null;
 }
 
-/** Notes are shown without their `.md` extension. */
+/** Notes and grids are shown without their extension. */
 export function displayName(entry: VaultEntry): string {
-  return entry.kind === "file" && isMarkdown(entry.name) ? entry.name.slice(0, -3) : entry.name;
+  const ext = entry.kind === "file" ? hiddenExt(entry.name) : "";
+  return ext ? entry.name.slice(0, -ext.length) : entry.name;
 }
 
 /** `base + ext`, or `base N + ext` with the smallest N that isn't taken (case-insensitive). */
@@ -70,14 +71,14 @@ export function uniqueName(taken: Iterable<string>, base: string, ext = ""): str
 }
 
 /**
- * Final file name after an inline rename. Notes keep their `.md` extension when the
- * user leaves it out. Returns null when there is nothing to do.
+ * Final file name after an inline rename. Notes and grids keep their (hidden) extension
+ * when the user leaves it out. Returns null when there is nothing to do.
  */
 export function renamedName(entry: VaultEntry, input: string): string | null {
   const name = input.trim();
   if (!name) return null;
-  const final =
-    entry.kind === "file" && isMarkdown(entry.name) && !isMarkdown(name) ? `${name}.md` : name;
+  const ext = entry.kind === "file" ? hiddenExt(entry.name) : "";
+  const final = ext && !name.toLowerCase().endsWith(ext.toLowerCase()) ? name + ext : name;
   return final === entry.name ? null : final;
 }
 

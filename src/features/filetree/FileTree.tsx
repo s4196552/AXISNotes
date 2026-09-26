@@ -9,8 +9,11 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  Sheet,
 } from "lucide-react";
 import { backend, isBackendError, type VaultEntry } from "../../ipc";
+import { docKind, GRID_EXT } from "../../lib/fileKinds";
+import { emptySheet, serializeSheet } from "../../lib/formula/sheet";
 import { useAppStore } from "../../app/store";
 import { type FolderIcon, useConfig } from "../../app/config";
 import { useUi } from "../commands/ui";
@@ -113,10 +116,12 @@ export function FileTree() {
     (findEntry(latest.current.tree, dir)?.children ?? []).map((c) => c.name);
 
   const createNote = useCallback(
-    (dir: string) =>
+    (dir: string, kind: "note" | "grid" = "note") =>
       run(async () => {
-        const path = joinPath(dir, uniqueName(childNames(dir), "Untitled", ".md"));
-        await backend.createFile(path, "");
+        const grid = kind === "grid";
+        const name = uniqueName(childNames(dir), "Untitled", grid ? GRID_EXT : ".md");
+        const path = joinPath(dir, name);
+        await backend.createFile(path, grid ? serializeSheet(emptySheet()) : "");
         if (dir) toggle(dir, true);
         const store = useAppStore.getState();
         await store.refreshTree();
@@ -358,6 +363,11 @@ export function FileTree() {
             close={setMenu}
           />
           <MenuItem
+            label="New grid here"
+            onClick={() => void createNote(menuDir, "grid")}
+            close={setMenu}
+          />
+          <MenuItem
             label="New folder here"
             onClick={() => void createFolder(menuDir)}
             close={setMenu}
@@ -433,7 +443,15 @@ const TreeRow = memo(function TreeRow({
 }: TreeRowProps) {
   const isDir = entry.kind === "dir";
   const openable = isOpenable(entry);
-  const Icon = isDir ? (expanded ? FolderOpen : Folder) : openable ? FileText : File;
+  const Icon = isDir
+    ? expanded
+      ? FolderOpen
+      : Folder
+    : docKind(entry.name) === "grid"
+      ? Sheet
+      : openable
+        ? FileText
+        : File;
   const classes = [
     "filetree-row",
     selected && "selected",

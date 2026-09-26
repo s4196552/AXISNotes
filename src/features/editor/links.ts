@@ -10,6 +10,8 @@ import {
   WidgetType,
 } from "@codemirror/view";
 import type { NoteRef } from "../../ipc";
+
+type Tree = ReturnType<typeof syntaxTree>;
 import { parseWikilinkInner, splitFrontmatter } from "../../lib/markdown";
 
 // Wikilinks, #tags and frontmatter in the editor: live-preview rendering, click-to-open,
@@ -44,15 +46,8 @@ const BLOCK_ID_RE = /[ \t]\^[A-Za-z0-9-]+[ \t]*$/gm;
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 
 /** True if `pos` sits in code, a URL, or frontmatter — where links and tags don't apply. */
-function inCodeOrMeta(state: EditorState, pos: number): boolean {
-  for (
-    let node: ReturnType<typeof syntaxTree>["topNode"] | null = syntaxTree(state).resolveInner(
-      pos,
-      1,
-    );
-    node;
-    node = node.parent
-  ) {
+function inCodeOrMeta(tree: Tree, pos: number): boolean {
+  for (let node: Tree["topNode"] | null = tree.resolveInner(pos, 1); node; node = node.parent) {
     const n = node.name;
     if (
       n === "InlineCode" ||
@@ -85,7 +80,10 @@ export function buildLinkDecorations(
 ): DecorationSet {
   const host = state.facet(linkHost);
   // Make sure the tree covers the ranges, so code/frontmatter are recognized reliably.
-  ensureSyntaxTree(state, Math.max(0, ...ranges.map((r) => r.to)), 200);
+  // (Use the returned tree: `syntaxTree(state)` stays whatever was parsed when the state
+  // was created, which can be partial for a large or slow first parse.)
+  const tree =
+    ensureSyntaxTree(state, Math.max(0, ...ranges.map((r) => r.to)), 200) ?? syntaxTree(state);
   const active = focused ? activeLineNumbers(state) : new Set<number>();
   const out: Range<Decoration>[] = [];
   for (const { from, to } of ranges) {
@@ -93,7 +91,7 @@ export function buildLinkDecorations(
     for (const m of text.matchAll(WIKILINK_RE)) {
       const start = from + m.index;
       const end = start + m[0].length;
-      if (inCodeOrMeta(state, start)) continue;
+      if (inCodeOrMeta(tree, start)) continue;
       const bang = m[1]!.length;
       const inner = m[2]!;
       const link = parseWikilinkInner(inner);
@@ -113,14 +111,14 @@ export function buildLinkDecorations(
     for (const m of text.matchAll(BLOCK_ID_RE)) {
       const start = from + m.index;
       const line = state.doc.lineAt(start).number;
-      if (active.has(line) || inCodeOrMeta(state, start + 1)) continue;
+      if (active.has(line) || inCodeOrMeta(tree, start + 1)) continue;
       out.push(hide.range(start, start + m[0].length));
     }
     for (const m of text.matchAll(TAG_RE)) {
       const tag = m[2]!.replace(/\/+$/, "");
       if (!tag || /^\d+$/.test(tag)) continue;
       const start = from + m.index + m[1]!.length;
-      if (inCodeOrMeta(state, start)) continue;
+      if (inCodeOrMeta(tree, start)) continue;
       out.push(
         Decoration.mark({
           class: "cm-lp-tag",

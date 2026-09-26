@@ -117,8 +117,23 @@ pub(crate) fn strip_md(s: &str) -> &str {
     }
 }
 
-fn is_note(name: &str) -> bool {
-    name.len() > 3 && name[name.len() - 3..].eq_ignore_ascii_case(".md")
+fn has_ext(name: &str, ext: &str) -> bool {
+    name.len() > ext.len() && name[name.len() - ext.len()..].eq_ignore_ascii_case(ext)
+}
+
+/// Markdown notes: parsed for links, tags and properties.
+pub(crate) fn is_note(name: &str) -> bool {
+    has_ext(name, ".md")
+}
+
+/// Grids (`.axgrid`): only their cell text is indexed, for search.
+pub(crate) fn is_grid(name: &str) -> bool {
+    has_ext(name, ".axgrid")
+}
+
+/// Files that get a row in the index.
+pub(crate) fn is_indexed(name: &str) -> bool {
+    is_note(name) || is_grid(name)
 }
 
 fn parent_dir(path: &str) -> &str {
@@ -216,7 +231,7 @@ impl Index {
         if abs.is_dir() {
             return self.sync(vault);
         }
-        if !is_note(rel) || !abs.is_file() {
+        if !is_indexed(rel) || !abs.is_file() {
             return self.remove_path(rel);
         }
         let text = std::fs::read_to_string(&abs)?;
@@ -474,6 +489,7 @@ impl Index {
             }
         }
         candidates.remove(path);
+        candidates.retain(|p| is_note(p)); // mentions are only linkable in Markdown
         let mut sources: Vec<String> = candidates.into_iter().collect();
         sources.sort();
         for source in sources {
@@ -598,7 +614,7 @@ fn collect_notes(vault: &Vault, dir: &Path, out: &mut HashMap<String, u64>) -> A
         let path = entry.path();
         if meta.is_dir() {
             collect_notes(vault, &path, out)?;
-        } else if is_note(&name) {
+        } else if is_indexed(&name) {
             if let Some(rel) = vault.to_rel(&path) {
                 out.insert(rel, modified_ms(&meta));
             }
@@ -622,7 +638,15 @@ fn remove_in(tx: &rusqlite::Transaction, path: &str) -> AppResult<()> {
 }
 
 fn upsert_in(tx: &rusqlite::Transaction, path: &str, mtime: u64, text: &str) -> AppResult<()> {
-    let note = parse::parse(text);
+    let note = if is_grid(path) {
+        let base = path.rsplit('/').next().unwrap_or(path);
+        parse::ParsedNote {
+            title: Some(base[..base.len() - ".axgrid".len()].to_string()),
+            ..parse::parse_grid(text)
+        }
+    } else {
+        parse::parse(text)
+    };
     let name = note_name(path);
     let props = serde_json::Value::Object(note.props.clone()).to_string();
     let fm_lines = text[..note.frontmatter_len].matches('\n').count() as i64;
