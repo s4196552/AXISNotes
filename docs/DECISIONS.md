@@ -2,6 +2,25 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-26: Phase 1 editor, panels, commands and customization (T-007 – T-011)
+
+- **Frontmatter is parsed as YAML inside the editor** (`@codemirror/lang-yaml`'s `yamlFrontmatter`), so Lezer no longer reads `---` blocks as setext headings. The block is folded behind a "Properties" chip unless the cursor is in it; the **properties panel** edits it with typed controls (text, number, checkbox, date, list). The editor document stays the single source of truth: panel edits become minimal document changes, and **only changed keys are rewritten**, so untouched values keep their YAML formatting (found by E2E: `aliases: [PA]` was being reflowed).
+- **Wikilinks in live preview:** brackets and `target|` hidden off the cursor line; unresolved links styled as dashed; click follows (Ctrl/Cmd-click on the line being edited); missing notes are created at the vault root, like Obsidian. Jump targets (`#heading`, `#^block`, line) are **bound to the note they were requested for**, so a stale target can't be consumed by another editor.
+- **Search / Tags / Files** share the left sidebar; **calendar + backlinks + unlinked mentions** the right. Panels re-query when the store's `indexVersion` is bumped (after the app's own saves, creates, renames, and watcher events). Linking an unlinked mention re-reads the file and verifies the text at the offsets before writing, with optimistic concurrency.
+- **Commands:** one registry drives the palette (Ctrl+P) and global shortcuts (captured before the editor): Ctrl+O switcher, Ctrl+N new note, Ctrl+Shift+D daily note, Ctrl+Shift+F search, Ctrl+Alt+T insert template, Ctrl+, settings.
+- **`/` and `:` quick commands** are CodeMirror completion sources configured through a facet; triggers, disabled built-ins and custom snippets live in `.axis/config.json` and update live. Emoji data (emojilib) is **lazy-loaded** (174 kB chunk, not in the startup bundle). The `:` trigger needs two letters, so `10:30` doesn't open it.
+- **Templates:** built-ins plus notes in `Templates/`; variables `{{title}} {{date[:fmt]}} {{time[:fmt]}} {{prompt:Q}} {{cursor}}`; inserting merges the template's properties into the note. **Page styles** (`axis-style: lined | dotted | math-grid | cornell`) are CSS backgrounds on a 26 px line grid.
+- **Daily notes:** folder, moment-style file-name format, template and open-on-startup are configurable; the calendar marks days with notes.
+- **Customization:** theme = system / light / dark / a user theme (`.axis/themes/<name>.css`, overriding the CSS variables); CSS snippets from `.axis/snippets/`. Folder/note icons are a **curated Lucide set** (importing all icons would bloat the bundle) or any emoji, with colors; icon settings follow renames and are removed on trash.
+- **`.axis/config.json`** is merged over defaults (wrong-typed values ignored, unknown keys preserved) and saved on every settings change.
+- **E2E:** each spec gets a fresh vault seeded by its file name (`vault`, `knowledge`, `perf`). The perf spec generates 5,000 notes. Specs save QA screenshots to `.agents/qa/phase-N/` (gitignored).
+- **Measured in the real app (debug build, 5,000 notes):** searches 7–12 ms including IPC; quick-switcher filter ~96 ms including WebDriver typing; vault visible ~2.2 s after launch.
+
+| Package               | Version | License | Purpose                                        |
+| --------------------- | ------- | ------- | ---------------------------------------------- |
+| @codemirror/lang-yaml | 6.1     | MIT     | Frontmatter parsing in the editor              |
+| emojilib              | 4.0     | MIT     | `:` emoji picker and emoji icons (lazy-loaded) |
+
 ## 2026-09-26: Phase 1 index and search (T-006)
 
 - **SQLite index in `.axis/index.db`** (rusqlite, bundled SQLite): tables `notes`, `links`, `tags`, `aliases` and an FTS5 table (`title`, `body`; `unicode61 remove_diacritics 2`). It is a cache: a schema-version mismatch or a corrupt file is dropped and rebuilt from the Markdown files. On open it re-indexes only files whose mtime changed.

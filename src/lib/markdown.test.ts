@@ -24,6 +24,11 @@ describe("markdown helpers", () => {
       "---\n# keep me\nb: 3\na: 2\nc: new\n---\nBody",
     );
     expect(withFrontmatter(text, {})).toBe("Body");
+    // Untouched values keep their formatting.
+    const flow = "---\nstatus: draft\naliases: [PA]\n---\nB";
+    expect(withFrontmatter(flow, { status: "done", aliases: ["PA"] })).toBe(
+      "---\nstatus: done\naliases: [PA]\n---\nB",
+    );
     expect(withFrontmatter("Body", { status: "draft" })).toBe("---\nstatus: draft\n---\n\nBody");
   });
 

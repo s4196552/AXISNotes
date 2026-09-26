@@ -50,11 +50,17 @@ export function withFrontmatter(text: string, props: Props): string {
     try {
       const doc = parseDocument(fm.yaml);
       if (!isMap(doc.contents)) throw new Error("not a map");
-      for (const key of Object.keys((doc.toJS() as Props) ?? {})) {
+      const existing = (doc.toJS() as Props) ?? {};
+      for (const key of Object.keys(existing)) {
         if (!(key in props)) doc.delete(key);
       }
-      for (const key of keys) doc.set(key, props[key]);
-      yaml = doc.toString();
+      // Only touch changed keys, so untouched values keep their formatting (e.g. `[a, b]`).
+      for (const key of keys) {
+        if (!(key in existing) || JSON.stringify(existing[key]) !== JSON.stringify(props[key])) {
+          doc.set(key, props[key]);
+        }
+      }
+      yaml = doc.toString({ flowCollectionPadding: false });
     } catch {
       yaml = stringify(props);
     }

@@ -58,10 +58,10 @@ export function SearchPanel() {
       </label>
       {error && <p className="panel-note error">{error}</p>}
       {hits && (
-        <p className="panel-note muted" aria-live="polite">
+        <p className="panel-note muted search-summary" aria-live="polite">
           {hits.length === 0
             ? "No results"
-            : `${hits.length}${hits.length === 100 ? "+" : ""} results`}
+            : `${hits.length}${hits.length === 100 ? "+" : ""} ${hits.length === 1 ? "result" : "results"}`}
           {ms !== null && hits.length > 0 && ` · ${Math.round(ms)} ms`}
         </p>
       )}
