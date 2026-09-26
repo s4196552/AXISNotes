@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{strip_md, Index, LinkSite};
+use super::{is_indexed, strip_md, Index, LinkSite};
 use crate::error::AppResult;
 use crate::vault::{Vault, VaultEntry};
 
@@ -10,10 +10,6 @@ pub struct RenameOutcome {
     pub entry: VaultEntry,
     /// Notes whose content was rewritten (new paths).
     pub updated: Vec<String>,
-}
-
-fn is_note(p: &str) -> bool {
-    p.len() > 3 && p[p.len() - 3..].eq_ignore_ascii_case(".md")
 }
 
 fn basename_no_md(p: &str) -> &str {
@@ -40,7 +36,7 @@ pub fn rename_with_links(
                 (p, new)
             })
             .collect()
-    } else if is_note(from) {
+    } else if is_indexed(from) {
         vec![(from.to_string(), to.to_string())]
     } else {
         Vec::new()

@@ -36,6 +36,30 @@ pub struct ParsedNote {
     pub body: String,
 }
 
+/// A `.axgrid` file: the body is the text of its non-formula cells, one per line.
+/// Invalid JSON indexes as empty rather than failing the whole sync.
+pub fn parse_grid(text: &str) -> ParsedNote {
+    let mut note = ParsedNote::default();
+    let Ok(json) = serde_json::from_str::<Value>(text) else {
+        return note;
+    };
+    if let Some(cells) = json.get("cells").and_then(Value::as_object) {
+        let mut lines: Vec<String> = Vec::new();
+        for v in cells.values() {
+            let s = match v {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                _ => continue,
+            };
+            if !s.is_empty() && !s.starts_with('=') {
+                lines.push(s);
+            }
+        }
+        note.body = lines.join("\n");
+    }
+    note
+}
+
 pub fn parse(text: &str) -> ParsedNote {
     let mut note = ParsedNote::default();
     let (props, fm_len) = frontmatter(text);

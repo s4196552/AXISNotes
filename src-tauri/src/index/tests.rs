@@ -254,3 +254,40 @@ fn perf_search_5000_notes() {
     );
     assert!(t.elapsed().as_millis() < 500);
 }
+
+#[test]
+fn grids_are_searchable_by_cell_text_but_not_formulas() {
+    let grid =
+        r#"{"version":1,"rows":10,"cols":5,"cells":{"A1":"Groceries","B1":42,"C1":"=SUM(B1:B2)"}}"#;
+    let (_d, vault, mut idx) = vault_with(&[("Budget.axgrid", grid), ("Note.md", "plain")]);
+    let hits = idx.search("groceries", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].path, "Budget.axgrid");
+    assert_eq!(hits[0].title, "Budget");
+    assert!(idx.search("SUM", 10).unwrap().is_empty());
+    assert_eq!(idx.search("42", 10).unwrap().len(), 1);
+
+    // A grid can be linked with its extension.
+    assert_eq!(
+        idx.resolve("Budget.axgrid", "Note.md").unwrap().as_deref(),
+        Some("Budget.axgrid")
+    );
+
+    // Invalid JSON indexes as empty instead of failing.
+    vault.write_file("Budget.axgrid", "{oops", None).unwrap();
+    idx.update_path(&vault, "Budget.axgrid").unwrap();
+    assert!(idx.search("groceries", 10).unwrap().is_empty());
+}
+
+#[test]
+fn unlinked_mentions_ignore_grids() {
+    let grid = r#"{"cells":{"A1":"Alpha plan"}}"#;
+    let (_d, vault, idx) = vault_with(&[
+        ("Alpha.md", ""),
+        ("Sheet.axgrid", grid),
+        ("Doc.md", "about Alpha"),
+    ]);
+    let m = idx.unlinked_mentions(&vault, "Alpha.md").unwrap();
+    assert_eq!(m.len(), 1);
+    assert_eq!(m[0].source, "Doc.md");
+}

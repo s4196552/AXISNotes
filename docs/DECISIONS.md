@@ -2,6 +2,23 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-26: Phase 3 grids, canvases and structured data (T-016 – T-019)
+
+- **Formula engine: our own parser and evaluator plus `@formulajs/formulajs` (MIT) for the function library.** HyperFormula is GPLv3 or commercial, so it is ruled out. The parser is a small Pratt parser with Excel precedence (comparison < `&` < `+ -` < `* /` < `^` < unary/percent, with `^` right-associative). It handles A1 refs with `$`, ranges, dotted function names and bare names (for computed properties). Evaluation uses Excel error values (`#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#N/A`, `#NUM!`, `#CIRC!`, `#ERROR!`). `IF` is lazy, and `IFERROR`/`IFNA`/`IS*` are native because formula.js only recognizes its own error objects. Everything else is looked up in formula.js.
+- **`.axgrid` format**: `{ version: 1, rows, cols, cells: { "A1": raw }, widths: { "A": px }, formats: { "A1": { bold, align } } }`. `raw` is exactly what the user typed (a formula starts with `=`). Computed values are **never stored**, so the file is the single source of truth. Cells are serialized in row-major order so diffs stay stable. Parsing is lenient, and a file that fails to parse opens **read-only and is never autosaved**, so it can't be clobbered.
+- **Recalculation** evaluates the whole sheet each time, with memoization and cycle detection (`#CIRC!`). That is instant at note-sized sheets. A dependency graph can come later if large grids need it.
+- **Structural edits shift formulas like Excel**: inserting rows or columns moves the references behind them, and references into a deleted span become `#REF!`. Copy/paste within AXIS carries the raw cells (a custom clipboard type) and offsets relative references, while `$` parts stay put. Everything else is plain TSV (values), for Excel and Sheets interop.
+- **Grid UI** is a hand-rolled, row-virtualized DOM grid with sticky headers: no grid dependency, and it follows the app's theme tokens.
+  - Keyboard follows Google Sheets: typing replaces the cell, Enter/F2 edit, Enter/Tab commit and move, and arrows commit a quick edit.
+  - Undo/redo keeps whole-sheet snapshots (200).
+  - Load, autosave and conflict handling are shared with future file-backed views through `useFileDocument`, which uses the same rules as the Markdown editor.
+- **Search covers grids**: the Rust index gives `.axgrid` files a row whose FTS body is their non-formula cell text and whose title is the file stem. Grids have no links or tags, can be linked as `[[Budget.axgrid]]`, keep incoming links on rename, and are excluded as unlinked-mention sources.
+- **Fix:** link decorations now use the tree returned by `ensureSyntaxTree`. Before, `syntaxTree(state)` returned whatever was parsed when the state was created, so code and frontmatter detection flaked under load.
+
+| Package              | Version | License | Purpose                      |
+| -------------------- | ------- | ------- | ---------------------------- |
+| @formulajs/formulajs | 4.6     | MIT     | Spreadsheet function library |
+
 ## 2026-09-26: Phase 2 outliner, block references, embeds and graph (T-012 – T-015)
 
 - **Outliner on plain Markdown.** No separate data model: operations work on list items (with nested children) and heading sections found from the text. Tab / Shift-Tab indent under the previous sibling's content column or out to the parent's level (CommonMark-correct for `-` and `1.` lists); Alt+↑/↓ swap with siblings; list items and sections fold. "Outline view" (per-viewer preference) adds a fold gutter and drag handles; a drop re-indents to the target's level.

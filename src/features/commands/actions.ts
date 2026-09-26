@@ -4,6 +4,8 @@ import { type AxisConfig, useConfig } from "../../app/config";
 import { formatDate } from "../../lib/dates";
 import { noteName, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { ensureBlockId } from "../../lib/blocks";
+import { GRID_EXT } from "../../lib/fileKinds";
+import { emptySheet, serializeSheet } from "../../lib/formula/sheet";
 import { getActiveEditor } from "../editor/activeEditor";
 import { minimalChange } from "../editor/targets";
 import {
@@ -32,9 +34,10 @@ export async function createUniqueNote(
   folder: string,
   base: string,
   content: string,
+  ext = ".md",
 ): Promise<string> {
   for (let i = 0; i < 1000; i++) {
-    const path = join(folder, `${i === 0 ? base : `${base} ${i}`}.md`);
+    const path = join(folder, `${i === 0 ? base : `${base} ${i}`}${ext}`);
     try {
       await backend.createFile(path, content);
       return path;
@@ -50,6 +53,16 @@ const lineOfOffset = (text: string, offset: number) => text.slice(0, offset).spl
 export async function newNote(title = "Untitled", folder = currentFolder()) {
   try {
     const path = await createUniqueNote(folder, title, "");
+    await useAppStore.getState().refreshTree();
+    useAppStore.getState().openFile(path);
+  } catch (e) {
+    report(e);
+  }
+}
+
+export async function newGrid(title = "Untitled", folder = currentFolder()) {
+  try {
+    const path = await createUniqueNote(folder, title, serializeSheet(emptySheet()), GRID_EXT);
     await useAppStore.getState().refreshTree();
     useAppStore.getState().openFile(path);
   } catch (e) {

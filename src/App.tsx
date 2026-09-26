@@ -7,6 +7,8 @@ import { openDailyNote } from "./features/commands/actions";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
 import { Editor } from "./features/editor";
+import { Grid } from "./features/grid/Grid";
+import { docKind } from "./lib/fileKinds";
 import { GraphView } from "./features/graph/GraphView";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
 
@@ -65,6 +67,8 @@ export default function App() {
       <main className="content">
         {mainView === "graph" ? (
           <GraphView />
+        ) : activePath && docKind(activePath) === "grid" ? (
+          <Grid key={activePath} path={activePath} />
         ) : activePath ? (
           <Editor key={activePath} path={activePath} />
         ) : (

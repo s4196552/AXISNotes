@@ -61,12 +61,14 @@ describe("treeModel", () => {
     expect(renamedName(file("a.md"), "  a ")).toBeNull();
     expect(renamedName(file("a.md"), "   ")).toBeNull();
     expect(renamedName(file("pic.png"), "photo.png")).toBe("photo.png");
+    expect(renamedName(file("Budget.axgrid"), "Costs")).toBe("Costs.axgrid");
     expect(renamedName(dir("Old", []), "New")).toBe("New");
   });
 
   it("shows notes without .md", () => {
     expect(displayName(file("x/Note.md"))).toBe("Note");
     expect(displayName(file("x/data.csv"))).toBe("data.csv");
+    expect(displayName(file("Budget.axgrid"))).toBe("Budget");
   });
 
   it("rejects moves into self, descendants, or the current folder", () => {
