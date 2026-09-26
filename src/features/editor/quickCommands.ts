@@ -109,6 +109,30 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     run: (v, f, t) => insert(v, f, t, formatDate(new Date(), "YYYY-MM-DD")),
   },
   {
+    id: "due",
+    label: "Due date",
+    detail: "📅 today",
+    run: (v, f, t) => insert(v, f, t, `📅 ${formatDate(new Date(), "YYYY-MM-DD")}`),
+  },
+  {
+    id: "priority-high",
+    label: "Priority: high",
+    detail: "⏫",
+    run: (v, f, t) => insert(v, f, t, "⏫"),
+  },
+  {
+    id: "priority-medium",
+    label: "Priority: medium",
+    detail: "🔼",
+    run: (v, f, t) => insert(v, f, t, "🔼"),
+  },
+  {
+    id: "priority-low",
+    label: "Priority: low",
+    detail: "🔽",
+    run: (v, f, t) => insert(v, f, t, "🔽"),
+  },
+  {
     id: "time",
     label: "Current time",
     run: (v, f, t) => insert(v, f, t, formatDate(new Date(), "HH:mm")),

@@ -5,6 +5,7 @@ pub mod graph;
 pub mod parse;
 pub mod rename;
 pub mod search;
+pub mod tasks;
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -15,7 +16,7 @@ use serde::Serialize;
 use crate::error::{AppError, AppResult};
 use crate::vault::{is_hidden_name, modified_ms, Vault, META_DIR};
 
-const SCHEMA_VERSION: i32 = 1;
+const SCHEMA_VERSION: i32 = 2;
 
 const SCHEMA: &str = "
 CREATE TABLE notes(
@@ -45,6 +46,12 @@ CREATE INDEX tags_tag ON tags(tag);
 CREATE INDEX tags_note ON tags(note_id);
 CREATE TABLE aliases(note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE, alias TEXT NOT NULL);
 CREATE INDEX aliases_alias ON aliases(alias);
+CREATE TABLE tasks(
+  note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  line INTEGER NOT NULL, raw TEXT NOT NULL, text TEXT NOT NULL,
+  done INTEGER NOT NULL, due TEXT, priority INTEGER NOT NULL
+);
+CREATE INDEX tasks_note ON tasks(note_id);
 CREATE VIRTUAL TABLE fts USING fts5(title, body, tokenize = 'unicode61 remove_diacritics 2');
 ";
 
@@ -195,7 +202,7 @@ impl Index {
             .map_err(db_err)?;
         if version != SCHEMA_VERSION {
             conn.execute_batch(
-                "DROP TABLE IF EXISTS links; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS aliases;
+                "DROP TABLE IF EXISTS links; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS aliases; DROP TABLE IF EXISTS tasks;
                  DROP TABLE IF EXISTS notes; DROP TABLE IF EXISTS fts;",
             )
             .map_err(db_err)?;
@@ -686,7 +693,7 @@ fn upsert_in(tx: &rusqlite::Transaction, path: &str, mtime: u64, text: &str) -> 
                 params![id, name, note.title, mtime as i64, note.frontmatter_len as i64, props, fm_lines],
             )
             .map_err(db_err)?;
-            for table in ["links", "tags", "aliases"] {
+            for table in ["links", "tags", "aliases", "tasks"] {
                 tx.execute(&format!("DELETE FROM {table} WHERE note_id = ?1"), [id])
                     .map_err(db_err)?;
             }
@@ -737,6 +744,24 @@ fn upsert_in(tx: &rusqlite::Transaction, path: &str, mtime: u64, text: &str) -> 
             .map_err(db_err)?;
         for a in &note.aliases {
             alias_stmt.execute(params![id, a]).map_err(db_err)?;
+        }
+        let mut task_stmt = tx
+            .prepare_cached(
+                "INSERT INTO tasks(note_id, line, raw, text, done, due, priority) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )
+            .map_err(db_err)?;
+        for t in &note.tasks {
+            task_stmt
+                .execute(params![
+                    id,
+                    t.line as i64,
+                    t.raw,
+                    t.text,
+                    t.done as i64,
+                    t.due,
+                    t.priority as i64
+                ])
+                .map_err(db_err)?;
         }
     }
     let title = note

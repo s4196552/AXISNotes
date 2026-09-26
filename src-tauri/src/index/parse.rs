@@ -32,6 +32,7 @@ pub struct ParsedNote {
     pub tags: Vec<String>,
     pub aliases: Vec<String>,
     pub block_ids: Vec<String>,
+    pub tasks: Vec<super::tasks::ParsedTask>,
     /// Body text for full-text search (content after the frontmatter).
     pub body: String,
 }
@@ -90,10 +91,12 @@ pub fn parse(text: &str) -> ParsedNote {
     let mut tags: Vec<String> = Vec::new();
     let mut fence: Option<(char, usize)> = None;
     let mut offset = fm_len;
+    let mut line_no = text[..fm_len].matches('\n').count();
     for raw_line in body.split_inclusive('\n') {
         let line = raw_line.trim_end_matches(['\n', '\r']);
         let line_start = offset;
         offset += raw_line.len();
+        line_no += 1;
 
         let trimmed = line.trim_start();
         if let Some((ch, n)) = fence_marker(trimmed) {
@@ -122,6 +125,9 @@ pub fn parse(text: &str) -> ParsedNote {
         }
         if let Some(id) = block_id(line) {
             note.block_ids.push(id);
+        }
+        if let Some(task) = super::tasks::parse_task_line(line, line_no) {
+            note.tasks.push(task);
         }
         scan_inline(line, line_start, &mut note.links, &mut tags);
     }

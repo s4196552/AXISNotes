@@ -116,6 +116,21 @@ export interface GraphData {
   edges: GraphEdge[];
 }
 
+export interface TaskRef {
+  path: string;
+  /** 1-based line in the note. */
+  line: number;
+  /** The line as indexed (checked before editing it). */
+  raw: string;
+  /** Text without the checkbox and metadata. */
+  text: string;
+  done: boolean;
+  /** `YYYY-MM-DD`. */
+  due: string | null;
+  /** 0 = none, 1 = low, 2 = medium, 3 = high. */
+  priority: number;
+}
+
 /** Everything the UI may ask of the backend. UI code depends on this, never on `invoke`. */
 export interface Backend {
   /** Show a native folder picker; resolves null if cancelled. */
@@ -151,4 +166,6 @@ export interface Backend {
   listAxisFiles(subdir: "themes" | "snippets"): Promise<string[]>;
   /** All notes and resolved links (plus unresolved targets as `?name` nodes). */
   graph(): Promise<GraphData>;
+  /** Every task in the vault, sorted: open first, then due date, priority, path, line. */
+  listTasks(): Promise<TaskRef[]>;
 }

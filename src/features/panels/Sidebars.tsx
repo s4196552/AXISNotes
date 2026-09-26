@@ -1,4 +1,11 @@
-import { FolderTree, Hash, Network, Search, Settings as SettingsIcon } from "lucide-react";
+import {
+  FolderTree,
+  Hash,
+  ListChecks,
+  Network,
+  Search,
+  Settings as SettingsIcon,
+} from "lucide-react";
 import { LocalGraph } from "../graph/GraphView";
 import { useUi } from "../commands/ui";
 import { type LeftPanel, useAppStore } from "../../app/store";
@@ -40,6 +47,14 @@ export function LeftSidebar() {
           onClick={() => useAppStore.getState().setMainView("graph")}
         >
           <Network size={15} />
+        </button>
+        <button
+          className="sidebar-graph"
+          aria-label="Tasks"
+          title="Tasks (Ctrl+Shift+T)"
+          onClick={() => useAppStore.getState().setMainView("tasks")}
+        >
+          <ListChecks size={15} />
         </button>
         {TABS.map(({ id, label, Icon }) => (
           <button

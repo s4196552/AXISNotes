@@ -30,6 +30,7 @@ export function createTauriBackend(): Backend {
     unlinkedMentions: (path) => invoke("unlinked_mentions", { path }),
     listAxisFiles: (subdir) => invoke("list_axis_files", { subdir }),
     graph: () => invoke("graph"),
+    listTasks: () => invoke("list_tasks"),
     async onVaultChanged(cb) {
       return listen<{ changes: VaultChange[] }>(VAULT_CHANGED_EVENT, (e) => cb(e.payload.changes));
     },

@@ -22,6 +22,11 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Pen input and grid snapping come from Excalidraw**: the freedraw tool with pressure, automatic pen mode, and grid mode (Ctrl+'), whose on/off state and size are saved in the file.
 - **Offline fonts:** Excalidraw normally fetches fonts from a CDN. A small Vite plugin serves `node_modules/@excalidraw/excalidraw/dist/prod/fonts` at `/excalidraw-assets/fonts/` in dev and copies it into the build. `window.EXCALIDRAW_ASSET_PATH` points there. The fonts add about 14 MB to the installer, most of it the CJK font Xiaolai.
 - **Change detection:** Excalidraw's `onChange` also fires for view-only updates, so a change counts only when the scene version, files or saved settings change. The scene is saved only if the serialized result differs from what is on disk, so opening a canvas never rewrites it. An outside edit remounts the editor with the new scene.
+- **Tasks use the Obsidian Tasks emoji format.** Due dates are written `📅 YYYY-MM-DD` (the easier-to-type `due:YYYY-MM-DD` also works), and priority is `⏫`/`🔼`/`🔽` (plus `🔺`/`⏬`). Existing Obsidian vaults therefore work as they are, and `/` commands insert the markers.
+  - The Rust index keeps a `tasks` table (index schema v2, rebuilt automatically) with the file line, raw line, clean text, done state, due date and priority. Code blocks and frontmatter are skipped.
+  - The TS parser in `src/lib/tasks.ts` mirrors it, sharing test cases, for the in-memory backend and for edits.
+  - Completing a task stamps `✅ <today>` and reopening removes it, the same convention as the Tasks plugin.
+- **Edits from outside the editor go through `editNote`.** If the note is open, the change is applied through CodeMirror, so it autosaves and can be undone. Otherwise the note is read, edited and written back with an mtime check (retried once). Task toggles only edit a line that still matches what was indexed; otherwise the list refreshes instead.
 - **Fix:** link decorations now use the tree returned by `ensureSyntaxTree`. Before, `syntaxTree(state)` returned whatever was parsed when the state was created, so code and frontmatter detection flaked under load.
 
 | Package                | Version | License | Purpose                          |
