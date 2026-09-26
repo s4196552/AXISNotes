@@ -14,6 +14,22 @@
   margin: 0 auto;
   padding: 28px 24px 4px;
 }
+.editor-tool {
+  flex: none;
+  margin-left: auto;
+  padding: 3px 6px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.editor-tool:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.editor-tool.active {
+  background: var(--bg-active);
+  color: var(--accent);
+}
 .editor-title {
   margin: 0;
   font-size: 28px;
@@ -278,4 +294,36 @@
   background-size: 26px 26px;
   background-position: 0 8px;
   background-color: transparent;
+}
+
+/* Outline view */
+.cm-outline-handle {
+  display: inline-block;
+  width: 14px;
+  margin-left: -18px;
+  margin-right: 4px;
+  color: var(--fg-muted);
+  opacity: 0;
+  cursor: grab;
+  user-select: none;
+  font-size: 12px;
+}
+.cm-line:hover .cm-outline-handle {
+  opacity: 0.8;
+}
+.cm-gutters {
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+}
+.cm-foldGutter .cm-gutterElement {
+  cursor: pointer;
+  padding: 0 4px;
+}
+.cm-foldPlaceholder {
+  background: var(--bg-active);
+  border: none;
+  color: var(--fg-muted);
+  padding: 0 6px;
+  border-radius: 4px;
 }

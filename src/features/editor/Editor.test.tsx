@@ -202,6 +202,34 @@ describe("Editor", () => {
     expect(useAppStore.getState().pendingTarget).toBeNull();
   });
 
+  it("indents and moves list items from the keyboard and toggles outline view", async () => {
+    h.b = createMemoryBackend({ "Note.md": "- a\n- b\n  - b1\n- c" });
+    const { view, container } = await open();
+    const key = (k: string, opts: KeyboardEventInit = {}) =>
+      act(() => {
+        view.contentDOM.dispatchEvent(
+          new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true, ...opts }),
+        );
+      });
+    act(() => view.dispatch({ selection: { anchor: view.state.doc.line(2).to } }));
+    key("Tab");
+    expect(view.state.doc.toString()).toBe("- a\n  - b\n    - b1\n- c");
+    key("Tab", { shiftKey: true });
+    expect(view.state.doc.toString()).toBe("- a\n- b\n  - b1\n- c");
+    key("ArrowDown", { altKey: true });
+    expect(view.state.doc.toString()).toBe("- a\n- c\n- b\n  - b1");
+
+    expect(container.querySelector(".cm-foldGutter")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Outline view" }));
+    await waitFor(() => expect(container.querySelector(".cm-foldGutter")).not.toBeNull());
+    expect(container.querySelectorAll(".cm-outline-handle").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Outline view" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Outline view" }));
+  });
+
   it("reports a missing note as an error", async () => {
     render(<Editor path="Missing.md" />);
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Save failed"));

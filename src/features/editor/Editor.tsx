@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ListTree } from "lucide-react";
 import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
@@ -18,6 +19,8 @@ import { links, refreshLinks, wikilinkCompletions } from "./links";
 import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { outlinerKeys, outlineView } from "./outlinerView";
+import { useEditorPrefs } from "./prefs";
 import {
   emojiCompletions,
   type QuickCommandConfig,
@@ -80,6 +83,9 @@ export function Editor({ path }: EditorProps) {
   const [ready, setReady] = useState(false);
   const [props, setProps] = useState<Props>({});
   const quickCompartment = useRef(new Compartment());
+  const outlineCompartment = useRef(new Compartment());
+  const outlineOn = useEditorPrefs((s) => s.outlineView);
+  const toggleOutline = useEditorPrefs((s) => s.toggleOutlineView);
   const propsJson = useRef("{}");
 
   const syncProps = useCallback((state: EditorState) => {
@@ -199,6 +205,10 @@ export function Editor({ path }: EditorProps) {
                 override: [wikilinkCompletions, slashCompletions, emojiCompletions],
               }),
               quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
+              outlinerKeys,
+              outlineCompartment.current.of(
+                useEditorPrefs.getState().outlineView ? outlineView : [],
+              ),
               EditorView.lineWrapping,
               yamlFrontmatter({
                 content: markdown({ base: markdownLanguage, codeLanguages: languages }),
@@ -270,6 +280,12 @@ export function Editor({ path }: EditorProps) {
     }
   }, [ready, pendingTarget, path]);
 
+  useEffect(() => {
+    view.current?.dispatch({
+      effects: outlineCompartment.current.reconfigure(outlineOn ? outlineView : []),
+    });
+  }, [outlineOn]);
+
   // Follow changes to the quick-command settings.
   const quickSettings = useConfig((s) => s.config.quickCommands);
   useEffect(() => {
@@ -320,6 +336,15 @@ export function Editor({ path }: EditorProps) {
     <div className="editor">
       <header className="editor-header">
         <h1 className="editor-title">{titleOf(path)}</h1>
+        <button
+          className={`editor-tool${outlineOn ? " active" : ""}`}
+          aria-label="Outline view"
+          aria-pressed={outlineOn}
+          title="Outline view: fold gutter and drag handles (Alt+↑/↓ moves, Tab indents)"
+          onClick={toggleOutline}
+        >
+          <ListTree size={15} />
+        </button>
         <span className={`editor-status status-${status}`} role="status" aria-live="polite">
           {STATUS_TEXT[status]}
         </span>

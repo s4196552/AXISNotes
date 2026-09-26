@@ -3,6 +3,7 @@ import { useConfig } from "../../app/config";
 import { effectiveMode } from "../../app/appearance";
 import { newNote, openDailyNote } from "./actions";
 import { useUi } from "./ui";
+import { useEditorPrefs } from "../editor/prefs";
 
 export interface Command {
   id: string;
@@ -89,6 +90,11 @@ registerCommands([
     run: () => useUi.getState().open({ kind: "templates", mode: "new" }),
   },
   { id: "close-note", label: "Close note", run: () => useAppStore.getState().openFile(null) },
+  {
+    id: "outline-view",
+    label: "Toggle outline view",
+    run: () => useEditorPrefs.getState().toggleOutlineView(),
+  },
   {
     id: "settings",
     label: "Open settings",
