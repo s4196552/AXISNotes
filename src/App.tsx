@@ -12,6 +12,9 @@ import { Canvas } from "./features/canvas/Canvas";
 import { docKind } from "./lib/fileKinds";
 import { GraphView } from "./features/graph/GraphView";
 import { TasksView } from "./features/tasks/TasksView";
+import { TimeReport } from "./features/time/TimeReport";
+import { RunningTimer } from "./features/time/TimerControls";
+import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
 
 export default function App() {
@@ -37,7 +40,9 @@ export default function App() {
       .getState()
       .load()
       .then(async () => {
-        if (cancelled || !useConfig.getState().config.dailyNotes.openOnStartup) return;
+        if (cancelled) return;
+        void useTimer.getState().restore();
+        if (!useConfig.getState().config.dailyNotes.openOnStartup) return;
         await useAppStore.getState().refreshTree();
         if (!cancelled && !useAppStore.getState().activePath) await openDailyNote();
       });
@@ -71,6 +76,8 @@ export default function App() {
           <GraphView />
         ) : mainView === "tasks" ? (
           <TasksView />
+        ) : mainView === "time" ? (
+          <TimeReport />
         ) : activePath && docKind(activePath) === "grid" ? (
           <Grid key={activePath} path={activePath} />
         ) : activePath && docKind(activePath) === "canvas" ? (
@@ -86,6 +93,7 @@ export default function App() {
       <footer className="statusbar">
         <span>{activePath ?? ""}</span>
         {notice && !error && <span className="notice">{notice}</span>}
+        <RunningTimer />
         {error && (
           <span className="error" role="alert">
             {error}

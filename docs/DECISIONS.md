@@ -27,6 +27,14 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - The TS parser in `src/lib/tasks.ts` mirrors it, sharing test cases, for the in-memory backend and for edits.
   - Completing a task stamps `✅ <today>` and reopening removes it, the same convention as the Tasks plugin.
 - **Edits from outside the editor go through `editNote`.** If the note is open, the change is applied through CodeMirror, so it autosaves and can be undone. Otherwise the note is read, edited and written back with an mtime check (retried once). Task toggles only edit a line that still matches what was indexed; otherwise the list refreshes instead.
+- **Time tracking lives in the note:** `time_log: [{ start, end?, task? }]` in the frontmatter. Stamps are local `YYYY-MM-DDTHH:mm:ss`.
+  - Starting a timer writes an entry without `end`, and stopping fills it in. A timer therefore survives restarts: on vault load, the latest open entry is restored. Only one timer runs at a time; starting another stops the first.
+  - Timers start from the note header or from a task (the entry gets the task text), and the status bar shows the running clock.
+  - The Rust index serves every entry with its note's tags and `project` property (`time_entries`). The report groups by note, tag, project (the `project` property, else the top-level folder) or day, over preset or custom date ranges. Manual entries are added from the report.
+- **Computed properties** are frontmatter strings starting with `=`, evaluated with the grid formula engine.
+  - Other properties are referenced by name (case-insensitive), lists act as ranges (`=SUM(scores)`), and formulas can use other formulas (`#CIRC!` on cycles).
+  - The properties panel has a Formula type that shows the live result. Structured values (maps, lists of maps such as `time_log`) are shown read-only instead of being flattened into text.
+  - They are evaluated in the UI only; search operators (`prop:`) still see the raw expression.
 - **Fix:** link decorations now use the tree returned by `ensureSyntaxTree`. Before, `syntaxTree(state)` returned whatever was parsed when the state was created, so code and frontmatter detection flaked under load.
 
 | Package                | Version | License | Purpose                          |

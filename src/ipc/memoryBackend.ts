@@ -16,6 +16,7 @@ import type {
   GraphData,
   Mention,
   SearchHit,
+  TimeEntry,
   VaultChange,
   VaultEntry,
   VaultInfo,
@@ -424,6 +425,33 @@ export function createMemoryBackend(
         .flatMap((n) => findTasks(n.text).map((t) => ({ ...t, path: n.path })))
         .sort(compareTasks);
     },
+    async timeEntries() {
+      requireVault();
+      const str = (v: unknown): string | null =>
+        typeof v === "string" && v.trim() ? v.trim() : Array.isArray(v) ? str(v[0]) : null;
+      const out: TimeEntry[] = [];
+      for (const n of notes()) {
+        const props = splitFrontmatter(n.text).props;
+        const log = props.time_log;
+        if (!Array.isArray(log)) continue;
+        const tags = [...new Set(findTags(n.text))].sort();
+        for (const e of log as Record<string, unknown>[]) {
+          const start = str(e?.start);
+          if (!start) continue;
+          out.push({
+            path: n.path,
+            start,
+            end: str(e.end),
+            task: str(e.task),
+            tags,
+            project: str(props.project),
+          });
+        }
+      }
+      return out.sort((a, b) =>
+        a.start < b.start ? -1 : a.start > b.start ? 1 : a.path < b.path ? -1 : 1,
+      );
+    },
     async graph() {
       requireVault();
       const data: GraphData = { nodes: [], edges: [] };
@@ -536,6 +564,8 @@ export const DEMO_VAULT: Record<string, string> = {
     "# Biology\n\n## Cells\n\nThe *mitochondria* is the powerhouse of the cell.\n",
   "School/Math/Calculus.md": "# Calculus\n\n```\nd/dx x^2 = 2x\n```\n",
   "Personal/Ideas.md": "# Ideas\n\n1. Build AXIS\n2. Ship it\n",
+  "Personal/Trip.md":
+    "---\nproject: Travel\nflights: 420\nnights: 3\nhotel_rate: 95\ntotal: =flights + nights * hotel_rate\n---\n# Trip\n\nComputed properties recalculate as you edit the numbers above.\n",
   "Personal/Todo.md":
     "# Todo\n\n- [ ] Renew passport 📅 2026-09-20 ⏫\n- [ ] Call the dentist 📅 2026-09-26\n- [ ] Plan the trip 📅 2026-10-01 🔼 #travel\n- [ ] Read *Mitochondria* chapter #school\n- [x] Buy notebook ✅ 2026-09-25\n",
   "Personal/Budget.axgrid": JSON.stringify({

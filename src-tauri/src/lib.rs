@@ -43,6 +43,7 @@ pub fn run() {
             commands::list_axis_files,
             commands::graph,
             commands::list_tasks,
+            commands::time_entries,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AXIS");

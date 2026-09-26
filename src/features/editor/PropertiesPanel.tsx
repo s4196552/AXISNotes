@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import type { Props } from "../../lib/markdown";
+import { computeProps } from "../../lib/computed";
+import { displayValue } from "../../lib/formula/sheet";
+import { isErr, type Scalar } from "../../lib/formula/evaluate";
 import { convert, inferType, type PropType } from "./propTypes";
 
 // Typed editor for a note's frontmatter. The editor document stays the source of truth:
@@ -14,6 +17,7 @@ interface Props_ {
 export function PropertiesPanel({ props, onChange }: Props_) {
   const keys = Object.keys(props);
   const [adding, setAdding] = useState(false);
+  const computed = useMemo(() => computeProps(props), [props]);
 
   const setValue = (key: string, value: unknown) => onChange({ ...props, [key]: value });
   const remove = (key: string) => {
@@ -45,6 +49,7 @@ export function PropertiesPanel({ props, onChange }: Props_) {
           key={key}
           name={key}
           value={props[key]}
+          result={computed[key]}
           onRename={(to) => rename(key, to)}
           onValue={(v) => setValue(key, v)}
           onRemove={() => remove(key)}
@@ -70,6 +75,8 @@ export function PropertiesPanel({ props, onChange }: Props_) {
 function PropertyRow(p: {
   name: string;
   value: unknown;
+  /** Result of a formula value. */
+  result?: Scalar;
   onRename(to: string): void;
   onValue(v: unknown): void;
   onRemove(): void;
@@ -88,6 +95,7 @@ function PropertyRow(p: {
         className="props-type"
         aria-label={`Type of ${p.name}`}
         value={type}
+        disabled={type === "object"}
         onChange={(e) => p.onValue(convert(p.value, e.target.value as PropType))}
       >
         <option value="text">Text</option>
@@ -95,12 +103,15 @@ function PropertyRow(p: {
         <option value="checkbox">Checkbox</option>
         <option value="date">Date</option>
         <option value="list">List</option>
+        <option value="formula">Formula</option>
+        {type === "object" && <option value="object">Structured</option>}
       </select>
       <ValueEditor
         key={`${type}:${JSON.stringify(p.value)}`}
         name={p.name}
         type={type}
         value={p.value}
+        result={p.result}
         onValue={p.onValue}
       />
       <button className="props-remove" aria-label={`Remove ${p.name}`} onClick={p.onRemove}>
@@ -114,10 +125,46 @@ function ValueEditor(p: {
   name: string;
   type: PropType;
   value: unknown;
+  result?: Scalar;
   onValue(v: unknown): void;
 }) {
   const label = `Value of ${p.name}`;
   switch (p.type) {
+    case "formula": {
+      const r = p.result;
+      const error = r !== undefined && isErr(r);
+      return (
+        <span className="props-formula">
+          <input
+            className="props-value props-formula-input"
+            aria-label={label}
+            defaultValue={String(p.value)}
+            onBlur={(e) => p.onValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          />
+          <output
+            className={`props-result${error ? " error" : ""}`}
+            aria-label={`Result of ${p.name}`}
+            title={error && r.detail ? r.detail : undefined}
+          >
+            = {displayValue(r)}
+          </output>
+        </span>
+      );
+    }
+    case "object": {
+      const n = Array.isArray(p.value) ? p.value.length : Object.keys(p.value as object).length;
+      return (
+        <span
+          className="props-value props-object"
+          aria-label={label}
+          title={JSON.stringify(p.value, null, 2)}
+        >
+          {n}{" "}
+          {Array.isArray(p.value) ? (n === 1 ? "entry" : "entries") : n === 1 ? "field" : "fields"}
+        </span>
+      );
+    }
     case "checkbox":
       return (
         <input

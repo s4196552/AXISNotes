@@ -1,0 +1,132 @@
+.time-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.time-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px 40px;
+}
+
+.time-table {
+  width: 100%;
+  max-width: 820px;
+  border-collapse: collapse;
+}
+.time-table th,
+.time-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-weight: normal;
+}
+.time-table th {
+  width: 30%;
+}
+.time-bar-cell {
+  width: 45%;
+}
+.time-bar {
+  display: block;
+  height: 10px;
+  min-width: 2px;
+  border-radius: 5px;
+  background: var(--accent);
+}
+.time-ms {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.time-count {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.time-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  text-align: left;
+}
+.time-link:hover {
+  text-decoration: underline;
+}
+
+.time-entries {
+  margin-top: 16px;
+  max-width: 820px;
+}
+.time-entries ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.time-entries li {
+  display: flex;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.time-log-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: 820px;
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.time-log-form input[type="number"] {
+  width: 72px;
+}
+
+.timer-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tasks-timer {
+  display: inline-flex;
+  padding: 3px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  opacity: 0;
+}
+.tasks-group li:hover .tasks-timer,
+.tasks-timer:focus-visible,
+.tasks-timer.active {
+  opacity: 1;
+}
+.tasks-timer.active {
+  color: var(--accent);
+}
+
+.running-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--accent);
+}
+.running-timer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+}
+.running-timer-clock {
+  font-variant-numeric: tabular-nums;
+}

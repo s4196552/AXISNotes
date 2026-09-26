@@ -335,3 +335,22 @@ fn tasks_are_indexed_with_file_line_numbers() {
     idx.update_path(&vault, "Home.md").unwrap();
     assert_eq!(idx.tasks().unwrap().len(), 2);
 }
+
+#[test]
+fn time_entries_come_from_frontmatter_with_tags_and_project() {
+    let (_d, _v, idx) = vault_with(&[
+        (
+            "Work/Report.md",
+            "---\nproject: [Alpha]\ntags: [work]\ntime_log:\n  - start: 2026-09-26T10:00:00\n    end: 2026-09-26T10:30:00\n    task: Draft\n  - start: 2026-09-26T14:00:00\n  - end: 2026-09-26T15:00:00\n---\nbody #extra",
+        ),
+        ("Other.md", "---\ntime_log: nonsense\n---\n"),
+    ]);
+    let e = idx.time_entries().unwrap();
+    assert_eq!(e.len(), 2);
+    assert_eq!(e[0].start, "2026-09-26T10:00:00");
+    assert_eq!(e[0].end.as_deref(), Some("2026-09-26T10:30:00"));
+    assert_eq!(e[0].task.as_deref(), Some("Draft"));
+    assert_eq!(e[0].tags, vec!["extra", "work"]);
+    assert_eq!(e[0].project.as_deref(), Some("Alpha"));
+    assert_eq!(e[1].end, None); // running
+}

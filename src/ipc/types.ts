@@ -131,6 +131,17 @@ export interface TaskRef {
   priority: number;
 }
 
+export interface TimeEntry {
+  path: string;
+  /** Local `YYYY-MM-DDTHH:mm:ss`. */
+  start: string;
+  /** Null while the timer is running. */
+  end: string | null;
+  task: string | null;
+  tags: string[];
+  project: string | null;
+}
+
 /** Everything the UI may ask of the backend. UI code depends on this, never on `invoke`. */
 export interface Backend {
   /** Show a native folder picker; resolves null if cancelled. */
@@ -168,4 +179,6 @@ export interface Backend {
   graph(): Promise<GraphData>;
   /** Every task in the vault, sorted: open first, then due date, priority, path, line. */
   listTasks(): Promise<TaskRef[]>;
+  /** Every `time_log` entry in the vault, oldest first. */
+  timeEntries(): Promise<TimeEntry[]>;
 }

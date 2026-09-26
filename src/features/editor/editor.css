@@ -219,6 +219,32 @@
   border-color: transparent;
   background: transparent;
 }
+.props-formula {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.props-formula-input {
+  flex: 1;
+  font-family: var(--font-mono);
+}
+.props-result {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--accent);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.props-result.error {
+  color: var(--danger);
+}
+.props-object {
+  color: var(--fg-muted);
+  cursor: help;
+}
 .props-key:hover,
 .props-key:focus {
   border-color: var(--border);

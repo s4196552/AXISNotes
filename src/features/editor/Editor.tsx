@@ -22,6 +22,7 @@ import { livePreview } from "./livePreview";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
+import { TimerButton } from "../time/TimerControls";
 import {
   emojiCompletions,
   type QuickCommandConfig,
@@ -352,6 +353,7 @@ export function Editor({ path }: EditorProps) {
         >
           <ListTree size={15} />
         </button>
+        <TimerButton path={path} />
         <span className={`editor-status status-${status}`} role="status" aria-live="polite">
           {STATUS_TEXT[status]}
         </span>
