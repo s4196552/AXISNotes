@@ -1,4 +1,24 @@
-import type { Backend, BackendError, ErrorCode, VaultChange, VaultEntry, VaultInfo } from "./types";
+import {
+  aliasesOf,
+  findTags,
+  findWikilinks,
+  isNotePath,
+  maskCode,
+  noteName,
+  splitFrontmatter,
+} from "../lib/markdown";
+import type {
+  Backend,
+  BackendError,
+  Backlink,
+  ErrorCode,
+  Mention,
+  SearchHit,
+  VaultChange,
+  VaultEntry,
+  VaultInfo,
+} from "./types";
+import { HL_END, HL_START } from "./types";
 
 // In-memory implementation of the Backend contract. Used by unit tests and when the
 // UI runs in a plain browser (`pnpm dev` without Tauri). Mirrors the Rust semantics.
@@ -110,6 +130,126 @@ export function createMemoryBackend(
     return e;
   };
 
+  // ---- Simplified index (mirrors src-tauri/src/index for tests and browser dev) ----
+  const notes = () =>
+    [...nodes.entries()]
+      .filter(([k, n]) => n.kind === "file" && isNotePath(k))
+      .map(([path, n]) => ({ path, text: n.content }));
+
+  const resolve = (target: string, from: string): string | null => {
+    let t = target.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+    if (t.toLowerCase().endsWith(".md")) t = t.slice(0, -3);
+    if (!t) return from;
+    const name = noteName(t).toLowerCase();
+    let candidates = notes()
+      .map((n) => n.path)
+      .filter((p) => noteName(p).toLowerCase() === name);
+    if (t.includes("/")) {
+      const want = t.toLowerCase();
+      candidates = candidates.filter((p) => {
+        const q = p.slice(0, -3).toLowerCase();
+        return q === want || q.endsWith("/" + want);
+      });
+    }
+    if (candidates.length === 0 && !t.includes("/")) {
+      candidates = notes()
+        .filter((n) =>
+          aliasesOf(splitFrontmatter(n.text).props).some(
+            (a) => a.toLowerCase() === t.toLowerCase(),
+          ),
+        )
+        .map((n) => n.path);
+    }
+    const dir = parentOf(from);
+    candidates.sort(
+      (a, b) =>
+        Number(parentOf(a) !== dir) - Number(parentOf(b) !== dir) ||
+        a.length - b.length ||
+        a.localeCompare(b),
+    );
+    return candidates[0] ?? null;
+  };
+
+  const lineOf = (text: string, pos: number) => {
+    const start = text.lastIndexOf("\n", pos - 1) + 1;
+    const endIdx = text.indexOf("\n", pos);
+    return {
+      line: text.slice(0, start).split("\n").length,
+      context: text.slice(start, endIdx === -1 ? text.length : endIdx).replace(/\r$/, ""),
+    };
+  };
+
+  const snippet = (text: string, needle: string) => {
+    const i = text.toLowerCase().indexOf(needle.toLowerCase());
+    if (i === -1) return "";
+    const from = Math.max(0, i - 40);
+    return (
+      (from > 0 ? "…" : "") +
+      text.slice(from, i) +
+      HL_START +
+      text.slice(i, i + needle.length) +
+      HL_END +
+      text.slice(i + needle.length, i + needle.length + 60)
+    );
+  };
+
+  const search = (query: string, limit = 50): SearchHit[] => {
+    const tokens = [...query.matchAll(/(-?)(?:(\w+):)?(?:"([^"]*)"|(\S+))/g)];
+    if (tokens.length === 0) return [];
+    const hits: SearchHit[] = [];
+    for (const n of notes()) {
+      const fm = splitFrontmatter(n.text);
+      const body = n.text.slice(fm.length);
+      const hay = body.toLowerCase();
+      const tags = findTags(n.text);
+      let firstWord = "";
+      const ok = tokens.every(([, neg, op, quoted, bare]) => {
+        const v = (quoted ?? bare ?? "").toLowerCase();
+        const tagMatch = (t: string) => tags.some((x) => x === t || x.startsWith(t + "/"));
+        let match: boolean;
+        switch (op?.toLowerCase()) {
+          case "tag":
+            match = tagMatch(v.replace(/^#/, ""));
+            break;
+          case "path":
+            match = n.path.toLowerCase().includes(v);
+            break;
+          case "file":
+            match = noteName(n.path).toLowerCase().includes(v);
+            break;
+          case "prop": {
+            const [k = "", want] = v.split("=");
+            const key = Object.keys(fm.props).find((x) => x.toLowerCase() === k);
+            const val = key === undefined ? undefined : fm.props[key];
+            match =
+              key !== undefined &&
+              (want === undefined || [val].flat().some((x) => String(x).toLowerCase() === want));
+            break;
+          }
+          default:
+            match = v.startsWith("#") ? tagMatch(v.slice(1)) : hay.includes(v);
+            if (match && !neg && !firstWord && !v.startsWith("#")) firstWord = v;
+        }
+        return neg ? !match : match;
+      });
+      if (ok) {
+        hits.push({
+          path: n.path,
+          title: noteName(n.path),
+          snippet: firstWord ? snippet(body, firstWord) : "",
+        });
+      }
+    }
+    return hits.slice(0, limit);
+  };
+
+  const incoming = (path: string) =>
+    notes().flatMap((n) =>
+      findWikilinks(n.text)
+        .filter((l) => resolve(l.target, n.path) === path)
+        .map((l) => ({ source: n.path, text: n.text, link: l })),
+    );
+
   return {
     async pickFolder() {
       return "/memory";
@@ -179,9 +319,45 @@ export function createMemoryBackend(
       const caseOnly = src.toLowerCase() === dst.toLowerCase();
       if (nodes.has(dst) && !caseOnly) fail("AlreadyExists", to);
       const moved = [...nodes.entries()].filter(([k]) => k === src || k.startsWith(src + "/"));
+      const sites = moved
+        .filter(([k]) => isNotePath(k))
+        .flatMap(([k]) =>
+          incoming(k).map((site) => ({ ...site, newPath: dst + k.slice(src.length) })),
+        );
       for (const [k] of moved) nodes.delete(k);
       ensureDirs(dst);
       for (const [k, n] of moved) nodes.set(dst + k.slice(src.length), n);
+
+      // Rewrite links that no longer resolve (same rules as the Rust core).
+      const bySource = new Map<string, { from: number; to: number; text: string }[]>();
+      for (const site of sites) {
+        const inMoved = site.source === src || site.source.startsWith(src + "/");
+        const source = inMoved ? dst + site.source.slice(src.length) : site.source;
+        if (resolve(site.link.target, source) === site.newPath) continue;
+        const full = site.newPath.slice(0, -3);
+        let target = site.link.target.includes("/") ? full : noteName(site.newPath);
+        if (resolve(target, source) !== site.newPath) target = full;
+        const raw = site.text.slice(site.link.from, site.link.to);
+        const list = bySource.get(source) ?? [];
+        list.push({
+          from: site.link.from,
+          to: site.link.to,
+          text: raw.replace(site.link.target, target),
+        });
+        bySource.set(source, list);
+      }
+      const updated: string[] = [];
+      for (const [source, edits] of bySource) {
+        const node = nodes.get(source);
+        if (!node) continue;
+        let text = node.content;
+        for (const e of edits.sort((a, b) => b.from - a.from)) {
+          text = text.slice(0, e.from) + e.text + text.slice(e.to);
+        }
+        nodes.set(source, { ...node, content: text, modifiedMs: tick() });
+        updated.push(source);
+      }
+      if (updated.length) listeners.forEach((l) => l([{ kind: "modified", paths: updated }]));
       return entry(dst);
     },
     async trashEntry(path) {
@@ -194,6 +370,92 @@ export function createMemoryBackend(
     async onVaultChanged(cb) {
       listeners.add(cb);
       return () => listeners.delete(cb);
+    },
+    async search(query, limit) {
+      requireVault();
+      return search(query, limit);
+    },
+    async listTags() {
+      requireVault();
+      const counts = new Map<string, number>();
+      for (const n of notes()) {
+        for (const t of findTags(n.text)) counts.set(t, (counts.get(t) ?? 0) + 1);
+      }
+      return [...counts.entries()]
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([tag, count]) => ({ tag, count }));
+    },
+    async listNotes() {
+      requireVault();
+      return notes()
+        .map((n) => {
+          const fm = splitFrontmatter(n.text);
+          const h1 = /^#[ \t]+(.+)$/m.exec(n.text.slice(fm.length));
+          return {
+            path: n.path,
+            name: noteName(n.path),
+            title: h1?.[1]?.trim() ?? null,
+            aliases: aliasesOf(fm.props),
+          };
+        })
+        .sort((a, b) => (a.path < b.path ? -1 : 1));
+    },
+    async resolveLink(target, from) {
+      requireVault();
+      return resolve(target, from);
+    },
+    async backlinks(path) {
+      requireVault();
+      const out: Backlink[] = [];
+      for (const { source, text, link } of incoming(path)) {
+        if (source === path) continue;
+        const { line, context } = lineOf(text, link.from);
+        let b = out.find((x) => x.source === source);
+        if (!b) out.push((b = { source, links: [] }));
+        b.links.push({ line, context, embed: link.embed });
+      }
+      return out.sort((a, b) => (a.source < b.source ? -1 : 1));
+    },
+    async unlinkedMentions(path) {
+      requireVault();
+      const target = notes().find((n) => n.path === path);
+      const terms = [
+        noteName(path),
+        ...(target ? aliasesOf(splitFrontmatter(target.text).props) : []),
+      ].filter((t) => t.length >= 2);
+      const out: Mention[] = [];
+      const wordChar = /[\p{L}\p{N}]/u;
+      for (const n of notes()) {
+        if (n.path === path) continue;
+        const fmLen = splitFrontmatter(n.text).length;
+        let masked = maskCode(n.text);
+        for (const l of findWikilinks(n.text)) {
+          masked = masked.slice(0, l.from) + " ".repeat(l.to - l.from) + masked.slice(l.to);
+        }
+        const lower = masked.toLowerCase();
+        for (const term of terms) {
+          const needle = term.toLowerCase();
+          for (
+            let i = lower.indexOf(needle, fmLen);
+            i !== -1;
+            i = lower.indexOf(needle, i + needle.length)
+          ) {
+            const before = n.text[i - 1];
+            const after = n.text[i + needle.length];
+            if ((before && wordChar.test(before)) || (after && wordChar.test(after))) continue;
+            out.push({
+              source: n.path,
+              ...lineOf(n.text, i),
+              text: n.text.slice(i, i + needle.length),
+              start: i,
+              end: i + needle.length,
+            });
+          }
+        }
+      }
+      return out.sort((a, b) =>
+        a.source < b.source ? -1 : a.source > b.source ? 1 : a.start - b.start,
+      );
     },
     externalWrite(path, content) {
       const p = normalize(path);

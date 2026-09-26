@@ -2,6 +2,23 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-26: Phase 1 index and search (T-006)
+
+- **SQLite index in `.axis/index.db`** (rusqlite, bundled SQLite): tables `notes`, `links`, `tags`, `aliases` and an FTS5 table (`title`, `body`; `unicode61 remove_diacritics 2`). It is a cache: a schema-version mismatch or a corrupt file is dropped and rebuilt from the Markdown files. On open it re-indexes only files whose mtime changed.
+- **Kept in step** by the commands (the app's own writes, creates, renames, trashes) and by the file watcher (changes from other programs) before the `vault://changed` event is emitted, so the UI always queries fresh data.
+- **Link resolution follows Obsidian:** `[[Name]]` matches a note basename anywhere (case-insensitive); path segments narrow it; ties go to the same folder, then the shortest path; aliases (`aliases:` frontmatter) are the fallback. Resolution happens at query time, so creating a note instantly "fixes" dangling links.
+- **Renames rewrite incoming links**, preserving `#heading`, `#^block`, `|alias` and `!` embeds, and keeping the author's style (bare name vs. path). Links that still resolve after the move (aliases; bare names after a folder move) are left alone; a path is used when a bare name would become ambiguous. Rewritten notes are announced as `modified` so open editors reload them.
+- **Search language:** words (prefix match), `"phrases"`, `-exclude`, `tag:` / `#tag` (nested tags match children), `path:`, `file:`, `prop:key` and `prop:key=value` (works for list values). Ranked by BM25 with titles weighted 8×.
+- **Measured (release, 5,000 notes):** queries 0.4–5.7 ms; backlinks 0.25 ms; full initial index 1.1 s.
+- Unlinked mentions return UTF-16 offsets so the UI can edit the file with JS string indices.
+- `rust-version` raised to 1.85 (from the template's 1.77) so current crates resolve.
+
+| Package                   | Version | License                     | Purpose                                              |
+| ------------------------- | ------- | --------------------------- | ---------------------------------------------------- |
+| rusqlite (bundled SQLite) | 0.40    | MIT (SQLite: public domain) | Index + FTS5                                         |
+| yaml-rust2                | 0.13    | MIT OR Apache-2.0           | Frontmatter in the indexer                           |
+| yaml (npm)                | 2.9     | ISC                         | Frontmatter editing in the UI (keeps comments/order) |
+
 ## 2026-09-26: Phase 0 integration and E2E (T-005)
 
 - **E2E tests drive the real desktop build** through `tauri-driver` + WebdriverIO (`pnpm e2e:build && pnpm e2e`) against a throwaway vault on disk. Windows needs `msedgedriver` matching the installed WebView2 (put it in `~/.axis-e2e/msedgedriver-<version>/` or set `AXIS_MSEDGEDRIVER`); Linux CI uses `webkit2gtk-driver` under Xvfb. `tauri-driver` has no macOS support.

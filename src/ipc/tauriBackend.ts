@@ -22,6 +22,12 @@ export function createTauriBackend(): Backend {
     createDir: (path) => invoke("create_dir", { path }),
     renameEntry: (from, to) => invoke("rename_entry", { from, to }),
     trashEntry: (path) => invoke("trash_entry", { path }),
+    search: (query, limit) => invoke("search", { query, limit }),
+    listTags: () => invoke("list_tags"),
+    listNotes: () => invoke("list_notes"),
+    resolveLink: (target, from) => invoke("resolve_link", { target, from }),
+    backlinks: (path) => invoke("backlinks", { path }),
+    unlinkedMentions: (path) => invoke("unlinked_mentions", { path }),
     async onVaultChanged(cb) {
       return listen<{ changes: VaultChange[] }>(VAULT_CHANGED_EVENT, (e) => cb(e.payload.changes));
     },

@@ -1,27 +1,56 @@
 //! Tauri commands. The TypeScript mirror of this contract is `src/ipc/`.
+//!
+//! Heavier commands are `async` so they run off the main (UI) thread.
 
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::error::{AppError, AppResult};
-use crate::vault::watcher::{self, SelfWrites, VaultChange, VaultWatcher};
+use crate::index::search::SearchHit;
+use crate::index::{rename, Backlink, Index, Mention, NoteRef, TagCount};
+use crate::vault::watcher::{self, ChangeKind, SelfWrites, VaultChange, VaultWatcher};
 use crate::vault::{FileContent, Vault, VaultEntry, VaultInfo, WriteResult};
 
 pub const VAULT_CHANGED_EVENT: &str = "vault://changed";
+
+type SharedIndex = Arc<Mutex<Option<Index>>>;
 
 #[derive(Default)]
 pub struct AppState {
     vault: Mutex<Option<Vault>>,
     watcher: Mutex<Option<VaultWatcher>>,
+    index: SharedIndex,
     self_writes: SelfWrites,
 }
 
 #[derive(Clone, Serialize)]
 struct VaultChangedPayload {
     changes: Vec<VaultChange>,
+}
+
+/// Apply watcher changes to the index. Index errors are logged, never fatal: it's a cache.
+fn apply_to_index(index: &SharedIndex, vault: &Vault, changes: &[VaultChange]) {
+    let mut guard = index.lock().unwrap();
+    let Some(idx) = guard.as_mut() else { return };
+    for c in changes {
+        let result = match c.kind {
+            ChangeKind::Removed => c.paths.iter().try_for_each(|p| idx.remove_path(p)),
+            ChangeKind::Renamed => {
+                let (from, to) = (&c.paths[0], c.paths.last().unwrap());
+                idx.remove_path(from)
+                    .and_then(|_| idx.update_path(vault, to))
+            }
+            ChangeKind::Created | ChangeKind::Modified => {
+                c.paths.iter().try_for_each(|p| idx.update_path(vault, p))
+            }
+        };
+        if let Err(e) = result {
+            eprintln!("index update failed: {e}");
+        }
+    }
 }
 
 impl AppState {
@@ -35,14 +64,31 @@ impl AppState {
         Ok(())
     }
 
+    fn with_index<T>(&self, f: impl FnOnce(&mut Index) -> AppResult<T>) -> AppResult<T> {
+        let mut guard = self.index.lock().unwrap();
+        f(guard.as_mut().ok_or(AppError::NoVault)?)
+    }
+
+    /// Keep the index in step with a change the app itself made (the watcher ignores those).
+    fn reindex(&self, vault: &Vault, change: VaultChange) {
+        apply_to_index(&self.index, vault, &[change]);
+    }
+
     /// Open `path` as the vault at startup (used by `AXIS_OPEN_VAULT`, e.g. in E2E tests).
     pub fn open_at_startup(&self, app: &AppHandle, path: &str) -> AppResult<VaultInfo> {
         self.activate(app, Vault::open(&PathBuf::from(path))?)
     }
 
     fn activate(&self, app: &AppHandle, vault: Vault) -> AppResult<VaultInfo> {
+        // Drop the old watcher/index before opening the new ones.
+        *self.watcher.lock().unwrap() = None;
+        *self.index.lock().unwrap() = Some(Index::open(&vault)?);
+
         let emitter = app.clone();
+        let index = self.index.clone();
+        let for_index = vault.clone();
         let w = watcher::start(vault.clone(), self.self_writes.clone(), move |changes| {
+            apply_to_index(&index, &for_index, &changes);
             let _ = emitter.emit(VAULT_CHANGED_EVENT, VaultChangedPayload { changes });
         })?;
         let info = vault.info();
@@ -52,16 +98,27 @@ impl AppState {
     }
 }
 
+fn change(kind: ChangeKind, paths: &[&str]) -> VaultChange {
+    VaultChange {
+        kind,
+        paths: paths.iter().map(|p| p.to_string()).collect(),
+    }
+}
+
 #[tauri::command]
-pub fn open_vault(app: AppHandle, state: State<AppState>, path: String) -> AppResult<VaultInfo> {
+pub async fn open_vault(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> AppResult<VaultInfo> {
     let vault = Vault::open(&PathBuf::from(path))?;
     state.activate(&app, vault)
 }
 
 #[tauri::command]
-pub fn create_vault(
+pub async fn create_vault(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     parent_dir: String,
     name: String,
 ) -> AppResult<VaultInfo> {
@@ -97,6 +154,7 @@ pub fn write_file(
     state
         .self_writes
         .record_write(&v.resolve(&path)?, res.modified_ms);
+    state.reindex(&v, change(ChangeKind::Modified, &[&path]));
     Ok(res)
 }
 
@@ -108,7 +166,9 @@ pub fn create_file(
 ) -> AppResult<VaultEntry> {
     let v = state.vault()?;
     state.touch(&v, &path)?;
-    v.create_file(&path, content.as_deref().unwrap_or(""))
+    let entry = v.create_file(&path, content.as_deref().unwrap_or(""))?;
+    state.reindex(&v, change(ChangeKind::Created, &[&path]));
+    Ok(entry)
 }
 
 #[tauri::command]
@@ -118,17 +178,89 @@ pub fn create_dir(state: State<AppState>, path: String) -> AppResult<VaultEntry>
     v.create_dir(&path)
 }
 
+/// Rename or move, rewriting wikilinks that pointed at the moved notes. Rewritten notes
+/// are announced as `modified` so open editors reload them.
 #[tauri::command]
-pub fn rename_entry(state: State<AppState>, from: String, to: String) -> AppResult<VaultEntry> {
+pub async fn rename_entry(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    from: String,
+    to: String,
+) -> AppResult<VaultEntry> {
     let v = state.vault()?;
     state.touch(&v, &from)?;
     state.touch(&v, &to)?;
-    v.rename_entry(&from, &to)
+    let outcome = {
+        let mut guard = state.index.lock().unwrap();
+        match guard.as_mut() {
+            Some(idx) => rename::rename_with_links(&v, idx, &from, &to, |p| {
+                if let Ok(abs) = v.resolve(p) {
+                    state.self_writes.mark(&abs);
+                }
+            })?,
+            None => rename::RenameOutcome {
+                entry: v.rename_entry(&from, &to)?,
+                updated: Vec::new(),
+            },
+        }
+    };
+    if !outcome.updated.is_empty() {
+        let changes = vec![VaultChange {
+            kind: ChangeKind::Modified,
+            paths: outcome.updated,
+        }];
+        let _ = app.emit(VAULT_CHANGED_EVENT, VaultChangedPayload { changes });
+    }
+    Ok(outcome.entry)
 }
 
 #[tauri::command]
 pub fn trash_entry(state: State<AppState>, path: String) -> AppResult<()> {
     let v = state.vault()?;
     state.touch(&v, &path)?;
-    v.trash_entry(&path)
+    v.trash_entry(&path)?;
+    state.reindex(&v, change(ChangeKind::Removed, &[&path]));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn search(
+    state: State<'_, AppState>,
+    query: String,
+    limit: Option<usize>,
+) -> AppResult<Vec<SearchHit>> {
+    state.with_index(|idx| idx.search(&query, limit.unwrap_or(50)))
+}
+
+#[tauri::command]
+pub fn list_tags(state: State<AppState>) -> AppResult<Vec<TagCount>> {
+    state.with_index(|idx| idx.tags())
+}
+
+#[tauri::command]
+pub fn list_notes(state: State<AppState>) -> AppResult<Vec<NoteRef>> {
+    state.with_index(|idx| idx.list_notes())
+}
+
+#[tauri::command]
+pub fn resolve_link(
+    state: State<AppState>,
+    target: String,
+    from: String,
+) -> AppResult<Option<String>> {
+    state.with_index(|idx| idx.resolve(&target, &from))
+}
+
+#[tauri::command]
+pub async fn backlinks(state: State<'_, AppState>, path: String) -> AppResult<Vec<Backlink>> {
+    state.with_index(|idx| idx.backlinks(&path))
+}
+
+#[tauri::command]
+pub async fn unlinked_mentions(
+    state: State<'_, AppState>,
+    path: String,
+) -> AppResult<Vec<Mention>> {
+    let v = state.vault()?;
+    state.with_index(|idx| idx.unlinked_mentions(&v, &path))
 }

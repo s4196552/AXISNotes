@@ -49,6 +49,55 @@ export function isBackendError(e: unknown): e is BackendError {
   return typeof e === "object" && e !== null && "code" in e && "message" in e;
 }
 
+// ---- Index (Phase 1) ----
+
+export interface NoteRef {
+  path: string;
+  /** Basename without `.md`. */
+  name: string;
+  title: string | null;
+  aliases: string[];
+}
+
+export interface SearchHit {
+  path: string;
+  title: string;
+  /** Excerpt with matches wrapped in U+0001 � U+0002 (see `HL_START`/`HL_END`). */
+  snippet: string;
+}
+
+export const HL_START = "\u0001";
+export const HL_END = "\u0002";
+
+export interface TagCount {
+  /** Lowercase, without `#`; nested tags use `/`. */
+  tag: string;
+  count: number;
+}
+
+export interface LinkRef {
+  /** 1-based line in the source note. */
+  line: number;
+  context: string;
+  embed: boolean;
+}
+
+export interface Backlink {
+  source: string;
+  links: LinkRef[];
+}
+
+export interface Mention {
+  source: string;
+  line: number;
+  context: string;
+  /** The matched text as written. */
+  text: string;
+  /** UTF-16 offsets into the whole file (usable as JS string indices). */
+  start: number;
+  end: number;
+}
+
 /** Everything the UI may ask of the backend. UI code depends on this, never on `invoke`. */
 export interface Backend {
   /** Show a native folder picker; resolves null if cancelled. */
@@ -62,10 +111,22 @@ export interface Backend {
   writeFile(path: string, content: string, expectedModifiedMs?: number): Promise<WriteResult>;
   createFile(path: string, content?: string): Promise<VaultEntry>;
   createDir(path: string): Promise<VaultEntry>;
-  /** Rename or move. Rejects with "AlreadyExists" if `to` exists. */
+  /**
+   * Rename or move. Rejects with "AlreadyExists" if `to` exists. Wikilinks to moved notes
+   * are rewritten; rewritten notes are announced through `onVaultChanged` as "modified".
+   */
   renameEntry(from: string, to: string): Promise<VaultEntry>;
   /** Moves to the OS trash (never a hard delete). */
   trashEntry(path: string): Promise<void>;
   /** Subscribe to changes made outside the app. Returns an unsubscribe function. */
   onVaultChanged(cb: (changes: VaultChange[]) => void): Promise<() => void>;
+
+  /** Full-text search; see the query language in `src-tauri/src/index/search.rs`. */
+  search(query: string, limit?: number): Promise<SearchHit[]>;
+  listTags(): Promise<TagCount[]>;
+  listNotes(): Promise<NoteRef[]>;
+  /** Resolve a wikilink target written in note `from` to a note path, or null. */
+  resolveLink(target: string, from: string): Promise<string | null>;
+  backlinks(path: string): Promise<Backlink[]>;
+  unlinkedMentions(path: string): Promise<Mention[]>;
 }
