@@ -28,6 +28,11 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Request log:** JSON lines in the app data folder (`ai-requests.jsonl`, trimmed past ~1 MB). It records time, task, provider, model, local flag, status (ok / error / cancelled / blocked), token counts, duration and the number of source notes. It never records prompts, answers or paths.
 - **Token estimate:** about 4 characters per token plus 1,000 per image. It is shown before sending, together with the input cost when the model's price is known.
 - **E2E isolation:** `AXIS_CONFIG_DIR` points settings, registry and log at a throwaway folder, and `AXIS_AI_MEMORY_KEYS` keeps keys in memory, so tests never touch the user's settings or keychain.
+- **E2E (`ai.e2e.ts`):** the spec starts a mock OpenAI-compatible server on 127.0.0.1 and configures it through Settings → AI in the real app. It checks:
+  - A streamed answer about a note, with the note's text arriving at the server and the key only in the `Authorization` header.
+  - The key is absent from `ai_settings` (called straight from the webview) and from the settings file.
+  - An "AI: never" note is refused before any request, both from the UI and from a direct `ai_run` call in the webview.
+  - The request log holds metadata only.
 
 | Crate         | Version | License           | Purpose                                                |
 | ------------- | ------- | ----------------- | ------------------------------------------------------ |
