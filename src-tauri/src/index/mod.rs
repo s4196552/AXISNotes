@@ -131,9 +131,20 @@ pub(crate) fn is_grid(name: &str) -> bool {
     has_ext(name, ".axgrid")
 }
 
+/// Canvases (`.axcanvas`): only their text elements are indexed, for search.
+pub(crate) fn is_canvas(name: &str) -> bool {
+    has_ext(name, ".axcanvas")
+}
+
 /// Files that get a row in the index.
 pub(crate) fn is_indexed(name: &str) -> bool {
-    is_note(name) || is_grid(name)
+    is_note(name) || is_grid(name) || is_canvas(name)
+}
+
+/// Basename without its extension (for grid/canvas titles).
+fn stem(path: &str) -> &str {
+    let base = path.rsplit('/').next().unwrap_or(path);
+    base.rfind('.').map_or(base, |i| &base[..i])
 }
 
 fn parent_dir(path: &str) -> &str {
@@ -266,6 +277,16 @@ impl Index {
             .prepare("SELECT path FROM notes WHERE path LIKE ?1 ESCAPE '\\' ORDER BY path")
             .map_err(db_err)?;
         let rows = stmt.query_map([prefix], |r| r.get(0)).map_err(db_err)?;
+        rows.collect::<Result<_, _>>().map_err(db_err)
+    }
+
+    /// Every indexed canvas (`.axcanvas`), for rewriting note cards on rename.
+    pub fn canvas_paths(&self) -> AppResult<Vec<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT path FROM notes WHERE path LIKE '%.axcanvas' ORDER BY path")
+            .map_err(db_err)?;
+        let rows = stmt.query_map([], |r| r.get(0)).map_err(db_err)?;
         rows.collect::<Result<_, _>>().map_err(db_err)
     }
 
@@ -639,10 +660,14 @@ fn remove_in(tx: &rusqlite::Transaction, path: &str) -> AppResult<()> {
 
 fn upsert_in(tx: &rusqlite::Transaction, path: &str, mtime: u64, text: &str) -> AppResult<()> {
     let note = if is_grid(path) {
-        let base = path.rsplit('/').next().unwrap_or(path);
         parse::ParsedNote {
-            title: Some(base[..base.len() - ".axgrid".len()].to_string()),
+            title: Some(stem(path).to_string()),
             ..parse::parse_grid(text)
+        }
+    } else if is_canvas(path) {
+        parse::ParsedNote {
+            title: Some(stem(path).to_string()),
+            ..parse::parse_canvas(text)
         }
     } else {
         parse::parse(text)

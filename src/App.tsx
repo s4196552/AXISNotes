@@ -8,6 +8,7 @@ import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
 import { Editor } from "./features/editor";
 import { Grid } from "./features/grid/Grid";
+import { Canvas } from "./features/canvas/Canvas";
 import { docKind } from "./lib/fileKinds";
 import { GraphView } from "./features/graph/GraphView";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
@@ -69,6 +70,8 @@ export default function App() {
           <GraphView />
         ) : activePath && docKind(activePath) === "grid" ? (
           <Grid key={activePath} path={activePath} />
+        ) : activePath && docKind(activePath) === "canvas" ? (
+          <Canvas key={activePath} path={activePath} />
         ) : activePath ? (
           <Editor key={activePath} path={activePath} />
         ) : (
