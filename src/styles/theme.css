@@ -1,0 +1,53 @@
+/* Theme tokens. Components use these variables only — never raw colors.
+   User themes (Phase 1) override this same set of variables. */
+:root {
+  color-scheme: light dark;
+  --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  --font-size: 14px;
+
+  --bg: #ffffff;
+  --bg-sidebar: #f6f6f7;
+  --bg-hover: #ececef;
+  --bg-active: #e1e4ff;
+  --fg: #1f2328;
+  --fg-muted: #6a6f77;
+  --border: #e3e4e8;
+  --accent: #4f5bd5;
+  --accent-fg: #ffffff;
+  --danger: #c93c37;
+  --code-bg: #f3f3f5;
+  --selection: #c9d0ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1d21;
+    --bg-sidebar: #16171a;
+    --bg-hover: #26272c;
+    --bg-active: #2f3350;
+    --fg: #e4e5e9;
+    --fg-muted: #8d9199;
+    --border: #2c2d33;
+    --accent: #8a93ff;
+    --accent-fg: #11121a;
+    --danger: #ff6b66;
+    --code-bg: #25262b;
+    --selection: #3a4175;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #1c1d21;
+  --bg-sidebar: #16171a;
+  --bg-hover: #26272c;
+  --bg-active: #2f3350;
+  --fg: #e4e5e9;
+  --fg-muted: #8d9199;
+  --border: #2c2d33;
+  --accent: #8a93ff;
+  --accent-fg: #11121a;
+  --danger: #ff6b66;
+  --code-bg: #25262b;
+  --selection: #3a4175;
+}

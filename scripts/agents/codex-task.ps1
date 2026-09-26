@@ -26,6 +26,11 @@ New-Item -ItemType Directory -Force $logDir | Out-Null
 if (-not (Test-Path $worktree)) {
     git -C $repo worktree add $worktree -b $branch $Base
 }
+# Codex's sandbox has no network, so install dependencies before handing over.
+if ((Test-Path (Join-Path $worktree "package.json")) -and -not (Test-Path (Join-Path $worktree "node_modules"))) {
+    Push-Location $worktree
+    try { pnpm install --frozen-lockfile } finally { Pop-Location }
+}
 
 $prompt = @"
 You are the Codex builder on the AXIS project. Read AGENTS.md and AXIS_BUILD_PROMPT.md in
