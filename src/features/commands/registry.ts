@@ -1,4 +1,6 @@
 import { useAppStore } from "../../app/store";
+import { useConfig } from "../../app/config";
+import { effectiveMode } from "../../app/appearance";
 import { newNote, openDailyNote } from "./actions";
 import { useUi } from "./ui";
 
@@ -87,6 +89,21 @@ registerCommands([
     run: () => useUi.getState().open({ kind: "templates", mode: "new" }),
   },
   { id: "close-note", label: "Close note", run: () => useAppStore.getState().openFile(null) },
+  {
+    id: "settings",
+    label: "Open settings",
+    shortcut: { key: ",", mod: true },
+    run: () => useUi.getState().open({ kind: "settings" }),
+  },
+  {
+    id: "toggle-theme",
+    label: "Toggle light/dark theme",
+    run: () =>
+      void useConfig.getState().update((c) => ({
+        ...c,
+        theme: effectiveMode(c.theme) === "dark" ? "light" : "dark",
+      })),
+  },
 ]);
 
 /** Find the command bound to a keyboard event, if any. */

@@ -416,6 +416,16 @@ export function createMemoryBackend(
       }
       return out.sort((a, b) => (a.source < b.source ? -1 : 1));
     },
+    async listAxisFiles(subdir) {
+      const prefix = `.axis/${subdir}/`;
+      return [...nodes.keys()]
+        .filter(
+          (k) =>
+            k.startsWith(prefix) && k.endsWith(".css") && !k.slice(prefix.length).includes("/"),
+        )
+        .map((k) => k.slice(prefix.length, -4))
+        .sort();
+    },
     async unlinkedMentions(path) {
       requireVault();
       const target = notes().find((n) => n.path === path);

@@ -129,4 +129,6 @@ export interface Backend {
   resolveLink(target: string, from: string): Promise<string | null>;
   backlinks(path: string): Promise<Backlink[]>;
   unlinkedMentions(path: string): Promise<Mention[]>;
+  /** CSS files (names without `.css`) in `.axis/themes` or `.axis/snippets`. */
+  listAxisFiles(subdir: "themes" | "snippets"): Promise<string[]>;
 }

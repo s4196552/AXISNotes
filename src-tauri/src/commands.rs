@@ -264,3 +264,25 @@ pub async fn unlinked_mentions(
     let v = state.vault()?;
     state.with_index(|idx| idx.unlinked_mentions(&v, &path))
 }
+
+/// CSS files in `.axis/themes` or `.axis/snippets` (names without `.css`).
+#[tauri::command]
+pub fn list_axis_files(state: State<AppState>, subdir: String) -> AppResult<Vec<String>> {
+    if subdir != "themes" && subdir != "snippets" {
+        return Err(AppError::InvalidName(subdir));
+    }
+    let v = state.vault()?;
+    let dir = v.resolve(&format!(".axis/{subdir}"))?;
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Ok(Vec::new());
+    };
+    let mut names: Vec<String> = entries
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            name.strip_suffix(".css").map(String::from)
+        })
+        .collect();
+    names.sort();
+    Ok(names)
+}

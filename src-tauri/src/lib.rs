@@ -40,6 +40,7 @@ pub fn run() {
             commands::resolve_link,
             commands::backlinks,
             commands::unlinked_mentions,
+            commands::list_axis_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AXIS");

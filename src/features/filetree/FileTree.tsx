@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 import { backend, isBackendError, type VaultEntry } from "../../ipc";
 import { useAppStore } from "../../app/store";
+import { type FolderIcon, useConfig } from "../../app/config";
+import { useUi } from "../commands/ui";
+import { EntryIcon } from "../icons/EntryIcon";
 import {
   baseName,
   canMove,
@@ -48,12 +51,29 @@ interface RowActions {
   drop(e: React.DragEvent, dir: string): void;
 }
 
+/** Move icon settings along with a renamed entry (or drop them when `to` is null). */
+async function remapIcons(from: string, to: string | null) {
+  const icons = useConfig.getState().config.folderIcons;
+  const affected = Object.keys(icons).filter((k) => k === from || k.startsWith(from + "/"));
+  if (affected.length === 0) return;
+  await useConfig.getState().update((c) => {
+    const folderIcons = { ...c.folderIcons };
+    for (const k of affected) {
+      const icon = folderIcons[k]!;
+      delete folderIcons[k];
+      if (to !== null) folderIcons[to + k.slice(from.length)] = icon;
+    }
+    return { ...c, folderIcons };
+  });
+}
+
 const errorMessage = (e: unknown) => (isBackendError(e) ? e.message : String(e));
 const rowId = (path: string) => `filetree-row-${encodeURIComponent(path)}`;
 
 export function FileTree() {
   const vault = useAppStore((s) => s.vault);
   const tree = useAppStore((s) => s.tree);
+  const folderIcons = useConfig((s) => s.config.folderIcons);
   const activePath = useAppStore((s) => s.activePath);
   const { expanded, toggle, collapseAll, update: updateExpanded } = useExpanded(vault?.root ?? "");
 
@@ -125,6 +145,7 @@ export function FileTree() {
       run(async () => {
         await backend.renameEntry(from, to);
         updateExpanded((prev) => remapPaths(prev, from, to));
+        await remapIcons(from, to);
         const store = useAppStore.getState();
         await store.refreshTree();
         store.onEntryRenamed(from, to);
@@ -142,6 +163,7 @@ export function FileTree() {
         const store = useAppStore.getState();
         await store.refreshTree();
         store.onEntryRemoved(entry.path);
+        await remapIcons(entry.path, null);
         setSelected((s) => (s && (s === entry.path || s.startsWith(entry.path + "/")) ? null : s));
       }),
     [run],
@@ -317,6 +339,7 @@ export function FileTree() {
             active={entry.path === activePath}
             renaming={entry.path === renaming}
             dropTarget={entry.path === dropTarget}
+            customIcon={folderIcons[entry.path]}
             actions={actions}
           />
         ))}
@@ -344,6 +367,11 @@ export function FileTree() {
               <MenuItem
                 label="Rename"
                 onClick={() => setRenaming(menu.entry!.path)}
+                close={setMenu}
+              />
+              <MenuItem
+                label="Change icon…"
+                onClick={() => useUi.getState().open({ kind: "icon", path: menu.entry!.path })}
                 close={setMenu}
               />
               <MenuItem
@@ -388,6 +416,7 @@ interface TreeRowProps {
   active: boolean;
   renaming: boolean;
   dropTarget: boolean;
+  customIcon?: FolderIcon;
   actions: RowActions;
 }
 
@@ -399,6 +428,7 @@ const TreeRow = memo(function TreeRow({
   active,
   renaming,
   dropTarget,
+  customIcon,
   actions,
 }: TreeRowProps) {
   const isDir = entry.kind === "dir";
@@ -449,7 +479,11 @@ const TreeRow = memo(function TreeRow({
       >
         {isDir && (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
       </span>
-      <Icon size={15} className="filetree-icon" aria-hidden />
+      {customIcon ? (
+        <EntryIcon icon={customIcon} />
+      ) : (
+        <Icon size={15} className="filetree-icon" aria-hidden />
+      )}
       {renaming ? (
         <RenameInput entry={entry} actions={actions} />
       ) : (

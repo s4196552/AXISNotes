@@ -1,0 +1,121 @@
+.settings {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  width: min(820px, calc(100vw - 32px));
+  height: min(560px, calc(100vh - 120px));
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+}
+.settings-nav button {
+  justify-content: flex-start;
+  border: none;
+  background: transparent;
+}
+.settings-nav button[aria-current="page"] {
+  background: var(--bg-active);
+  color: var(--accent);
+}
+.settings-body {
+  overflow: auto;
+  padding: 12px 20px 20px;
+}
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.settings-header h2 {
+  margin: 4px 0 8px;
+  font-size: 18px;
+}
+.settings-header button {
+  border: none;
+  background: transparent;
+}
+.settings-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-label {
+  font-weight: 600;
+}
+.settings-hint {
+  margin-top: 2px;
+  font-size: 12px;
+}
+.settings-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.settings-control > input:not([type="checkbox"]),
+.settings-control > select {
+  width: 100%;
+}
+.settings-control select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.settings-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.settings-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.settings-checks label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-custom {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+.settings-custom li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.settings-custom code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.settings-custom button {
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+}
+.settings-add {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+.settings-add input {
+  flex: 1;
+  min-width: 0;
+}
