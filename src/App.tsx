@@ -2,8 +2,8 @@ import { useEffect } from "react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
-import { FileTree } from "./features/filetree";
 import { Editor } from "./features/editor";
+import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
@@ -31,12 +31,7 @@ export default function App() {
 
   return (
     <div className="shell">
-      <aside className="sidebar" aria-label="Files">
-        <header className="sidebar-header" title={vault.root}>
-          {vault.name}
-        </header>
-        <FileTree />
-      </aside>
+      <LeftSidebar />
       <main className="content">
         {activePath ? (
           <Editor key={activePath} path={activePath} />
@@ -44,6 +39,7 @@ export default function App() {
           <div className="empty muted">Select or create a note</div>
         )}
       </main>
+      <RightSidebar />
       <footer className="statusbar">
         <span>{activePath ?? ""}</span>
         {error && (

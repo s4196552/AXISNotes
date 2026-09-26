@@ -90,7 +90,7 @@ input {
 /* Shell: sidebar | content, status bar below */
 .shell {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 260px minmax(0, 1fr) 280px;
   grid-template-rows: 1fr 24px;
   height: 100%;
 }
