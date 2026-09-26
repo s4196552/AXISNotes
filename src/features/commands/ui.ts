@@ -8,6 +8,7 @@ export type Modal =
   | { kind: "templates"; mode: "insert" | "new" }
   | { kind: "settings" }
   | { kind: "icon"; path: string }
+  | { kind: "ask"; path?: string; selection?: string }
   | {
       kind: "prompt";
       title: string;

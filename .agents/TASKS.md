@@ -29,7 +29,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 
 | T-021 | 4     | Rust AI layer: provider trait, 4 codecs, registry, keychain, privacy, log, commands | claude | merged    | agent/claude/T-021 | `src-tauri/src/ai/**`, `src-tauri/src/ai_commands.rs`, `src-tauri/ai-models.json` |
 | T-022 | 4     | AI settings UI: providers + keys + test, task models, fallback, limits, folder rules, log | claude | merged    | agent/claude/T-022 | `src/features/ai/**`, `src/ipc/memoryAi.ts`, file tree AI rules |
-| T-023 | 4     | Ask AI panel: plan preview, streaming, cancel, provider/model shown          | claude | todo      | agent/claude/T-023 | `src/features/ai/ask/**` |
+| T-023 | 4     | Ask AI panel: plan preview, streaming, cancel, provider/model shown          | claude | merged    | agent/claude/T-023 | `src/features/ai/AskAi.tsx`, commands |
 | T-024 | 4     | Phase 4 E2E (mock OpenAI-compatible server) + polish                        | claude | todo      | agent/claude/T-024 | `e2e/**` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
