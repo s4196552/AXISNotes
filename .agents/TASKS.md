@@ -22,7 +22,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-015 | 2     | Phase 2 E2E + polish                                                        | claude | merged    | agent/claude/T-015 | `e2e/**` |
 
 | T-016 | 3     | Formula engine, `.axgrid` grid view, grid search indexing                    | claude | merged    | agent/claude/T-016 | `src/lib/formula/**`, `src/features/{grid,files}/**`, `src/lib/fileKinds.ts`, `src-tauri/src/index/**` |
-| T-017 | 3     | `.axcanvas` Excalidraw canvas: note cards, pen input, autosave               | claude | todo      | agent/claude/T-017 | `src/features/canvas/**` |
+| T-017 | 3     | `.axcanvas` Excalidraw canvas: note cards, pen input, autosave               | claude | merged    | agent/claude/T-017 | `src/features/canvas/**`, `src/lib/canvas.ts`, `vite.config.ts`, `src-tauri/src/index/**` |
 | T-018 | 3     | Tasks view, time tracking, computed properties                               | claude | todo      | agent/claude/T-018 | `src/features/{tasks,time}/**`, `src/features/editor/PropertiesPanel.tsx` |
 | T-019 | 3     | Phase 3 E2E + polish                                                        | claude | todo      | agent/claude/T-019 | `e2e/**` |
 

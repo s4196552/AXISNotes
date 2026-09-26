@@ -13,11 +13,21 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - Undo/redo keeps whole-sheet snapshots (200).
   - Load, autosave and conflict handling are shared with future file-backed views through `useFileDocument`, which uses the same rules as the Markdown editor.
 - **Search covers grids**: the Rust index gives `.axgrid` files a row whose FTS body is their non-formula cell text and whose title is the file stem. Grids have no links or tags, can be linked as `[[Budget.axgrid]]`, keep incoming links on rename, and are excluded as unlinked-mention sources.
+- **Canvas = Excalidraw (MIT), embedded and lazy-loaded.** `.axcanvas` is Excalidraw's own JSON scene (`type: "excalidraw"`, `version: 2`, `source: "axis"`), so files open in Excalidraw too.
+  - Only scene settings are persisted (background color and grid settings). Zoom, scroll and selection stay per-session. Deleted elements and unused image files are dropped on save.
+  - Images are embedded as data URLs (Excalidraw's standard). Moving them to vault attachments is a later optimization.
+- **Note cards are Excalidraw "embeddable" elements with `link: "axis:<path>"`.** `renderEmbeddable` draws them as live previews that re-read the note when it changes, and `onLinkOpen` opens the note.
+  - Add cards from a picker or by dragging a note from the file tree (the tree sets an `application/x-axis-path` drag type).
+  - When a note or folder is renamed, the Rust rename rewrites exact `"link": "axis:<old>"` JSON strings in every canvas, leaving the rest of the file byte-for-byte unchanged. Canvas text elements are indexed for search.
+- **Pen input and grid snapping come from Excalidraw**: the freedraw tool with pressure, automatic pen mode, and grid mode (Ctrl+'), whose on/off state and size are saved in the file.
+- **Offline fonts:** Excalidraw normally fetches fonts from a CDN. A small Vite plugin serves `node_modules/@excalidraw/excalidraw/dist/prod/fonts` at `/excalidraw-assets/fonts/` in dev and copies it into the build. `window.EXCALIDRAW_ASSET_PATH` points there. The fonts add about 14 MB to the installer, most of it the CJK font Xiaolai.
+- **Change detection:** Excalidraw's `onChange` also fires for view-only updates, so a change counts only when the scene version, files or saved settings change. The scene is saved only if the serialized result differs from what is on disk, so opening a canvas never rewrites it. An outside edit remounts the editor with the new scene.
 - **Fix:** link decorations now use the tree returned by `ensureSyntaxTree`. Before, `syntaxTree(state)` returned whatever was parsed when the state was created, so code and frontmatter detection flaked under load.
 
-| Package              | Version | License | Purpose                      |
-| -------------------- | ------- | ------- | ---------------------------- |
-| @formulajs/formulajs | 4.6     | MIT     | Spreadsheet function library |
+| Package                | Version | License | Purpose                          |
+| ---------------------- | ------- | ------- | -------------------------------- |
+| @formulajs/formulajs   | 4.6     | MIT     | Spreadsheet function library     |
+| @excalidraw/excalidraw | 0.18    | MIT     | Canvas / whiteboard (lazy chunk) |
 
 ## 2026-09-26: Phase 2 outliner, block references, embeds and graph (T-012 – T-015)
 
