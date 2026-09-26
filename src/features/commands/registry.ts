@@ -1,6 +1,7 @@
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { effectiveMode } from "../../app/appearance";
+import { useTimer } from "../time/timer";
 import { copyBlockLink, newCanvas, newGrid, newNote, openDailyNote } from "./actions";
 import { useUi } from "./ui";
 import { useEditorPrefs } from "../editor/prefs";
@@ -66,6 +67,8 @@ registerCommands([
     shortcut: { key: "t", mod: true, shift: true },
     run: () => useAppStore.getState().setMainView("tasks"),
   },
+  { id: "time", label: "Time report", run: () => useAppStore.getState().setMainView("time") },
+  { id: "stop-timer", label: "Stop timer", run: () => void useTimer.getState().stop() },
   { id: "new-grid", label: "New grid (spreadsheet)", run: () => void newGrid() },
   { id: "new-canvas", label: "New canvas (whiteboard)", run: () => void newCanvas() },
   {

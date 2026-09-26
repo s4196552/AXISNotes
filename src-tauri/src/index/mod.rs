@@ -6,6 +6,7 @@ pub mod parse;
 pub mod rename;
 pub mod search;
 pub mod tasks;
+pub mod time;
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;

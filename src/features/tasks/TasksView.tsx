@@ -6,6 +6,7 @@ import { formatDate } from "../../lib/dates";
 import { type Bucket, BUCKETS, bucketOf, matchesFilter, PRIORITY } from "./taskModel";
 import { setTaskDone } from "../../lib/tasks";
 import { editNote } from "../files/editNote";
+import { TaskTimerButton } from "../time/TimerControls";
 import "./tasks.css";
 
 // Every task in the vault, grouped by due date. Checking a task edits its note.
@@ -144,6 +145,7 @@ export function TasksView() {
                           <CalendarDays size={12} /> {t.due}
                         </span>
                       )}
+                      {!t.done && <TaskTimerButton path={t.path} task={t.text} />}
                       <button
                         className="tasks-source"
                         title={`${t.path}, line ${t.line}`}

@@ -1,4 +1,5 @@
 import {
+  Clock,
   FolderTree,
   Hash,
   ListChecks,
@@ -55,6 +56,14 @@ export function LeftSidebar() {
           onClick={() => useAppStore.getState().setMainView("tasks")}
         >
           <ListChecks size={15} />
+        </button>
+        <button
+          className="sidebar-graph"
+          aria-label="Time report"
+          title="Time report"
+          onClick={() => useAppStore.getState().setMainView("time")}
+        >
+          <Clock size={15} />
         </button>
         {TABS.map(({ id, label, Icon }) => (
           <button
