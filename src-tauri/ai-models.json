@@ -1,0 +1,81 @@
+{
+  "$comment": "AXIS model defaults and capabilities. Model lists are fetched from each provider at runtime; this file is the fallback and the source of capability flags. A copy is written to the app config folder on first run so it can be edited there. Prices are USD per 1M tokens.",
+  "version": 1,
+  "providers": {
+    "openai": {
+      "defaults": {
+        "diagrams": "gpt-6-astra",
+        "handwriting": "gpt-6-sol",
+        "textFixes": "gpt-6-luna",
+        "chat": "gpt-6-sol"
+      },
+      "models": [
+        {
+          "id": "gpt-6-astra",
+          "name": "GPT-6 Astra",
+          "vision": true,
+          "json": true,
+          "sampling": false,
+          "note": "Flagship. No custom temperature/top_p, logprobs or reasoning effort 'none'."
+        },
+        {
+          "id": "gpt-6-sol",
+          "name": "GPT-6 Sol",
+          "vision": true,
+          "json": true,
+          "context": 272000,
+          "price": { "input": 2, "output": 10 }
+        },
+        {
+          "id": "gpt-6-luna",
+          "name": "GPT-6 Luna",
+          "vision": false,
+          "json": true,
+          "price": { "input": 0.1, "output": 0.5 }
+        },
+        { "id": "gpt-image-2.5-flare", "name": "GPT Image 2.5 Flare", "image": true },
+        { "id": "gpt-image-2.5-sunburst", "name": "GPT Image 2.5 Sunburst", "image": true }
+      ]
+    },
+    "anthropic": {
+      "defaults": {
+        "diagrams": "claude-opus-5-5",
+        "handwriting": "claude-sonnet-5",
+        "textFixes": "claude-haiku-4-5-20251001",
+        "chat": "claude-sonnet-5"
+      },
+      "models": [
+        { "id": "claude-opus-5-5", "name": "Claude Opus 5.5", "vision": true, "json": true },
+        { "id": "claude-sonnet-5", "name": "Claude Sonnet 5", "vision": true, "json": true },
+        {
+          "id": "claude-haiku-4-5-20251001",
+          "name": "Claude Haiku 4.5",
+          "vision": true,
+          "json": true
+        }
+      ]
+    },
+    "gemini": { "defaults": {}, "models": [] },
+    "openrouter": { "defaults": {}, "models": [] },
+    "ollama": { "defaults": {}, "models": [] },
+    "lmstudio": { "defaults": {}, "models": [] },
+    "custom": { "defaults": {}, "models": [] }
+  },
+  "visionHints": [
+    "vision",
+    "llava",
+    "-vl",
+    "vl-",
+    "vl:",
+    "gemma3",
+    "pixtral",
+    "minicpm-v",
+    "moondream",
+    "gpt-4o",
+    "gpt-4.1",
+    "gpt-5",
+    "gpt-6",
+    "claude",
+    "gemini"
+  ]
+}

@@ -1,0 +1,4 @@
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Mitochondria"}]},"index":0}],"modelVersion":"gemini-3.1-flash"}
+
+data: {"candidates":[{"content":{"role":"model","parts":[{"text":" make ATP."}]},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":17,"candidatesTokenCount":6,"totalTokenCount":23},"modelVersion":"gemini-3.1-flash"}
+

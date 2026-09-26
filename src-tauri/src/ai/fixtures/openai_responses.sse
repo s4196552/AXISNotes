@@ -1,0 +1,12 @@
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_0a1b2c","status":"in_progress","model":"gpt-6-sol-2026-09-22"}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":1,"content_index":0,"delta":"Mitochondria"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":1,"content_index":0,"delta":" make ATP."}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_0a1b2c","status":"completed","model":"gpt-6-sol-2026-09-22","usage":{"input_tokens":21,"output_tokens":6,"total_tokens":27}}}
+

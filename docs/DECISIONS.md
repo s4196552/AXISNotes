@@ -2,6 +2,40 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-27: Phase 4 multi-provider AI layer (T-021 – T-024)
+
+- **One `AiProvider` trait** (`complete`, `stream`, `vision`, `list_models`) with one implementation, `Adapter`, which drives a per-format **codec** over a **transport**.
+  - Codecs: OpenAI Responses (used for OpenAI itself, with `store: false`), OpenAI-compatible Chat Completions (OpenRouter, Ollama, LM Studio, custom endpoints), Anthropic Messages, and Gemini `generateContent`.
+  - Codecs are pure: they build a request and parse responses or SSE events. They are tested against recorded provider responses in `src-tauri/src/ai/fixtures/`, and the same prompt is checked through every format.
+  - A live test runs only when `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` / `AXIS_OLLAMA_MODEL` are set.
+- **Streaming everywhere.** The app always streams, so requests can be cancelled. Text deltas reach the UI as `ai://delta` Tauri events, and a small incremental SSE parser handles chunks split mid-line or mid-character.
+- **Unsupported parameters degrade gracefully.**
+  - Known limits are applied before sending (for example, no `temperature` for `gpt-6-astra`, including dated snapshots, through prefix matching in the registry).
+  - If a provider still rejects a parameter (found from `error.param` or a known name in the message), the adapter drops it and retries once, then reports a clear error. A retry never happens after text has streamed.
+- **Reasoning effort:** Quick / Balanced / Deep maps to OpenAI `reasoning.effort` low/medium/high, Anthropic extended thinking (none / 4k / 16k budget, with `max_tokens` raised to match and `temperature` omitted), and Gemini `thinkingBudget` (0 / dynamic / 16k).
+- **Model registry `ai-models.json`:**
+  - It holds the spec's defaults per task (OpenAI `gpt-6-astra`/`sol`/`luna`, Anthropic Opus 5.5 / Sonnet 5 / Haiku 4.5), capability flags and prices.
+  - It is bundled, and a copy is written to the app config folder on first run so the user can edit it. The user's copy overlays the bundled one.
+  - Live model lists are fetched from each provider and enriched with these flags, falling back to name hints for vision (`vl:`, `llava`, ...). Gemini's defaults are always picked from the live list (newest non-preview pro / flash / flash-lite).
+- **Keys:** OS keychain via `keyring` (service `AXIS`, entry `ai-provider:<id>`).
+  - Commands can set, delete, or report whether a key exists; nothing returns a key to the webview.
+  - Keys are not stored in settings files or logs, and removing a provider deletes its key.
+- **Settings are per user, not per vault** (`ai-settings.json` in the app config folder), because vaults can be shared. They hold providers, the provider and model per task, the fallback order, the token cap (requests above it are refused), the confirmation threshold (default 4,000 estimated input tokens), the default effort, and a switch for the request log.
+- **Fallback:** the task's provider is tried first, then the fallback order, using each provider's default model for the task. The chain moves on only for network errors, 5xx, 429 and auth failures, never for a rejected request. The result says which provider answered.
+- **Privacy rules are per vault** in `.axis/config.json` (`ai.folders: { "Medical": "never", "Journal": "local" }`), and the most specific path wins.
+  - A request is held to the strictest rule of every note it involves: notes the UI declares as sources, plus notes Rust reads itself (`attach`).
+  - "never" is refused before any provider is contacted, even when a provider is named explicitly. "local" only reaches providers whose endpoint is on this machine (localhost, 127.x, ::1). A LAN IP doesn't count.
+- **Request log:** JSON lines in the app data folder (`ai-requests.jsonl`, trimmed past ~1 MB). It records time, task, provider, model, local flag, status (ok / error / cancelled / blocked), token counts, duration and the number of source notes. It never records prompts, answers or paths.
+- **Token estimate:** about 4 characters per token plus 1,000 per image. It is shown before sending, together with the input cost when the model's price is known.
+- **E2E isolation:** `AXIS_CONFIG_DIR` points settings, registry and log at a throwaway folder, and `AXIS_AI_MEMORY_KEYS` keeps keys in memory, so tests never touch the user's settings or keychain.
+
+| Crate         | Version | License           | Purpose                                                |
+| ------------- | ------- | ----------------- | ------------------------------------------------------ |
+| reqwest       | 0.13    | MIT OR Apache-2.0 | HTTPS client (rustls + OS certificate store, no CMake) |
+| rustls (ring) | 0.23    | MIT OR Apache-2.0 | TLS crypto provider                                    |
+| keyring       | 3.6     | MIT OR Apache-2.0 | OS keychain for API keys                               |
+| tokio (dev)   | 1       | MIT               | Async tests                                            |
+
 ## 2026-09-26: Phase 3 grids, canvases and structured data (T-016 – T-019)
 
 - **Formula engine: our own parser and evaluator plus `@formulajs/formulajs` (MIT) for the function library.** HyperFormula is GPLv3 or commercial, so it is ruled out. The parser is a small Pratt parser with Excel precedence (comparison < `&` < `+ -` < `* /` < `^` < unary/percent, with `^` right-associative). It handles A1 refs with `$`, ranges, dotted function names and bare names (for computed properties). Evaluation uses Excel error values (`#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#N/A`, `#NUM!`, `#CIRC!`, `#ERROR!`). `IF` is lazy, and `IFERROR`/`IFNA`/`IS*` are native because formula.js only recognizes its own error objects. Everything else is looked up in formula.js.

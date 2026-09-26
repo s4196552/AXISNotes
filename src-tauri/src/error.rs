@@ -17,6 +17,14 @@ pub enum AppError {
     InvalidName(String),
     #[error("{0}")]
     Io(String),
+    /// An AI request refused by the vault's AI privacy rules or cost limits.
+    #[error("{0}")]
+    Blocked(String),
+    /// An AI provider failed (after retries and fallbacks).
+    #[error("{0}")]
+    Ai(String),
+    #[error("cancelled")]
+    Cancelled,
 }
 
 impl AppError {
@@ -29,6 +37,9 @@ impl AppError {
             AppError::OutsideVault(_) => "OutsideVault",
             AppError::InvalidName(_) => "InvalidName",
             AppError::Io(_) => "Io",
+            AppError::Blocked(_) => "Blocked",
+            AppError::Ai(_) => "Ai",
+            AppError::Cancelled => "Cancelled",
         }
     }
 }
