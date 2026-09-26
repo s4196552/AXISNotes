@@ -50,6 +50,8 @@ function validateName(name: string) {
 export interface MemoryBackend extends Backend {
   /** Simulate an edit made by another program (fires onVaultChanged). */
   externalWrite(path: string, content: string): void;
+  /** Simulate another program deleting a file or folder (fires onVaultChanged). */
+  externalRemove(path: string): void;
   /** Direct access for assertions in tests. */
   files(): Record<string, string>;
 }
@@ -197,6 +199,11 @@ export function createMemoryBackend(
       put(p, { kind: "file", content, modifiedMs: tick() });
       const change: VaultChange = { kind: existed ? "modified" : "created", paths: [p] };
       listeners.forEach((l) => l([change]));
+    },
+    externalRemove(path) {
+      const p = normalize(path);
+      for (const k of [...nodes.keys()]) if (k === p || k.startsWith(p + "/")) nodes.delete(k);
+      listeners.forEach((l) => l([{ kind: "removed", paths: [p] }]));
     },
     files() {
       return Object.fromEntries(

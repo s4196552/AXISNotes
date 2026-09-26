@@ -1,0 +1,267 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { autocompletion } from "@codemirror/autocomplete";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { languages } from "@codemirror/language-data";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
+import { Annotation, EditorState } from "@codemirror/state";
+import { drawSelection, EditorView, keymap } from "@codemirror/view";
+import { backend, isBackendError, type VaultChange } from "../../ipc";
+import { useAppStore } from "../../app/store";
+import { livePreview } from "./livePreview";
+import { axisTheme } from "./theme";
+import "./editor.css";
+
+export interface EditorProps {
+  /** Vault-relative path of the note to edit. The parent remounts on path change. */
+  path: string;
+}
+
+export const AUTOSAVE_DELAY_MS = 500;
+
+type SaveStatus = "loading" | "saved" | "saving" | "dirty" | "error";
+type Banner = null | "conflict" | "removed";
+
+/** Marks document replacements that come from disk, so they don't count as edits. */
+const fromDisk = Annotation.define<boolean>();
+
+const STATUS_TEXT: Record<SaveStatus, string> = {
+  loading: "Loading…",
+  saved: "Saved",
+  saving: "Saving…",
+  dirty: "Unsaved changes",
+  error: "Save failed",
+};
+
+function titleOf(path: string) {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  return name.toLowerCase().endsWith(".md") ? name.slice(0, -3) : name;
+}
+
+export function Editor({ path }: EditorProps) {
+  const host = useRef<HTMLDivElement>(null);
+  const view = useRef<EditorView | null>(null);
+  const mtime = useRef<number | undefined>(undefined);
+  const dirty = useRef(false);
+  /** Autosave is paused while a conflict/removed banner is showing. */
+  const paused = useRef(false);
+  const saving = useRef<Promise<void> | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [status, setStatus] = useState<SaveStatus>("loading");
+  const [banner, setBannerState] = useState<Banner>(null);
+
+  const setBanner = useCallback((b: Banner) => {
+    paused.current = b !== null;
+    setBannerState(b);
+  }, []);
+
+  const clearTimer = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+
+  /**
+   * Write the current document. `force` skips the on-disk change check
+   * (used by "Keep my version" / "Save here anyway").
+   */
+  const save = useCallback(
+    async (force = false): Promise<void> => {
+      clearTimer();
+      const v = view.current;
+      if (!v || (!force && (!dirty.current || paused.current))) return;
+      if (saving.current) await saving.current; // one write at a time
+      const content = v.state.doc.toString();
+      setStatus("saving");
+      const op = (async () => {
+        try {
+          const res = await backend.writeFile(path, content, force ? undefined : mtime.current);
+          mtime.current = res.modifiedMs;
+          if (v.state.doc.toString() === content) {
+            dirty.current = false;
+            setStatus("saved");
+          } else {
+            setStatus("dirty"); // edited while saving; the pending timer will save again
+          }
+        } catch (e) {
+          if (isBackendError(e) && e.code === "Conflict") {
+            setBanner("conflict");
+            setStatus("dirty");
+          } else {
+            setStatus("error");
+            useAppStore.getState().setError(isBackendError(e) ? e.message : String(e));
+          }
+        }
+      })();
+      saving.current = op;
+      await op;
+      saving.current = null;
+    },
+    [path, setBanner],
+  );
+
+  const scheduleSave = useCallback(() => {
+    clearTimer();
+    if (!paused.current) timer.current = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
+  }, [save]);
+
+  /** Replace the document with what is on disk, keeping the cursor where possible. */
+  const reloadFromDisk = useCallback(async () => {
+    const v = view.current;
+    if (!v) return;
+    const file = await backend.readFile(path);
+    mtime.current = file.modifiedMs;
+    dirty.current = false;
+    if (file.content !== v.state.doc.toString()) {
+      const head = Math.min(v.state.selection.main.head, file.content.length);
+      v.dispatch({
+        changes: { from: 0, to: v.state.doc.length, insert: file.content },
+        selection: { anchor: head },
+        annotations: fromDisk.of(true),
+      });
+    }
+    setStatus("saved");
+  }, [path]);
+
+  // Create the editor once the note has loaded.
+  useEffect(() => {
+    let cancelled = false;
+    let created: EditorView | null = null;
+
+    backend
+      .readFile(path)
+      .then((file) => {
+        if (cancelled || !host.current) return;
+        mtime.current = file.modifiedMs;
+        created = new EditorView({
+          parent: host.current,
+          state: EditorState.create({
+            doc: file.content,
+            extensions: [
+              history(),
+              drawSelection(),
+              search({ top: true }),
+              highlightSelectionMatches(),
+              autocompletion({ activateOnTyping: false }),
+              EditorView.lineWrapping,
+              markdown({ base: markdownLanguage, codeLanguages: languages }),
+              livePreview,
+              axisTheme,
+              keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+              EditorView.contentAttributes.of({ "aria-label": `Note ${titleOf(path)}` }),
+              EditorView.updateListener.of((u) => {
+                if (u.docChanged && !u.transactions.some((tr) => tr.annotation(fromDisk))) {
+                  dirty.current = true;
+                  setStatus("dirty");
+                  scheduleSave();
+                }
+                if (u.focusChanged && !u.view.hasFocus) void save();
+              }),
+            ],
+          }),
+        });
+        view.current = created;
+        setStatus("saved");
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setStatus("error");
+        useAppStore.getState().setError(isBackendError(e) ? e.message : String(e));
+      });
+
+    return () => {
+      cancelled = true;
+      // Flush unsaved edits on unmount (fire-and-forget; the view is going away).
+      clearTimer();
+      if (created && dirty.current && !paused.current) {
+        void backend
+          .writeFile(path, created.state.doc.toString(), mtime.current)
+          .catch((e: unknown) =>
+            useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
+          );
+      }
+      created?.destroy();
+      view.current = null;
+    };
+  }, [path, save, scheduleSave]);
+
+  // React to edits made outside the app.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    const onChanges = (changes: VaultChange[]) => {
+      for (const c of changes) {
+        if (!c.paths.includes(path)) continue;
+        if (c.kind === "removed" || c.kind === "renamed") {
+          // A rename done inside the app remounts the editor on the new path;
+          // this only fires for moves/deletes made elsewhere.
+          clearTimer();
+          setBanner("removed");
+        } else if (dirty.current) {
+          clearTimer();
+          setBanner("conflict");
+        } else {
+          void reloadFromDisk().catch(() => setBanner("removed"));
+        }
+      }
+    };
+    backend.onVaultChanged(onChanges).then((u) => {
+      if (disposed) u();
+      else unlisten = u;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [path, reloadFromDisk, setBanner]);
+
+  return (
+    <div className="editor">
+      <header className="editor-header">
+        <h1 className="editor-title">{titleOf(path)}</h1>
+        <span className={`editor-status status-${status}`} role="status" aria-live="polite">
+          {STATUS_TEXT[status]}
+        </span>
+      </header>
+
+      {banner === "conflict" && (
+        <div className="editor-banner" role="alert">
+          <span>This note changed on disk.</span>
+          <button
+            onClick={() => {
+              setBanner(null);
+              void reloadFromDisk();
+            }}
+          >
+            Reload from disk
+          </button>
+          <button
+            className="primary"
+            onClick={() => {
+              setBanner(null);
+              void save(true);
+            }}
+          >
+            Keep my version
+          </button>
+        </div>
+      )}
+      {banner === "removed" && (
+        <div className="editor-banner" role="alert">
+          <span>This note was moved or deleted.</span>
+          <button
+            className="primary"
+            onClick={() => {
+              setBanner(null);
+              void save(true);
+            }}
+          >
+            Save here anyway
+          </button>
+        </div>
+      )}
+
+      <div ref={host} className="editor-host" />
+    </div>
+  );
+}
