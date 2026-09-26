@@ -1,0 +1,17 @@
+{
+  "id": "resp_0a1b2c",
+  "object": "response",
+  "status": "completed",
+  "model": "gpt-6-sol-2026-09-22",
+  "output": [
+    { "id": "rs_1", "type": "reasoning", "summary": [] },
+    {
+      "id": "msg_1",
+      "type": "message",
+      "role": "assistant",
+      "status": "completed",
+      "content": [{ "type": "output_text", "text": "Mitochondria make ATP.", "annotations": [] }]
+    }
+  ],
+  "usage": { "input_tokens": 21, "output_tokens": 6, "total_tokens": 27 }
+}

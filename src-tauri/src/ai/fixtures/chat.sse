@@ -1,0 +1,10 @@
+data: {"id":"chatcmpl-42","object":"chat.completion.chunk","model":"llama3.3","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-42","object":"chat.completion.chunk","model":"llama3.3","choices":[{"index":0,"delta":{"content":"Mitochondria"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-42","object":"chat.completion.chunk","model":"llama3.3","choices":[{"index":0,"delta":{"content":" make ATP."},"finish_reason":"stop"}]}
+
+data: {"id":"chatcmpl-42","object":"chat.completion.chunk","model":"llama3.3","choices":[],"usage":{"prompt_tokens":24,"completion_tokens":7,"total_tokens":31}}
+
+data: [DONE]
+

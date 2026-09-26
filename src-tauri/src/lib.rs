@@ -1,3 +1,5 @@
+mod ai;
+mod ai_commands;
 mod commands;
 mod error;
 mod index;
@@ -15,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(commands::AppState::default())
         .setup(|app| {
+            ai_commands::manage(app.handle());
             if let Ok(path) = std::env::var(OPEN_VAULT_ENV) {
                 let state = app.state::<commands::AppState>();
                 if let Err(e) = state.open_at_startup(app.handle(), &path) {
@@ -44,6 +47,16 @@ pub fn run() {
             commands::graph,
             commands::list_tasks,
             commands::time_entries,
+            ai_commands::ai_settings,
+            ai_commands::ai_save_settings,
+            ai_commands::ai_set_key,
+            ai_commands::ai_delete_key,
+            ai_commands::ai_test_provider,
+            ai_commands::ai_list_models,
+            ai_commands::ai_plan,
+            ai_commands::ai_run,
+            ai_commands::ai_cancel,
+            ai_commands::ai_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AXIS");

@@ -27,6 +27,11 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-019 | 3     | Time tracking (timer, manual entries, report) + computed properties         | claude | merged    | agent/claude/T-019 | `src/features/time/**`, `src/lib/computed.ts`, `src/features/editor/Properties*`, `src-tauri/src/index/time.rs` |
 | T-020 | 3     | Phase 3 E2E + polish                                                        | claude | merged    | agent/claude/T-020 | `e2e/**` |
 
+| T-021 | 4     | Rust AI layer: provider trait, 4 codecs, registry, keychain, privacy, log, commands | claude | merged    | agent/claude/T-021 | `src-tauri/src/ai/**`, `src-tauri/src/ai_commands.rs`, `src-tauri/ai-models.json` |
+| T-022 | 4     | AI settings UI: providers + keys + test, task models, fallback, limits, folder rules, log | claude | todo      | agent/claude/T-022 | `src/features/ai/settings/**` |
+| T-023 | 4     | Ask AI panel: plan preview, streaming, cancel, provider/model shown          | claude | todo      | agent/claude/T-023 | `src/features/ai/ask/**` |
+| T-024 | 4     | Phase 4 E2E (mock OpenAI-compatible server) + polish                        | claude | todo      | agent/claude/T-024 | `e2e/**` |
+
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
 _Codex could not run commands (Windows sandbox provisioning failed: `helper_sandbox_lock_failed`), so per the user Claude builds T-003/T-004 itself. Codex cross-reviews are owed once the sandbox is fixed._

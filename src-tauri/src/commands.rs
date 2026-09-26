@@ -61,6 +61,11 @@ impl AppState {
         self.vault.lock().unwrap().clone().ok_or(AppError::NoVault)
     }
 
+    /// The open vault (for other command modules).
+    pub(crate) fn current(&self) -> AppResult<Vault> {
+        self.vault()
+    }
+
     /// Mark a path as touched by the app so the watcher ignores its echo.
     fn touch(&self, vault: &Vault, rel: &str) -> AppResult<()> {
         self.self_writes.mark(&vault.resolve(rel)?);
