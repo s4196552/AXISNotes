@@ -1,4 +1,5 @@
-import { FolderTree, Hash, Search } from "lucide-react";
+import { FolderTree, Hash, Search, Settings as SettingsIcon } from "lucide-react";
+import { useUi } from "../commands/ui";
 import { type LeftPanel, useAppStore } from "../../app/store";
 import { Calendar } from "../daily/Calendar";
 import { FileTree } from "../filetree";
@@ -20,7 +21,15 @@ export function LeftSidebar() {
   return (
     <aside className="sidebar" aria-label="Navigation">
       <header className="sidebar-header" title={vault?.root}>
-        {vault?.name}
+        <span className="sidebar-vault">{vault?.name}</span>
+        <button
+          className="sidebar-settings"
+          aria-label="Settings"
+          title="Settings (Ctrl+,)"
+          onClick={() => useUi.getState().open({ kind: "settings" })}
+        >
+          <SettingsIcon size={15} />
+        </button>
       </header>
       <div className="sidebar-tabs" role="tablist" aria-label="Sidebar views">
         {TABS.map(({ id, label, Icon }) => (

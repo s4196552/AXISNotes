@@ -159,3 +159,25 @@ mark {
   padding: 2px 8px;
   font-size: 12px;
 }
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sidebar-vault {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-settings {
+  padding: 3px 5px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.sidebar-settings:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}

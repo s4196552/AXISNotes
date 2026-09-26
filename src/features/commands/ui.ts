@@ -6,6 +6,8 @@ export type Modal =
   | { kind: "palette" }
   | { kind: "switcher" }
   | { kind: "templates"; mode: "insert" | "new" }
+  | { kind: "settings" }
+  | { kind: "icon"; path: string }
   | {
       kind: "prompt";
       title: string;

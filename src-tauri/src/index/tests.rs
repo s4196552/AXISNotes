@@ -200,7 +200,10 @@ fn perf_search_5000_notes() {
     use std::time::Instant;
     let dir = tempfile::tempdir().unwrap();
     let v = Vault::open(dir.path()).unwrap();
-    let words = ["cell", "energy", "project", "alpha", "history", "matrix", "river", "poem", "budget", "plan"];
+    let words = [
+        "cell", "energy", "project", "alpha", "history", "matrix", "river", "poem", "budget",
+        "plan",
+    ];
     for i in 0..5000 {
         let w1 = words[i % words.len()];
         let w2 = words[(i * 7) % words.len()];
@@ -211,13 +214,21 @@ fn perf_search_5000_notes() {
             (i + 1) % 5000,
             "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(20)
         );
-        v.write_file(&format!("Folder {}/Note {i}.md", i % 50), &body, None).unwrap();
+        v.write_file(&format!("Folder {}/Note {i}.md", i % 50), &body, None)
+            .unwrap();
     }
     let t = Instant::now();
     let idx = Index::open(&v).unwrap();
     println!("initial index of 5000 notes: {:?}", t.elapsed());
 
-    for q in ["energy", "\"talks about river\"", "tag:area/cell plan", "prop:status=done budget", "lorem -poem", "path:\"Folder 7\" matrix"] {
+    for q in [
+        "energy",
+        "\"talks about river\"",
+        "tag:area/cell plan",
+        "prop:status=done budget",
+        "lorem -poem",
+        "path:\"Folder 7\" matrix",
+    ] {
         let t = Instant::now();
         let hits = idx.search(q, 50).unwrap();
         let ms = t.elapsed().as_secs_f64() * 1000.0;

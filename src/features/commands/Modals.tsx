@@ -5,6 +5,8 @@ import { PromptDialog } from "./PromptDialog";
 import { Picker, type PickerItem } from "./Picker";
 import { allCommands, commandForEvent, hintFor } from "./registry";
 import { useUi } from "./ui";
+import { IconPicker } from "../icons/IconPicker";
+import { Settings } from "../settings/Settings";
 import "./commands.css";
 
 /** Global keyboard shortcuts (capture phase, so they win over the editor). */
@@ -116,6 +118,10 @@ export function Modals() {
       return <QuickSwitcher />;
     case "templates":
       return <TemplatePicker mode={modal.mode} />;
+    case "settings":
+      return <Settings onClose={() => useUi.getState().close()} />;
+    case "icon":
+      return <IconPicker path={modal.path} onClose={() => useUi.getState().close()} />;
     case "prompt":
       return (
         <PromptDialog

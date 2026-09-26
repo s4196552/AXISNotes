@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
+import { applyAppearance } from "./app/appearance";
 import { openDailyNote } from "./features/commands/actions";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
@@ -37,6 +38,12 @@ export default function App() {
       cancelled = true;
     };
   }, [vault]);
+
+  const theme = useConfig((s) => s.config.theme);
+  const snippets = useConfig((s) => s.config.snippets);
+  useEffect(() => {
+    void applyAppearance({ theme, snippets });
+  }, [theme, snippets]);
 
   // Keep the tree in sync with edits made outside the app.
   useEffect(() => {
