@@ -6,6 +6,8 @@ import { buildGraph } from "./graphModel";
 import { useSigma } from "./useSigma";
 import "./graph.css";
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
 const cssVar = (name: string, fallback: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
@@ -91,7 +93,7 @@ export function GraphView() {
           Unresolved
         </label>
         <span className="graph-count muted" aria-live="polite">
-          {graph ? `${graph.order} notes · ${graph.size} links` : "Loading…"}
+          {graph ? `${plural(graph.order, "note")} · ${plural(graph.size, "link")}` : "Loading…"}
         </span>
         <button
           className="graph-close"
@@ -139,7 +141,7 @@ export function LocalGraph() {
           <option value={2}>2 links</option>
           <option value={3}>3 links</option>
         </select>
-        <span className="graph-count muted">{graph ? `${graph.order} notes` : ""}</span>
+        <span className="graph-count muted">{graph ? plural(graph.order, "note") : ""}</span>
       </header>
       <div className="local-graph-canvas" ref={container} data-testid="local-graph-canvas" />
     </section>

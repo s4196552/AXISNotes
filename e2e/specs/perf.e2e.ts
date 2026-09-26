@@ -7,11 +7,20 @@ import { Key } from "webdriverio";
 async function searchMs(query: string): Promise<{ ms: number; text: string }> {
   const box = $('input[aria-label="Search notes"]');
   await box.setValue(query);
-  const note = () => $(".search-summary");
-  await browser.waitUntil(async () => /results? · \d+ ms|No results/.test(await note().getText()), {
-    timeoutMsg: `no results for ${query}`,
-  });
-  const text = await note().getText();
+  // The summary line is re-rendered as results update, so a handle can go stale
+  // between finding and reading it; treat that as "not yet".
+  let text = "";
+  await browser.waitUntil(
+    async () => {
+      try {
+        text = await $(".search-summary").getText();
+      } catch {
+        return false;
+      }
+      return /results? · \d+ ms|No results/.test(text);
+    },
+    { timeoutMsg: `no results for ${query}` },
+  );
   return { ms: Number(/(\d+) ms/.exec(text)?.[1] ?? 0), text };
 }
 

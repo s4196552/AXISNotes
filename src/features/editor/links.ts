@@ -1,5 +1,5 @@
 import type { Completion, CompletionContext, CompletionResult } from "@codemirror/autocomplete";
-import { syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { type EditorState, Facet, type Range, StateEffect, StateField } from "@codemirror/state";
 import {
   Decoration,
@@ -81,9 +81,12 @@ const hide = Decoration.replace({});
 export function buildLinkDecorations(
   state: EditorState,
   ranges: readonly { from: number; to: number }[] = [{ from: 0, to: state.doc.length }],
+  focused = true,
 ): DecorationSet {
   const host = state.facet(linkHost);
-  const active = activeLineNumbers(state);
+  // Make sure the tree covers the ranges, so code/frontmatter are recognized reliably.
+  ensureSyntaxTree(state, Math.max(0, ...ranges.map((r) => r.to)), 200);
+  const active = focused ? activeLineNumbers(state) : new Set<number>();
   const out: Range<Decoration>[] = [];
   for (const { from, to } of ranges) {
     const text = state.sliceDoc(from, to);
@@ -133,17 +136,18 @@ const linkDecorations = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
     constructor(view: EditorView) {
-      this.decorations = buildLinkDecorations(view.state, view.visibleRanges);
+      this.decorations = buildLinkDecorations(view.state, view.visibleRanges, view.hasFocus);
     }
     update(u: ViewUpdate) {
       if (
         u.docChanged ||
+        u.focusChanged ||
         u.selectionSet ||
         u.viewportChanged ||
         syntaxTree(u.state) !== syntaxTree(u.startState) ||
         u.transactions.some((tr) => tr.effects.some((e) => e.is(refreshLinks)))
       ) {
-        this.decorations = buildLinkDecorations(u.state, u.view.visibleRanges);
+        this.decorations = buildLinkDecorations(u.state, u.view.visibleRanges, u.view.hasFocus);
       }
     }
   },
@@ -157,7 +161,8 @@ const clickHandler = EditorView.domEventHandlers({
     const el = (e.target as HTMLElement).closest<HTMLElement>("[data-wikilink], [data-tag]");
     if (!el) return false;
     const pos = view.posAtDOM(el);
-    const lineActive = activeLineNumbers(view.state).has(view.state.doc.lineAt(pos).number);
+    const lineActive =
+      view.hasFocus && activeLineNumbers(view.state).has(view.state.doc.lineAt(pos).number);
     if (lineActive && !(e.ctrlKey || e.metaKey)) return false;
     e.preventDefault();
     const host = view.state.facet(linkHost);

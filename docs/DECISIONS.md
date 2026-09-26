@@ -2,6 +2,22 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-26: Phase 2 outliner, block references, embeds and graph (T-012 – T-015)
+
+- **Outliner on plain Markdown.** No separate data model: operations work on list items (with nested children) and heading sections found from the text. Tab / Shift-Tab indent under the previous sibling's content column or out to the parent's level (CommonMark-correct for `-` and `1.` lists); Alt+↑/↓ swap with siblings; list items and sections fold. "Outline view" (per-viewer preference) adds a fold gutter and drag handles; a drop re-indents to the target's level.
+- **Blocks follow Obsidian:** `^id` at the end of a list item's own line (children included) or a paragraph's last line; an id on its own line refers to the block above. Headings are linked with `#Heading`, not ids. New ids are 6 random base-36 characters. `[[Note#^` completion lists paragraphs and list items and **adds the id to the target note** (fresh read + optimistic write) when missing. `^id` markers are hidden in live preview.
+- **Embeds are editable in place.** `![[Note]]`, `![[Note#Heading]]` and `![[Note#^id]]` on their own line render as block widgets containing a mini CodeMirror editor. Saves are debounced (400 ms), and each save **re-reads the source and checks the block text still matches what was loaded**; if not, the embed reloads instead of overwriting. Embeds of the note you're editing are read-only (the outer autosave would otherwise race). Nested editors don't render embeds (no recursion).
+- **Live preview shows raw Markdown only on the cursor's lines while the editor has focus**, so unfocused editors (including embeds) render fully.
+- **Graph:** built in Rust with in-memory resolution identical to `Index::resolve` (5,000 notes in ~14 ms); unresolved targets become `?name` nodes. Rendered with sigma.js (WebGL) and ForceAtlas2 (synchronous up to 400 nodes, otherwise a web worker for 2.5 s), **lazy-loaded** through `graphLibs.ts` (also the seam tests mock, since jsdom has no WebGL). Hover fades non-neighbors; the open note is emphasized, not isolated. Hover labels use theme colors (sigma's default is a white box). Stale mounts are cancelled before creating a renderer.
+- **Test robustness:** Testing Library's async timeout raised to 5 s and Vitest's test timeout to 20 s (busy machines); link decorations force a parse of the visible ranges so code/frontmatter detection doesn't depend on the parser's time budget.
+- **E2E:** `blocks.e2e.ts` covers the Phase 2 acceptance (embed a single bullet and edit it in place; the source file changes), block completion, outliner keys, and the graph (clicking a node via the renderer's event, since WebGL nodes aren't DOM elements).
+
+| Package                         | Version | License | Purpose                 |
+| ------------------------------- | ------- | ------- | ----------------------- |
+| sigma                           | 3.0     | MIT     | Graph rendering (WebGL) |
+| graphology (+ graphology-types) | 0.26    | MIT     | Graph data structure    |
+| graphology-layout-forceatlas2   | 0.10    | MIT     | Force layout (worker)   |
+
 ## 2026-09-26: Phase 1 editor, panels, commands and customization (T-007 – T-011)
 
 - **Frontmatter is parsed as YAML inside the editor** (`@codemirror/lang-yaml`'s `yamlFrontmatter`), so Lezer no longer reads `---` blocks as setext headings. The block is folded behind a "Properties" chip unless the cursor is in it; the **properties panel** edits it with typed controls (text, number, checkbox, date, list). The editor document stays the single source of truth: panel edits become minimal document changes, and **only changed keys are rewritten**, so untouched values keep their YAML formatting (found by E2E: `aliases: [PA]` was being reflowed).

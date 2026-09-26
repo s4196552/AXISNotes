@@ -110,10 +110,12 @@ function withSpace(state: EditorState, to: number): number {
 export function buildDecorations(
   state: EditorState,
   ranges: readonly { from: number; to: number }[] = [{ from: 0, to: state.doc.length }],
+  /** Raw Markdown is shown on the cursor's lines only while the editor has focus. */
+  focused = true,
 ): DecorationSet {
   const tree =
     ensureSyntaxTree(state, Math.max(...ranges.map((r) => r.to), 0), 200) ?? syntaxTree(state);
-  const active = activeLines(state);
+  const active = focused ? activeLines(state) : new Set<number>();
   const isActive = (pos: number) => active.has(state.doc.lineAt(pos).number);
   const out: Range<Decoration>[] = [];
   const lineClass = (pos: number, cls: string) =>
@@ -244,16 +246,17 @@ export const livePreview = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
     constructor(view: EditorView) {
-      this.decorations = buildDecorations(view.state, view.visibleRanges);
+      this.decorations = buildDecorations(view.state, view.visibleRanges, view.hasFocus);
     }
     update(u: ViewUpdate) {
       if (
         u.docChanged ||
+        u.focusChanged ||
         u.selectionSet ||
         u.viewportChanged ||
         syntaxTree(u.state) !== syntaxTree(u.startState)
       ) {
-        this.decorations = buildDecorations(u.state, u.view.visibleRanges);
+        this.decorations = buildDecorations(u.state, u.view.visibleRanges, u.view.hasFocus);
       }
     }
   },

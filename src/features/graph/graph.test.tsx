@@ -123,7 +123,7 @@ describe("graph views", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Filter graph" }), {
       target: { value: "tag:work" },
     });
-    expect(screen.getByText("1 notes · 0 links")).toBeInTheDocument();
+    expect(screen.getByText("1 note · 0 links")).toBeInTheDocument();
 
     await waitFor(() => expect(h.sigmas.length).toBeGreaterThan(0));
     act(() => h.sigmas.at(-1)!.handlers.clickNode!({ node: "A.md" }));

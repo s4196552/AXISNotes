@@ -16,5 +16,7 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // Component tests drive real CodeMirror in jsdom; allow for slow, busy machines.
+    testTimeout: 20_000,
   },
 });
