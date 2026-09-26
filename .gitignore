@@ -9,3 +9,4 @@ src-tauri/target/
 .agents/qa/
 .agents/logs/
 src-tauri/gen/
+*.tsbuildinfo

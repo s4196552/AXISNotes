@@ -27,7 +27,14 @@ beforeAll(() => {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   h.b = createMemoryBackend({ "Note.md": "# Title\n\nHello **world**" });
-  useAppStore.setState({ error: null });
+  useAppStore.setState({
+    error: null,
+    activePath: "Note.md",
+    pendingTarget: null,
+    notes: [],
+    leftPanel: "files",
+    searchQuery: "",
+  });
 });
 afterEach(() => vi.useRealTimers());
 
@@ -134,6 +141,65 @@ describe("Editor", () => {
 
     act(() => h.b.emitChanges([{ kind: "renamed", paths: ["Note.md", "Moved.md"] }]));
     expect(await screen.findByRole("alert")).toHaveTextContent("moved or deleted");
+  });
+
+  it("follows rendered wikilinks and creates missing notes", async () => {
+    h.b = createMemoryBackend({
+      "Note.md": "# T\n\nSee [[Other#Part]] and [[New Idea]]",
+      "Other.md": "x",
+    });
+    const { container } = await open();
+    fireEvent.mouseDown(container.querySelector('[data-wikilink="Other#Part"]')!, { button: 0 });
+    await waitFor(() => expect(useAppStore.getState().activePath).toBe("Other.md"));
+    expect(useAppStore.getState().pendingTarget).toEqual({ path: "Other.md", heading: "Part" });
+
+    fireEvent.mouseDown(container.querySelector('[data-wikilink="New Idea"]')!, { button: 0 });
+    await waitFor(() => expect(useAppStore.getState().activePath).toBe("New Idea.md"));
+    expect(h.b.files()).toHaveProperty(["New Idea.md"], "");
+  });
+
+  it("opens the search panel when a tag is clicked", async () => {
+    h.b = createMemoryBackend({ "Note.md": "# T\n\nabout #Work/Alpha" });
+    const { container } = await open();
+    fireEvent.mouseDown(container.querySelector('[data-tag="work/alpha"]')!, { button: 0 });
+    expect(useAppStore.getState()).toMatchObject({
+      leftPanel: "search",
+      searchQuery: "tag:work/alpha",
+    });
+  });
+
+  it("edits frontmatter through the properties panel", async () => {
+    h.b = createMemoryBackend({ "Note.md": "---\nstatus: draft\n---\nBody" });
+    const { view } = await open();
+    const value = screen.getByRole("textbox", { name: "Value of status" });
+    expect(value).toHaveValue("draft");
+    fireEvent.change(value, { target: { value: "done" } });
+    fireEvent.blur(value);
+    expect(view.state.doc.toString()).toBe("---\nstatus: done\n---\nBody");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add property" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "New property name" }), {
+      target: { value: "priority" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Type of priority" }), {
+      target: { value: "number" },
+    });
+    expect(view.state.doc.toString()).toBe("---\nstatus: done\npriority: 0\n---\nBody");
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove status" }));
+    await act(() => vi.advanceTimersByTimeAsync(AUTOSAVE_DELAY_MS + 50));
+    expect(h.b.files()["Note.md"]).toBe("---\npriority: 0\n---\nBody");
+  });
+
+  it("starts below the frontmatter and jumps to a requested heading", async () => {
+    h.b = createMemoryBackend({ "Note.md": "---\na: 1\n---\n# Top\n\n## Goals\ntext" });
+    useAppStore.setState({ pendingTarget: { path: "Note.md", heading: "Goals" } });
+    const { view } = await open();
+    await waitFor(() =>
+      expect(view.state.doc.lineAt(view.state.selection.main.head).text).toBe("## Goals"),
+    );
+    expect(useAppStore.getState().pendingTarget).toBeNull();
   });
 
   it("reports a missing note as an error", async () => {
