@@ -1,7 +1,7 @@
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { effectiveMode } from "../../app/appearance";
-import { copyBlockLink, newGrid, newNote, openDailyNote } from "./actions";
+import { copyBlockLink, newCanvas, newGrid, newNote, openDailyNote } from "./actions";
 import { useUi } from "./ui";
 import { useEditorPrefs } from "../editor/prefs";
 
@@ -61,6 +61,7 @@ registerCommands([
     run: () => void newNote(),
   },
   { id: "new-grid", label: "New grid (spreadsheet)", run: () => void newGrid() },
+  { id: "new-canvas", label: "New canvas (whiteboard)", run: () => void newCanvas() },
   {
     id: "daily",
     label: "Open today's daily note",

@@ -108,6 +108,34 @@ pub fn rename_with_links(
             updated.push(source);
         }
     }
+
+    // Note cards on canvases store the note's path (`"link": "axis:<path>"`); retarget
+    // them by replacing the exact JSON string, which leaves the rest of the file untouched.
+    if !moves.is_empty() {
+        let encode = |p: &str| serde_json::to_string(&format!("axis:{p}")).unwrap_or_default();
+        for canvas in index.canvas_paths()? {
+            let Ok(text) = std::fs::read_to_string(vault.resolve(&canvas)?) else {
+                continue;
+            };
+            let mut out = text.clone();
+            for (old, new) in &moves {
+                // Compact (`"link":"…"`) or pretty-printed (`"link": "…"`) JSON.
+                for sep in [":", ": "] {
+                    let key = format!("\"link\"{sep}");
+                    out = out.replace(
+                        &format!("{key}{}", encode(old)),
+                        &format!("{key}{}", encode(new)),
+                    );
+                }
+            }
+            if out != text {
+                before_write(&canvas);
+                vault.write_file(&canvas, &out, None)?;
+                index.update_path(vault, &canvas)?;
+                updated.push(canvas);
+            }
+        }
+    }
     Ok(RenameOutcome { entry, updated })
 }
 
@@ -199,5 +227,22 @@ mod tests {
         );
         assert_eq!(read(&v, "Home.md"), "[[Projects/Beta]]");
         assert_eq!(out.updated, vec!["Home.md", "Projects/Beta.md"]);
+    }
+
+    #[test]
+    fn canvas_note_cards_follow_renames() {
+        let board = r#"{"elements":[{"type":"embeddable","link":"axis:Proj/Alpha.md"},{"type":"embeddable","link":"axis:Proj/Alpha.md.bak"},{"type":"text","text":"axis:Proj/Alpha.md"}]}"#;
+        let (_d, v, mut idx) = setup(&[("Proj/Alpha.md", ""), ("Board.axcanvas", board)]);
+        let out = rename_with_links(&v, &mut idx, "Proj", "Projects", |_| {}).unwrap();
+        let text = read(&v, "Board.axcanvas");
+        assert!(text.contains(r#""link":"axis:Projects/Alpha.md""#));
+        // Only exact card links change; similar strings are left alone.
+        assert!(text.contains(r#""link":"axis:Proj/Alpha.md.bak""#));
+        assert!(text.contains(r#""text":"axis:Proj/Alpha.md""#));
+        assert_eq!(out.updated, vec!["Board.axcanvas"]);
+
+        // Renaming the canvas itself doesn't disturb it.
+        rename_with_links(&v, &mut idx, "Board.axcanvas", "Plan.axcanvas", |_| {}).unwrap();
+        assert!(read(&v, "Plan.axcanvas").contains("axis:Projects/Alpha.md"));
     }
 }

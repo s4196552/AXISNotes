@@ -60,6 +60,25 @@ pub fn parse_grid(text: &str) -> ParsedNote {
     note
 }
 
+/// A `.axcanvas` file (Excalidraw JSON): the body is the text of its live text elements.
+pub fn parse_canvas(text: &str) -> ParsedNote {
+    let mut note = ParsedNote::default();
+    let Ok(json) = serde_json::from_str::<Value>(text) else {
+        return note;
+    };
+    if let Some(elements) = json.get("elements").and_then(Value::as_array) {
+        let lines: Vec<&str> = elements
+            .iter()
+            .filter(|e| e.get("type").and_then(Value::as_str) == Some("text"))
+            .filter(|e| e.get("isDeleted").and_then(Value::as_bool) != Some(true))
+            .filter_map(|e| e.get("text").and_then(Value::as_str))
+            .filter(|t| !t.is_empty())
+            .collect();
+        note.body = lines.join("\n");
+    }
+    note
+}
+
 pub fn parse(text: &str) -> ParsedNote {
     let mut note = ParsedNote::default();
     let (props, fm_len) = frontmatter(text);

@@ -291,3 +291,19 @@ fn unlinked_mentions_ignore_grids() {
     assert_eq!(m.len(), 1);
     assert_eq!(m[0].source, "Doc.md");
 }
+
+#[test]
+fn canvases_are_searchable_by_their_text_elements() {
+    let board = r#"{"type":"excalidraw","elements":[
+        {"type":"text","text":"Mitosis phases"},
+        {"type":"text","text":"Removed idea","isDeleted":true},
+        {"type":"embeddable","link":"axis:Bio.md"}
+    ]}"#;
+    let (_d, _v, idx) = vault_with(&[("Boards/Study.axcanvas", board)]);
+    let hits = idx.search("mitosis", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].path, "Boards/Study.axcanvas");
+    assert_eq!(hits[0].title, "Study");
+    assert!(idx.search("removed", 10).unwrap().is_empty());
+    assert_eq!(idx.canvas_paths().unwrap(), vec!["Boards/Study.axcanvas"]);
+}

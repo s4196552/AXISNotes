@@ -4,7 +4,8 @@ import { type AxisConfig, useConfig } from "../../app/config";
 import { formatDate } from "../../lib/dates";
 import { noteName, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { ensureBlockId } from "../../lib/blocks";
-import { GRID_EXT } from "../../lib/fileKinds";
+import { CANVAS_EXT, GRID_EXT } from "../../lib/fileKinds";
+import { emptyCanvas, serializeCanvas } from "../../lib/canvas";
 import { emptySheet, serializeSheet } from "../../lib/formula/sheet";
 import { getActiveEditor } from "../editor/activeEditor";
 import { minimalChange } from "../editor/targets";
@@ -61,8 +62,16 @@ export async function newNote(title = "Untitled", folder = currentFolder()) {
 }
 
 export async function newGrid(title = "Untitled", folder = currentFolder()) {
+  await newFile(title, folder, serializeSheet(emptySheet()), GRID_EXT);
+}
+
+export async function newCanvas(title = "Untitled", folder = currentFolder()) {
+  await newFile(title, folder, serializeCanvas(emptyCanvas()), CANVAS_EXT);
+}
+
+async function newFile(title: string, folder: string, content: string, ext: string) {
   try {
-    const path = await createUniqueNote(folder, title, serializeSheet(emptySheet()), GRID_EXT);
+    const path = await createUniqueNote(folder, title, content, ext);
     await useAppStore.getState().refreshTree();
     useAppStore.getState().openFile(path);
   } catch (e) {

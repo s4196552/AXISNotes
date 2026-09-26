@@ -9,11 +9,13 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  Shapes,
   Sheet,
 } from "lucide-react";
 import { backend, isBackendError, type VaultEntry } from "../../ipc";
-import { docKind, GRID_EXT } from "../../lib/fileKinds";
+import { CANVAS_EXT, docKind, GRID_EXT, PATH_MIME } from "../../lib/fileKinds";
 import { emptySheet, serializeSheet } from "../../lib/formula/sheet";
+import { emptyCanvas, serializeCanvas } from "../../lib/canvas";
 import { useAppStore } from "../../app/store";
 import { type FolderIcon, useConfig } from "../../app/config";
 import { useUi } from "../commands/ui";
@@ -116,12 +118,16 @@ export function FileTree() {
     (findEntry(latest.current.tree, dir)?.children ?? []).map((c) => c.name);
 
   const createNote = useCallback(
-    (dir: string, kind: "note" | "grid" = "note") =>
+    (dir: string, kind: "note" | "grid" | "canvas" = "note") =>
       run(async () => {
-        const grid = kind === "grid";
-        const name = uniqueName(childNames(dir), "Untitled", grid ? GRID_EXT : ".md");
-        const path = joinPath(dir, name);
-        await backend.createFile(path, grid ? serializeSheet(emptySheet()) : "");
+        const [ext, content] =
+          kind === "grid"
+            ? [GRID_EXT, serializeSheet(emptySheet())]
+            : kind === "canvas"
+              ? [CANVAS_EXT, serializeCanvas(emptyCanvas())]
+              : [".md", ""];
+        const path = joinPath(dir, uniqueName(childNames(dir), "Untitled", ext));
+        await backend.createFile(path, content);
         if (dir) toggle(dir, true);
         const store = useAppStore.getState();
         await store.refreshTree();
@@ -368,6 +374,11 @@ export function FileTree() {
             close={setMenu}
           />
           <MenuItem
+            label="New canvas here"
+            onClick={() => void createNote(menuDir, "canvas")}
+            close={setMenu}
+          />
+          <MenuItem
             label="New folder here"
             onClick={() => void createFolder(menuDir)}
             close={setMenu}
@@ -449,9 +460,11 @@ const TreeRow = memo(function TreeRow({
       : Folder
     : docKind(entry.name) === "grid"
       ? Sheet
-      : openable
-        ? FileText
-        : File;
+      : docKind(entry.name) === "canvas"
+        ? Shapes
+        : openable
+          ? FileText
+          : File;
   const classes = [
     "filetree-row",
     selected && "selected",
@@ -478,6 +491,7 @@ const TreeRow = memo(function TreeRow({
       onContextMenu={(e) => actions.openMenu(e, entry)}
       onDragStart={(e) => {
         e.dataTransfer?.setData("text/plain", entry.path);
+        e.dataTransfer?.setData(PATH_MIME, entry.path);
         actions.dragStart(entry.path);
       }}
       onDragOver={isDir ? (e) => actions.dragOver(e, entry.path) : undefined}
