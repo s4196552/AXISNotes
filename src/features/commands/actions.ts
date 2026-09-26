@@ -3,6 +3,7 @@ import { useAppStore } from "../../app/store";
 import { type AxisConfig, useConfig } from "../../app/config";
 import { formatDate } from "../../lib/dates";
 import { noteName, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
+import { ensureBlockId } from "../../lib/blocks";
 import { getActiveEditor } from "../editor/activeEditor";
 import { minimalChange } from "../editor/targets";
 import {
@@ -54,6 +55,34 @@ export async function newNote(title = "Untitled", folder = currentFolder()) {
   } catch (e) {
     report(e);
   }
+}
+
+// ---- Block links ----
+
+/**
+ * Copy a link (or embed) to the block at the cursor, adding a `^id` to it if needed.
+ * Returns the copied text, or null if the cursor isn't in a paragraph or list item.
+ */
+export async function copyBlockLink(embed = false): Promise<string | null> {
+  const active = getActiveEditor();
+  const store = useAppStore.getState();
+  if (!active) return null;
+  const { view, path } = active;
+  const doc = view.state.doc.toString();
+  const r = ensureBlockId(doc, view.state.selection.main.head);
+  if (!r) {
+    store.setError("Put the cursor in a paragraph or list item to link to it.");
+    return null;
+  }
+  if (r.text !== doc) view.dispatch({ changes: minimalChange(doc, r.text) });
+  const link = `${embed ? "!" : ""}[[${noteName(path)}#^${r.id}]]`;
+  try {
+    await navigator.clipboard.writeText(link);
+    store.notify(`Copied ${link}`);
+  } catch {
+    store.notify(`Block link: ${link}`);
+  }
+  return link;
 }
 
 // ---- Templates ----

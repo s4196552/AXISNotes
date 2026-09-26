@@ -13,6 +13,7 @@ export default function App() {
   const vault = useAppStore((s) => s.vault);
   const activePath = useAppStore((s) => s.activePath);
   const error = useAppStore((s) => s.error);
+  const notice = useAppStore((s) => s.notice);
   const refreshTree = useAppStore((s) => s.refreshTree);
 
   // Restore a vault the backend already has open (e.g. after a webview reload).
@@ -70,6 +71,7 @@ export default function App() {
       <Modals />
       <footer className="statusbar">
         <span>{activePath ?? ""}</span>
+        {notice && !error && <span className="notice">{notice}</span>}
         {error && (
           <span className="error" role="alert">
             {error}

@@ -40,6 +40,7 @@ export const linkHost = Facet.define<LinkHost, LinkHost>({
 export const refreshLinks = StateEffect.define<null>();
 
 const WIKILINK_RE = /(!?)\[\[([^[\]\n]+?)\]\]/g;
+const BLOCK_ID_RE = /[ \t]\^[A-Za-z0-9-]+[ \t]*$/gm;
 const TAG_RE = /(^|[\s(])#([\p{L}\p{N}_/-]+)/gu;
 
 /** True if `pos` sits in code, a URL, or frontmatter — where links and tags don't apply. */
@@ -105,6 +106,12 @@ export function buildLinkDecorations(
       const pipe = inner.indexOf("|");
       if (pipe !== -1) out.push(hide.range(start + bang + 2, start + bang + 2 + pipe + 1)); // `target|`
       out.push(hide.range(end - 2, end)); // `]]`
+    }
+    for (const m of text.matchAll(BLOCK_ID_RE)) {
+      const start = from + m.index;
+      const line = state.doc.lineAt(start).number;
+      if (active.has(line) || inCodeOrMeta(state, start + 1)) continue;
+      out.push(hide.range(start, start + m[0].length));
     }
     for (const m of text.matchAll(TAG_RE)) {
       const tag = m[2]!.replace(/\/+$/, "");

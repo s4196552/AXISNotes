@@ -16,6 +16,7 @@ import { useUi } from "../commands/ui";
 import { PAGE_STYLE_PROP, PAGE_STYLES } from "../templates/templates";
 import { setActiveEditor } from "./activeEditor";
 import { links, refreshLinks, wikilinkCompletions } from "./links";
+import { anchorCompletions, embeds } from "./embeds";
 import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -202,8 +203,14 @@ export function Editor({ path }: EditorProps) {
               search({ top: true }),
               highlightSelectionMatches(),
               autocompletion({
-                override: [wikilinkCompletions, slashCompletions, emojiCompletions],
+                override: [
+                  anchorCompletions,
+                  wikilinkCompletions,
+                  slashCompletions,
+                  emojiCompletions,
+                ],
               }),
+              embeds(path),
               quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
               outlinerKeys,
               outlineCompartment.current.of(
