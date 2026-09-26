@@ -7,6 +7,7 @@ import { allCommands, commandForEvent, hintFor } from "./registry";
 import { useUi } from "./ui";
 import { IconPicker } from "../icons/IconPicker";
 import { Settings } from "../settings/Settings";
+import { AskAi } from "../ai/AskAi";
 import "./commands.css";
 
 /** Global keyboard shortcuts (capture phase, so they win over the editor). */
@@ -120,6 +121,14 @@ export function Modals() {
       return <TemplatePicker mode={modal.mode} />;
     case "settings":
       return <Settings onClose={() => useUi.getState().close()} />;
+    case "ask":
+      return (
+        <AskAi
+          path={modal.path}
+          selection={modal.selection}
+          onClose={() => useUi.getState().close()}
+        />
+      );
     case "icon":
       return <IconPicker path={modal.path} onClose={() => useUi.getState().close()} />;
     case "prompt":

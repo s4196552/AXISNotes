@@ -2,7 +2,7 @@ import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { type AxisConfig, useConfig } from "../../app/config";
 import { formatDate } from "../../lib/dates";
-import { noteName, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
+import { isNotePath, noteName, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { ensureBlockId } from "../../lib/blocks";
 import { CANVAS_EXT, GRID_EXT } from "../../lib/fileKinds";
 import { emptyCanvas, serializeCanvas } from "../../lib/canvas";
@@ -77,6 +77,22 @@ async function newFile(title: string, folder: string, content: string, ext: stri
   } catch (e) {
     report(e);
   }
+}
+
+/** Open "Ask AI" with the open note (and the editor's selection, if any) as context. */
+export function openAskAi() {
+  const active = getActiveEditor();
+  const path = active?.path ?? useAppStore.getState().activePath ?? undefined;
+  let selection: string | undefined;
+  if (active) {
+    const { from, to } = active.view.state.selection.main;
+    if (to > from) selection = active.view.state.sliceDoc(from, to);
+  }
+  useUi.getState().open({
+    kind: "ask",
+    path: path && isNotePath(path) ? path : undefined,
+    selection,
+  });
 }
 
 // ---- Block links ----

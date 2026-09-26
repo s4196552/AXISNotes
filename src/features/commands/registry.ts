@@ -2,7 +2,7 @@ import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { effectiveMode } from "../../app/appearance";
 import { useTimer } from "../time/timer";
-import { copyBlockLink, newCanvas, newGrid, newNote, openDailyNote } from "./actions";
+import { copyBlockLink, newCanvas, newGrid, newNote, openAskAi, openDailyNote } from "./actions";
 import { useUi } from "./ui";
 import { useEditorPrefs } from "../editor/prefs";
 
@@ -66,6 +66,12 @@ registerCommands([
     label: "Open tasks",
     shortcut: { key: "t", mod: true, shift: true },
     run: () => useAppStore.getState().setMainView("tasks"),
+  },
+  {
+    id: "ask-ai",
+    label: "Ask AI about this note",
+    shortcut: { key: "j", mod: true },
+    run: openAskAi,
   },
   { id: "time", label: "Time report", run: () => useAppStore.getState().setMainView("time") },
   { id: "stop-timer", label: "Stop timer", run: () => void useTimer.getState().stop() },

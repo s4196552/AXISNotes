@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ListTree } from "lucide-react";
+import { ListTree, Sparkles } from "lucide-react";
 import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
@@ -23,6 +23,7 @@ import { PropertiesPanel } from "./PropertiesPanel";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
+import { openAskAi } from "../commands/actions";
 import {
   emojiCompletions,
   type QuickCommandConfig,
@@ -352,6 +353,14 @@ export function Editor({ path }: EditorProps) {
           onClick={toggleOutline}
         >
           <ListTree size={15} />
+        </button>
+        <button
+          className="editor-tool"
+          aria-label="Ask AI"
+          title="Ask AI about this note (Ctrl+J)"
+          onClick={openAskAi}
+        >
+          <Sparkles size={15} />
         </button>
         <TimerButton path={path} />
         <span className={`editor-status status-${status}`} role="status" aria-live="polite">
