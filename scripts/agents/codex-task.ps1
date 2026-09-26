@@ -26,6 +26,11 @@ New-Item -ItemType Directory -Force $logDir | Out-Null
 if (-not (Test-Path $worktree)) {
     git -C $repo worktree add $worktree -b $branch $Base
 }
+# Codex's sandbox has no network, so install dependencies before handing over.
+if ((Test-Path (Join-Path $worktree "package.json")) -and -not (Test-Path (Join-Path $worktree "node_modules"))) {
+    Push-Location $worktree
+    try { pnpm install --frozen-lockfile } finally { Pop-Location }
+}
 
 $prompt = @"
 You are the Codex builder on the AXIS project. Read AGENTS.md and AXIS_BUILD_PROMPT.md in
@@ -39,12 +44,14 @@ and write your handoff note to $repo/.agents/handoffs/$TaskId.md.
 $(Get-Content $brief -Raw)
 "@
 
+# A worktree's git metadata lives in the main repo's .git, so Codex needs it writable to commit.
 $codexArgs = @("exec", "-C", $worktree, "-s", "workspace-write",
           "--add-dir", (Join-Path $repo ".agents"),
+          "--add-dir", (Join-Path $repo ".git"),
           "-o", (Join-Path $logDir "$TaskId.last.md"))
 if ($Model) { $codexArgs += @("-m", $Model) }
-$codexArgs += "-"
 
-$prompt | codex @codexArgs 2>&1 | Tee-Object -FilePath (Join-Path $logDir "$TaskId.log")
+& (Join-Path $PSScriptRoot "invoke-codex.ps1") -CodexArgs $codexArgs -Prompt $prompt `
+    -LogBase (Join-Path $logDir $TaskId)
 exit $LASTEXITCODE
 

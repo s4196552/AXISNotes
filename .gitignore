@@ -8,3 +8,4 @@ src-tauri/target/
 .DS_Store
 .agents/qa/
 .agents/logs/
+src-tauri/gen/

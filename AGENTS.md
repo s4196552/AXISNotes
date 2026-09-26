@@ -4,12 +4,12 @@ This file is read by **every** coding agent on this project. OpenAI Codex reads 
 
 ## Roles
 
-| Agent | Role | Owns |
-|---|---|---|
-| **Claude Code** | **Lead / orchestrator.** Plans each phase, splits it into tasks, assigns them, merges branches, and runs the phase checkpoint. | Architecture, Rust/Tauri core (file system, index, the `AiProvider` trait), `docs/DECISIONS.md` |
-| **OpenAI Codex** | **Builder + reviewer.** Builds the tasks assigned to it and reviews every Claude-authored change. | The tasks assigned to it in `.agents/TASKS.md` |
+| Agent            | Role                                                                                                                           | Owns                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| **Claude Code**  | **Lead / orchestrator.** Plans each phase, splits it into tasks, assigns them, merges branches, and runs the phase checkpoint. | Architecture, Rust/Tauri core (file system, index, the `AiProvider` trait), `docs/DECISIONS.md` |
+| **OpenAI Codex** | **Builder + reviewer.** Builds the tasks assigned to it and reviews every Claude-authored change.                              | The tasks assigned to it in `.agents/TASKS.md`                                                  |
 
-**Cross-review rule:** code is never merged without a review from the *other* agent. Claude reviews Codex's work and Codex reviews Claude's. Each model catches mistakes the other misses.
+**Cross-review rule:** code is never merged without a review from the _other_ agent. Claude reviews Codex's work and Codex reviews Claude's. Each model catches mistakes the other misses.
 
 ## Coordination files (`.agents/`)
 
@@ -33,6 +33,7 @@ This file is read by **every** coding agent on this project. OpenAI Codex reads 
 Status moves through `todo → in-progress → in-review → changes-requested → approved → merged`.
 
 **Handoff note (`handoffs/T-###.md`)** contains:
+
 - what was built
 - the files that changed
 - how to test it
@@ -40,6 +41,7 @@ Status moves through `todo → in-progress → in-review → changes-requested �
 - any decision that needs the lead
 
 **Review note (`reviews/T-###.md`)** contains:
+
 - a verdict (`approve` / `changes-requested`)
 - findings, most severe first, each with `file:line`
 - whether you ran the tests and whether they passed
@@ -47,7 +49,7 @@ Status moves through `todo → in-progress → in-review → changes-requested �
 ## Git rules
 
 - One task = one branch, `agent/<claude|codex>/T-###`, in its **own git worktree** (`git worktree add ../axis-T-012 -b agent/codex/T-012`), so the two agents never edit the same checkout.
-- **File ownership:** only edit files listed in your task's *Files* column. If you need to change a file owned by another task, stop and write the request into your handoff note.
+- **File ownership:** only edit files listed in your task's _Files_ column. If you need to change a file owned by another task, stop and write the request into your handoff note.
 - Only the lead merges into `main`, and only after an `approve` review and green CI.
 - Commit messages start with `T-###:`.
 

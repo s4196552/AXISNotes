@@ -7,9 +7,11 @@ There are three ways to run the two agents together. **Option A is recommended**
 ```bash
 git init
 ```
+
 ```bash
 npm install -g @openai/codex
 ```
+
 ```bash
 codex login
 ```
@@ -24,16 +26,16 @@ Claude Code is the lead. It calls Codex as a tool to build tasks and review code
 
 > **Status: set up (2026-09-26).** Codex CLI 0.157.1 no longer includes the `codex mcp-server` command, so Claude drives Codex through the CLI's first-party `codex exec` and `codex review` commands, using the two wrapper scripts below. The result is the same as the MCP bridge: Claude orchestrates and Codex builds and reviews.
 
-| Script | What it does |
-|---|---|
-| `scripts/agents/codex-task.ps1 -TaskId T-###` | Reads `.agents/briefs/T-###.md`. Creates the worktree `..\axis-T-###` on branch `agent/codex/T-###` if it doesn't exist. Runs Codex there with a sandbox that can only write to the worktree and `.agents/`. Codex commits its work and writes its handoff note. The log goes to `.agents/logs/`. Optional `-Model gpt-6-sol`. |
-| `scripts/agents/codex-review.ps1 -TaskId T-### -Worktree ..\axis-T-###` | Runs `codex review --base main` on that branch and writes the review to `.agents/reviews/T-###.md`. |
+| Script                                                                  | What it does                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scripts/agents/codex-task.ps1 -TaskId T-###`                           | Reads `.agents/briefs/T-###.md`. Creates the worktree `..\axis-T-###` on branch `agent/codex/T-###` if it doesn't exist. Runs Codex there with a sandbox that can only write to the worktree and `.agents/`. Codex commits its work and writes its handoff note. The log goes to `.agents/logs/`. Optional `-Model gpt-6-sol`. |
+| `scripts/agents/codex-review.ps1 -TaskId T-### -Worktree ..\axis-T-###` | Runs `codex review --base main` on that branch and writes the review to `.agents/reviews/T-###.md`.                                                                                                                                                                                                                            |
 
 1. Start Claude Code in this folder and say:
    > Start Phase 0 per AXIS_BUILD_PROMPT.md, following AGENTS.md.
 2. Claude writes the task board, writes a brief for each Codex task, runs `codex-task.ps1` (in the background, in parallel with its own work), reviews what Codex produces, sends its own branches to `codex-review.ps1`, and then merges.
 
-*If a future Codex version brings back an MCP server, you can register it with `claude mcp add --scope project codex -- cmd /c codex <server-subcommand>` instead.*
+_If a future Codex version brings back an MCP server, you can register it with `claude mcp add --scope project codex -- cmd /c codex <server-subcommand>` instead._
 
 **When to use it:** most of the time. There is one point of control, and every change is cross-reviewed automatically.
 
@@ -45,7 +47,7 @@ The agents share the file-based protocol in `AGENTS.md`, and you act as the disp
    - **Claude Code** (Anthropic)
    - **Codex** (OpenAI)
 2. Open two VS Code windows, one per worktree (`axis/` for Claude and `../axis-T-###` for Codex), so the agents never edit the same checkout.
-3. Tell each agent: *"Take your next `todo` task from `.agents/TASKS.md`."* Once a task is done, tell the other agent: *"Review T-### per AGENTS.md."*
+3. Tell each agent: _"Take your next `todo` task from `.agents/TASKS.md`."_ Once a task is done, tell the other agent: _"Review T-### per AGENTS.md."_
 4. Optional: you can also run the Codex CLI (`codex`) in a VS Code terminal instead of using its extension.
 
 **When to use it:** when you want to watch both agents and step in often, or when one agent is stuck and you want the other to try.
@@ -78,4 +80,4 @@ Human: "Start Phase N"
 ## Alternatives worth knowing
 
 - **Other MCP bridges:** community wrappers such as `ai-cli-mcp` can also drive the Gemini CLI, which makes a third agent possible.
-- **Swapping roles:** Codex can be the lead instead. Add Claude Code to Codex's MCP config (`~/.codex/config.toml`) with the command `claude mcp serve`. Note that this mode exposes Claude Code's *tools* (reading files, editing, running commands) rather than a full autonomous agent, so Option A is still the stronger setup.
+- **Swapping roles:** Codex can be the lead instead. Add Claude Code to Codex's MCP config (`~/.codex/config.toml`) with the command `claude mcp serve`. Note that this mode exposes Claude Code's _tools_ (reading files, editing, running commands) rather than a full autonomous agent, so Option A is still the stronger setup.
