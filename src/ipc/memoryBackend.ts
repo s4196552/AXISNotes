@@ -9,8 +9,19 @@ interface Node {
   modifiedMs: number;
 }
 
-function fail(code: ErrorCode, message: string): never {
-  throw { code, message } satisfies BackendError;
+// Same wording as `AppError`'s Display impl in src-tauri/src/error.rs.
+const PREFIX: Record<ErrorCode, string> = {
+  NoVault: "",
+  NotFound: "not found: ",
+  AlreadyExists: "already exists: ",
+  Conflict: "file changed on disk since it was loaded: ",
+  OutsideVault: "path is outside the vault: ",
+  InvalidName: "invalid name: ",
+  Io: "",
+};
+
+function fail(code: ErrorCode, detail: string): never {
+  throw { code, message: PREFIX[code] + detail } satisfies BackendError;
 }
 
 function normalize(path: string): string {
