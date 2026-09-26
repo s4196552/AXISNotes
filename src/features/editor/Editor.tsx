@@ -24,6 +24,7 @@ import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
 import { openAskAi } from "../commands/actions";
+import { configuredSpellcheck, recheck } from "../spellcheck";
 import {
   emojiCompletions,
   type QuickCommandConfig,
@@ -87,6 +88,7 @@ export function Editor({ path }: EditorProps) {
   const [props, setProps] = useState<Props>({});
   const quickCompartment = useRef(new Compartment());
   const outlineCompartment = useRef(new Compartment());
+  const spellCompartment = useRef(new Compartment());
   const outlineOn = useEditorPrefs((s) => s.outlineView);
   const toggleOutline = useEditorPrefs((s) => s.toggleOutlineView);
   const propsJson = useRef("{}");
@@ -223,6 +225,7 @@ export function Editor({ path }: EditorProps) {
                 content: markdown({ base: markdownLanguage, codeLanguages: languages }),
               }),
               livePreview,
+              spellCompartment.current.of(configuredSpellcheck()),
               links({
                 openLink: (inner) => void store().openLink(inner, path),
                 openTag: (tag) => store().search(`tag:${tag}`),
@@ -302,6 +305,18 @@ export function Editor({ path }: EditorProps) {
       effects: quickCompartment.current.reconfigure(quickCommandConfig.of(quickConfig())),
     });
   }, [quickSettings]);
+
+  // Follow the spellcheck settings (on/off, personal dictionary).
+  const spellOn = useConfig((s) => s.config.spellcheck.enabled);
+  const spellWords = useConfig((s) => s.config.spellcheck.words);
+  useEffect(() => {
+    view.current?.dispatch({
+      effects: spellCompartment.current.reconfigure(configuredSpellcheck()),
+    });
+  }, [spellOn]);
+  useEffect(() => {
+    view.current?.dispatch({ effects: recheck.of(null) });
+  }, [spellWords]);
 
   // Re-style links when notes appear or disappear.
   const notes = useAppStore((s) => s.notes);

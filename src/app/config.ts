@@ -35,6 +35,8 @@ export interface AxisConfig {
     openOnStartup: boolean;
   };
   templatesFolder: string;
+  /** Offline spellcheck; `words` is the vault's personal dictionary (lower-case). */
+  spellcheck: { enabled: boolean; words: string[] };
   quickCommands: {
     slashTrigger: string;
     emojiTrigger: string;
@@ -51,6 +53,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
   folderIcons: {},
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   templatesFolder: "Templates",
+  spellcheck: { enabled: true, words: [] },
   quickCommands: { slashTrigger: "/", emojiTrigger: ":", disabled: [], custom: [] },
 };
 

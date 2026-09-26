@@ -7,10 +7,11 @@ import { SLASH_COMMANDS } from "../editor/quickCommands";
 import { AiSettingsPanel } from "../ai/AiSettings";
 import "./settings.css";
 
-type Section = "appearance" | "daily" | "templates" | "commands" | "ai";
+type Section = "appearance" | "spelling" | "daily" | "templates" | "commands" | "ai";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "appearance", label: "Appearance" },
+  { id: "spelling", label: "Spelling" },
   { id: "daily", label: "Daily notes" },
   { id: "templates", label: "Templates" },
   { id: "commands", label: "Quick commands" },
@@ -51,6 +52,7 @@ export function Settings({ onClose }: { onClose(): void }) {
             </button>
           </header>
           {section === "appearance" && <Appearance config={config} set={set} />}
+          {section === "spelling" && <Spelling config={config} set={set} />}
           {section === "daily" && <Daily config={config} set={set} />}
           {section === "templates" && (
             <Field label="Templates folder" hint="Notes in this folder are offered as templates.">
@@ -137,6 +139,46 @@ function Appearance({ config, set }: SectionProps) {
               </label>
             ))}
           </div>
+        )}
+      </Field>
+    </>
+  );
+}
+
+function Spelling({ config, set }: SectionProps) {
+  const sp = config.spellcheck;
+  const setSp = (patch: Partial<AxisConfig["spellcheck"]>) =>
+    set((c) => ({ ...c, spellcheck: { ...c.spellcheck, ...patch } }));
+  return (
+    <>
+      <Field
+        label="Check spelling"
+        hint="English (US) Hunspell dictionary, on this device. Right-click an underlined word, or press Ctrl+. on it, for suggestions."
+      >
+        <input
+          type="checkbox"
+          aria-label="Check spelling"
+          checked={sp.enabled}
+          onChange={(e) => setSp({ enabled: e.target.checked })}
+        />
+      </Field>
+      <Field label="Personal dictionary" hint="Stored in this vault's .axis/config.json.">
+        {sp.words.length === 0 ? (
+          <span className="muted">No words yet</span>
+        ) : (
+          <ul className="settings-custom" aria-label="Personal dictionary">
+            {sp.words.map((w) => (
+              <li key={w}>
+                <span>{w}</span>
+                <button
+                  aria-label={`Remove ${w}`}
+                  onClick={() => setSp({ words: sp.words.filter((x) => x !== w) })}
+                >
+                  <X size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </Field>
     </>

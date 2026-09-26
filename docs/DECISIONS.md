@@ -2,6 +2,22 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-27: Phase 5 AI features (T-025 – T-029)
+
+### Spellcheck (T-025)
+
+- **Hunspell in a Web Worker.** `nspell` (a pure-JS Hunspell) with the SCOWL `en_US` dictionary from `dictionary-en`. Both are bundled as assets, so spellcheck works offline. The worker loads the ~550 KB dictionary on first use and answers `check` and `suggest` calls, so typing never waits on it. Why not Rust (`spellbook`/`zspell`)? Those are MPL-2.0, and the check runs right next to the editor anyway.
+- **Only prose is checked.** The check skips code, links and wikilinks, tags, URLs, emails, block ids, math, template variables, frontmatter, CamelCase and ACRONYMS, and words glued to digits. Syntax-tree nodes are skipped as well as regex spans. Only the visible range is checked, with results cached per word. The word being typed is not flagged.
+- **Quick fixes**: right-click an underlined word (or press Ctrl+.) to see up to 6 suggestions, "Add to dictionary" and "Ignore" (for the session).
+- **The personal dictionary is per vault**, in `.axis/config.json` under `spellcheck.words`, so it travels with the notes. Spellcheck can be turned off in Settings → Spelling.
+- **Deviation:** only English (US) ships. Other `dictionary-*` packages can be added the same way.
+
+| Package             | Version | License     | Purpose                    |
+| ------------------- | ------- | ----------- | -------------------------- |
+| nspell              | 2.1.5   | MIT         | Hunspell-compatible engine |
+| dictionary-en       | 4.0.0   | MIT AND BSD | en_US Hunspell dictionary  |
+| @types/nspell (dev) | 2.1.6   | MIT         | Types                      |
+
 ## 2026-09-27: Phase 4 multi-provider AI layer (T-021 – T-024)
 
 - **One `AiProvider` trait** (`complete`, `stream`, `vision`, `list_models`) with one implementation, `Adapter`, which drives a per-format **codec** over a **transport**.
