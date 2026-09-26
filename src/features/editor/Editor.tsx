@@ -5,15 +5,32 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { languages } from "@codemirror/language-data";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { Annotation, EditorSelection, EditorState } from "@codemirror/state";
+import { Annotation, Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, keymap } from "@codemirror/view";
 import { backend, isBackendError, type VaultChange } from "../../ipc";
 import { useAppStore } from "../../app/store";
+import { useConfig } from "../../app/config";
 import { type Props, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
+import { useUi } from "../commands/ui";
+import { PAGE_STYLE_PROP, PAGE_STYLES } from "../templates/templates";
+import { setActiveEditor } from "./activeEditor";
 import { links, refreshLinks, wikilinkCompletions } from "./links";
 import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
 import { PropertiesPanel } from "./PropertiesPanel";
+import {
+  emojiCompletions,
+  type QuickCommandConfig,
+  quickCommandConfig,
+  slashCompletions,
+} from "./quickCommands";
+
+function quickConfig(): QuickCommandConfig {
+  return {
+    ...useConfig.getState().config.quickCommands,
+    insertTemplate: () => useUi.getState().open({ kind: "templates", mode: "insert" }),
+  };
+}
 import { axisTheme } from "./theme";
 import "./editor.css";
 
@@ -38,6 +55,11 @@ const STATUS_TEXT: Record<SaveStatus, string> = {
   error: "Save failed",
 };
 
+function pageStyle(props: Props): string {
+  const s = props[PAGE_STYLE_PROP];
+  return typeof s === "string" && (PAGE_STYLES as readonly string[]).includes(s) ? s : "plain";
+}
+
 function titleOf(path: string) {
   const name = path.slice(path.lastIndexOf("/") + 1);
   return name.toLowerCase().endsWith(".md") ? name.slice(0, -3) : name;
@@ -57,6 +79,7 @@ export function Editor({ path }: EditorProps) {
   const [banner, setBannerState] = useState<Banner>(null);
   const [ready, setReady] = useState(false);
   const [props, setProps] = useState<Props>({});
+  const quickCompartment = useRef(new Compartment());
   const propsJson = useRef("{}");
 
   const syncProps = useCallback((state: EditorState) => {
@@ -172,7 +195,10 @@ export function Editor({ path }: EditorProps) {
               drawSelection(),
               search({ top: true }),
               highlightSelectionMatches(),
-              autocompletion({ override: [wikilinkCompletions] }),
+              autocompletion({
+                override: [wikilinkCompletions, slashCompletions, emojiCompletions],
+              }),
+              quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
               EditorView.lineWrapping,
               yamlFrontmatter({
                 content: markdown({ base: markdownLanguage, codeLanguages: languages }),
@@ -200,6 +226,7 @@ export function Editor({ path }: EditorProps) {
           }),
         });
         view.current = created;
+        setActiveEditor(created, path);
         syncProps(created.state);
         setStatus("saved");
         setReady(true);
@@ -223,6 +250,7 @@ export function Editor({ path }: EditorProps) {
       }
       created?.destroy();
       view.current = null;
+      setActiveEditor(null);
     };
   }, [path, save, scheduleSave, syncProps]);
 
@@ -241,6 +269,14 @@ export function Editor({ path }: EditorProps) {
       v.focus();
     }
   }, [ready, pendingTarget, path]);
+
+  // Follow changes to the quick-command settings.
+  const quickSettings = useConfig((s) => s.config.quickCommands);
+  useEffect(() => {
+    view.current?.dispatch({
+      effects: quickCompartment.current.reconfigure(quickCommandConfig.of(quickConfig())),
+    });
+  }, [quickSettings]);
 
   // Re-style links when notes appear or disappear.
   const notes = useAppStore((s) => s.notes);
@@ -328,7 +364,7 @@ export function Editor({ path }: EditorProps) {
 
       {ready && <PropertiesPanel props={props} onChange={changeProps} />}
 
-      <div ref={host} className="editor-host" />
+      <div ref={host} className={`editor-host page-${pageStyle(props)}`} />
     </div>
   );
 }
