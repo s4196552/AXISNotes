@@ -14,6 +14,7 @@ export interface OpenTarget {
 export type PendingTarget = OpenTarget & { path: string };
 
 export type LeftPanel = "files" | "search" | "tags";
+export type MainView = "note" | "graph";
 
 export interface AppState {
   vault: VaultInfo | null;
@@ -27,6 +28,7 @@ export interface AppState {
   /** Consumed by the editor for `path` after it loads. */
   pendingTarget: PendingTarget | null;
   leftPanel: LeftPanel;
+  mainView: MainView;
   searchQuery: string;
   /** Last user-facing error, shown in the status bar. */
   error: string | null;
@@ -49,6 +51,7 @@ export interface AppState {
   /** Show the search panel with `query`. */
   search(query: string): void;
   setLeftPanel(panel: LeftPanel): void;
+  setMainView(view: MainView): void;
   setSearchQuery(query: string): void;
   /** Call after a rename/move so the open note follows its file. */
   onEntryRenamed(from: string, to: string): void;
@@ -75,6 +78,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activePath: null,
   pendingTarget: null,
   leftPanel: "files",
+  mainView: "note",
   searchQuery: "",
   error: null,
   notice: null,
@@ -119,6 +123,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   openFile(path, target) {
     set({
       activePath: path,
+      mainView: "note",
       pendingTarget: path && target && Object.keys(target).length ? { ...target, path } : null,
     });
   },
@@ -152,6 +157,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setLeftPanel(panel) {
     set({ leftPanel: panel });
+  },
+
+  setMainView(view) {
+    set({ mainView: view });
   },
 
   setSearchQuery(query) {

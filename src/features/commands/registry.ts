@@ -73,6 +73,12 @@ registerCommands([
     run: () => useAppStore.getState().setLeftPanel("search"),
   },
   {
+    id: "graph",
+    label: "Open graph view",
+    shortcut: { key: "g", mod: true },
+    run: () => useAppStore.getState().setMainView("graph"),
+  },
+  {
     id: "show-files",
     label: "Show files",
     run: () => useAppStore.getState().setLeftPanel("files"),

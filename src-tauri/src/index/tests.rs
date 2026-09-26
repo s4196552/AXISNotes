@@ -244,4 +244,13 @@ fn perf_search_5000_notes() {
     let t = Instant::now();
     let tags = idx.tags().unwrap().len();
     println!("tags: {tags} in {:?}", t.elapsed());
+    let t = Instant::now();
+    let g = idx.graph().unwrap();
+    println!(
+        "graph: {} nodes, {} edges in {:?}",
+        g.nodes.len(),
+        g.edges.len(),
+        t.elapsed()
+    );
+    assert!(t.elapsed().as_millis() < 500);
 }

@@ -9,6 +9,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::error::{AppError, AppResult};
+use crate::index::graph::GraphData;
 use crate::index::search::SearchHit;
 use crate::index::{rename, Backlink, Index, Mention, NoteRef, TagCount};
 use crate::vault::watcher::{self, ChangeKind, SelfWrites, VaultChange, VaultWatcher};
@@ -263,6 +264,11 @@ pub async fn unlinked_mentions(
 ) -> AppResult<Vec<Mention>> {
     let v = state.vault()?;
     state.with_index(|idx| idx.unlinked_mentions(&v, &path))
+}
+
+#[tauri::command]
+pub async fn graph(state: State<'_, AppState>) -> AppResult<GraphData> {
+    state.with_index(|idx| idx.graph())
 }
 
 /// CSS files in `.axis/themes` or `.axis/snippets` (names without `.css`).

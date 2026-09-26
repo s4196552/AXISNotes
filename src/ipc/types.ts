@@ -98,6 +98,24 @@ export interface Mention {
   end: number;
 }
 
+export interface GraphNode {
+  /** Note path, or `?<target>` for an unresolved link target. */
+  id: string;
+  name: string;
+  tags: string[];
+  unresolved: boolean;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
 /** Everything the UI may ask of the backend. UI code depends on this, never on `invoke`. */
 export interface Backend {
   /** Show a native folder picker; resolves null if cancelled. */
@@ -131,4 +149,6 @@ export interface Backend {
   unlinkedMentions(path: string): Promise<Mention[]>;
   /** CSS files (names without `.css`) in `.axis/themes` or `.axis/snippets`. */
   listAxisFiles(subdir: "themes" | "snippets"): Promise<string[]>;
+  /** All notes and resolved links (plus unresolved targets as `?name` nodes). */
+  graph(): Promise<GraphData>;
 }

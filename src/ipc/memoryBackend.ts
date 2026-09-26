@@ -12,6 +12,7 @@ import type {
   BackendError,
   Backlink,
   ErrorCode,
+  GraphData,
   Mention,
   SearchHit,
   VaultChange,
@@ -415,6 +416,36 @@ export function createMemoryBackend(
         b.links.push({ line, context, embed: link.embed });
       }
       return out.sort((a, b) => (a.source < b.source ? -1 : 1));
+    },
+    async graph() {
+      requireVault();
+      const data: GraphData = { nodes: [], edges: [] };
+      const ghosts = new Set<string>();
+      const seen = new Set<string>();
+      for (const n of notes()) {
+        data.nodes.push({
+          id: n.path,
+          name: noteName(n.path),
+          tags: findTags(n.text),
+          unresolved: false,
+        });
+        for (const l of findWikilinks(n.text)) {
+          if (!l.target.trim()) continue;
+          const target = resolve(l.target, n.path) ?? `?${l.target.trim().replace(/\.md$/i, "")}`;
+          if (target.startsWith("?")) ghosts.add(target);
+          const key = `${n.path}\u0000${target}`;
+          if (target !== n.path && !seen.has(key)) {
+            seen.add(key);
+            data.edges.push({ source: n.path, target });
+          }
+        }
+      }
+      for (const g of ghosts)
+        data.nodes.push({ id: g, name: noteName(g.slice(1)), tags: [], unresolved: true });
+      data.nodes.sort(
+        (a, b) => Number(a.unresolved) - Number(b.unresolved) || (a.id < b.id ? -1 : 1),
+      );
+      return data;
     },
     async listAxisFiles(subdir) {
       const prefix = `.axis/${subdir}/`;
