@@ -1,5 +1,6 @@
 mod commands;
 mod error;
+mod index;
 mod vault;
 
 use tauri::Manager;
@@ -33,6 +34,12 @@ pub fn run() {
             commands::create_dir,
             commands::rename_entry,
             commands::trash_entry,
+            commands::search,
+            commands::list_tags,
+            commands::list_notes,
+            commands::resolve_link,
+            commands::backlinks,
+            commands::unlinked_mentions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AXIS");
