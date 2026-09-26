@@ -1,0 +1,45 @@
+.cm-misspelled {
+  text-decoration: underline wavy var(--danger);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+}
+
+.cm-tooltip.cm-spell-menu,
+.cm-spell-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  font-size: 13px;
+}
+.cm-spell-menu button {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+.cm-spell-menu button:hover,
+.cm-spell-menu button:focus-visible {
+  background: var(--bg-active);
+  outline: none;
+}
+.cm-spell-menu .cm-spell-suggestion {
+  font-weight: 600;
+}
+.cm-spell-menu hr {
+  width: 100%;
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+.cm-spell-note {
+  padding: 5px 10px;
+  color: var(--fg-muted);
+}

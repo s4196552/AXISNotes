@@ -36,6 +36,10 @@ function excalidrawAssets(): Plugin {
 // Tauri expects a fixed dev port and must not have the terminal cleared.
 export default defineConfig({
   plugins: [react(), excalidrawAssets()],
+  resolve: {
+    // dictionary-en only exports a Node entry point; the app loads its files as assets.
+    alias: { "dictionary-en-files": resolve("node_modules/dictionary-en") },
+  },
   clearScreen: false,
   server: {
     port: 1420,
