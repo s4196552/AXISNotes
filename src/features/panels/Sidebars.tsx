@@ -1,4 +1,5 @@
-import { FolderTree, Hash, Search, Settings as SettingsIcon } from "lucide-react";
+import { FolderTree, Hash, Network, Search, Settings as SettingsIcon } from "lucide-react";
+import { LocalGraph } from "../graph/GraphView";
 import { useUi } from "../commands/ui";
 import { type LeftPanel, useAppStore } from "../../app/store";
 import { Calendar } from "../daily/Calendar";
@@ -32,6 +33,14 @@ export function LeftSidebar() {
         </button>
       </header>
       <div className="sidebar-tabs" role="tablist" aria-label="Sidebar views">
+        <button
+          className="sidebar-graph"
+          aria-label="Graph view"
+          title="Graph view (Ctrl+G)"
+          onClick={() => useAppStore.getState().setMainView("graph")}
+        >
+          <Network size={15} />
+        </button>
         {TABS.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -59,6 +68,7 @@ export function RightSidebar() {
   return (
     <aside className="sidebar sidebar-right" aria-label="Links">
       <Calendar />
+      <LocalGraph />
       <div className="sidebar-body">
         <BacklinksPanel />
       </div>

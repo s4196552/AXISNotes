@@ -181,3 +181,7 @@ mark {
   background: var(--bg-hover);
   color: var(--fg);
 }
+.sidebar-graph {
+  order: 9;
+  margin-left: auto;
+}

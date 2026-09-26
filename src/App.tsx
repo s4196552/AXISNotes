@@ -7,11 +7,13 @@ import { openDailyNote } from "./features/commands/actions";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
 import { Editor } from "./features/editor";
+import { GraphView } from "./features/graph/GraphView";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
   const activePath = useAppStore((s) => s.activePath);
+  const mainView = useAppStore((s) => s.mainView);
   const error = useAppStore((s) => s.error);
   const notice = useAppStore((s) => s.notice);
   const refreshTree = useAppStore((s) => s.refreshTree);
@@ -61,7 +63,9 @@ export default function App() {
     <div className="shell">
       <LeftSidebar />
       <main className="content">
-        {activePath ? (
+        {mainView === "graph" ? (
+          <GraphView />
+        ) : activePath ? (
           <Editor key={activePath} path={activePath} />
         ) : (
           <div className="empty muted">Select or create a note</div>

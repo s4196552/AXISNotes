@@ -1,6 +1,7 @@
 //! Rebuildable SQLite index of the vault's notes (`.axis/index.db`): metadata, links,
 //! tags, aliases and an FTS5 full-text table. Files stay the source of truth.
 
+pub mod graph;
 pub mod parse;
 pub mod rename;
 pub mod search;
