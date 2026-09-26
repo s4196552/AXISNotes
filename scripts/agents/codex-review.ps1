@@ -44,8 +44,9 @@ Then '## Tests' saying what you ran (if anything) and the result.
 
 $codexArgs = @("exec", "-C", $worktree, "-s", "read-only", "-o", $out)
 if ($Model) { $codexArgs += @("-m", $Model) }
-$codexArgs += "-"
 
-$prompt | codex @codexArgs 2>&1 | Tee-Object -FilePath (Join-Path $logDir "$TaskId.review.log")
+& (Join-Path $PSScriptRoot "invoke-codex.ps1") -CodexArgs $codexArgs -Prompt $prompt `
+    -LogBase (Join-Path $logDir "$TaskId.review") | Out-Null
+$code = $LASTEXITCODE
 if (Test-Path $out) { Get-Content $out -Raw }
-exit $LASTEXITCODE
+exit $code
