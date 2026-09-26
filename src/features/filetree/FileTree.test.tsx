@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
+import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { FileTree } from "./FileTree";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
@@ -27,7 +28,10 @@ async function setup(files: Record<string, string>) {
 const row = (name: string) => screen.getByRole("treeitem", { name });
 const queryRow = (name: string) => screen.queryByRole("treeitem", { name });
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  useConfig.setState({ config: DEFAULT_CONFIG });
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe("FileTree", () => {
@@ -177,5 +181,21 @@ describe("FileTree", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(useAppStore.getState().error).toMatch(/already exists/i));
     expect(h.b.files()).toEqual({ "a.md": "", "b.md": "" });
+  });
+
+  it("sets a folder's AI access from the context menu and marks it", async () => {
+    await setup({ "Medical/scan.md": "", "Notes/a.md": "" });
+    fireEvent.contextMenu(row("Medical"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "AI access: never" }));
+    await waitFor(() =>
+      expect(JSON.parse(h.b.files()[".axis/config.json"]!).ai.folders).toEqual({
+        Medical: "never",
+      }),
+    );
+    expect(within(row("Medical, AI: never")).getByTitle("AI: never")).toBeInTheDocument();
+    fireEvent.contextMenu(row("Medical, AI: never"));
+    expect(screen.getByRole("menuitem", { name: "✓ AI access: never" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "AI access: inherit" }));
+    await waitFor(() => expect(row("Medical")).toBeInTheDocument());
   });
 });
