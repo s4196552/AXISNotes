@@ -25,7 +25,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-017 | 3     | `.axcanvas` Excalidraw canvas: note cards, pen input, autosave               | claude | merged    | agent/claude/T-017 | `src/features/canvas/**`, `src/lib/canvas.ts`, `vite.config.ts`, `src-tauri/src/index/**` |
 | T-018 | 3     | Tasks: Rust task index, vault-wide tasks view, toggle edits the source      | claude | merged    | agent/claude/T-018 | `src-tauri/src/index/tasks.rs`, `src/lib/tasks.ts`, `src/features/tasks/**`, `src/features/files/editNote.ts` |
 | T-019 | 3     | Time tracking (timer, manual entries, report) + computed properties         | claude | merged    | agent/claude/T-019 | `src/features/time/**`, `src/lib/computed.ts`, `src/features/editor/Properties*`, `src-tauri/src/index/time.rs` |
-| T-020 | 3     | Phase 3 E2E + polish                                                        | claude | todo      | agent/claude/T-020 | `e2e/**` |
+| T-020 | 3     | Phase 3 E2E + polish                                                        | claude | merged    | agent/claude/T-020 | `e2e/**` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

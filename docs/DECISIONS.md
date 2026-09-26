@@ -35,6 +35,10 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - Other properties are referenced by name (case-insensitive), lists act as ranges (`=SUM(scores)`), and formulas can use other formulas (`#CIRC!` on cycles).
   - The properties panel has a Formula type that shows the live result. Structured values (maps, lists of maps such as `time_log`) are shown read-only instead of being flattened into text.
   - They are evaluated in the UI only; search operators (`prop:`) still see the raw expression.
+- **E2E:** `structured.e2e.ts` runs against the real Tauri build. It covers the Phase 3 acceptance:
+  - A grid with formulas saves, and reopening it shows the same values without rewriting the file.
+  - A canvas holds a live note card (which follows edits made on disk) and a freehand stroke drawn with pointer actions. This confirms Excalidraw works under the app's CSP with self-hosted fonts.
+  - It also covers the tasks view, computed properties and a timer round trip. Screenshots are saved to `.agents/qa/phase-3/`.
 - **Fix:** link decorations now use the tree returned by `ensureSyntaxTree`. Before, `syntaxTree(state)` returned whatever was parsed when the state was created, so code and frontmatter detection flaked under load.
 
 | Package                | Version | License | Purpose                          |

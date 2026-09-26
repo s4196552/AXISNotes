@@ -63,6 +63,55 @@ const SEEDS: Record<string, (dir: string) => void> = {
     write(dir, "Plan.md", "# Plan\n\nThis week:\n\n![[Groceries#^m1]]\n\nMore text.\n");
     write(dir, "Outline.md", "- a\n- b\n  - b1\n- c\n");
   },
+  structured(dir) {
+    write(
+      dir,
+      "Budget.axgrid",
+      JSON.stringify(
+        {
+          version: 1,
+          rows: 20,
+          cols: 6,
+          cells: {
+            A1: "Item",
+            B1: "Cost",
+            A2: "Pens",
+            B2: "3",
+            A3: "Paper",
+            B3: "4.5",
+            B4: "=SUM(B2:B3)",
+          },
+          widths: { A: 120 },
+          formats: { A1: { bold: true }, B1: { bold: true } },
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    write(
+      dir,
+      "Board.axcanvas",
+      JSON.stringify(
+        {
+          type: "excalidraw",
+          version: 2,
+          source: "axis",
+          elements: [],
+          appState: { gridModeEnabled: false },
+          files: {},
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    write(dir, "Bio.md", "# Cells\n\nThe mitochondria is the powerhouse.\n");
+    write(dir, "Todo.md", "# Todo\n\n- [ ] Water plants 📅 2026-01-02 ⏫\n- [ ] Someday\n");
+    write(
+      dir,
+      "Trip.md",
+      "---\nflights: 420\nnights: 3\nrate: 95\ntotal: =flights + nights * rate\n---\n# Trip\n",
+    );
+  },
   perf(dir) {
     const words = [
       "cell",
