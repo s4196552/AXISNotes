@@ -29,6 +29,20 @@ describe("Phase 1: 5,000-note vault performance", () => {
     const started = Date.now();
     await $('[data-path="Folder 0"]').waitForDisplayed({ timeout: 60_000 });
     console.log(`vault visible after ${Date.now() - started} ms (from session start)`);
+    // The vault opens first and is indexed in the background; the search target is for an
+    // indexed vault, so wait until all 5,000 notes are in.
+    const indexed = () =>
+      browser.executeAsync((done: (n: number) => void) => {
+        const w = window as unknown as {
+          __TAURI_INTERNALS__: { invoke(c: string): Promise<unknown[]> };
+        };
+        void w.__TAURI_INTERNALS__.invoke("list_notes").then((n) => done(n.length));
+      });
+    await browser.waitUntil(async () => (await indexed()) === 5000, {
+      timeout: 60_000,
+      timeoutMsg: "the 5,000 notes were never indexed",
+    });
+    console.log(`indexed after ${Date.now() - started} ms (from session start)`);
   });
 
   it("answers searches in under 100 ms", async () => {

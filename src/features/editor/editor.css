@@ -10,7 +10,7 @@
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  max-width: 760px;
+  max-width: var(--editor-width);
   margin: 0 auto;
   padding: 28px 24px 4px;
 }
@@ -55,7 +55,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  max-width: 760px;
+  max-width: var(--editor-width);
   margin: 8px auto 0;
   padding: 8px 12px;
   width: calc(100% - 48px);

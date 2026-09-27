@@ -435,6 +435,18 @@ export function createMemoryBackend(
     },
     // The in-memory index is always up to date.
     onIndexProgress: async () => () => {},
+    // The browser preview zooms with CSS; the desktop app zooms the webview itself.
+    async setZoom(factor) {
+      document.documentElement.style.setProperty("zoom", String(factor));
+    },
+    listFonts: async () => [
+      "Arial",
+      "Cascadia Code",
+      "Georgia",
+      "Segoe UI",
+      "Times New Roman",
+      "Verdana",
+    ],
     async onVaultChanged(cb) {
       listeners.add(cb);
       return () => listeners.delete(cb);

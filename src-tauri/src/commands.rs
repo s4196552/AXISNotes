@@ -412,3 +412,39 @@ pub async fn import_obsidian(
     state.with_index(|i| i.sync(&vault))?;
     Ok(report)
 }
+
+/// Font families installed on this computer (for Settings → Appearance), read once.
+#[tauri::command]
+pub async fn list_fonts() -> Vec<String> {
+    static FONTS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    FONTS.get_or_init(installed_fonts).clone()
+}
+
+fn installed_fonts() -> Vec<String> {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+    let mut names: Vec<String> = db
+        .faces()
+        .filter_map(|f| f.families.first().map(|(name, _)| name.trim().to_string()))
+        // "@" families are vertical variants of CJK fonts.
+        .filter(|n| !n.is_empty() && !n.starts_with('@'))
+        .collect();
+    names.sort_by_key(|n| n.to_lowercase());
+    names.dedup();
+    names
+}
+
+#[cfg(test)]
+mod font_tests {
+    #[test]
+    fn lists_installed_fonts_sorted_without_duplicates() {
+        let fonts = super::installed_fonts();
+        // Every desktop OS we ship on has some fonts installed.
+        assert!(!fonts.is_empty());
+        let mut sorted = fonts.clone();
+        sorted.sort_by_key(|n| n.to_lowercase());
+        sorted.dedup();
+        assert_eq!(fonts, sorted);
+        assert!(fonts.iter().all(|f| !f.starts_with('@')));
+    }
+}

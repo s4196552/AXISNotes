@@ -364,6 +364,10 @@ export interface Backend {
   /** Progress of catching the index up after a vault opens (big vaults open first and are
    * indexed in the background). `finished` comes last. Returns an unsubscribe function. */
   onIndexProgress(cb: (p: IndexProgress) => void): Promise<() => void>;
+  /** Zoom the whole app (1 = 100%). */
+  setZoom(factor: number): Promise<void>;
+  /** Font families installed on this computer, sorted. */
+  listFonts(): Promise<string[]>;
 
   /** Full-text search; see the query language in `src-tauri/src/index/search.rs`. */
   search(query: string, limit?: number): Promise<SearchHit[]>;

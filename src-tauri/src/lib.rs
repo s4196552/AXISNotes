@@ -37,6 +37,7 @@ pub fn run() {
             commands::open_vault,
             commands::create_vault,
             commands::current_vault,
+            commands::list_fonts,
             commands::list_tree,
             commands::read_file,
             commands::write_file,

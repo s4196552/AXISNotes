@@ -16,6 +16,7 @@ import {
 import { useUi } from "./ui";
 import { effectiveShortcut, formatHotkey, matches, type Shortcut } from "./hotkeys";
 import { useEditorPrefs } from "../editor/prefs";
+import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 
 export interface Command {
   id: string;
@@ -25,6 +26,8 @@ export interface Command {
   /** Matcher for the global shortcut (mod = Ctrl, or Cmd on macOS). */
   /** The default shortcut; users can remap it (see `shortcutOf`). */
   shortcut?: Shortcut;
+  /** Don't take the shortcut when focus is inside elements matching this selector. */
+  ignoreIn?: string;
   run(): void;
 }
 
@@ -164,6 +167,27 @@ registerCommands([
     run: () => useUi.getState().open({ kind: "settings" }),
   },
   {
+    id: "zoom-in",
+    label: "Zoom in",
+    shortcut: { key: "=", mod: true },
+    ignoreIn: OWN_ZOOM,
+    run: zoomIn,
+  },
+  {
+    id: "zoom-out",
+    label: "Zoom out",
+    shortcut: { key: "-", mod: true },
+    ignoreIn: OWN_ZOOM,
+    run: zoomOut,
+  },
+  {
+    id: "zoom-reset",
+    label: "Reset zoom",
+    shortcut: { key: "0", mod: true },
+    ignoreIn: OWN_ZOOM,
+    run: zoomReset,
+  },
+  {
     id: "toggle-theme",
     label: "Toggle light/dark theme",
     run: () =>
@@ -178,6 +202,7 @@ registerCommands([
 export function commandForEvent(e: KeyboardEvent): Command | undefined {
   return commands.find((c) => {
     const s = shortcutOf(c);
-    return s !== undefined && matches(s, e);
+    if (s === undefined || !matches(s, e)) return false;
+    return !(c.ignoreIn && e.target instanceof Element && e.target.closest(c.ignoreIn));
   });
 }

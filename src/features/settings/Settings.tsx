@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { backend } from "../../ipc";
-import { type AxisConfig, useConfig } from "../../app/config";
+import { type AxisConfig, type EditorWidth, useConfig } from "../../app/config";
+import { EDITOR_WIDTHS, fontStack, NOTE_FONT_SIZES } from "../../app/appearance";
+import { useZoom, ZOOM_STEPS, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { formatDate } from "../../lib/dates";
 import { SLASH_COMMANDS } from "../editor/quickCommands";
 import { AiSettingsPanel } from "../ai/AiSettings";
@@ -106,13 +108,43 @@ interface SectionProps {
   set(fn: (c: AxisConfig) => AxisConfig): void;
 }
 
+/** A font picker: the default, then every installed family, each shown in its own font. */
+function FontSelect(p: {
+  label: string;
+  fonts: string[];
+  value: string;
+  defaultLabel: string;
+  onChange(font: string): void;
+}) {
+  // A font chosen on another computer stays listed even if it isn't installed here.
+  const missing = p.value && !p.fonts.includes(p.value);
+  return (
+    <select aria-label={p.label} value={p.value} onChange={(e) => p.onChange(e.target.value)}>
+      <option value="">{p.defaultLabel}</option>
+      {missing && <option value={p.value}>{p.value} (not installed)</option>}
+      {p.fonts.map((f) => (
+        <option key={f} value={f} style={{ fontFamily: fontStack(f, "inherit") }}>
+          {f}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function Appearance({ config, set }: SectionProps) {
   const [themes, setThemes] = useState<string[]>([]);
   const [snippets, setSnippets] = useState<string[]>([]);
+  const [fonts, setFonts] = useState<string[]>([]);
   useEffect(() => {
     void backend.listAxisFiles("themes").then(setThemes, () => {});
     void backend.listAxisFiles("snippets").then(setSnippets, () => {});
+    void backend.listFonts().then(setFonts, () => {});
   }, []);
+  const zoom = useZoom((s) => s.zoom);
+  const setZoom = useZoom((s) => s.setZoom);
+  const a = config.appearance;
+  const setA = (patch: Partial<AxisConfig["appearance"]>) =>
+    set((c) => ({ ...c, appearance: { ...c.appearance, ...patch } }));
   return (
     <>
       <Field
@@ -130,6 +162,78 @@ function Appearance({ config, set }: SectionProps) {
           {themes.map((t) => (
             <option key={t} value={t}>
               {t}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field
+        label="Zoom"
+        hint="Everything gets bigger or smaller. Also Ctrl + = / Ctrl + − / Ctrl + 0, or Ctrl + mouse wheel."
+      >
+        <span className="zoom-control">
+          <button aria-label="Zoom out" onClick={zoomOut} disabled={zoom <= ZOOM_STEPS[0]!}>
+            −
+          </button>
+          <select
+            aria-label="Zoom"
+            value={String(zoom)}
+            onChange={(e) => setZoom(Number(e.target.value))}
+          >
+            {(ZOOM_STEPS.includes(zoom)
+              ? ZOOM_STEPS
+              : [...ZOOM_STEPS, zoom].sort((x, y) => x - y)
+            ).map((z) => (
+              <option key={z} value={String(z)}>
+                {Math.round(z * 100)}%
+              </option>
+            ))}
+          </select>
+          <button aria-label="Zoom in" onClick={zoomIn} disabled={zoom >= ZOOM_STEPS.at(-1)!}>
+            +
+          </button>
+          {zoom !== 1 && <button onClick={zoomReset}>Reset</button>}
+        </span>
+      </Field>
+      <Field label="Note text size" hint="The text of your notes; headings grow with it.">
+        <span className="range-control">
+          <input
+            type="range"
+            aria-label="Note text size"
+            min={NOTE_FONT_SIZES.min}
+            max={NOTE_FONT_SIZES.max}
+            value={a.noteFontSize}
+            onChange={(e) => setA({ noteFontSize: Number(e.target.value) })}
+          />
+          <span className="muted">{a.noteFontSize} px</span>
+        </span>
+      </Field>
+      <Field label="Note font">
+        <FontSelect
+          label="Note font"
+          fonts={fonts}
+          value={a.noteFont}
+          defaultLabel="Same as the interface"
+          onChange={(noteFont) => setA({ noteFont })}
+        />
+      </Field>
+      <Field label="Interface font">
+        <FontSelect
+          label="Interface font"
+          fonts={fonts}
+          value={a.uiFont}
+          defaultLabel="Default (system)"
+          onChange={(uiFont) => setA({ uiFont })}
+        />
+      </Field>
+      <Field label="Editor width" hint="How wide notes are on screen.">
+        <select
+          aria-label="Editor width"
+          value={a.editorWidth}
+          onChange={(e) => setA({ editorWidth: e.target.value as EditorWidth })}
+        >
+          {Object.entries(EDITOR_WIDTHS).map(([id, w]) => (
+            <option key={id} value={id}>
+              {w.label}
             </option>
           ))}
         </select>
