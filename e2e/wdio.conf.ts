@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const exe = process.platform === "win32" ? "axis.exe" : "axis";
 const application = path.join(root, "src-tauri", "target", "debug", exe);
+/** The web clipper's port in E2E runs (specs read it from AXIS_CLIPPER_PORT). */
+const CLIPPER_PORT = 38499;
 
 function findNativeDriver(): string | undefined {
   if (process.env.AXIS_MSEDGEDRIVER) return process.env.AXIS_MSEDGEDRIVER;
@@ -137,6 +139,34 @@ const SEEDS: Record<string, (dir: string) => void> = {
       }) + "\n",
     );
   },
+  phase6(dir) {
+    const png = fs.readFileSync(path.join(root, "src-tauri", "icons", "32x32.png"));
+    write(dir, "Notes/Photo.md", "# Photo\n\nOur logo:\n\n![[logo.png]]\n");
+    fs.writeFileSync(path.join(dir, "Notes", "logo.png"), png);
+    // An Obsidian vault next to the AXIS vault, to import from.
+    const obsidian = `${dir}-obsidian`;
+    write(obsidian, ".obsidian/app.json", JSON.stringify({ attachmentFolderPath: "img" }));
+    write(
+      obsidian,
+      "Ideas.md",
+      "# Ideas\n\nThis is ==important==. %%hidden note%%\n\n> [!warning] Careful\n> Mind the gap.\n\nSee [[Plans]].\n",
+    );
+    write(obsidian, "Plans.md", "# Plans\n\n- [ ] Import my vault\n");
+    fs.mkdirSync(path.join(obsidian, "img"), { recursive: true });
+    fs.writeFileSync(path.join(obsidian, "img", "pic.png"), png);
+    write(
+      obsidian,
+      "Board.canvas",
+      JSON.stringify({
+        nodes: [
+          { id: "a", type: "text", text: "Big idea", x: 0, y: 0, width: 200, height: 80 },
+          { id: "b", type: "file", file: "Plans.md", x: 300, y: 0, width: 240, height: 120 },
+        ],
+        edges: [{ id: "e", fromNode: "a", toNode: "b" }],
+      }),
+    );
+    process.env.AXIS_E2E_OBSIDIAN = obsidian;
+  },
   perf(dir) {
     const words = [
       "cell",
@@ -205,6 +235,8 @@ export const config: WebdriverIO.Config = {
     // in memory, so tests never touch the user's settings or keychain.
     process.env.AXIS_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "axis-e2e-config-"));
     process.env.AXIS_AI_MEMORY_KEYS = "1";
+    // Its own port, so a running copy of AXIS on the default port doesn't get in the way.
+    process.env.AXIS_CLIPPER_PORT = String(CLIPPER_PORT);
     const native = findNativeDriver();
     const args = native ? ["--native-driver", native] : [];
     const bin = path.join(os.homedir(), ".cargo", "bin", "tauri-driver");
@@ -220,10 +252,12 @@ export const config: WebdriverIO.Config = {
     if (config?.includes("axis-e2e-config-")) {
       setTimeout(() => fs.rmSync(config, { recursive: true, force: true, maxRetries: 5 }), 500);
     }
-    const vault = process.env.AXIS_E2E_VAULT;
-    if (vault?.includes("axis-e2e-")) {
-      // The app may still hold files open for a moment after the session ends.
-      setTimeout(() => fs.rmSync(vault, { recursive: true, force: true, maxRetries: 5 }), 500);
+    for (const dir of [process.env.AXIS_E2E_VAULT, process.env.AXIS_E2E_OBSIDIAN]) {
+      if (dir?.includes("axis-e2e-")) {
+        // The app may still hold files open for a moment after the session ends.
+        setTimeout(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 }), 500);
+      }
     }
+    delete process.env.AXIS_E2E_OBSIDIAN;
   },
 };

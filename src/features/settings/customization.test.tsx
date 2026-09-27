@@ -124,6 +124,15 @@ describe("folder icons", () => {
 });
 
 describe("settings", () => {
+  it("closes on Escape even after focus has left the dialog", async () => {
+    render(<Modals />);
+    act(() => useUi.getState().open({ kind: "settings" }));
+    await screen.findByRole("dialog", { name: "Settings" });
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    await waitFor(() => expect(useUi.getState().modal).toBeNull());
+  });
+
   it("edits appearance, daily notes and quick commands", async () => {
     render(<Modals />);
     act(() => useUi.getState().open({ kind: "settings" }));

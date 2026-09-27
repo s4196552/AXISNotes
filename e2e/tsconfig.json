@@ -5,6 +5,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "skipLibCheck": true,
+    "allowJs": true,
     "noEmit": true,
     "types": ["node", "@wdio/globals/types", "@wdio/mocha-framework"]
   },

@@ -10,6 +10,7 @@ import {
   FolderOpen,
   FolderPlus,
   HardDrive,
+  Image,
   Lock,
   Shapes,
   Sheet,
@@ -498,9 +499,11 @@ const TreeRow = memo(function TreeRow({
       ? Sheet
       : docKind(entry.name) === "canvas"
         ? Shapes
-        : openable
-          ? FileText
-          : File;
+        : docKind(entry.name) === "image"
+          ? Image
+          : openable
+            ? FileText
+            : File;
   const classes = [
     "filetree-row",
     selected && "selected",

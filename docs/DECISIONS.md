@@ -54,9 +54,9 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Skipped**: `.obsidian/`, `.trash/`, dotfiles and `node_modules`. **Never overwritten**: a file that already exists is skipped and listed in the report. Importing a folder into itself (or the vault into itself) is refused. After a large import the index is rescanned, instead of relying on thousands of watcher events.
 - **JSON Canvas → AXIS canvas**:
   - Note nodes become live note cards (`axis:` embeddables).
-  - Text and link nodes become text; links keep the URL as the element's link.
+  - Text and link nodes become rounded cards with the text bound inside (as in Obsidian); links keep the URL as the card's link.
   - Groups become dashed frames with their label; other file nodes become a frame with `![[file]]`.
-  - Edges become arrows from the named sides, with their labels.
+  - Edges become arrows from the named sides, with their labels, bound to both ends so they follow the cards (T-036).
 - **Settings carried over (on request)**: the templates folder and daily-note folder, format and template from `.obsidian/templates.json` and `daily-notes.json`. The Moment.js date tokens Obsidian uses by default are the same in AXIS.
 - **Obsidian syntax is now styled** in the editor: `==highlight==` (markers hidden off the active line), `%%comments%%` (dimmed) and `> [!type]` callouts (coloured by kind: note / tip / warning / question / quote).
 - You can also open an Obsidian vault directly as an AXIS vault. Import is for merging one into an existing vault.
@@ -81,6 +81,21 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Not code-signed yet.** Windows SmartScreen and macOS Gatekeeper will warn. Signing needs certificates, which means an Apple Developer account and a Windows code-signing certificate. That's the user's call; tauri-action picks up the signing secrets once they exist.
 - **The browser extension ships inside the app.** `pnpm build:extension` also writes a clean `dist-extension/` (no tests), and `tauri build` runs it first (`beforeBuildCommand`). The bundle includes it as the `extension/` resource. Settings → Web clipper → **Open extension folder** opens it in the file manager for "Load unpacked". Development builds fall back to the source `extension/` folder. `build.rs` creates an empty `dist-extension/` so plain `cargo` builds still work. Publishing to the Chrome Web Store or Firefox Add-ons would need developer accounts, so it's left for later.
 - **App icon**: a new AXIS mark (`src-tauri/icons/app-icon.svg`, generated with `tauri icon`) replaces the Tauri placeholder. It is also used for the extension. Version 0.1.0 is now the same in `package.json`, `Cargo.toml` and `tauri.conf.json`.
+
+### Phase 6 E2E and polish (T-036)
+
+- **`e2e/specs/phase6.e2e.ts`** runs against the real app:
+  - An image embed and an image opened on its own.
+  - Obsidian import from a seeded sibling vault. The folder picker is native, so the spec calls the same `inspect_import` / `import_obsidian` commands, then checks the result in the UI: highlight and callout styling, and the converted canvas.
+  - The web clipper, driven by the extension's own `extension/lib/queue.js` from Node: a clip queued while AXIS can't be reached, pairing with the code shown in Settings, then flushing, de-duplicating a resend, and a screenshot clip whose image renders.
+  - Getting started, after the browser is paired.
+  - A remapped shortcut, saved to `.axis/config.json` and then used.
+  - E2E runs use their own clipper port (`AXIS_CLIPPER_PORT=38499`).
+- **Fixes found along the way:**
+  - Dialogs ignored Escape once their focused control disappeared, for example after pairing finishes. Escape pressed on the page is now passed to the open dialog, which applies its own rules (e.g. not while busy).
+  - Spellcheck could flag words in code blocks that the background parser hadn't reached yet. It now parses the visible range first and checks again when parsing finishes.
+  - Image files have their own icon in the file tree.
+  - A Mermaid test now loads Mermaid in `beforeAll`, and an E2E selector is scoped to the main view after the lazy loading from T-034.
 
 ## 2026-09-27: Phase 5 AI features (T-025 – T-029)
 
