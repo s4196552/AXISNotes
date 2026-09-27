@@ -68,6 +68,13 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Keyboard shortcuts are remappable** (Settings → Keyboard shortcuts): click a command and press the new keys. They are stored in `.axis/config.json` as `hotkeys: { "<command id>": "Ctrl+Shift+K" | "" }`, and `""` removes a shortcut. A shortcut belongs to one command, so assigning or resetting takes it from whichever command had it. The palette shows the shortcuts in effect.
 - **Settings → About** shows the version (from `package.json`, injected at build), where each kind of data lives, and the open-source credits.
 
+### Performance pass (T-034)
+
+- **Code splitting**: views and dialogs that aren't needed for the first paint load on demand with `React.lazy` (`app/lazy.ts` `lazyNamed` covers named exports). That includes grids, canvases (Excalidraw), graph views (sigma/graphology), tasks, the time report, settings, the AI dialogs, import and getting started. Before, the entry chunk was 1,118 KB; now it is 640 KB (215 KB gzipped). Lazy dialogs render inside `<Suspense fallback={null}>`, so tests wait for them with `findBy…`.
+- **Formula functions** (formulajs) load on demand (`lib/formula/functions.ts`). Until they arrive, a formula that calls a function evaluates to `#BUSY!`. The properties panel re-renders when they load, and opening a grid starts the load alongside the grid chunk. Test setup preloads them.
+- **Spellcheck**: the nspell engine lives in `spellcheck/hunspell.ts`, which only the worker imports, so the dictionary and nspell stay out of the main bundle.
+- Search latency was already covered in Phase 1 (under 100 ms on 5,000 notes). The index and watcher paths were unchanged.
+
 ## 2026-09-27: Phase 5 AI features (T-025 – T-029)
 
 ### Spellcheck (T-025)

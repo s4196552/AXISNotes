@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { useAppStore } from "../../app/store";
 import { insertTemplate, listTemplates, newNote, newNoteFromTemplate } from "./actions";
 import { PromptDialog } from "./PromptDialog";
@@ -6,14 +6,20 @@ import { Picker, type PickerItem } from "./Picker";
 import { allCommands, commandForEvent, hintFor, shortcutOf } from "./registry";
 import { useUi } from "./ui";
 import { IconPicker } from "../icons/IconPicker";
-import { Settings } from "../settings/Settings";
-import { AskAi } from "../ai/AskAi";
-import { FixText } from "../ai/FixText";
-import { NoteHandwriting } from "../handwriting/NoteHandwriting";
-import { NoteDiagram } from "../diagrams/NoteDiagram";
-import { ImportDialog } from "../import/ImportDialog";
-import { GettingStarted } from "../vault/GettingStarted";
+import { lazyNamed } from "../../app/lazy";
 import "./commands.css";
+
+// Dialogs used now and then are loaded on first use, to keep startup small.
+const Settings = lazyNamed(() => import("../settings/Settings"), "Settings");
+const AskAi = lazyNamed(() => import("../ai/AskAi"), "AskAi");
+const FixText = lazyNamed(() => import("../ai/FixText"), "FixText");
+const NoteHandwriting = lazyNamed(
+  () => import("../handwriting/NoteHandwriting"),
+  "NoteHandwriting",
+);
+const NoteDiagram = lazyNamed(() => import("../diagrams/NoteDiagram"), "NoteDiagram");
+const ImportDialog = lazyNamed(() => import("../import/ImportDialog"), "ImportDialog");
+const GettingStarted = lazyNamed(() => import("../vault/GettingStarted"), "GettingStarted");
 
 /** Global keyboard shortcuts (capture phase, so they win over the editor). */
 function useShortcuts() {
@@ -117,6 +123,10 @@ export function Modals() {
   useShortcuts();
   const modal = useUi((s) => s.modal);
   if (!modal) return null;
+  return <Suspense fallback={null}>{renderModal(modal)}</Suspense>;
+}
+
+function renderModal(modal: NonNullable<ReturnType<typeof useUi.getState>["modal"]>) {
   switch (modal.kind) {
     case "palette":
       return <CommandPalette />;

@@ -1,11 +1,20 @@
-import * as formulajs from "@formulajs/formulajs";
+import { functions } from "./functions";
 import { FormulaSyntaxError, type Node, parseFormula } from "./parser";
 
 // Formula evaluation with Excel-style errors. Cell references and names are resolved by
 // the caller (a sheet, or a note's properties); functions come from formula.js.
 
 export type ErrorCode =
-  "#DIV/0!" | "#VALUE!" | "#REF!" | "#NAME?" | "#N/A" | "#NUM!" | "#CIRC!" | "#ERROR!";
+  | "#DIV/0!"
+  | "#VALUE!"
+  | "#REF!"
+  | "#NAME?"
+  | "#N/A"
+  | "#NUM!"
+  | "#CIRC!"
+  | "#ERROR!"
+  /** The function library is still loading. */
+  | "#BUSY!";
 
 export class FormulaError {
   constructor(
@@ -82,7 +91,7 @@ function compare(a: Scalar, b: Scalar): number {
 }
 
 function lookupFunction(name: string): ((...args: unknown[]) => unknown) | null {
-  let obj: unknown = formulajs;
+  let obj: unknown = functions();
   for (const part of name.split(".")) {
     if (obj && (typeof obj === "object" || typeof obj === "function") && part in (obj as object)) {
       obj = (obj as Record<string, unknown>)[part];
@@ -179,6 +188,7 @@ export function evaluate(node: Node, ctx: EvalContext): Value {
       }
       const errorAware = errorFunction(node.name, node.args, ctx);
       if (errorAware !== undefined) return errorAware;
+      if (!functions()) return new FormulaError("#BUSY!", "Loading functions…");
       const fn = lookupFunction(node.name);
       if (!fn) return new FormulaError("#NAME?", `Unknown function ${node.name}`);
       const args = node.args.map((a) => evaluate(a, ctx));

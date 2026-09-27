@@ -90,7 +90,7 @@ describe("Phase 2: blocks, outliner and graph on a real vault", () => {
 
   it("shows the vault graph and opens a note from it", async () => {
     await browser.keys([Key.Ctrl, "g"]);
-    const count = $(".graph-count");
+    const count = $("main.content .graph-count");
     await expect(count).toHaveText(expect.stringMatching(/3 notes · 1 link$/));
     const canvas = $('[data-testid="graph-canvas"]');
     await browser.waitUntil(

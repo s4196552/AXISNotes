@@ -127,7 +127,7 @@ describe("settings", () => {
   it("edits appearance, daily notes and quick commands", async () => {
     render(<Modals />);
     act(() => useUi.getState().open({ kind: "settings" }));
-    const dialog = screen.getByRole("dialog", { name: "Settings" });
+    const dialog = await screen.findByRole("dialog", { name: "Settings" });
 
     const theme = within(dialog).getByRole("combobox", { name: "Theme" });
     await waitFor(() =>

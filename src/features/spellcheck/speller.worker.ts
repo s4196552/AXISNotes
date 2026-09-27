@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import affUrl from "dictionary-en-files/index.aff?url";
 import dicUrl from "dictionary-en-files/index.dic?url";
-import { createEngine } from "./engine";
+import { createEngine } from "./hunspell";
 
 // Loads the Hunspell dictionary once (bundled with the app, so it works offline) and
 // answers check/suggest requests from the editor.
