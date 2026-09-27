@@ -33,7 +33,7 @@ export function WelcomeScreen() {
   return (
     <main className="welcome">
       <Logo size={72} className="welcome-logo" />
-      <h1>AXIS</h1>
+      <h1>AXISNotes</h1>
       <p className="muted">
         Your notes are plain files in a folder you choose. Everything works offline.
       </p>
@@ -71,7 +71,7 @@ export function WelcomeScreen() {
                 setReopen(e.target.checked);
               }}
             />
-            Reopen the last vault when AXIS starts
+            Reopen the last vault when AXISNotes starts
           </label>
         </section>
       )}
@@ -85,7 +85,7 @@ export function WelcomeScreen() {
         </button>
       </div>
       <p className="muted welcome-hint">
-        Using Obsidian? Open your Obsidian vault folder: AXIS reads it as it is.
+        Using Obsidian? Open your Obsidian vault folder: AXISNotes reads it as it is.
       </p>
       {creating && (
         <form className="welcome-create" onSubmit={handleCreate}>

@@ -50,7 +50,7 @@ export function ClipperSettings() {
     <div className="clipper-settings">
       <p className="muted">
         Save web pages, selections, screenshots and links from your browser into this vault. The
-        AXIS extension talks only to this app, on this computer.
+        AXISNotes extension talks only to this app, on this computer.
       </p>
       <label className="clipper-row">
         <input
@@ -111,7 +111,7 @@ export function ClipperSettings() {
 
       {pairing ? (
         <div className="clipper-pairing" role="group" aria-label="Pairing code">
-          <p>In the AXIS extension, click “Pair with AXIS” and enter:</p>
+          <p>In the AXISNotes extension, click “Pair with AXISNotes” and enter:</p>
           <div className="clipper-code" aria-label="Code">
             {pairing.code}
           </div>
@@ -151,11 +151,11 @@ export function ClipperSettings() {
 
       <h3>Install the extension</h3>
       <p className="muted">
-        The extension comes with AXIS. In Chrome or Edge, open <code>chrome://extensions</code>,
-        turn on Developer mode, choose “Load unpacked” and pick the extension folder. In Firefox,
+        The extension comes with AXISNotes. In Chrome or Edge, open <code>chrome://extensions</code>
+        , turn on Developer mode, choose “Load unpacked” and pick the extension folder. In Firefox,
         open <code>about:debugging</code> → This Firefox → “Load Temporary Add-on” and pick its{" "}
-        <code>manifest.json</code>. Clips taken while AXIS is closed are kept by the extension and
-        delivered the next time AXIS runs.
+        <code>manifest.json</code>. Clips taken while AXISNotes is closed are kept by the extension
+        and delivered the next time AXISNotes runs.
       </p>
       <button
         onClick={() =>

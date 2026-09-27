@@ -1,4 +1,4 @@
-//! Per-folder AI privacy rules, set in the vault's `.axis/config.json`:
+//! Per-folder AI privacy rules, set in the vault's `.axisnotes/config.json`:
 //!
 //! ```json
 //! { "ai": { "folders": { "Medical": "never", "Journal": "local", "Journal/Public": "any" } } }
@@ -24,7 +24,7 @@ pub enum AiRule {
     Never,
 }
 
-pub const CONFIG_PATH: &str = ".axis/config.json";
+pub const CONFIG_PATH: &str = ".axisnotes/config.json";
 
 /// Folder/file rules from the vault config (missing or invalid config = no rules).
 pub fn rules(vault: &Vault) -> HashMap<String, AiRule> {

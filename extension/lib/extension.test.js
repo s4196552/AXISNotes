@@ -77,7 +77,7 @@ function memoryStorage() {
   };
 }
 
-/** A fake AXIS: `up` switches it on and off; records what it received. */
+/** A fake AXISNotes: `up` switches it on and off; records what it received. */
 function fakeAxis() {
   const axis = { up: true, received: [], status: 201 };
   axis.fetch = async (url, init = {}) => {
@@ -100,7 +100,7 @@ function fakeAxis() {
 }
 
 describe("delivery and the offline queue", () => {
-  it("sends clips straight away when AXIS is running", async () => {
+  it("sends clips straight away when AXISNotes is running", async () => {
     const axis = fakeAxis();
     const env = { fetch: axis.fetch, storage: memoryStorage(), token: "t0k3n" };
     const clip = newClip("url", { title: "T", url: "https://x.io" });
@@ -109,7 +109,7 @@ describe("delivery and the offline queue", () => {
     expect(await queued(env.storage)).toEqual([]);
   });
 
-  it("queues clips while AXIS is closed and sends them later, in order, once", async () => {
+  it("queues clips while AXISNotes is closed and sends them later, in order, once", async () => {
     const axis = fakeAxis();
     const env = { fetch: axis.fetch, storage: memoryStorage(), token: "t0k3n" };
     axis.up = false;
@@ -127,7 +127,7 @@ describe("delivery and the offline queue", () => {
     expect(env.storage.data.get(QUEUE_KEY)).toEqual([]);
   });
 
-  it("keeps clips until the browser is paired, and drops ones AXIS rejects", async () => {
+  it("keeps clips until the browser is paired, and drops ones AXISNotes rejects", async () => {
     const axis = fakeAxis();
     const env = { fetch: axis.fetch, storage: memoryStorage(), token: null };
     expect(await deliver(newClip("url", { url: "https://x.io" }), env)).toBe("unpaired");

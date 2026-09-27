@@ -1,4 +1,4 @@
-// Popup: shows whether AXIS is reachable and paired, pairs with a code, and starts clips.
+// Popup: shows whether AXISNotes is reachable and paired, pairs with a code, and starts clips.
 
 const $ = (id) => document.getElementById(id);
 const send = (msg) => chrome.runtime.sendMessage(msg);
@@ -19,7 +19,7 @@ function say(text, ok = true) {
 async function refresh() {
   const s = await send({ type: "status" });
   $("state").textContent = !s.running
-    ? "AXIS not running"
+    ? "AXISNotes not running"
     : !s.paired
       ? "Not paired"
       : s.vault
@@ -29,7 +29,7 @@ async function refresh() {
   $("pair").hidden = s.paired;
   $("clip").hidden = !s.paired;
   $("queue").hidden = s.queue === 0;
-  $("queue-text").textContent = `${s.queue} clip${s.queue === 1 ? "" : "s"} waiting for AXIS`;
+  $("queue-text").textContent = `${s.queue} clip${s.queue === 1 ? "" : "s"} waiting for AXISNotes`;
   const { port } = await chrome.storage.local.get("port");
   $("port").value = port || "";
 }
@@ -51,7 +51,7 @@ $("pair").addEventListener("submit", async (e) => {
   const origins = ["http://127.0.0.1/*"];
   if (!(await chrome.permissions.contains({ origins }))) {
     if (!(await chrome.permissions.request({ origins }))) {
-      say("The extension needs access to 127.0.0.1 to reach AXIS.", false);
+      say("The extension needs access to 127.0.0.1 to reach AXISNotes.", false);
       return;
     }
   }
@@ -64,7 +64,7 @@ $("pair").addEventListener("submit", async (e) => {
 $("retry").addEventListener("click", async () => {
   const r = await send({ type: "retry" });
   say(
-    r.sent ? `Sent ${r.sent} clip${r.sent === 1 ? "" : "s"}.` : "AXIS still isn't reachable.",
+    r.sent ? `Sent ${r.sent} clip${r.sent === 1 ? "" : "s"}.` : "AXISNotes still isn't reachable.",
     r.sent > 0,
   );
   await refresh();

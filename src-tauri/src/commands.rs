@@ -293,14 +293,14 @@ pub async fn graph(state: State<'_, AppState>) -> AppResult<GraphData> {
     state.with_index(|idx| idx.graph())
 }
 
-/// CSS files in `.axis/themes` or `.axis/snippets` (names without `.css`).
+/// CSS files in `.axisnotes/themes` or `.axisnotes/snippets` (names without `.css`).
 #[tauri::command]
 pub fn list_axis_files(state: State<AppState>, subdir: String) -> AppResult<Vec<String>> {
     if subdir != "themes" && subdir != "snippets" {
         return Err(AppError::InvalidName(subdir));
     }
     let v = state.vault()?;
-    let dir = v.resolve(&format!(".axis/{subdir}"))?;
+    let dir = v.resolve(&format!(".axisnotes/{subdir}"))?;
     let Ok(entries) = std::fs::read_dir(dir) else {
         return Ok(Vec::new());
     };

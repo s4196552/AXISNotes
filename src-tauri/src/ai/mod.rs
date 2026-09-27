@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// The provider products AXIS knows. Everything except OpenAI, Anthropic and Gemini
+/// The provider products AXISNotes knows. Everything except OpenAI, Anthropic and Gemini
 /// speaks the OpenAI-compatible Chat Completions format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

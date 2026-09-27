@@ -28,7 +28,7 @@ beforeAll(() => loadMermaid(), 90_000);
 
 beforeEach(async () => {
   h.b = createMemoryBackend({
-    ".axis/config.json": JSON.stringify({ ai: { folders: { Private: "never" } } }),
+    ".axisnotes/config.json": JSON.stringify({ ai: { folders: { Private: "never" } } }),
     "Bio.md": "# Cells\n## Parts\n- Nucleus\n- [[Mito]]\n",
     "Mito.md": "Links back to [[Bio]].",
     "Private/Diary.md": "secret",

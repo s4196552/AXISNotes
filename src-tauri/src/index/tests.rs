@@ -189,7 +189,7 @@ fn reopening_reuses_the_database() {
     drop(idx);
     let idx = Index::open(&v).unwrap();
     assert_eq!(idx.tags().unwrap().len(), 1);
-    assert!(v.root().join(".axis/index.db").exists());
+    assert!(v.root().join(".axisnotes/index.db").exists());
 }
 
 /// Phase 1 target: search under 100 ms on a 5,000-note vault.

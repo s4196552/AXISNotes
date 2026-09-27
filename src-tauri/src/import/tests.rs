@@ -156,5 +156,5 @@ fn never_overwrites_and_refuses_to_import_itself() {
     fs::create_dir_all(&inner).unwrap();
     assert!(import_obsidian(&e.vault, &inner, "x").is_err());
     assert!(import_obsidian(&e.vault, &e.source, "../escape").is_err());
-    assert!(import_obsidian(&e.vault, &e.source, ".axis").is_err());
+    assert!(import_obsidian(&e.vault, &e.source, ".axisnotes").is_err());
 }

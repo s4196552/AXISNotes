@@ -102,7 +102,7 @@ export function parseTsv(text: string): string[][] {
   return rows;
 }
 
-/** Raw cells in `rect`, relative to its top-left, for copying inside AXIS. */
+/** Raw cells in `rect`, relative to its top-left, for copying inside AXISNotes. */
 export interface Clip {
   width: number;
   height: number;

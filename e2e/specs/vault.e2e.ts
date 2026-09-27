@@ -21,7 +21,7 @@ async function renameTo(name: string) {
   await browser.keys(Key.Enter);
 }
 
-describe("AXIS desktop app on a real vault", () => {
+describe("AXISNotes desktop app on a real vault", () => {
   it("opens the vault from AXIS_OPEN_VAULT and lists its files", async () => {
     await expect(row("Welcome.md")).toBeDisplayed();
     await expect(row("School")).toBeDisplayed();
@@ -37,8 +37,8 @@ describe("AXIS desktop app on a real vault", () => {
   it("autosaves edits to the file on disk", async () => {
     await $(".cm-content").click();
     await browser.keys([Key.Ctrl, Key.End]);
-    await browser.keys(" edited in AXIS");
-    await browser.waitUntil(() => read("Welcome.md").includes("edited in AXIS"), {
+    await browser.keys(" edited in AXISNotes");
+    await browser.waitUntil(() => read("Welcome.md").includes("edited in AXISNotes"), {
       timeoutMsg: "edit never reached the disk",
     });
     await expect($(".editor-status")).toHaveText("Saved");

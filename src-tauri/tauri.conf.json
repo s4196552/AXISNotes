@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "AXIS",
+  "productName": "AXISNotes",
   "version": "0.1.0",
-  "identifier": "app.axis.desktop",
+  "identifier": "app.axis.axisnotes",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "AXIS",
+        "title": "AXISNotes",
         "width": 1280,
         "height": 820,
         "minWidth": 720,
@@ -33,10 +33,10 @@
     "active": true,
     "targets": ["msi", "nsis", "dmg", "appimage"],
     "publisher": "AXIS",
-    "copyright": "© 2026 AXIS contributors",
+    "copyright": "© 2026 AXIS",
     "category": "Productivity",
     "shortDescription": "Local-first personal knowledge base",
-    "longDescription": "AXIS keeps your notes as plain Markdown files in a folder you choose, with links, search, grids, canvases, handwriting and optional AI using your own keys.",
+    "longDescription": "AXISNotes keeps your notes as plain Markdown files in a folder you choose, with links, search, grids, canvases, handwriting and optional AI using your own keys.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

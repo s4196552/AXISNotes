@@ -1,8 +1,8 @@
 [package]
-name = "axis"
+name = "axisnotes"
 version = "0.1.0"
-description = "AXIS - local-first personal knowledge base"
-authors = ["AXIS contributors"]
+description = "AXISNotes - local-first personal knowledge base, by AXIS"
+authors = ["AXIS"]
 license = ""
 repository = ""
 edition = "2021"
@@ -11,7 +11,7 @@ rust-version = "1.85"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "axis_lib"
+name = "axisnotes_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

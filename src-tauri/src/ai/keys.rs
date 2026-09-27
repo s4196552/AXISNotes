@@ -7,7 +7,10 @@ use std::sync::Mutex;
 
 use crate::error::{AppError, AppResult};
 
-const SERVICE: &str = "AXIS";
+const SERVICE: &str = "AXISNotes";
+/// The keychain service used before the app was renamed AXISNotes. Keys found there are
+/// moved to `SERVICE` the first time they're read.
+const LEGACY_SERVICE: &str = "AXIS";
 
 pub trait KeyStore: Send + Sync {
     fn get(&self, provider_id: &str) -> AppResult<Option<String>>;
@@ -17,16 +20,35 @@ pub trait KeyStore: Send + Sync {
 
 pub struct Keychain;
 
-fn entry(provider_id: &str) -> AppResult<keyring::Entry> {
-    keyring::Entry::new(SERVICE, &format!("ai-provider:{provider_id}"))
+fn entry_in(service: &str, provider_id: &str) -> AppResult<keyring::Entry> {
+    keyring::Entry::new(service, &format!("ai-provider:{provider_id}"))
         .map_err(|e| AppError::Io(format!("keychain: {e}")))
+}
+
+fn entry(provider_id: &str) -> AppResult<keyring::Entry> {
+    entry_in(SERVICE, provider_id)
+}
+
+/// A key saved under the old service name: move it to the new one and return it.
+fn migrate_legacy(provider_id: &str) -> AppResult<Option<String>> {
+    let old = entry_in(LEGACY_SERVICE, provider_id)?;
+    match old.get_password() {
+        Ok(k) => {
+            entry(provider_id)?
+                .set_password(&k)
+                .map_err(|e| AppError::Io(format!("keychain: {e}")))?;
+            let _ = old.delete_credential();
+            Ok(Some(k))
+        }
+        Err(_) => Ok(None),
+    }
 }
 
 impl KeyStore for Keychain {
     fn get(&self, provider_id: &str) -> AppResult<Option<String>> {
         match entry(provider_id)?.get_password() {
             Ok(k) => Ok(Some(k)),
-            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(keyring::Error::NoEntry) => migrate_legacy(provider_id),
             Err(e) => Err(AppError::Io(format!("keychain: {e}"))),
         }
     }
@@ -38,6 +60,7 @@ impl KeyStore for Keychain {
     }
 
     fn delete(&self, provider_id: &str) -> AppResult<()> {
+        let _ = entry_in(LEGACY_SERVICE, provider_id)?.delete_credential();
         match entry(provider_id)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(AppError::Io(format!("keychain: {e}"))),

@@ -146,14 +146,17 @@ describe("Phase 1: knowledge features on a real vault", () => {
     await expect(title()).toHaveText(name);
   });
 
-  it("switches the theme from settings and saves it to .axis/config.json", async () => {
+  it("switches the theme from settings and saves it to .axisnotes/config.json", async () => {
     await $('button[aria-label="Settings"]').click();
     await $('select[aria-label="Theme"]').selectByAttribute("value", "dark");
     await until(
       async () => (await browser.execute(() => document.documentElement.dataset.theme)) === "dark",
       "theme not applied",
     );
-    await until(() => read(".axis/config.json").includes('"theme": "dark"'), "config not saved");
+    await until(
+      () => read(".axisnotes/config.json").includes('"theme": "dark"'),
+      "config not saved",
+    );
     await snapshot("03-settings-dark");
     await browser.keys(Key.Escape);
     await snapshot("04-app-dark");

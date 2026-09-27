@@ -93,7 +93,7 @@ registerCommands([
   { id: "diagram", label: "Make a diagram (AI, or from notes)", run: openDiagram },
   {
     id: "getting-started",
-    label: "Getting started with AXIS",
+    label: "Getting started with AXISNotes",
     run: () => useUi.getState().open({ kind: "getting-started" }),
   },
   {

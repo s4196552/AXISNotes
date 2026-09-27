@@ -18,10 +18,10 @@ function styleTag(id: string): HTMLStyleElement {
   return el;
 }
 
-/** Read `.axis/<dir>/<name>.css`; empty string if missing. */
+/** Read `.axisnotes/<dir>/<name>.css`; empty string if missing. */
 async function readCss(dir: "themes" | "snippets", name: string): Promise<string> {
   try {
-    return (await backend.readFile(`.axis/${dir}/${name}.css`)).content;
+    return (await backend.readFile(`.axisnotes/${dir}/${name}.css`)).content;
   } catch {
     return "";
   }

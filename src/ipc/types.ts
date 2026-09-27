@@ -363,7 +363,7 @@ export interface Backend {
   resolveLink(target: string, from: string): Promise<string | null>;
   backlinks(path: string): Promise<Backlink[]>;
   unlinkedMentions(path: string): Promise<Mention[]>;
-  /** CSS files (names without `.css`) in `.axis/themes` or `.axis/snippets`. */
+  /** CSS files (names without `.css`) in `.axisnotes/themes` or `.axisnotes/snippets`. */
   listAxisFiles(subdir: "themes" | "snippets"): Promise<string[]>;
   /** All notes and resolved links (plus unresolved targets as `?name` nodes). */
   graph(): Promise<GraphData>;

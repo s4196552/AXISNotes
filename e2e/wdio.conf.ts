@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// End-to-end tests drive the real AXIS desktop build through tauri-driver (WebDriver),
+// End-to-end tests drive the real AXISNotes desktop build through tauri-driver (WebDriver),
 // against a throwaway vault on disk. Runs on Windows and Linux (tauri-driver has no macOS support).
 //
 // Prereqs: `cargo install tauri-driver`, a native driver matching the system WebView
@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 // ~/.axis-e2e/msedgedriver-<version>/), and `pnpm tauri build --debug --no-bundle`.
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const exe = process.platform === "win32" ? "axis.exe" : "axis";
+const exe = process.platform === "win32" ? "axisnotes.exe" : "axisnotes";
 const application = path.join(root, "src-tauri", "target", "debug", exe);
 /** The web clipper's port in E2E runs (specs read it from AXIS_CLIPPER_PORT). */
 const CLIPPER_PORT = 38499;
@@ -117,7 +117,7 @@ const SEEDS: Record<string, (dir: string) => void> = {
   ai(dir) {
     write(dir, "School/Bio.md", "# Bio\n\nMitochondria make ATP.\n");
     write(dir, "Medical/scan.md", "# Scan\n\nPrivate results.\n");
-    write(dir, ".axis/config.json", JSON.stringify({ ai: { folders: { Medical: "never" } } }));
+    write(dir, ".axisnotes/config.json", JSON.stringify({ ai: { folders: { Medical: "never" } } }));
   },
   phase5(dir) {
     write(dir, "School/Bio.md", "# Bio\n\nThe mitochondria is teh powerhouse of the cell.\n");
@@ -125,7 +125,7 @@ const SEEDS: Record<string, (dir: string) => void> = {
     write(dir, "Pad.md", "# Pad\n\nWritten by hand:\n");
     write(dir, "Plan.md", "# Trip\n\n## Before\n- Book flights\n- Pack\n\n## During\n- Museum\n");
     write(dir, "Private/Diary.md", "# Diary\n\nSecret.\n");
-    write(dir, ".axis/config.json", JSON.stringify({ ai: { folders: { Private: "never" } } }));
+    write(dir, ".axisnotes/config.json", JSON.stringify({ ai: { folders: { Private: "never" } } }));
     write(
       dir,
       "Board.axcanvas",
@@ -143,7 +143,7 @@ const SEEDS: Record<string, (dir: string) => void> = {
     const png = fs.readFileSync(path.join(root, "src-tauri", "icons", "32x32.png"));
     write(dir, "Notes/Photo.md", "# Photo\n\nOur logo:\n\n![[logo.png]]\n");
     fs.writeFileSync(path.join(dir, "Notes", "logo.png"), png);
-    // An Obsidian vault next to the AXIS vault, to import from.
+    // An Obsidian vault next to the AXISNotes vault, to import from.
     const obsidian = `${dir}-obsidian`;
     write(obsidian, ".obsidian/app.json", JSON.stringify({ attachmentFolderPath: "img" }));
     write(
@@ -235,7 +235,7 @@ export const config: WebdriverIO.Config = {
     // in memory, so tests never touch the user's settings or keychain.
     process.env.AXIS_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "axis-e2e-config-"));
     process.env.AXIS_AI_MEMORY_KEYS = "1";
-    // Its own port, so a running copy of AXIS on the default port doesn't get in the way.
+    // Its own port, so a running copy of AXISNotes on the default port doesn't get in the way.
     process.env.AXIS_CLIPPER_PORT = String(CLIPPER_PORT);
     const native = findNativeDriver();
     const args = native ? ["--native-driver", native] : [];

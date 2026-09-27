@@ -1,4 +1,4 @@
-//! Web clipper endpoint: a small HTTP server on 127.0.0.1 that the AXIS browser extension
+//! Web clipper endpoint: a small HTTP server on 127.0.0.1 that the AXISNotes browser extension
 //! sends clips to. A browser is paired once with a short-lived code shown in the app and
 //! gets a long random token; only a hash of the token is stored (in the app config
 //! folder, never in the vault). Requests from web pages (an `http(s)://` Origin) are
@@ -282,7 +282,7 @@ impl Clipper {
             ("GET", "/v1/status") => resp(
                 200,
                 json!({
-                    "app": "AXIS",
+                    "app": "AXISNotes",
                     "version": env!("CARGO_PKG_VERSION"),
                     "vault": (self.vault)().is_some(),
                     "paired": req.authorization.is_some_and(|a| self.device_for(a).is_some()),
@@ -293,7 +293,7 @@ impl Clipper {
                 let Some(device) = req.authorization.and_then(|a| self.device_for(a)) else {
                     return error(
                         401,
-                        "not paired: pair this browser in AXIS → Settings → Web clipper",
+                        "not paired: pair this browser in AXISNotes → Settings → Web clipper",
                     );
                 };
                 self.clip(&device, req.body)
@@ -331,18 +331,18 @@ impl Clipper {
             let Some(p) = guard.as_mut() else {
                 return error(
                     403,
-                    "no pairing in progress: click “Pair a browser” in AXIS first",
+                    "no pairing in progress: click “Pair a browser” in AXISNotes first",
                 );
             };
             if Instant::now() > p.expires {
                 *guard = None;
-                return error(403, "the pairing code expired; show a new one in AXIS");
+                return error(403, "the pairing code expired; show a new one in AXISNotes");
             }
             if p.code != b.code.trim() {
                 p.attempts += 1;
                 if p.attempts >= MAX_PAIRING_ATTEMPTS {
                     *guard = None;
-                    return error(429, "too many wrong codes; show a new one in AXIS");
+                    return error(429, "too many wrong codes; show a new one in AXISNotes");
                 }
                 return error(403, "wrong pairing code");
             }
@@ -381,7 +381,7 @@ impl Clipper {
         let Some(vault) = (self.vault)() else {
             return error(
                 503,
-                "no vault is open in AXIS; the clip will be sent again later",
+                "no vault is open in AXISNotes; the clip will be sent again later",
             );
         };
         let config = self.config();

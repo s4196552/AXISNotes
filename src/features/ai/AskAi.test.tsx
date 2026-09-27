@@ -13,7 +13,7 @@ vi.mock("../../ipc", async (orig) => {
 
 beforeEach(async () => {
   h.b = createMemoryBackend({
-    ".axis/config.json": JSON.stringify({ ai: { folders: { Medical: "never" } } }),
+    ".axisnotes/config.json": JSON.stringify({ ai: { folders: { Medical: "never" } } }),
     "School/Bio.md": "# Bio\nMitochondria.",
     "Medical/scan.md": "private",
   });

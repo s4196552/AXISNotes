@@ -5,7 +5,7 @@ import { effectiveShortcut, formatHotkey, hotkeyFromEvent, parseHotkey } from ".
 import { allCommands, shortcutOf } from "../commands/registry";
 
 // Settings → Keyboard shortcuts: every command, its shortcut, and remapping by pressing
-// the new keys. Overrides live in `.axis/config.json` (`hotkeys`).
+// the new keys. Overrides live in `.axisnotes/config.json` (`hotkeys`).
 
 interface Props {
   config: AxisConfig;

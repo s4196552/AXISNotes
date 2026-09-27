@@ -2,6 +2,21 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-27: Renamed to AXISNotes (T-038)
+
+- **Naming:** AXIS is the company, and this app is its product **AXISNotes**, written as one word with no space, like Microsoft and Microsoft Word.
+  - User-facing text says AXISNotes: the window title, installer, Start menu, welcome screen, About ("AXISNotes by AXIS"), the extension (the "AXISNotes Web Clipper") and error messages.
+  - The installer publisher is AXIS.
+- **Internal names changed too, at the user's request, each with a migration so nothing is lost:**
+  - **Bundle identifier:** `app.axis.desktop` → `app.axis.axisnotes`. The OS folders named after it hold AI settings, paired browsers, the request log and the webview's storage (recent vaults). `migrate::legacy_app_dirs` copies each old folder to its new name on startup, before any window opens, and only when the new folder doesn't exist yet. The old folders stay behind as a backup.
+  - **Vault folder:** `.axis/` → `.axisnotes/`. `Vault::open` renames an existing `.axis/` when there's no `.axisnotes/` yet. Temporary files are now `.axisnotes-tmp`.
+  - **Keychain service:** `AXIS` → `AXISNotes`. A key missing under the new name is looked up under the old one, moved across and deleted from the old entry. Deleting a key removes both.
+  - **Program:** `axis.exe` → `axisnotes.exe` (the Cargo package `axisnotes`, library `axisnotes_lib`). The npm package is `axisnotes`.
+- **Not renamed:**
+  - The `.axgrid` and `.axcanvas` file extensions and the `axis:` link scheme inside canvas files. They're content formats in users' files, and "ax" works as the AXIS family prefix.
+  - The test-only environment variables (`AXIS_OPEN_VAULT`, `AXIS_CLIPPER_PORT`, …) and the `axis.*` local-storage keys, which users never see.
+- The build spec and older entries below still say "AXIS" and `.axis/`, which were correct when they were written.
+
 ## 2026-09-27: Phase 6 web clipper, import, polish and installers (T-030 – T-036)
 
 - **Process change:** the user dropped Codex. Claude builds and verifies every task, and the cross-review rule in `AGENTS.md` no longer applies.

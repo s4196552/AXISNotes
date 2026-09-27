@@ -117,7 +117,7 @@ function Appearance({ config, set }: SectionProps) {
     <>
       <Field
         label="Theme"
-        hint="Custom themes are CSS files in .axis/themes that override the color variables."
+        hint="Custom themes are CSS files in .axisnotes/themes that override the color variables."
       >
         <select
           aria-label="Theme"
@@ -134,7 +134,7 @@ function Appearance({ config, set }: SectionProps) {
           ))}
         </select>
       </Field>
-      <Field label="CSS snippets" hint="Files in .axis/snippets, applied on top of the theme.">
+      <Field label="CSS snippets" hint="Files in .axisnotes/snippets, applied on top of the theme.">
         {snippets.length === 0 ? (
           <span className="muted">None found</span>
         ) : (
@@ -180,7 +180,7 @@ function Spelling({ config, set }: SectionProps) {
           onChange={(e) => setSp({ enabled: e.target.checked })}
         />
       </Field>
-      <Field label="Personal dictionary" hint="Stored in this vault's .axis/config.json.">
+      <Field label="Personal dictionary" hint="Stored in this vault's .axisnotes/config.json.">
         {sp.words.length === 0 ? (
           <span className="muted">No words yet</span>
         ) : (

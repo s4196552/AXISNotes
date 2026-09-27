@@ -7,7 +7,7 @@ import { deliver, flush, newClip, pair, queued } from "../../extension/lib/queue
 
 // Phase 6 on the real app: image embeds served from the vault; importing an Obsidian
 // vault (notes, attachments, a JSON Canvas); the web clipper, paired and fed by the
-// extension's own queue code, including a clip queued while AXIS couldn't be reached;
+// extension's own queue code, including a clip queued while AXISNotes couldn't be reached;
 // Getting started; and a remapped keyboard shortcut.
 
 const vault = process.env.AXIS_E2E_VAULT!;
@@ -125,9 +125,9 @@ describe("Phase 6: web clipper, import and polish on the real app", () => {
     await snapshot("03-imported-canvas");
   });
 
-  it("pairs the extension and saves clips, including one queued while AXIS was away", async () => {
+  it("pairs the extension and saves clips, including one queued while AXISNotes was away", async () => {
     const storage = memoryStorage();
-    // AXIS can't be reached (wrong port): the clip waits in the extension's queue.
+    // AXISNotes can't be reached (wrong port): the clip waits in the extension's queue.
     const early = newClip("page", {
       title: "Queued page",
       url: "https://example.com/queued",
@@ -185,7 +185,7 @@ describe("Phase 6: web clipper, import and polish on the real app", () => {
   });
 
   it("Getting started shows the paired browser", async () => {
-    await command("Getting started with AXIS");
+    await command("Getting started with AXISNotes");
     const dialog = $('[role="dialog"][aria-label="Getting started"]');
     await dialog.waitForDisplayed();
     await expect(dialog.$("button=Manage")).toExist(); // the web clipper step is done
@@ -202,8 +202,8 @@ describe("Phase 6: web clipper, import and polish on the real app", () => {
       "Ctrl+Shift+Y",
     );
     await until(
-      () => read(".axis/config.json").includes('"settings": "Ctrl+Shift+Y"'),
-      "shortcut not saved to .axis/config.json",
+      () => read(".axisnotes/config.json").includes('"settings": "Ctrl+Shift+Y"'),
+      "shortcut not saved to .axisnotes/config.json",
     );
     await snapshot("07-shortcut-remapped");
     await closeDialog();

@@ -1,5 +1,5 @@
 // The `.axcanvas` file format: Excalidraw's JSON scene, written in a stable, diff-friendly
-// shape. AXIS note cards are Excalidraw "embeddable" elements whose `link` is
+// shape. AXISNotes note cards are Excalidraw "embeddable" elements whose `link` is
 // `axis:<vault-relative path>`; the app renders them as live note previews.
 
 export const CARD_PREFIX = "axis:";

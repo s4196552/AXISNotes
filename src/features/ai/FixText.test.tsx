@@ -20,7 +20,7 @@ const requests: AiRunRequest[] = [];
 
 beforeEach(async () => {
   h.b = createMemoryBackend({
-    ".axis/config.json": JSON.stringify({ ai: { folders: { Medical: "never" } } }),
+    ".axisnotes/config.json": JSON.stringify({ ai: { folders: { Medical: "never" } } }),
     "School/Bio.md": NOTE,
     "Medical/scan.md": "Pateint is fine.",
   });

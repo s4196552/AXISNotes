@@ -229,7 +229,7 @@ fn rejects_bad_clips_and_folders() {
         );
     }
     assert!(e.clipper.set_folder("../outside").is_err());
-    assert!(e.clipper.set_folder(".axis").is_err());
+    assert!(e.clipper.set_folder(".axisnotes").is_err());
     e.clipper.set_folder("Inbox/Web").unwrap();
     let r = e.clipper.handle(&post(
         "/v1/clip",
