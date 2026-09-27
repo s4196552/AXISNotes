@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Clip to AXIS</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icons/32.png" alt="" width="20" height="20" />
+      <strong>Clip to AXIS</strong>
+      <span id="state" role="status"></span>
+    </header>
+
+    <section id="clip" hidden>
+      <button data-kind="page">Page (article)</button>
+      <button data-kind="selection">Selection</button>
+      <button data-kind="screenshot">Screenshot</button>
+      <button data-kind="url">Link only</button>
+    </section>
+
+    <form id="pair" hidden>
+      <p>In AXIS, open Settings → Web clipper → “Pair a browser”, then enter the code:</p>
+      <input
+        id="code"
+        inputmode="numeric"
+        maxlength="6"
+        placeholder="123456"
+        aria-label="Pairing code"
+      />
+      <button type="submit">Pair with AXIS</button>
+    </form>
+
+    <p id="message" role="alert"></p>
+    <p id="queue" hidden>
+      <span id="queue-text"></span>
+      <button id="retry" type="button">Send now</button>
+    </p>
+
+    <details>
+      <summary>Settings</summary>
+      <label
+        >AXIS port <input id="port" type="number" min="1" max="65535" placeholder="38417"
+      /></label>
+      <button id="unpair" type="button">Unpair this browser</button>
+    </details>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
