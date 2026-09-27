@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ListTree, Sparkles } from "lucide-react";
+import { ListTree, Sparkles, WandSparkles } from "lucide-react";
 import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
@@ -23,7 +23,7 @@ import { PropertiesPanel } from "./PropertiesPanel";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
-import { openAskAi } from "../commands/actions";
+import { openAskAi, openFixText } from "../commands/actions";
 import { configuredSpellcheck, recheck } from "../spellcheck";
 import {
   emojiCompletions,
@@ -376,6 +376,15 @@ export function Editor({ path }: EditorProps) {
           onClick={openAskAi}
         >
           <Sparkles size={15} />
+        </button>
+        <button
+          className="editor-tool"
+          aria-label="Fix writing"
+          title="Fix grammar and clarity with AI (Ctrl+Shift+G)"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={openFixText}
+        >
+          <WandSparkles size={15} />
         </button>
         <TimerButton path={path} />
         <span className={`editor-status status-${status}`} role="status" aria-live="polite">

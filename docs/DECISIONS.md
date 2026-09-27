@@ -18,6 +18,19 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 | dictionary-en       | 4.0.0   | MIT AND BSD | en_US Hunspell dictionary  |
 | @types/nspell (dev) | 2.1.6   | MIT         | Types                      |
 
+### Fix grammar and clarity (T-026)
+
+- **Plain-text reply, reviewed as a word diff.** The text-fix model returns only the corrected text (it streams, and small models handle this better than JSON). AXIS diffs it against the original: lines first, then the words of changed lines, using LCS with prefix/suffix trimming and a size cap. Each change can be clicked to keep the original before applying. Nothing is written until the user applies.
+- **Scope**: the selection, or the note's body without its frontmatter. The prompt says to keep Markdown constructs (links, wikilinks, tags, block ids, code, math) exactly as they are.
+- **Applying is safe**: the change goes straight into the editor only if the original range is unchanged. Otherwise the original text is replaced only if it appears exactly once in the note. If neither holds, nothing is written and the user can copy the result.
+- **Shortcut Ctrl+Shift+G**, not Ctrl+Shift+J: WebView2 and Chromium use Ctrl+Shift+J to open DevTools.
+- **Shared AI helpers** (`src/features/ai/runAi.ts`, `src/lib/aiJson.ts`):
+  - `runAi` makes a cancellable request.
+  - `askValidated` parses and validates the answer. If it is invalid, it asks **once more**, quoting the problems, then gives up with a clear error.
+  - The JSON extraction tolerates code fences and preamble.
+  - A small hand-written schema checker produces model-readable messages (e.g. `$.nodes[0].id is missing`). No new dependency.
+- The in-memory backend gained `setAiResponder` for scripted answers in tests.
+
 ## 2026-09-27: Phase 4 multi-provider AI layer (T-021 – T-024)
 
 - **One `AiProvider` trait** (`complete`, `stream`, `vision`, `list_models`) with one implementation, `Adapter`, which drives a per-format **codec** over a **transport**.

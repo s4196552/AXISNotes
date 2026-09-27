@@ -132,6 +132,14 @@ const estimate = (req: AiRunRequest, attached: string) =>
   ) +
   req.messages.flatMap((m) => m.content).filter((p) => p.type === "image").length * 1000;
 
+/** Scripted answers for tests and demos; `null` falls back to the echo. */
+export type AiResponder = (request: AiRunRequest, providerName: string) => string | null;
+let responder: AiResponder | null = null;
+
+export function setAiResponder(next: AiResponder | null) {
+  responder = next;
+}
+
 export function createMemoryAi(readFile: (path: string) => string | null): AiBackend {
   let settings: AiSettings = {
     providers: [],
@@ -305,7 +313,8 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
       const last = [...req.messages].reverse().find((m) => m.role === "user");
       const prompt =
         last?.content.map((p) => (p.type === "text" ? p.text : "[image]")).join(" ") ?? "";
-      const answer = `Echo from ${chosen.p.name}: ${prompt.slice(0, 200)}`;
+      const answer =
+        responder?.(req, chosen.p.name) ?? `Echo from ${chosen.p.name}: ${prompt.slice(0, 200)}`;
       let text = "";
       for (const word of answer.split(/(?<= )/)) {
         await new Promise((r) => setTimeout(r, 0));
