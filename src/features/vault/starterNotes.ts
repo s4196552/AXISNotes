@@ -7,7 +7,7 @@ tags: [axis/guide]
 ---
 # Start here
 
-Welcome to **AXIS**. Your notes are plain Markdown files in this folder, so they're
+Welcome to **AXISNotes**. Your notes are plain Markdown files in this folder, so they're
 yours: open them in any editor, sync them however you like, and they still work.
 
 ## The basics
@@ -32,7 +32,7 @@ yours: open them in any editor, sync them however you like, and they still work.
   marked "AI: never".
 - **Web clipper**: save pages from your browser. Settings → Web clipper.
 - **Coming from Obsidian?** Ctrl+P → "Import from Obsidian…", or just open your Obsidian
-  vault in AXIS.
+  vault in AXISNotes.
 
 > [!tip] Make it yours
 > Themes, fonts, folder icons and keyboard shortcuts are in Settings (Ctrl+,).

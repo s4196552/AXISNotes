@@ -6,7 +6,7 @@ import { useConfig } from "../../app/config";
 import "./import.css";
 
 // Import an Obsidian vault (or any folder of Markdown) into the open vault. Notes are
-// copied as they are: AXIS reads Obsidian's Markdown natively. Nothing is overwritten.
+// copied as they are: AXISNotes reads Obsidian's Markdown natively. Nothing is overwritten.
 
 type Step =
   | { kind: "pick" }
@@ -93,7 +93,7 @@ export function ImportDialog({ onClose }: { onClose(): void }) {
                 isn’t changed, and nothing here is overwritten.
               </p>
               <p className="muted">
-                Tip: you can also open an Obsidian vault directly as an AXIS vault.
+                Tip: you can also open an Obsidian vault directly as an AXISNotes vault.
               </p>
               {step.kind === "error" && (
                 <p className="ai-error" role="alert">

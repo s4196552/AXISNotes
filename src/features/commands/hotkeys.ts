@@ -1,5 +1,5 @@
 // Keyboard shortcuts as text ("Ctrl+Shift+K"), so users can remap commands in
-// `.axis/config.json` (`hotkeys: { "<command id>": "Ctrl+Shift+K" | "" }`).
+// `.axisnotes/config.json` (`hotkeys: { "<command id>": "Ctrl+Shift+K" | "" }`).
 
 export interface Shortcut {
   key: string;

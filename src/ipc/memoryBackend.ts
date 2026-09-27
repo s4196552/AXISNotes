@@ -546,7 +546,7 @@ export function createMemoryBackend(
       return data;
     },
     async listAxisFiles(subdir) {
-      const prefix = `.axis/${subdir}/`;
+      const prefix = `.axisnotes/${subdir}/`;
       return [...nodes.keys()]
         .filter(
           (k) =>
@@ -622,11 +622,11 @@ export function createMemoryBackend(
 /** Sample content shown when the UI runs in a browser without Tauri. */
 export const DEMO_VAULT: Record<string, string> = {
   "Welcome.md":
-    "# Welcome to AXIS\n\nThis is **demo** content from the in-memory backend.\n\n- Notes are plain Markdown\n- [[Links]] come in Phase 1\n",
+    "# Welcome to AXISNotes\n\nThis is **demo** content from the in-memory backend.\n\n- Notes are plain Markdown\n- [[Links]] come in Phase 1\n",
   "School/Biology.md":
     "# Biology\n\n## Cells\n\nThe *mitochondria* is the powerhouse of the cell.\n",
   "School/Math/Calculus.md": "# Calculus\n\n```\nd/dx x^2 = 2x\n```\n",
-  "Personal/Ideas.md": "# Ideas\n\n1. Build AXIS\n2. Ship it\n",
+  "Personal/Ideas.md": "# Ideas\n\n1. Build AXISNotes\n2. Ship it\n",
   "Personal/Trip.md":
     "---\nproject: Travel\nflights: 420\nnights: 3\nhotel_rate: 95\ntotal: =flights + nights * hotel_rate\n---\n# Trip\n\nComputed properties recalculate as you edit the numbers above.\n",
   "Personal/Todo.md":

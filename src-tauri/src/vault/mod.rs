@@ -11,7 +11,9 @@ use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
 
-pub const META_DIR: &str = ".axis";
+pub const META_DIR: &str = ".axisnotes";
+/// The folder's name before the app was renamed AXISNotes; moved to `META_DIR` on open.
+const LEGACY_META_DIR: &str = ".axis";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -52,10 +54,10 @@ pub struct WriteResult {
     pub modified_ms: u64,
 }
 
-/// Hidden from the tree and from watcher events: dot-entries (`.axis`, `.git`, ...)
+/// Hidden from the tree and from watcher events: dot-entries (`.axisnotes`, `.git`, ...)
 /// and our own temp files.
 pub fn is_hidden_name(name: &str) -> bool {
-    name.starts_with('.') || name.ends_with(".axis-tmp")
+    name.starts_with('.') || name.ends_with(".axisnotes-tmp")
 }
 
 pub(crate) fn modified_ms(meta: &fs::Metadata) -> u64 {
@@ -85,7 +87,7 @@ pub struct Vault {
 }
 
 impl Vault {
-    /// Open an existing folder as a vault, creating `.axis/` if missing.
+    /// Open an existing folder as a vault, creating `.axisnotes/` if missing.
     pub fn open(path: &Path) -> AppResult<Self> {
         let root = dunce::canonicalize(path)
             .map_err(|_| AppError::NotFound(path.display().to_string()))?;
@@ -93,6 +95,11 @@ impl Vault {
             return Err(AppError::NotFound(root.display().to_string()));
         }
         let meta = root.join(META_DIR);
+        let legacy = root.join(LEGACY_META_DIR);
+        if !meta.exists() && legacy.is_dir() {
+            // Vaults made before the rename keep their settings, themes and index.
+            fs::rename(&legacy, &meta)?;
+        }
         fs::create_dir_all(&meta)?;
         let config = meta.join("config.json");
         if !config.exists() {
@@ -242,7 +249,7 @@ impl Vault {
             .ok_or_else(|| AppError::InvalidName(rel.to_string()))?
             .to_string_lossy()
             .into_owned();
-        let tmp = abs.with_file_name(format!(".{file_name}.axis-tmp"));
+        let tmp = abs.with_file_name(format!(".{file_name}.axisnotes-tmp"));
         fs::write(&tmp, content)?;
         if let Err(e) = fs::rename(&tmp, &abs) {
             let _ = fs::remove_file(&tmp);
@@ -266,7 +273,7 @@ impl Vault {
             .unwrap_or_default()
             .to_string_lossy()
             .into_owned();
-        let tmp = abs.with_file_name(format!(".{file_name}.axis-tmp"));
+        let tmp = abs.with_file_name(format!(".{file_name}.axisnotes-tmp"));
         fs::write(&tmp, bytes)?;
         if let Err(e) = fs::rename(&tmp, &abs) {
             let _ = fs::remove_file(&tmp);
@@ -347,7 +354,21 @@ mod tests {
     #[test]
     fn open_creates_meta_dir() {
         let (dir, _v) = vault();
-        assert!(dir.path().join(".axis/config.json").is_file());
+        assert!(dir.path().join(".axisnotes/config.json").is_file());
+    }
+
+    #[test]
+    fn open_moves_the_legacy_meta_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join(".axis/themes")).unwrap();
+        fs::write(dir.path().join(".axis/config.json"), "{\"theme\":\"dark\"}").unwrap();
+        Vault::open(dir.path()).unwrap();
+        assert!(!dir.path().join(".axis").exists());
+        assert_eq!(
+            fs::read_to_string(dir.path().join(".axisnotes/config.json")).unwrap(),
+            "{\"theme\":\"dark\"}"
+        );
+        assert!(dir.path().join(".axisnotes/themes").is_dir());
     }
 
     #[test]

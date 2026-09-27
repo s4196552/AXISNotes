@@ -74,7 +74,7 @@ describe("Settings → Keyboard shortcuts", () => {
     // Back to Ctrl+P, which "Open settings" gives up.
     await waitFor(() => expect(useConfig.getState().config.hotkeys).toEqual({ settings: "" }));
     // Saved in the vault's config file.
-    expect(JSON.parse((await h.b.readFile(".axis/config.json")).content).hotkeys).toEqual({
+    expect(JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).hotkeys).toEqual({
       settings: "",
     });
   });

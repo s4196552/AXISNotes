@@ -29,7 +29,7 @@ export function UnsupportedView({ path }: { path: string }) {
         <h1 className="editor-title">{name}</h1>
       </header>
       <p className="empty muted">
-        AXIS can't show this kind of file. It stays in your vault as is.
+        AXISNotes can't show this kind of file. It stays in your vault as is.
       </p>
     </div>
   );

@@ -1,7 +1,7 @@
 import type { VaultInfo } from "../ipc";
 
 // Recently opened vaults (this device only; safe to lose), and whether to reopen the
-// last one when AXIS starts.
+// last one when AXISNotes starts.
 
 const KEY = "axis:recent-vaults";
 const REOPEN_KEY = "axis:reopen-last-vault";

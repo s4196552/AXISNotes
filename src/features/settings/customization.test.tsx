@@ -16,15 +16,15 @@ vi.mock("../../ipc", async (orig) => {
   return { ...mod, backend };
 });
 
-const savedConfig = () => JSON.parse(h.b.files()[".axis/config.json"] ?? "{}");
+const savedConfig = () => JSON.parse(h.b.files()[".axisnotes/config.json"] ?? "{}");
 
 beforeEach(async () => {
   h.b = createMemoryBackend({
     "School/Bio.md": "",
     "Ideas.md": "",
-    ".axis/themes/Nord.css": ":root { --accent: #88c0d0; }",
-    ".axis/snippets/wide.css": ".cm-content { max-width: none; }",
-    ".axis/snippets/serif.css": "body { font-family: serif; }",
+    ".axisnotes/themes/Nord.css": ":root { --accent: #88c0d0; }",
+    ".axisnotes/snippets/wide.css": ".cm-content { max-width: none; }",
+    ".axisnotes/snippets/serif.css": "body { font-family: serif; }",
   });
   useConfig.setState({ config: DEFAULT_CONFIG, loaded: true });
   useUi.setState({ modal: null });

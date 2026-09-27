@@ -12,7 +12,8 @@ export function About() {
       <p className="about-title">
         <Logo size={40} />
         <span>
-          <strong>AXIS</strong> {__AXIS_VERSION__}
+          <strong>AXISNotes</strong> {__AXIS_VERSION__}
+          <span className="muted"> by AXIS</span>
           <br />
           <span className="muted">A local-first knowledge base. Everything works offline.</span>
         </span>
@@ -31,8 +32,8 @@ export function About() {
         </li>
         <li>
           <strong>Vault settings</strong> (themes, templates, commands, shortcuts, AI folder rules):{" "}
-          <code>.axis/config.json</code> in the vault. The search index in <code>.axis/</code> is a
-          cache and rebuilds itself.
+          <code>.axisnotes/config.json</code> in the vault. The search index in{" "}
+          <code>.axisnotes/</code> is a cache and rebuilds itself.
         </li>
         <li>
           <strong>AI keys:</strong> your system keychain, never in files. AI and web clipper

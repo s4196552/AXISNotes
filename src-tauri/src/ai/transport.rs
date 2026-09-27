@@ -68,7 +68,7 @@ impl ReqwestTransport {
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(15))
             .read_timeout(Duration::from_secs(120))
-            .user_agent(concat!("AXIS/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("AXISNotes/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|e| AiError::Unavailable(format!("HTTP client: {e}")))?;
         Ok(Self { client })

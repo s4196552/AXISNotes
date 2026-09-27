@@ -207,6 +207,6 @@ describe("Phase 4: AI providers, privacy and keys on the real app", () => {
       "leak",
     ])
       expect(log).not.toContain(secret);
-    expect(fs.existsSync(path.join(vault, ".axis", "ai-requests.jsonl"))).toBe(false);
+    expect(fs.existsSync(path.join(vault, ".axisnotes", "ai-requests.jsonl"))).toBe(false);
   });
 });

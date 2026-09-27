@@ -2,7 +2,7 @@ import type { GraphData } from "../ipc";
 import { InvalidAnswer, parseAnswer, type Schema } from "./aiJson";
 import { splitFrontmatter } from "./markdown";
 
-// Diagrams as a small graph model (nodes + edges), which AXIS can build without AI (from
+// Diagrams as a small graph model (nodes + edges), which AXISNotes can build without AI (from
 // a note's outline, or from linked notes) or get from a model as validated JSON. A graph
 // renders to Mermaid (for notes) or is laid out as Excalidraw shapes (for canvases).
 

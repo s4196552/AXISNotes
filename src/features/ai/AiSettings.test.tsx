@@ -105,7 +105,7 @@ describe("AI settings", () => {
     fireEvent.change(await screen.findByLabelText("Folder"), { target: { value: "Medical" } });
     fireEvent.click(screen.getByRole("button", { name: /Add rule/ }));
     await waitFor(() =>
-      expect(JSON.parse(h.b.files()[".axis/config.json"]!).ai.folders).toEqual({
+      expect(JSON.parse(h.b.files()[".axisnotes/config.json"]!).ai.folders).toEqual({
         Medical: "never",
       }),
     );

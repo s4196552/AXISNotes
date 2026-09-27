@@ -170,7 +170,7 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
 
   const rules = (): Record<string, AiRule> => {
     try {
-      const cfg = JSON.parse(readFile(".axis/config.json") ?? "{}") as {
+      const cfg = JSON.parse(readFile(".axisnotes/config.json") ?? "{}") as {
         ai?: { folders?: Record<string, AiRule> };
       };
       const out: Record<string, AiRule> = {};

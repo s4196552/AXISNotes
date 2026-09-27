@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import { type AiRule, backend, isBackendError } from "../ipc";
 
-// Per-vault settings in `.axis/config.json`. Unknown keys are preserved on save.
+// Per-vault settings in `.axisnotes/config.json`. Unknown keys are preserved on save.
 
-export const CONFIG_PATH = ".axis/config.json";
+export const CONFIG_PATH = ".axisnotes/config.json";
 
 export interface CustomQuickCommand {
   /** Shown in the `/` menu. */
@@ -21,9 +21,9 @@ export interface FolderIcon {
 export interface AxisConfig {
   /** Per-folder AI access, enforced by the Rust AI layer (`src-tauri/src/ai/privacy.rs`). */
   ai: { folders: Record<string, AiRule> };
-  /** "system", "light", "dark", or the name of a theme in `.axis/themes/<name>.css`. */
+  /** "system", "light", "dark", or the name of a theme in `.axisnotes/themes/<name>.css`. */
   theme: string;
-  /** Enabled CSS snippets from `.axis/snippets/<name>.css`. */
+  /** Enabled CSS snippets from `.axisnotes/snippets/<name>.css`. */
   snippets: string[];
   folderIcons: Record<string, FolderIcon>;
   dailyNotes: {

@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "AXIS Web Clipper",
+  "name": "AXISNotes Web Clipper",
   "version": "0.1.0",
-  "description": "Save pages, selections, screenshots and links into your AXIS vault on this computer.",
+  "description": "Save pages, selections, screenshots and links into your AXISNotes vault on this computer.",
   "icons": { "32": "icons/32.png", "128": "icons/128.png" },
   "action": {
-    "default_title": "Clip to AXIS",
+    "default_title": "Clip to AXISNotes",
     "default_popup": "popup.html",
     "default_icon": { "32": "icons/32.png" }
   },

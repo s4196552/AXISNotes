@@ -1,6 +1,6 @@
-// Delivering clips to the AXIS desktop app, with an offline queue: if AXIS isn't running
+// Delivering clips to the AXISNotes desktop app, with an offline queue: if AXISNotes isn't running
 // (or has no vault open), the clip is kept in extension storage and sent later. Each clip
-// has an id, so a retry that AXIS already received isn't saved twice.
+// has an id, so a retry that AXISNotes already received isn't saved twice.
 
 export const DEFAULT_PORT = 38417;
 export const QUEUE_KEY = "queue";
@@ -32,12 +32,12 @@ export async function sendClip(clip, env) {
       body: JSON.stringify(clip),
     });
   } catch {
-    return "retry"; // AXIS isn't running
+    return "retry"; // AXISNotes isn't running
   }
   if (res.ok) return "sent";
   if (res.status === 401) return "unpaired";
   if (res.status === 503 || res.status >= 500) return "retry";
-  let message = `AXIS refused the clip (${res.status})`;
+  let message = `AXISNotes refused the clip (${res.status})`;
   try {
     message = (await res.json()).error || message;
   } catch {
@@ -65,8 +65,8 @@ export async function deliver(clip, env) {
 }
 
 /**
- * Send queued clips, oldest first. Stops at the first one that has to wait (AXIS not
- * running); drops clips AXIS rejects as invalid.
+ * Send queued clips, oldest first. Stops at the first one that has to wait (AXISNotes not
+ * running); drops clips AXISNotes rejects as invalid.
  * @returns {Promise<{ sent: number, left: number, errors: string[] }>}
  */
 export async function flush(env) {
@@ -99,7 +99,7 @@ export async function status(env) {
   }
 }
 
-/** Trade a pairing code shown in AXIS for a token. */
+/** Trade a pairing code shown in AXISNotes for a token. */
 export async function pair(code, name, env) {
   let res;
   try {
@@ -109,7 +109,7 @@ export async function pair(code, name, env) {
       body: JSON.stringify({ code: code.trim(), name }),
     });
   } catch {
-    return { error: "AXIS isn't running on this computer." };
+    return { error: "AXISNotes isn't running on this computer." };
   }
   const body = await res.json().catch(() => ({}));
   return res.ok ? { token: body.token } : { error: body.error || `Pairing failed (${res.status})` };

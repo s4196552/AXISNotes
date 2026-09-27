@@ -1,4 +1,4 @@
-//! Obsidian's JSON Canvas (<https://jsoncanvas.org>) to an AXIS canvas (Excalidraw JSON).
+//! Obsidian's JSON Canvas (<https://jsoncanvas.org>) to an AXISNotes canvas (Excalidraw JSON).
 //! Note nodes become live note cards; text and link nodes become cards with text; groups
 //! become dashed frames; edges become arrows. Excalidraw fills in the element fields left
 //! out here on load.

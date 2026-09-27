@@ -225,7 +225,7 @@ mod tests {
         );
         assert_eq!(created, vec![change(ChangeKind::Created, &["n.md"])]);
 
-        let hidden = v.root().join(".axis").join("index.db");
+        let hidden = v.root().join(".axisnotes").join("index.db");
         assert!(translate(&v, &sw, &EventKind::Remove(RemoveKind::File), &[hidden]).is_empty());
 
         sw.mark(&note);
@@ -239,7 +239,7 @@ mod tests {
         let v = Vault::open(dir.path()).unwrap();
         let sw = SelfWrites::default();
         let (a, b) = (v.root().join("a.md"), v.root().join("b.md"));
-        let tmp = v.root().join(".a.md.axis-tmp");
+        let tmp = v.root().join(".a.md.axisnotes-tmp");
         let name = |m| EventKind::Modify(ModifyKind::Name(m));
 
         // Atomic save by another editor: hidden temp file renamed over the note.

@@ -38,7 +38,7 @@ export function GettingStarted({ onClose }: { onClose(): void }) {
   const steps: { label: string; hint: string; done: boolean; action: string; run(): void }[] = [
     {
       label: "Read the guide",
-      hint: "A one-page tour of AXIS.",
+      hint: "A one-page tour of AXISNotes.",
       done: false,
       action: start ? "Open" : "",
       run: () => {

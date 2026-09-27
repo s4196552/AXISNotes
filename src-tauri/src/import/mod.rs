@@ -1,6 +1,6 @@
-//! Importing an Obsidian vault into the open AXIS vault. Obsidian's Markdown (wikilinks,
-//! embeds, block ids, tags, callouts, frontmatter) is what AXIS uses, so notes are copied
-//! as they are. JSON Canvas files (`.canvas`) become AXIS canvases, and the template and
+//! Importing an Obsidian vault into the open AXISNotes vault. Obsidian's Markdown (wikilinks,
+//! embeds, block ids, tags, callouts, frontmatter) is what AXISNotes uses, so notes are copied
+//! as they are. JSON Canvas files (`.canvas`) become AXISNotes canvases, and the template and
 //! daily-note settings are read so the UI can offer to use them. Nothing is overwritten:
 //! a file that already exists in the vault is skipped and reported.
 
@@ -77,7 +77,7 @@ pub fn read_settings(source: &Path, target: &str) -> ObsidianSettings {
     }
     if let Some(v) = read_json(obs.join("daily-notes.json")) {
         s.daily_folder = json_field(&v, "folder").map(within);
-        // Moment.js tokens; the common ones (YYYY, MM, DD, ddd...) match AXIS's.
+        // Moment.js tokens; the common ones (YYYY, MM, DD, ddd...) match AXISNotes's.
         s.daily_format = json_field(&v, "format");
         s.daily_template = json_field(&v, "template").map(|t| {
             let t = if t.ends_with(".md") {

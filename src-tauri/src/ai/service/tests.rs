@@ -40,7 +40,7 @@ fn env(responses: Vec<(u16, &str)>, providers: Vec<ProviderConfig>, keys: &[&str
     let vault = Vault::open(&dir.path().join("vault")).unwrap();
     vault
         .write_file(
-            ".axis/config.json",
+            ".axisnotes/config.json",
             r#"{"ai":{"folders":{"Medical":"never","Journal":"local"}}}"#,
             None,
         )

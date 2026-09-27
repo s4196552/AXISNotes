@@ -24,7 +24,7 @@ const requests: AiRunRequest[] = [];
 
 beforeEach(async () => {
   h.b = createMemoryBackend({
-    ".axis/config.json": JSON.stringify({ ai: { folders: { Private: "never" } } }),
+    ".axisnotes/config.json": JSON.stringify({ ai: { folders: { Private: "never" } } }),
   });
   await h.b.openVault("/v");
   const { settings } = await h.b.aiSettings();

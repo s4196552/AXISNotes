@@ -6,6 +6,7 @@ mod commands;
 mod error;
 mod import;
 mod index;
+mod migrate;
 mod vault;
 
 use tauri::Manager;
@@ -16,6 +17,8 @@ const OPEN_VAULT_ENV: &str = "AXIS_OPEN_VAULT";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Before any window opens, so the webview finds its storage under the new name.
+    migrate::legacy_app_dirs();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(commands::AppState::default())
@@ -72,5 +75,5 @@ pub fn run() {
             clipper_commands::clipper_open_extension_folder,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running AXIS");
+        .expect("error while running AXISNotes");
 }

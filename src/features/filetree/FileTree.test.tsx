@@ -190,7 +190,7 @@ describe("FileTree", () => {
     fireEvent.contextMenu(row("Medical"));
     fireEvent.click(screen.getByRole("menuitem", { name: "AI access: never" }));
     await waitFor(() =>
-      expect(JSON.parse(h.b.files()[".axis/config.json"]!).ai.folders).toEqual({
+      expect(JSON.parse(h.b.files()[".axisnotes/config.json"]!).ai.folders).toEqual({
         Medical: "never",
       }),
     );

@@ -1,6 +1,6 @@
-// AXIS Web Clipper background worker (Chrome/Edge service worker, Firefox event page).
-// Takes clips from the popup and the context menu, sends them to the AXIS desktop app on
-// 127.0.0.1, and keeps them in a queue while AXIS isn't running.
+// AXISNotes Web Clipper background worker (Chrome/Edge service worker, Firefox event page).
+// Takes clips from the popup and the context menu, sends them to the AXISNotes desktop app on
+// 127.0.0.1, and keeps them in a queue while AXISNotes isn't running.
 
 import { extractPage } from "./lib/extract.js";
 import { deliver, flush, newClip, pair, queued, status } from "./lib/queue.js";
@@ -58,11 +58,11 @@ async function clip(kind, tab, info) {
     const c = await capture(kind, tab, info);
     const r = await deliver(c, await env());
     await updateBadge();
-    if (r === "sent") return { ok: true, message: "Saved to AXIS." };
+    if (r === "sent") return { ok: true, message: "Saved to AXISNotes." };
     if (r === "retry")
-      return { ok: true, message: "AXIS isn't running; the clip will be sent when it is." };
+      return { ok: true, message: "AXISNotes isn't running; the clip will be sent when it is." };
     if (r === "unpaired")
-      return { ok: false, message: "Pair with AXIS first; the clip is kept until then." };
+      return { ok: false, message: "Pair with AXISNotes first; the clip is kept until then." };
     return { ok: false, message: r.error };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
@@ -107,13 +107,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: "page", title: "Clip page to AXIS", contexts: ["page"] });
+    chrome.contextMenus.create({ id: "page", title: "Clip page to AXISNotes", contexts: ["page"] });
     chrome.contextMenus.create({
       id: "selection",
-      title: "Clip selection to AXIS",
+      title: "Clip selection to AXISNotes",
       contexts: ["selection"],
     });
-    chrome.contextMenus.create({ id: "link", title: "Save link to AXIS", contexts: ["link"] });
+    chrome.contextMenus.create({ id: "link", title: "Save link to AXISNotes", contexts: ["link"] });
   });
   chrome.alarms.create("flush", { periodInMinutes: 1 });
 });
