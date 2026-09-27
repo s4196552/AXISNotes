@@ -66,6 +66,14 @@ input {
   gap: 12px;
   height: 100%;
 }
+.welcome-logo {
+  margin-bottom: -4px;
+}
+.about-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .welcome h1 {
   margin: 0;
   font-size: 40px;

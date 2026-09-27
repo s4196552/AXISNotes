@@ -45,6 +45,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-034 | 6     | Performance pass                                                            | claude | merged    | agent/claude/T-034 | build config, lazy loading |
 | T-035 | 6     | Installers (.msi, .dmg, AppImage) + release workflow                        | claude | merged    | agent/claude/T-035 | `src-tauri/tauri.conf.json`, `.github/workflows/release.yml` |
 | T-036 | 6     | Phase 6 E2E + polish                                                        | claude | merged    | agent/claude/T-036 | `e2e/**` |
+| T-037 | 6     | AXIS logo (user design) in icons, welcome screen, About; installers rebuilt   | claude | merged    | agent/claude/T-037 | `src/assets/logo.svg`, `src-tauri/icons/**` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

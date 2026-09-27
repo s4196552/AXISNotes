@@ -1,3 +1,4 @@
+import { Logo } from "../../app/Logo";
 import { useAppStore } from "../../app/store";
 import { useUi } from "../commands/ui";
 
@@ -8,10 +9,13 @@ export function About() {
   const open = useUi((s) => s.open);
   return (
     <div className="about">
-      <p>
-        <strong>AXIS</strong> {__AXIS_VERSION__}
-        <br />
-        <span className="muted">A local-first knowledge base. Everything works offline.</span>
+      <p className="about-title">
+        <Logo size={40} />
+        <span>
+          <strong>AXIS</strong> {__AXIS_VERSION__}
+          <br />
+          <span className="muted">A local-first knowledge base. Everything works offline.</span>
+        </span>
       </p>
       <h3>Where your things are</h3>
       <ul>

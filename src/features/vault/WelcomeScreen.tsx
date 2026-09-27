@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Logo } from "../../app/Logo";
 import { FolderOpen, FolderPlus, X } from "lucide-react";
 import { backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
@@ -31,6 +32,7 @@ export function WelcomeScreen() {
 
   return (
     <main className="welcome">
+      <Logo size={72} className="welcome-logo" />
       <h1>AXIS</h1>
       <p className="muted">
         Your notes are plain files in a folder you choose. Everything works offline.
