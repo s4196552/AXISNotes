@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
@@ -7,16 +7,24 @@ import { openDailyNote } from "./features/commands/actions";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
 import { Editor } from "./features/editor";
-import { Grid } from "./features/grid/Grid";
-import { Canvas } from "./features/canvas/Canvas";
+import { lazyNamed } from "./app/lazy";
+import { loadFunctions } from "./lib/formula/functions";
 import { ImageView, UnsupportedView } from "./features/files/ImageView";
 import { useClipNotices } from "./features/clipper/useClipNotices";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
-import { GraphView } from "./features/graph/GraphView";
-import { TasksView } from "./features/tasks/TasksView";
-import { TimeReport } from "./features/time/TimeReport";
+
+// Views other than the note editor load on first use (grids also need the formula
+// function library before they render).
+const Grid = lazyNamed(
+  () => Promise.all([import("./features/grid/Grid"), loadFunctions()]).then(([m]) => m),
+  "Grid",
+);
+const Canvas = lazyNamed(() => import("./features/canvas/Canvas"), "Canvas");
+const GraphView = lazyNamed(() => import("./features/graph/GraphView"), "GraphView");
+const TasksView = lazyNamed(() => import("./features/tasks/TasksView"), "TasksView");
+const TimeReport = lazyNamed(() => import("./features/time/TimeReport"), "TimeReport");
 import { RunningTimer } from "./features/time/TimerControls";
 import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
@@ -93,25 +101,27 @@ export default function App() {
     <div className="shell">
       <LeftSidebar />
       <main className="content">
-        {mainView === "graph" ? (
-          <GraphView />
-        ) : mainView === "tasks" ? (
-          <TasksView />
-        ) : mainView === "time" ? (
-          <TimeReport />
-        ) : activePath && docKind(activePath) === "grid" ? (
-          <Grid key={activePath} path={activePath} />
-        ) : activePath && docKind(activePath) === "canvas" ? (
-          <Canvas key={activePath} path={activePath} />
-        ) : activePath && docKind(activePath) === "image" ? (
-          <ImageView key={activePath} path={activePath} />
-        ) : activePath && docKind(activePath) === "other" ? (
-          <UnsupportedView key={activePath} path={activePath} />
-        ) : activePath ? (
-          <Editor key={activePath} path={activePath} />
-        ) : (
-          <div className="empty muted">Select or create a note</div>
-        )}
+        <Suspense fallback={<div className="empty muted">Loading…</div>}>
+          {mainView === "graph" ? (
+            <GraphView />
+          ) : mainView === "tasks" ? (
+            <TasksView />
+          ) : mainView === "time" ? (
+            <TimeReport />
+          ) : activePath && docKind(activePath) === "grid" ? (
+            <Grid key={activePath} path={activePath} />
+          ) : activePath && docKind(activePath) === "canvas" ? (
+            <Canvas key={activePath} path={activePath} />
+          ) : activePath && docKind(activePath) === "image" ? (
+            <ImageView key={activePath} path={activePath} />
+          ) : activePath && docKind(activePath) === "other" ? (
+            <UnsupportedView key={activePath} path={activePath} />
+          ) : activePath ? (
+            <Editor key={activePath} path={activePath} />
+          ) : (
+            <div className="empty muted">Select or create a note</div>
+          )}
+        </Suspense>
       </main>
       <RightSidebar />
       <Modals />

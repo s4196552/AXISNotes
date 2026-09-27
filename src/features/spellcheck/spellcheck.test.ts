@@ -4,7 +4,8 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { createEngine, engineSpeller, type Speller } from "./engine";
+import type { Speller } from "./engine";
+import { createEngine, engineSpeller } from "./hunspell";
 import { openSpellFix, recheck, spellcheck } from "./spellcheck";
 
 const dir = resolve("node_modules/dictionary-en");

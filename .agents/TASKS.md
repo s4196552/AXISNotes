@@ -42,7 +42,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-031 | 6     | Browser extension (Chrome/Edge/Firefox MV3): page/selection/screenshot/link, offline queue | claude | merged | agent/claude/T-031 | `extension/**` |
 | T-032 | 6     | Obsidian vault import                                                       | claude | merged    | agent/claude/T-032 | `src-tauri/src/import.rs`, `src/features/import/**` |
 | T-033 | 6     | Onboarding + settings polish                                                | claude | merged    | agent/claude/T-033 | `src/features/vault/**`, `src/features/settings/**` |
-| T-034 | 6     | Performance pass                                                            | claude | todo      | agent/claude/T-034 | build config, lazy loading |
+| T-034 | 6     | Performance pass                                                            | claude | merged    | agent/claude/T-034 | build config, lazy loading |
 | T-035 | 6     | Installers (.msi, .dmg, AppImage) + release workflow                        | claude | todo      | agent/claude/T-035 | `src-tauri/tauri.conf.json`, `.github/workflows/release.yml` |
 | T-036 | 6     | Phase 6 E2E + polish                                                        | claude | todo      | agent/claude/T-036 | `e2e/**` |
 

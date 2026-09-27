@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import {
   Clock,
   FolderTree,
@@ -7,7 +8,10 @@ import {
   Search,
   Settings as SettingsIcon,
 } from "lucide-react";
-import { LocalGraph } from "../graph/GraphView";
+import { lazyNamed } from "../../app/lazy";
+
+// The local graph (and its graph library) loads right after the first paint.
+const LocalGraph = lazyNamed(() => import("../graph/GraphView"), "LocalGraph");
 import { useUi } from "../commands/ui";
 import { type LeftPanel, useAppStore } from "../../app/store";
 import { Calendar } from "../daily/Calendar";
@@ -92,7 +96,9 @@ export function RightSidebar() {
   return (
     <aside className="sidebar sidebar-right" aria-label="Links">
       <Calendar />
-      <LocalGraph />
+      <Suspense fallback={null}>
+        <LocalGraph />
+      </Suspense>
       <div className="sidebar-body">
         <BacklinksPanel />
       </div>

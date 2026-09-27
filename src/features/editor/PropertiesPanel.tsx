@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { Plus, X } from "lucide-react";
 import type { Props } from "../../lib/markdown";
 import { computeProps } from "../../lib/computed";
+import { functionsReady, onFunctionsLoaded } from "../../lib/formula/functions";
 import { displayValue } from "../../lib/formula/sheet";
 import { isErr, type Scalar } from "../../lib/formula/evaluate";
 import { convert, inferType, type PropType } from "./propTypes";
@@ -17,7 +18,9 @@ interface Props_ {
 export function PropertiesPanel({ props, onChange }: Props_) {
   const keys = Object.keys(props);
   const [adding, setAdding] = useState(false);
-  const computed = useMemo(() => computeProps(props), [props]);
+  // Re-evaluate once the function library has loaded (it's loaded on first use).
+  const ready = useSyncExternalStore(onFunctionsLoaded, functionsReady);
+  const computed = useMemo(() => (void ready, computeProps(props)), [props, ready]);
 
   const setValue = (key: string, value: unknown) => onChange({ ...props, [key]: value });
   const remove = (key: string) => {
