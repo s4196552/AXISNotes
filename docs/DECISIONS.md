@@ -11,6 +11,7 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - The desktop app zooms the webview itself (`setZoom`, with the `core:webview:allow-set-webview-zoom` permission), so pointer positions on the canvas stay right. The browser preview uses CSS `zoom`.
   - Zoom is a per-device preference, kept in local storage (`axisnotes.zoom`).
   - Inside the canvas and the graph, which have their own zoom, the keys and wheel are left to them.
+  - On the welcome screen, where command shortcuts aren't active, `installZoom` handles Ctrl + = / − / 0 itself (T-041).
 - **Settings → Appearance** also has these, saved in the vault's config as `appearance: { noteFontSize, noteFont, uiFont, editorWidth }` and applied as CSS variables (`--note-font-size`, `--font-note`, `--font-ui`, `--editor-width`):
   - **Note text size:** 11–32 px, default 15. Headings grow with it.
   - **Note font** and **interface font:** any installed family, or the default. A font chosen on another computer stays selected, marked "(not installed)".
