@@ -105,11 +105,23 @@ fn converts_json_canvas_to_an_axis_canvas() {
     let find = |id: &str| els.iter().find(|x| x["id"] == id).unwrap();
     assert_eq!(find("jc-a")["type"], "embeddable");
     assert_eq!(find("jc-a")["link"], "axis:Obsidian/Projects/Alpha.md");
-    assert_eq!(find("jc-b")["text"], "Idea");
+    assert_eq!(find("jc-b")["type"], "rectangle");
+    assert_eq!(find("jc-b-t")["text"], "Idea");
+    assert_eq!(find("jc-b-t")["containerId"], "jc-b");
+    assert_eq!(find("jc-b")["boundElements"][0]["id"], "jc-b-t");
     assert_eq!(find("jc-g")["strokeStyle"], "dashed");
     assert_eq!(find("jc-g-label")["text"], "Q3");
     assert_eq!(find("jc-l")["link"], "https://obsidian.md");
     let arrow = find("jc-e1");
+    let bound_to = |id: &str| {
+        find(id)["boundElements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|b| b["id"] == "jc-e1")
+    };
+    assert_eq!(arrow["startBinding"]["elementId"], "jc-a");
+    assert!(bound_to("jc-a") && bound_to(arrow["endBinding"]["elementId"].as_str().unwrap()));
     assert_eq!(arrow["type"], "arrow");
     // From the right side of the card (300, 100) to the left side of the text (400, 30).
     assert_eq!(

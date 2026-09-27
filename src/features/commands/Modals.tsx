@@ -119,9 +119,31 @@ function TemplatePicker({ mode }: { mode: "insert" | "new" }) {
   );
 }
 
+/**
+ * Dialogs close on Escape while focus is inside them. If the focused control goes away
+ * (say a button that disappears once clicked), focus falls back to the page. In that case,
+ * hand Escape to the open dialog so its own rules still apply (e.g. not while busy).
+ */
+function useEscapeWithoutFocus(open: boolean) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      // Only presses aimed at the page itself (the re-sent one targets the dialog).
+      if (e.target !== document.body && e.target !== document.documentElement) return;
+      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]');
+      const dialog = dialogs[dialogs.length - 1];
+      dialog?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+}
+
 export function Modals() {
   useShortcuts();
   const modal = useUi((s) => s.modal);
+  useEscapeWithoutFocus(modal !== null);
   if (!modal) return null;
   return <Suspense fallback={null}>{renderModal(modal)}</Suspense>;
 }

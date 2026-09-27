@@ -69,7 +69,9 @@ describe("spellcheck extension", () => {
     const doc =
       "---\ntittle: Draftt\n---\nThe mitochondria is teh powerhouse.\n\n`recieve` [[Notte]] #tagg\n\n```\nrecieve\n```\n";
     const { view } = setup(doc, engineSpeller(engine));
-    await vi.waitFor(() => expect(flagged(view)).toEqual(["teh"]));
+    // On a busy machine the code block may still be unparsed on the first pass; the check
+    // runs again when parsing finishes.
+    await vi.waitFor(() => expect(flagged(view)).toEqual(["teh"]), { timeout: 5000 });
   });
 
   it("skips words in the personal dictionary and re-checks when it changes", async () => {

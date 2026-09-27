@@ -1,10 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { setAiResponder } from "../../ipc/memoryAi";
 import type { AiRunRequest } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { DiagramMaker } from "./DiagramMaker";
+import { loadMermaid } from "./mermaid";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -21,6 +22,9 @@ vi.mock("./mermaid", async (orig) => ({
 
 const requests: AiRunRequest[] = [];
 const MITOSIS = "flowchart TD\n  A[Prophase] --> B[Metaphase]\n  B --> C[Anaphase]";
+
+// Loading Mermaid (for its parser) is slow under jsdom; do it once, outside the tests.
+beforeAll(() => loadMermaid(), 90_000);
 
 beforeEach(async () => {
   h.b = createMemoryBackend({

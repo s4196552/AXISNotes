@@ -1,6 +1,7 @@
 //! Obsidian's JSON Canvas (<https://jsoncanvas.org>) to an AXIS canvas (Excalidraw JSON).
-//! Note nodes become live note cards; text, link and group nodes become text and frames;
-//! edges become arrows. Excalidraw fills in the element fields left out here on load.
+//! Note nodes become live note cards; text and link nodes become cards with text; groups
+//! become dashed frames; edges become arrows. Excalidraw fills in the element fields left
+//! out here on load.
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -78,6 +79,23 @@ fn text_element(id: &str, x: f64, y: f64, width: f64, text: &str) -> Value {
     })
 }
 
+/// A card like Obsidian's: a rounded box with the text bound inside it, so they move and
+/// resize together.
+fn card(id: &str, n: &Node, text: &str) -> [Value; 2] {
+    let text_id = format!("{id}-t");
+    let mut label = text_element(&text_id, n.x + 12.0, n.y + 12.0, n.width - 24.0, text);
+    label["containerId"] = json!(id);
+    [
+        json!({
+            "id": id, "type": "rectangle", "x": n.x, "y": n.y,
+            "width": n.width, "height": n.height,
+            "roundness": { "type": 3 }, "roughness": 0,
+            "boundElements": [{ "type": "text", "id": text_id }],
+        }),
+        label,
+    ]
+}
+
 /// Convert JSON Canvas text; `target` is the vault folder the vault was imported into.
 pub fn json_canvas_to_axcanvas(text: &str, target: &str) -> Result<String, String> {
     let canvas: JsonCanvas = serde_json::from_str(text).map_err(|e| e.to_string())?;
@@ -118,9 +136,9 @@ pub fn json_canvas_to_axcanvas(text: &str, target: &str) -> Result<String, Strin
             }
             "link" => {
                 let url = n.url.clone().unwrap_or_default();
-                let mut el = text_element(&id, n.x, n.y, n.width, &url);
-                el["link"] = json!(url);
-                elements.push(el);
+                let [mut frame, label] = card(&id, n, &url);
+                frame["link"] = json!(url);
+                elements.extend([frame, label]);
             }
             "group" => {
                 elements.push(json!({
@@ -138,13 +156,7 @@ pub fn json_canvas_to_axcanvas(text: &str, target: &str) -> Result<String, Strin
                     ));
                 }
             }
-            _ => elements.push(text_element(
-                &id,
-                n.x,
-                n.y,
-                n.width,
-                n.text.as_deref().unwrap_or(""),
-            )),
+            _ => elements.extend(card(&id, n, n.text.as_deref().unwrap_or(""))),
         }
     }
     let by_id = |id: &str| canvas.nodes.iter().find(|n| n.id == id);
@@ -156,10 +168,22 @@ pub fn json_canvas_to_axcanvas(text: &str, target: &str) -> Result<String, Strin
         let ac = (a.x + a.width / 2.0, a.y + a.height / 2.0);
         let s = side_point(a, e.from_side.as_deref(), bc);
         let t = side_point(b, e.to_side.as_deref(), ac);
+        let arrow_id = format!("jc-{}", e.id);
+        let (from, to) = (format!("jc-{}", a.id), format!("jc-{}", b.id));
+        // Bound at both ends, so the arrow follows the cards when they move.
+        for end in [&from, &to] {
+            if let Some(el) = elements.iter_mut().find(|el| el["id"] == **end) {
+                let mut bound = el["boundElements"].as_array().cloned().unwrap_or_default();
+                bound.push(json!({ "type": "arrow", "id": arrow_id }));
+                el["boundElements"] = json!(bound);
+            }
+        }
         elements.push(json!({
-            "id": format!("jc-{}", e.id), "type": "arrow", "x": s.0, "y": s.1,
+            "id": arrow_id, "type": "arrow", "x": s.0, "y": s.1,
             "width": (t.0 - s.0).abs(), "height": (t.1 - s.1).abs(),
             "points": [[0.0, 0.0], [t.0 - s.0, t.1 - s.1]],
+            "startBinding": { "elementId": from, "focus": 0, "gap": 1 },
+            "endBinding": { "elementId": to, "focus": 0, "gap": 1 },
             "endArrowhead": "arrow", "roughness": 0,
         }));
         if let Some(label) = e.label.as_deref().filter(|l| !l.is_empty()) {

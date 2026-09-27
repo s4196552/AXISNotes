@@ -1,4 +1,4 @@
-import { syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import {
   type EditorState,
   type Extension,
@@ -68,7 +68,10 @@ function frontmatterEnd(state: EditorState): number {
 function visibleWords(view: EditorView): WordRange[] {
   const { state } = view;
   const fm = frontmatterEnd(state);
-  const tree = syntaxTree(state);
+  // The parser works in the background: parse what's visible first (briefly), so code
+  // blocks aren't mistaken for prose. A later tree update re-runs the check anyway.
+  const end = view.visibleRanges.at(-1)?.to ?? 0;
+  const tree = ensureSyntaxTree(state, end, 50) ?? syntaxTree(state);
   const out: WordRange[] = [];
   for (const { from, to } of view.visibleRanges) {
     const skip: [number, number][] = [];
@@ -118,7 +121,9 @@ const spellPlugin = ViewPlugin.fromClass(
         this.typedAt = Date.now();
       }
       const asked = u.transactions.some((t) => t.effects.some((e) => e.is(recheck)));
-      if (u.docChanged || u.viewportChanged || asked) this.schedule(u.docChanged ? 350 : 30);
+      const parsed = syntaxTree(u.startState) !== syntaxTree(u.state);
+      if (u.docChanged || u.viewportChanged || asked || parsed)
+        this.schedule(u.docChanged ? 350 : 30);
     }
 
     schedule(delay: number) {
