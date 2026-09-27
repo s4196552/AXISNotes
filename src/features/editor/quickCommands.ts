@@ -16,6 +16,8 @@ export interface QuickCommandConfig {
   custom: CustomQuickCommand[];
   /** Opens the template picker (host UI). */
   insertTemplate(): void;
+  /** Runs an app command by id (host UI), e.g. "handwriting". */
+  runCommand(id: string): void;
 }
 
 export const quickCommandConfig = Facet.define<QuickCommandConfig, QuickCommandConfig>({
@@ -26,6 +28,7 @@ export const quickCommandConfig = Facet.define<QuickCommandConfig, QuickCommandC
       disabled: [],
       custom: [],
       insertTemplate: () => {},
+      runCommand: () => {},
     },
 });
 
@@ -100,6 +103,15 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     run: (v, f, t, cfg) => {
       v.dispatch({ changes: { from: f, to: t, insert: "" } });
       cfg.insertTemplate();
+    },
+  },
+  {
+    id: "handwriting",
+    label: "Handwriting to text…",
+    detail: "pen",
+    run: (v, f, t, cfg) => {
+      v.dispatch({ changes: { from: f, to: t, insert: "" } });
+      cfg.runCommand("handwriting");
     },
   },
   {

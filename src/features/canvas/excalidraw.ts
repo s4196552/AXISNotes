@@ -13,7 +13,9 @@ window.EXCALIDRAW_ASSET_PATH = `${window.location.origin}/excalidraw-assets/`;
 
 export {
   CaptureUpdateAction,
+  convertToExcalidrawElements,
   Excalidraw,
+  exportToBlob,
   getSceneVersion,
   MainMenu,
   restoreElements,

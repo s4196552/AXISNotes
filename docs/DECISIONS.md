@@ -31,6 +31,17 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - A small hand-written schema checker produces model-readable messages (e.g. `$.nodes[0].id is missing`). No new dependency.
 - The in-memory backend gained `setAiResponder` for scripted answers in tests.
 
+### Handwriting to text (T-027)
+
+- **One vision request, one JSON answer.** The strokes are rendered to a PNG, cropped to the ink with a margin and capped at 1600 px. They go to the model set for the **handwriting** task in JSON mode, and the answer is `{text, uncertain: [{word, occurrence, alternatives, reason: "unclear" | "misspelled"}]}`. Why JSON rather than inline markers: `[[…]]`-style markers collide with Markdown, and every provider supports a JSON mode or a JSON instruction. The answer is validated. If it is invalid, AXIS asks once more, quoting the problems (`askValidated`).
+- **Two sources of flags.** The model flags words it couldn't read (dotted underline) or that the writer misspelled (wavy). The local Hunspell spellchecker then flags any other word it doesn't know (wavy). Each flag's quick-fix menu offers the alternatives, "Keep", or a typed correction. Nothing is inserted until the user clicks Insert.
+- **Where it runs:**
+  - **Canvas**: "Convert to text" reads the selected elements, or every pen stroke if nothing is selected. It uses Excalidraw's `exportToBlob` on a white background and adds an Excalidraw text element under the strokes, or in their place if "Remove the handwriting" is ticked.
+  - **Notes**: the `/handwriting` command or the palette opens a pen/touch/mouse pad (Pointer Events with pressure and coalesced events). The text is inserted at the cursor.
+- **Privacy**: the canvas or note path is sent as the request's `source`, so "AI: never" and "local only" folders apply to handwriting too. Non-vision models are skipped (T-021's capability check).
+- **Acceptance evidence**: `handwriting_reads_an_image_on_two_vision_providers` (Rust) runs the same image request through recorded OpenAI Responses and Anthropic Messages answers. It checks the image and JSON mode in each request body and parses both answers.
+- **Browser preview**: `pnpm dev` answers AI requests with canned demo text (`src/ipc/demoAi.ts`), so the flows can be clicked through without a provider. The desktop app never uses it.
+
 ## 2026-09-27: Phase 4 multi-provider AI layer (T-021 – T-024)
 
 - **One `AiProvider` trait** (`complete`, `stream`, `vision`, `list_models`) with one implementation, `Adapter`, which drives a per-format **codec** over a **transport**.

@@ -10,6 +10,7 @@ import {
   openAskAi,
   openDailyNote,
   openFixText,
+  openHandwriting,
 } from "./actions";
 import { useUi } from "./ui";
 import { useEditorPrefs } from "../editor/prefs";
@@ -87,6 +88,7 @@ registerCommands([
     shortcut: { key: "g", mod: true, shift: true },
     run: openFixText,
   },
+  { id: "handwriting", label: "Handwriting to text (pen)", run: openHandwriting },
   { id: "time", label: "Time report", run: () => useAppStore.getState().setMainView("time") },
   { id: "stop-timer", label: "Stop timer", run: () => void useTimer.getState().stop() },
   { id: "new-grid", label: "New grid (spreadsheet)", run: () => void newGrid() },

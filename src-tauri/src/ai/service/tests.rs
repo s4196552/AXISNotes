@@ -11,6 +11,8 @@ const OPENAI_OK: &str = include_str!("../fixtures/openai_responses.sse");
 const CHAT_OK: &str = include_str!("../fixtures/chat.sse");
 const ANTHROPIC_OK: &str = include_str!("../fixtures/anthropic.sse");
 const CHAT_MODELS: &str = include_str!("../fixtures/chat_models.json");
+const OPENAI_HANDWRITING: &str = include_str!("../fixtures/openai_handwriting.sse");
+const ANTHROPIC_HANDWRITING: &str = include_str!("../fixtures/anthropic_handwriting.sse");
 
 struct Env {
     _dir: tempfile::TempDir,
@@ -341,4 +343,69 @@ async fn keys_stay_in_the_keystore() {
     assert_eq!(e.keys.get("openai").unwrap(), None);
     assert!(e.service.settings().task(Task::Chat).is_none());
     assert!(e.service.set_key("nope", "x").is_err());
+}
+
+/// Phase 5: handwriting goes to a vision model as an image in JSON mode, and the same
+/// request works with two different vision providers (recorded answers).
+#[tokio::test]
+async fn handwriting_reads_an_image_on_two_vision_providers() {
+    let cases = [
+        ("openai", "gpt-6-sol", OPENAI_HANDWRITING),
+        ("claude", "claude-sonnet-5", ANTHROPIC_HANDWRITING),
+    ];
+    for (provider, model, fixture) in cases {
+        let e = env(vec![(200, fixture)], std_providers(), &["openai", "claude"]);
+        let mut s = e.service.settings();
+        s.tasks.insert(
+            Task::Handwriting,
+            TaskChoice {
+                provider: provider.into(),
+                model: model.into(),
+            },
+        );
+        e.service.save_settings(s).unwrap();
+        let req = RunRequest {
+            task: Some(Task::Handwriting),
+            json: true,
+            sources: vec!["School/Board.axcanvas".into()],
+            messages: vec![Message {
+                role: Role::User,
+                content: vec![
+                    Part::Image {
+                        mime: "image/png".into(),
+                        data: "iVBORw0KGgo".into(),
+                    },
+                    Part::Text {
+                        text: "Transcribe as JSON.".into(),
+                    },
+                ],
+            }],
+            ..RunRequest::default()
+        };
+        let (r, streamed) = run(&e, req).await;
+        let r = r.unwrap();
+        assert_eq!(
+            (r.provider_id.as_str(), streamed.as_str()),
+            (provider, r.text.as_str())
+        );
+        let answer: serde_json::Value = serde_json::from_str(&r.text).unwrap();
+        assert_eq!(
+            answer["text"], "Mitochondria make ATP\nthe powerhouse of the cel",
+            "{provider}"
+        );
+        assert!(answer["uncertain"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|u| u["word"] == "cel" && u["alternatives"][0] == "cell"));
+
+        let sent = e.fx.requests.lock().unwrap()[0].clone();
+        let body = sent.body.unwrap().to_string();
+        assert!(body.contains("iVBORw0KGgo"), "{provider}: image sent");
+        match provider {
+            "openai" => assert!(body.contains("json_object")),
+            _ => assert!(body.contains("JSON")),
+        }
+        assert_eq!(e.service.read_log(1)[0].task, Task::Handwriting);
+    }
 }

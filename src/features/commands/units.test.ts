@@ -92,6 +92,7 @@ function viewWith(doc: string, cfg = {}) {
         quickCommandConfig.of({
           ...DEFAULT_CONFIG.quickCommands,
           insertTemplate: () => {},
+          runCommand: () => {},
           ...cfg,
         }),
       ],

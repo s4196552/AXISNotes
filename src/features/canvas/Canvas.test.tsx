@@ -4,9 +4,21 @@ import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend
 import { useAppStore } from "../../app/store";
 import { AUTOSAVE_DELAY_MS } from "../files/useFileDocument";
 import { serializeCanvas } from "../../lib/canvas";
+import { setAiResponder } from "../../ipc/memoryAi";
 import { Canvas } from "./Canvas";
 
-type El = { id: string; type: string; version?: number; link?: string; x?: number; y?: number };
+type El = {
+  id: string;
+  type: string;
+  version?: number;
+  link?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  text?: string;
+  isDeleted?: boolean;
+};
 interface FakeProps {
   initialData: {
     elements: El[];
@@ -29,6 +41,8 @@ const h = vi.hoisted(() => ({
     updateScene(u: { elements: El[] }): void;
   },
   mounts: 0,
+  selected: {} as Record<string, boolean>,
+  exported: [] as El[][],
 }));
 
 vi.mock("../../ipc", async (orig) => {
@@ -51,7 +65,14 @@ vi.mock("./excalidraw", async () => {
       h.mounts++;
       const st = { ...props.initialData.appState };
       const api = {
-        getAppState: () => ({ offsetLeft: 0, offsetTop: 0, width: 800, height: 600 }),
+        getAppState: () => ({
+          offsetLeft: 0,
+          offsetTop: 0,
+          width: 800,
+          height: 600,
+          selectedElementIds: h.selected,
+        }),
+        getFiles: () => ({}),
         getSceneElements: () => current,
         updateScene: ({ elements }: { elements: El[] }) => {
           current = elements;
@@ -78,6 +99,12 @@ vi.mock("./excalidraw", async () => {
     MainMenu: Object.assign(Noop, { DefaultItems: any }),
     WelcomeScreen: Object.assign(Noop, { Hints: any, Center: Object.assign(Noop, any) }),
     CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY" },
+    exportToBlob: ({ elements }: { elements: El[] }) => {
+      h.exported.push(elements);
+      return Promise.resolve(new Blob(["png"], { type: "image/png" }));
+    },
+    convertToExcalidrawElements: (els: Omit<El, "id">[]) =>
+      els.map((e) => ({ ...e, id: `new${n++}`, version: 1 })),
     getSceneVersion: (els: El[]) => els.reduce((s, e) => s + (e.version ?? 1), 0),
     restoreElements: (els: Omit<El, "id">[]) =>
       els.map((e) => ({ ...e, id: `new${n++}`, version: 1 })),
@@ -112,6 +139,8 @@ beforeEach(() => {
     "Ideas.md": "Build AXIS",
   });
   h.mounts = 0;
+  h.selected = {};
+  h.exported = [];
   useAppStore.setState({
     error: null,
     activePath: "Board.axcanvas",
@@ -199,5 +228,38 @@ describe("Canvas", () => {
       vi.advanceTimersByTime(AUTOSAVE_DELAY_MS * 2);
     });
     expect(h.b.files()["Board.axcanvas"]).toBe("{broken");
+  });
+
+  it("turns pen strokes into a text element with the handwriting model", async () => {
+    vi.useRealTimers();
+    const { settings } = await h.b.aiSettings();
+    await h.b.aiSaveSettings({
+      ...settings,
+      providers: [{ id: "ollama", kind: "ollama", name: "Ollama", baseUrl: "", enabled: true }],
+    });
+    setAiResponder(() => JSON.stringify({ text: "Buy milk", uncertain: [] }));
+    try {
+      await open();
+      const ink = { id: "ink", type: "freedraw", version: 1, x: 10, y: 20, width: 100, height: 40 };
+      act(() => h.api!.updateScene({ elements: [...h.api!.getSceneElements(), ink] }));
+      fireEvent.click(screen.getByRole("button", { name: /Convert to text/ }));
+      expect(await screen.findByLabelText("Transcription")).toHaveTextContent("Buy milk");
+      expect(h.exported[0]!.map((e) => e.id)).toEqual(["ink"]); // only the pen strokes
+      fireEvent.click(screen.getByLabelText(/Remove the handwriting/));
+      fireEvent.click(screen.getByRole("button", { name: "Add to canvas" }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await waitFor(
+        () =>
+          expect(
+            saved().elements.find((e) => e.type === "text" && e.text === "Buy milk"),
+          ).toBeTruthy(),
+        { timeout: 5000 },
+      );
+      const els = saved().elements;
+      expect(els.find((e) => e.text === "Buy milk")).toMatchObject({ x: 10, y: 20 });
+      expect(els.find((e) => e.id === "ink")?.isDeleted ?? true).toBe(true);
+    } finally {
+      setAiResponder(null);
+    }
   });
 });

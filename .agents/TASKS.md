@@ -34,7 +34,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 
 | T-025 | 5     | Offline spellcheck (Hunspell worker), quick fixes, personal dictionary      | claude | merged    | agent/claude/T-025 | `src/features/spellcheck/**`, `src/lib/spelling.ts`, Settings → Spelling |
 | T-026 | 5     | AI "fix grammar/clarity" with diff review; shared AI run + JSON helpers     | claude | merged    | agent/claude/T-026 | `src/features/ai/**`, `src/lib/aiJson.ts` |
-| T-027 | 5     | Handwriting to text (canvas + note pad), uncertain words with quick fixes   | claude | todo      | agent/claude/T-027 | `src/features/handwriting/**`, `src/features/canvas/**`, Rust vision fixtures |
+| T-027 | 5     | Handwriting to text (canvas + note pad), uncertain words with quick fixes   | claude | merged    | agent/claude/T-027 | `src/features/handwriting/**`, `src/features/canvas/**`, Rust vision fixtures |
 | T-028 | 5     | Diagram maker: Mermaid rendering, AI Mermaid/Excalidraw (schema), outline → diagram | claude | todo | agent/claude/T-028 | `src/features/diagrams/**`, `src/lib/diagram*.ts` |
 | T-029 | 5     | Phase 5 E2E + polish                                                        | claude | todo      | agent/claude/T-029 | `e2e/**` |
 

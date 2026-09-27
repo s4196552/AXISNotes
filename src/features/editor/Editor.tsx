@@ -24,6 +24,7 @@ import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
 import { openAskAi, openFixText } from "../commands/actions";
+import { allCommands } from "../commands/registry";
 import { configuredSpellcheck, recheck } from "../spellcheck";
 import {
   emojiCompletions,
@@ -36,6 +37,10 @@ function quickConfig(): QuickCommandConfig {
   return {
     ...useConfig.getState().config.quickCommands,
     insertTemplate: () => useUi.getState().open({ kind: "templates", mode: "insert" }),
+    runCommand: (id) =>
+      allCommands()
+        .find((c) => c.id === id)
+        ?.run(),
   };
 }
 import { axisTheme } from "./theme";
