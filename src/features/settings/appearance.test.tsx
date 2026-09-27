@@ -4,6 +4,7 @@ import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { applyTypography, fontStack } from "../../app/appearance";
 import { installZoom, stepZoom, useZoom } from "../../app/zoom";
+import { useAppStore } from "../../app/store";
 import { commandForEvent } from "../commands/registry";
 import { Settings } from "./Settings";
 
@@ -74,6 +75,16 @@ describe("zoom", () => {
     expect(useZoom.getState().zoom).toBe(1.1);
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "+", ctrlKey: true }));
     expect(useZoom.getState().zoom).toBe(1.25);
+    // On the welcome screen (no vault), Ctrl + − / 0 work without the command shortcuts.
+    useAppStore.setState({ vault: null });
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "-", ctrlKey: true }));
+    expect(useZoom.getState().zoom).toBe(1.1);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "0", ctrlKey: true }));
+    expect(useZoom.getState().zoom).toBe(1);
+    // With a vault open they're left to the (remappable) commands.
+    useAppStore.setState({ vault: { root: "/v", name: "v" } });
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "-", ctrlKey: true }));
+    expect(useZoom.getState().zoom).toBe(1);
     stop();
   });
 });

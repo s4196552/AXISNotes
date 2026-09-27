@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { backend } from "../ipc";
+import { useAppStore } from "./store";
 
 // Zoom for the whole app (Ctrl + = / − / 0, Ctrl + mouse wheel, Settings → Appearance).
 // It's a per-device preference, so it lives in local storage rather than the vault.
@@ -51,7 +52,8 @@ export const OWN_ZOOM =
 
 /**
  * Apply the saved zoom, and handle the zoom gestures the command shortcuts don't cover:
- * Ctrl + mouse wheel, and "+" (number pad, or Shift + =). Returns a cleanup function.
+ * Ctrl + mouse wheel, "+" (number pad, or Shift + =), and on the welcome screen, where
+ * the command shortcuts aren't active, Ctrl + = / − / 0 too. Returns a cleanup function.
  */
 export function installZoom(): () => void {
   void backend.setZoom(useZoom.getState().zoom).catch(() => {});
@@ -63,9 +65,24 @@ export function installZoom(): () => void {
     else zoomOut();
   };
   const onKey = (e: KeyboardEvent) => {
-    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key !== "+" || inOwnZoom(e.target)) return;
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || inOwnZoom(e.target)) return;
+    // With a vault open, Ctrl + = / − / 0 are (remappable) commands, handled before this.
+    const noVault = useAppStore.getState().vault === null;
+    const action =
+      e.key === "+"
+        ? zoomIn
+        : !noVault
+          ? null
+          : e.key === "="
+            ? zoomIn
+            : e.key === "-"
+              ? zoomOut
+              : e.key === "0"
+                ? zoomReset
+                : null;
+    if (!action) return;
     e.preventDefault();
-    zoomIn();
+    action();
   };
   window.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("keydown", onKey);
