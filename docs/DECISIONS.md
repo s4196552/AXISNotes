@@ -42,6 +42,21 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Acceptance evidence**: `handwriting_reads_an_image_on_two_vision_providers` (Rust) runs the same image request through recorded OpenAI Responses and Anthropic Messages answers. It checks the image and JSON mode in each request body and parses both answers.
 - **Browser preview**: `pnpm dev` answers AI requests with canned demo text (`src/ipc/demoAi.ts`), so the flows can be clicked through without a provider. The desktop app never uses it.
 
+### Smart diagram maker (T-028)
+
+- **Mermaid 11.17.2, not 12.** Mermaid 12 added a direct dependency on `elkjs`, which is EPL-2.0 OR GPL-3.0. Version 11.17.2 has no elkjs, and its whole tree is permissive: MIT, ISC, Apache-2.0, BSD, and `dompurify` (MPL-2.0 OR Apache-2.0, taken as Apache). Pin it until elkjs becomes optional again, and check the licenses before upgrading.
+- **Mermaid is lazy-loaded** and runs with `securityLevel: "strict"`, so labels are sanitized and click callbacks are disabled. Rendering a note can't run code.
+- **In notes, ` ```mermaid ` blocks render as diagrams** (a block widget from a StateField). Placing the cursor in the block, or clicking the diagram, shows the code for editing. Invalid code shows Mermaid's error in place of the diagram.
+- **Two output formats, both validated, with one retry:**
+  - **Notes → Mermaid code.** Checked with Mermaid's own parser (`mermaid.parse`). A parser error goes back to the model once.
+  - **Canvases → a JSON graph** (`{kind, direction, nodes, edges}`). Checked with `GRAPH_SCHEMA` plus `checkGraph`: unique ids, edges that point at real nodes, and mind maps that are trees rooted at the first node. AXIS then lays the graph out itself: flowcharts in layers (longest-path ranks, one barycenter pass, back edges ignored) and mind maps as left-to-right trees. It turns the layout into Excalidraw skeletons (labelled shapes and bound arrows) through `convertToExcalidrawElements`. Why not ask the model for raw Excalidraw JSON? It is large and brittle, and models get coordinates wrong. A small graph is easy to validate and is laid out consistently.
+- **Without AI** ("From notes"): a mind map from a note's headings and nested lists, or a flowchart of a note's links in both directions (from the vault graph). The result goes to Mermaid or to canvas shapes.
+- **Entry points**: `/diagram` and the palette command "Make a diagram" (the selection becomes the description), `/mermaid` for a blank block, and a "Diagram" button on canvases. The note or canvas path is the request's source, so folder AI rules apply.
+
+| Package | Version | License | Purpose                                    |
+| ------- | ------- | ------- | ------------------------------------------ |
+| mermaid | 11.17.2 | MIT     | Render and validate diagrams (lazy-loaded) |
+
 ## 2026-09-27: Phase 4 multi-provider AI layer (T-021 – T-024)
 
 - **One `AiProvider` trait** (`complete`, `stream`, `vision`, `list_models`) with one implementation, `Adapter`, which drives a per-format **codec** over a **transport**.
