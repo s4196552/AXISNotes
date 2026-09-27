@@ -263,7 +263,15 @@ export function Canvas({ path }: { path: string }) {
     const placed = layoutGraph(result.graph);
     const w = Math.max(...placed.map((n) => n.x + n.width));
     const h = Math.max(...placed.map((n) => n.y + n.height));
-    const skeleton = graphToSkeleton(result.graph, { x: center.x - w / 2, y: center.y - h / 2 });
+    // In the middle of the view, or to the right of what's already there.
+    const existing = a.getSceneElements().filter((el) => !el.isDeleted);
+    const origin = existing.length
+      ? {
+          x: Math.max(...existing.map((el) => el.x + el.width)) + 120,
+          y: Math.min(...existing.map((el) => el.y)),
+        }
+      : { x: center.x - w / 2, y: center.y - h / 2 };
+    const skeleton = graphToSkeleton(result.graph, origin);
     const els = lib.convertToExcalidrawElements(skeleton as never);
     a.updateScene({
       elements: [...a.getSceneElements(), ...els],

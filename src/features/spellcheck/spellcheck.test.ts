@@ -26,7 +26,8 @@ describe("Hunspell engine (en_US)", () => {
   it("rejects misspellings and suggests fixes", () => {
     expect(engine.correct("recieve")).toBe(false);
     expect(engine.suggest("recieve")).toContain("receive");
-    expect(engine.suggest("teh").length).toBeGreaterThan(0);
+    expect(engine.suggest("teh")[0]).toBe("the"); // swapped letters first
+    expect(engine.suggest("Teh")[0]).toBe("The");
   });
 });
 

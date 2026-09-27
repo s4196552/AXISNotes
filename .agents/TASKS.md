@@ -36,7 +36,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-026 | 5     | AI "fix grammar/clarity" with diff review; shared AI run + JSON helpers     | claude | merged    | agent/claude/T-026 | `src/features/ai/**`, `src/lib/aiJson.ts` |
 | T-027 | 5     | Handwriting to text (canvas + note pad), uncertain words with quick fixes   | claude | merged    | agent/claude/T-027 | `src/features/handwriting/**`, `src/features/canvas/**`, Rust vision fixtures |
 | T-028 | 5     | Diagram maker: Mermaid rendering, AI Mermaid/Excalidraw (schema), outline → diagram | claude | merged | agent/claude/T-028 | `src/features/diagrams/**`, `src/lib/diagram*.ts` |
-| T-029 | 5     | Phase 5 E2E + polish                                                        | claude | todo      | agent/claude/T-029 | `e2e/**` |
+| T-029 | 5     | Phase 5 E2E + polish                                                        | claude | merged    | agent/claude/T-029 | `e2e/**` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

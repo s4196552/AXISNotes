@@ -206,6 +206,11 @@ describe("canvas layout", () => {
     const arrows = els.filter((e) => e.type === "arrow");
     expect(arrows).toHaveLength(4);
     expect(arrows[0]!.start!.id).toBe(shapes[0]!.id);
+    // Arrows run between borders, not from center to center.
+    const first = shapes[0] as unknown as { y: number; height: number };
+    const arrow = arrows[0] as unknown as { y: number; height: number };
+    expect(arrow.y).toBeGreaterThan(first.y + first.height);
+    expect(arrow.y + arrow.height).toBeLessThan((shapes[1] as unknown as { y: number }).y);
     expect(Math.min(...shapes.map((e) => e.x))).toBe(100);
   });
 });
