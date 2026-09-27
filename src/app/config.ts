@@ -18,6 +18,8 @@ export interface FolderIcon {
   color?: string;
 }
 
+export type EditorWidth = "narrow" | "medium" | "wide" | "full";
+
 export interface AxisConfig {
   /** Per-folder AI access, enforced by the Rust AI layer (`src-tauri/src/ai/privacy.rs`). */
   ai: { folders: Record<string, AiRule> };
@@ -25,6 +27,13 @@ export interface AxisConfig {
   theme: string;
   /** Enabled CSS snippets from `.axisnotes/snippets/<name>.css`. */
   snippets: string[];
+  /** Text and layout. Fonts are family names ("" = the built-in default). */
+  appearance: {
+    noteFontSize: number;
+    noteFont: string;
+    uiFont: string;
+    editorWidth: EditorWidth;
+  };
   folderIcons: Record<string, FolderIcon>;
   dailyNotes: {
     folder: string;
@@ -52,6 +61,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
   ai: { folders: {} },
   theme: "system",
   snippets: [],
+  appearance: { noteFontSize: 15, noteFont: "", uiFont: "", editorWidth: "medium" },
   folderIcons: {},
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   templatesFolder: "Templates",

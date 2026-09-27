@@ -2,6 +2,29 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-28: Zoom, text size, fonts and editor width (T-040)
+
+- **Zoom for the whole app:**
+  - Ctrl + = / Ctrl + − / Ctrl + 0 are "Zoom in", "Zoom out" and "Reset zoom" in the command list, so they can be remapped.
+  - Ctrl + mouse wheel and the number-pad + also zoom, and so do the controls in Settings → Appearance.
+  - Steps run from 50 % to 300 %.
+  - The desktop app zooms the webview itself (`setZoom`, with the `core:webview:allow-set-webview-zoom` permission), so pointer positions on the canvas stay right. The browser preview uses CSS `zoom`.
+  - Zoom is a per-device preference, kept in local storage (`axisnotes.zoom`).
+  - Inside the canvas and the graph, which have their own zoom, the keys and wheel are left to them.
+- **Settings → Appearance** also has these, saved in the vault's config as `appearance: { noteFontSize, noteFont, uiFont, editorWidth }` and applied as CSS variables (`--note-font-size`, `--font-note`, `--font-ui`, `--editor-width`):
+  - **Note text size:** 11–32 px, default 15. Headings grow with it.
+  - **Note font** and **interface font:** any installed family, or the default. A font chosen on another computer stays selected, marked "(not installed)".
+  - **Editor width:** narrow 640 px, medium 760 px (the default), wide 960 px, or full width.
+- **Installed fonts** come from the `list_fonts` command, which uses `fontdb` to read the system font folders once and caches the result (0.14 s here). `fontdb` is pure Rust with no system libraries.
+- The 5,000-note speed test now waits for background indexing (T-039) to finish before timing searches (6–51 ms). The 100 ms target applies to an indexed vault.
+
+| Package (Rust) | Version | License                                                                              | Purpose                     |
+| -------------- | ------- | ------------------------------------------------------------------------------------ | --------------------------- |
+| fontdb         | 0.24    | MIT                                                                                  | Installed font families     |
+| memmap2        | 0.9     | MIT OR Apache-2.0                                                                    | (fontdb) reading font files |
+| slotmap        | 1.1     | **Zlib**, flagged: permissive, no copyleft; attribution in source distributions only | (fontdb) face storage       |
+| tinyvec        | 1.13    | Zlib OR Apache-2.0 OR MIT                                                            | (fontdb) small vectors      |
+
 ## 2026-09-28: Big and messy folders open reliably (T-039)
 
 - **The bug:** large real-world folders failed to open or froze the app. Reproduced with 20,000 notes, 40,000 files in `node_modules`, a 50 MB binary, a looping folder link, a broken folder link and a locked folder:

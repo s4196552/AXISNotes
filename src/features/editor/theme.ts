@@ -8,15 +8,15 @@ const editorTheme = EditorView.theme({
     height: "100%",
     color: "var(--fg)",
     backgroundColor: "var(--bg)",
-    fontSize: "15px",
+    fontSize: "var(--note-font-size)",
   },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {
-    fontFamily: "var(--font-ui)",
+    fontFamily: "var(--font-note)",
     lineHeight: "1.65",
   },
   ".cm-content": {
-    maxWidth: "760px",
+    maxWidth: "var(--editor-width)",
     margin: "0 auto",
     padding: "8px 24px 40vh",
     caretColor: "var(--accent)",

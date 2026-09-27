@@ -48,6 +48,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-037 | 6     | AXIS logo (user design) in icons, welcome screen, About; installers rebuilt   | claude | merged    | agent/claude/T-037 | `src/assets/logo.svg`, `src-tauri/icons/**` |
 | T-038 | 6     | Rename to AXISNotes (product of AXIS): names, identifier, vault folder, keychain + migrations | claude | merged | agent/claude/T-038 | whole repo |
 | T-039 | 6     | Big/messy folders: robust walk, link loops, background indexing with progress | claude | merged | agent/claude/T-039 | `src-tauri/src/vault/**`, `src-tauri/src/index/**` |
+| T-040 | 6     | Zoom, note text size, fonts, editor width (Settings → Appearance) | claude | merged | agent/claude/T-040 | `src/app/zoom.ts`, `src/app/appearance.ts`, settings |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

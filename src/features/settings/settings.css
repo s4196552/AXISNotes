@@ -167,3 +167,16 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+
+.zoom-control,
+.range-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.zoom-control button {
+  min-width: 28px;
+}
+.range-control input[type="range"] {
+  width: 200px;
+}

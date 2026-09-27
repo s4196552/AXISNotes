@@ -124,4 +124,26 @@ describe("AXISNotes desktop app on a real vault", () => {
     expect(fs.existsSync(onDisk("School/Math/Calculus.md"))).toBe(false);
     await expect($(".editor-title")).toHaveText("Calculus I");
   });
+
+  it("zooms the whole app with Ctrl + = and Ctrl + 0, and lists installed fonts", async () => {
+    const ratio = () => browser.execute(() => window.devicePixelRatio);
+    const base = await ratio();
+    await browser.keys([Key.Ctrl, "="]);
+    await browser.keys(Key.Ctrl); // release
+    await browser.waitUntil(async () => (await ratio()) > base * 1.05, {
+      timeoutMsg: "Ctrl + = didn't zoom the webview",
+    });
+    await browser.keys([Key.Ctrl, "0"]);
+    await browser.keys(Key.Ctrl);
+    await browser.waitUntil(async () => Math.abs((await ratio()) - base) < 0.01, {
+      timeoutMsg: "Ctrl + 0 didn't reset the zoom",
+    });
+    const fonts = await browser.executeAsync((done: (f: string[]) => void) => {
+      const w = window as unknown as {
+        __TAURI_INTERNALS__: { invoke(c: string): Promise<string[]> };
+      };
+      void w.__TAURI_INTERNALS__.invoke("list_fonts").then(done);
+    });
+    expect(fonts.length).toBeGreaterThan(5);
+  });
 });

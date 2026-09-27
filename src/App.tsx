@@ -2,7 +2,8 @@ import { Suspense, useEffect } from "react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
-import { applyAppearance } from "./app/appearance";
+import { applyAppearance, applyTypography } from "./app/appearance";
+import { installZoom } from "./app/zoom";
 import { openDailyNote } from "./features/commands/actions";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
@@ -86,6 +87,12 @@ export default function App() {
   useEffect(() => {
     void applyAppearance({ theme, snippets });
   }, [theme, snippets]);
+
+  const typography = useConfig((s) => s.config.appearance);
+  useEffect(() => applyTypography(typography), [typography]);
+
+  // Zoom applies to the welcome screen too, so it doesn't wait for a vault.
+  useEffect(() => installZoom(), []);
 
   // Keep the tree in sync with edits made outside the app.
   useEffect(() => {
