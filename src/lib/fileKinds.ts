@@ -1,6 +1,6 @@
 // Which view opens a vault file, decided by extension.
 
-export type DocKind = "markdown" | "grid" | "canvas";
+export type DocKind = "markdown" | "grid" | "canvas" | "image" | "other";
 
 export const GRID_EXT = ".axgrid";
 export const CANVAS_EXT = ".axcanvas";
@@ -12,9 +12,17 @@ const KINDS: [ext: string, kind: DocKind][] = [
   [CANVAS_EXT, "canvas"],
 ];
 
+const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i;
+/** Binary or unknown files that must not be opened as text. */
+const OTHER_RE = /\.(pdf|zip|mp3|mp4|mov|wav|webm|ogg|docx?|xlsx?|pptx?|exe|dll|bin)$/i;
+
 export function docKind(path: string): DocKind | null {
   const lower = path.toLowerCase();
-  return KINDS.find(([ext]) => lower.endsWith(ext))?.[1] ?? null;
+  const kind = KINDS.find(([ext]) => lower.endsWith(ext))?.[1];
+  if (kind) return kind;
+  if (IMAGE_RE.test(lower)) return "image";
+  if (OTHER_RE.test(lower)) return "other";
+  return null;
 }
 
 /** Drag type the file tree sets with an entry's path (e.g. to drop notes onto a canvas). */

@@ -36,10 +36,10 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("FileTree", () => {
   it("renders nested folders collapsed, notes without .md, other files dimmed", async () => {
-    await setup({ "School/Bio.md": "", "School/Math/Calc.md": "", "Ideas.md": "", "pic.png": "" });
+    await setup({ "School/Bio.md": "", "School/Math/Calc.md": "", "Ideas.md": "", "doc.pdf": "" });
     expect(row("School")).toHaveAttribute("aria-expanded", "false");
     expect(row("Ideas")).toBeInTheDocument();
-    expect(row("pic.png")).toHaveClass("dimmed");
+    expect(row("doc.pdf")).toHaveClass("dimmed");
     expect(queryRow("Bio")).toBeNull();
 
     fireEvent.click(row("School"));
@@ -58,10 +58,12 @@ describe("FileTree", () => {
     expect(JSON.parse(localStorage.getItem("axis:filetree:expanded:/vault")!)).toEqual(["School"]);
   });
 
-  it("opens notes on click but not unsupported files", async () => {
-    await setup({ "Ideas.md": "", "pic.png": "" });
-    fireEvent.click(row("pic.png"));
+  it("opens notes and images on click but not unsupported files", async () => {
+    await setup({ "Ideas.md": "", "pic.png": "", "doc.pdf": "" });
+    fireEvent.click(row("doc.pdf"));
     expect(useAppStore.getState().activePath).toBeNull();
+    fireEvent.click(row("pic.png"));
+    expect(useAppStore.getState().activePath).toBe("pic.png");
     fireEvent.click(row("Ideas"));
     expect(useAppStore.getState().activePath).toBe("Ideas.md");
     expect(row("Ideas")).toHaveClass("active");

@@ -13,6 +13,7 @@ import type {
   Backend,
   BackendError,
   Backlink,
+  ClipperStatus,
   ErrorCode,
   GraphData,
   Mention,
@@ -262,8 +263,30 @@ export function createMemoryBackend(
     return n && n.kind === "file" ? n.content : null;
   });
 
+  // The web clipper needs the desktop app's localhost endpoint; the browser preview
+  // shows its settings with a stand-in status.
+  const clipper: ClipperStatus = {
+    enabled: false,
+    running: false,
+    port: 38417,
+    folder: "Clippings",
+    error: "The web clipper runs in the desktop app.",
+    devices: [],
+  };
+
   return {
     ...ai,
+    clipperStatus: async () => ({ ...clipper }),
+    clipperSetEnabled: async (enabled) => ({ ...clipper, enabled }),
+    clipperSetFolder: async (folder) => {
+      clipper.folder = folder;
+      return { ...clipper };
+    },
+    clipperStartPairing: async () => ({ code: "000000", expiresInSecs: 300 }),
+    clipperCancelPairing: async () => {},
+    clipperRevoke: async () => ({ ...clipper }),
+    onClipped: async () => () => {},
+    fileUrl: () => null,
     async pickFolder() {
       return "/memory";
     },

@@ -401,3 +401,22 @@
   color: var(--fg-muted);
   font-style: italic;
 }
+
+.cm-image-embed {
+  margin: 6px 0;
+  cursor: pointer;
+}
+.cm-image-embed img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+.cm-image-embed.missing {
+  display: inline-block;
+  padding: 4px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}

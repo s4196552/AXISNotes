@@ -1,5 +1,7 @@
 mod ai;
 mod ai_commands;
+mod clipper;
+mod clipper_commands;
 mod commands;
 mod error;
 mod index;
@@ -18,6 +20,7 @@ pub fn run() {
         .manage(commands::AppState::default())
         .setup(|app| {
             ai_commands::manage(app.handle());
+            clipper_commands::manage(app.handle());
             if let Ok(path) = std::env::var(OPEN_VAULT_ENV) {
                 let state = app.state::<commands::AppState>();
                 if let Err(e) = state.open_at_startup(app.handle(), &path) {
@@ -57,6 +60,12 @@ pub fn run() {
             ai_commands::ai_run,
             ai_commands::ai_cancel,
             ai_commands::ai_log,
+            clipper_commands::clipper_status,
+            clipper_commands::clipper_set_enabled,
+            clipper_commands::clipper_set_folder,
+            clipper_commands::clipper_start_pairing,
+            clipper_commands::clipper_cancel_pairing,
+            clipper_commands::clipper_revoke,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AXIS");

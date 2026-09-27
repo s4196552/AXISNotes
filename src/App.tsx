@@ -9,6 +9,8 @@ import { WelcomeScreen } from "./features/vault/WelcomeScreen";
 import { Editor } from "./features/editor";
 import { Grid } from "./features/grid/Grid";
 import { Canvas } from "./features/canvas/Canvas";
+import { ImageView, UnsupportedView } from "./features/files/ImageView";
+import { useClipNotices } from "./features/clipper/useClipNotices";
 import { docKind } from "./lib/fileKinds";
 import { GraphView } from "./features/graph/GraphView";
 import { TasksView } from "./features/tasks/TasksView";
@@ -24,6 +26,7 @@ export default function App() {
   const error = useAppStore((s) => s.error);
   const notice = useAppStore((s) => s.notice);
   const refreshTree = useAppStore((s) => s.refreshTree);
+  useClipNotices();
 
   // Restore a vault the backend already has open (e.g. after a webview reload).
   useEffect(() => {
@@ -82,6 +85,10 @@ export default function App() {
           <Grid key={activePath} path={activePath} />
         ) : activePath && docKind(activePath) === "canvas" ? (
           <Canvas key={activePath} path={activePath} />
+        ) : activePath && docKind(activePath) === "image" ? (
+          <ImageView key={activePath} path={activePath} />
+        ) : activePath && docKind(activePath) === "other" ? (
+          <UnsupportedView key={activePath} path={activePath} />
         ) : activePath ? (
           <Editor key={activePath} path={activePath} />
         ) : (

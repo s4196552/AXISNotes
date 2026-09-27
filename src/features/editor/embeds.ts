@@ -7,6 +7,7 @@ import { backend, isBackendError, type VaultChange } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { embedRange, ensureBlockId, listBlocks, listHeadings } from "../../lib/blocks";
 import { noteName, parseWikilinkInner } from "../../lib/markdown";
+import { isImagePath, parseImageEmbed, resolveAttachment } from "../../lib/attachments";
 import { linkHost } from "./links";
 import { livePreview } from "./livePreview";
 import { axisTheme } from "./theme";
@@ -242,6 +243,55 @@ class EmbedWidget extends WidgetType {
   }
 }
 
+/** `![[photo.png]]` (optionally `|width`) as an image. */
+class ImageWidget extends WidgetType {
+  constructor(
+    readonly inner: string,
+    readonly from: string,
+  ) {
+    super();
+  }
+  eq(other: ImageWidget) {
+    return other.inner === this.inner && other.from === this.from;
+  }
+  toDOM(view: EditorView) {
+    const { target, width } = parseImageEmbed(this.inner);
+    const wrap = document.createElement("div");
+    wrap.className = "cm-image-embed";
+    const path = resolveAttachment(target, this.from, useAppStore.getState().tree);
+    const url = path ? backend.fileUrl(path) : null;
+    if (url) {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = target;
+      img.title = `${path} (click to edit the link)`;
+      if (width) img.width = width;
+      img.addEventListener("load", () => view.requestMeasure());
+      img.addEventListener("error", () => {
+        wrap.textContent = `Couldn't load ${target}`;
+        wrap.classList.add("missing");
+      });
+      wrap.appendChild(img);
+    } else {
+      wrap.classList.add("missing");
+      wrap.textContent = path ? `🖼 ${target}` : `🖼 ${target} (not found)`;
+    }
+    wrap.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const pos = view.posAtDOM(wrap);
+      view.dispatch({ selection: { anchor: view.state.doc.lineAt(pos).to } });
+      view.focus();
+    });
+    return wrap;
+  }
+  ignoreEvent() {
+    return false;
+  }
+  get estimatedHeight() {
+    return 200;
+  }
+}
+
 function embedDecorations(state: EditorState): DecorationSet {
   const doc = state.doc;
   if (!doc.toString().includes("![[")) return Decoration.none;
@@ -259,10 +309,12 @@ function embedDecorations(state: EditorState): DecorationSet {
     const m = EMBED_LINE_RE.exec(line.text);
     if (m)
       out.push(
-        Decoration.replace({ widget: new EmbedWidget(m[1]!, from), block: true }).range(
-          line.from,
-          line.to,
-        ),
+        Decoration.replace({
+          widget: isImagePath(parseImageEmbed(m[1]!).target)
+            ? new ImageWidget(m[1]!, from)
+            : new EmbedWidget(m[1]!, from),
+          block: true,
+        }).range(line.from, line.to),
       );
   }
   return Decoration.set(out);
