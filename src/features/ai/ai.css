@@ -274,3 +274,43 @@
 .ask-ai-meta {
   font-size: 12px;
 }
+
+.fix-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.fix-diff {
+  max-height: 46vh;
+  overflow: auto;
+}
+.fix-change {
+  display: inline;
+  padding: 0 1px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: pre-wrap;
+  cursor: pointer;
+}
+.fix-change:hover {
+  background: var(--bg-active);
+}
+.fix-change del {
+  color: var(--danger);
+  text-decoration: line-through;
+}
+.fix-change ins {
+  margin-left: 2px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+.fix-kept {
+  outline: 1px dashed var(--border);
+  border-radius: 3px;
+}

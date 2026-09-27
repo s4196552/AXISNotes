@@ -95,6 +95,28 @@ export function openAskAi() {
   });
 }
 
+/** Open "Fix writing" for the editor's selection, or the note's body if nothing is selected. */
+export function openFixText() {
+  const active = getActiveEditor();
+  if (!active) {
+    useAppStore.getState().notify("Open a note to fix its writing.");
+    return;
+  }
+  const { state } = active.view;
+  const sel = state.selection.main;
+  const [from, to] = sel.empty
+    ? [splitFrontmatter(state.doc.toString()).length, state.doc.length]
+    : [sel.from, sel.to];
+  useUi.getState().open({
+    kind: "fix",
+    path: active.path,
+    from,
+    to,
+    original: state.sliceDoc(from, to),
+    scope: sel.empty ? "note" : "selection",
+  });
+}
+
 // ---- Block links ----
 
 /**

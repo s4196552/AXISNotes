@@ -8,6 +8,7 @@ import { useUi } from "./ui";
 import { IconPicker } from "../icons/IconPicker";
 import { Settings } from "../settings/Settings";
 import { AskAi } from "../ai/AskAi";
+import { FixText } from "../ai/FixText";
 import "./commands.css";
 
 /** Global keyboard shortcuts (capture phase, so they win over the editor). */
@@ -129,6 +130,8 @@ export function Modals() {
           onClose={() => useUi.getState().close()}
         />
       );
+    case "fix":
+      return <FixText {...modal} onClose={() => useUi.getState().close()} />;
     case "icon":
       return <IconPicker path={modal.path} onClose={() => useUi.getState().close()} />;
     case "prompt":

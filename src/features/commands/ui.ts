@@ -10,6 +10,14 @@ export type Modal =
   | { kind: "icon"; path: string }
   | { kind: "ask"; path?: string; selection?: string }
   | {
+      kind: "fix";
+      path: string;
+      from: number;
+      to: number;
+      original: string;
+      scope: "selection" | "note";
+    }
+  | {
       kind: "prompt";
       title: string;
       questions: string[];
