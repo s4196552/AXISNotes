@@ -14,6 +14,7 @@ import {
   openDiagram,
 } from "./actions";
 import { useUi } from "./ui";
+import { effectiveShortcut, formatHotkey, matches, type Shortcut } from "./hotkeys";
 import { useEditorPrefs } from "../editor/prefs";
 
 export interface Command {
@@ -22,7 +23,8 @@ export interface Command {
   /** Display form of the shortcut, e.g. "Ctrl+P". */
   hint?: string;
   /** Matcher for the global shortcut (mod = Ctrl, or Cmd on macOS). */
-  shortcut?: { key: string; mod?: boolean; shift?: boolean; alt?: boolean };
+  /** The default shortcut; users can remap it (see `shortcutOf`). */
+  shortcut?: Shortcut;
   run(): void;
 }
 
@@ -41,15 +43,13 @@ export function allCommands(): readonly Command[] {
   return commands;
 }
 
-export function hintFor(s: NonNullable<Command["shortcut"]>): string {
-  return [
-    s.mod && "Ctrl",
-    s.shift && "Shift",
-    s.alt && "Alt",
-    s.key.length === 1 ? s.key.toUpperCase() : s.key,
-  ]
-    .filter(Boolean)
-    .join("+");
+export function hintFor(s: Shortcut): string {
+  return formatHotkey(s);
+}
+
+/** The shortcut a command has now (the user's remapping, or its default). */
+export function shortcutOf(c: Command): Shortcut | undefined {
+  return effectiveShortcut(c.id, c.shortcut, useConfig.getState().config.hotkeys);
 }
 
 registerCommands([
@@ -91,6 +91,11 @@ registerCommands([
   },
   { id: "handwriting", label: "Handwriting to text (pen)", run: openHandwriting },
   { id: "diagram", label: "Make a diagram (AI, or from notes)", run: openDiagram },
+  {
+    id: "getting-started",
+    label: "Getting started with AXIS",
+    run: () => useUi.getState().open({ kind: "getting-started" }),
+  },
   {
     id: "import-obsidian",
     label: "Import from Obsidian…",
@@ -171,13 +176,8 @@ registerCommands([
 
 /** Find the command bound to a keyboard event, if any. */
 export function commandForEvent(e: KeyboardEvent): Command | undefined {
-  const mod = e.ctrlKey || e.metaKey;
-  return commands.find(
-    (c) =>
-      c.shortcut &&
-      c.shortcut.key.toLowerCase() === e.key.toLowerCase() &&
-      Boolean(c.shortcut.mod) === mod &&
-      Boolean(c.shortcut.shift) === e.shiftKey &&
-      Boolean(c.shortcut.alt) === e.altKey,
-  );
+  return commands.find((c) => {
+    const s = shortcutOf(c);
+    return s !== undefined && matches(s, e);
+  });
 }

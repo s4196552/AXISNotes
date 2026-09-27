@@ -6,9 +6,20 @@ import { formatDate } from "../../lib/dates";
 import { SLASH_COMMANDS } from "../editor/quickCommands";
 import { AiSettingsPanel } from "../ai/AiSettings";
 import { ClipperSettings } from "../clipper/ClipperSettings";
+import { HotkeysSettings } from "./HotkeysSettings";
+import { About } from "./About";
 import "./settings.css";
 
-type Section = "appearance" | "spelling" | "daily" | "templates" | "commands" | "ai" | "clipper";
+export type Section =
+  | "appearance"
+  | "spelling"
+  | "daily"
+  | "templates"
+  | "commands"
+  | "hotkeys"
+  | "ai"
+  | "clipper"
+  | "about";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "appearance", label: "Appearance" },
@@ -16,12 +27,14 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "daily", label: "Daily notes" },
   { id: "templates", label: "Templates" },
   { id: "commands", label: "Quick commands" },
+  { id: "hotkeys", label: "Keyboard shortcuts" },
   { id: "ai", label: "AI" },
   { id: "clipper", label: "Web clipper" },
+  { id: "about", label: "About" },
 ];
 
-export function Settings({ onClose }: { onClose(): void }) {
-  const [section, setSection] = useState<Section>("appearance");
+export function Settings({ onClose, section: initial }: { onClose(): void; section?: Section }) {
+  const [section, setSection] = useState<Section>(initial ?? "appearance");
   const config = useConfig((s) => s.config);
   const update = useConfig((s) => s.update);
   const set = (fn: (c: AxisConfig) => AxisConfig) => void update(fn);
@@ -68,6 +81,8 @@ export function Settings({ onClose }: { onClose(): void }) {
           {section === "commands" && <Commands config={config} set={set} />}
           {section === "ai" && <AiSettingsPanel />}
           {section === "clipper" && <ClipperSettings />}
+          {section === "hotkeys" && <HotkeysSettings config={config} set={set} />}
+          {section === "about" && <About />}
         </div>
       </div>
     </div>

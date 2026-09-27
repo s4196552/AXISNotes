@@ -1,5 +1,5 @@
 /// <reference types="vitest/config" />
-import { cpSync, createReadStream, existsSync, statSync } from "node:fs";
+import { cpSync, createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { join, normalize, resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
@@ -39,6 +39,11 @@ export default defineConfig({
   resolve: {
     // dictionary-en only exports a Node entry point; the app loads its files as assets.
     alias: { "dictionary-en-files": resolve("node_modules/dictionary-en") },
+  },
+  define: {
+    __AXIS_VERSION__: JSON.stringify(
+      (JSON.parse(readFileSync("package.json", "utf8")) as { version: string }).version,
+    ),
   },
   clearScreen: false,
   server: {

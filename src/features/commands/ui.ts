@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Section } from "../settings/Settings";
 
 // Which modal is open. Prompts resolve a promise with the user's answers.
 
@@ -6,7 +7,8 @@ export type Modal =
   | { kind: "palette" }
   | { kind: "switcher" }
   | { kind: "templates"; mode: "insert" | "new" }
-  | { kind: "settings" }
+  | { kind: "settings"; section?: Section }
+  | { kind: "getting-started" }
   | { kind: "icon"; path: string }
   | { kind: "ask"; path?: string; selection?: string }
   | { kind: "handwriting"; path: string }
