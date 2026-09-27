@@ -399,6 +399,8 @@ export interface Backend {
   clipperStartPairing(): Promise<PairingCode>;
   clipperCancelPairing(): Promise<void>;
   clipperRevoke(deviceId: string): Promise<ClipperStatus>;
+  /** Opens the bundled browser extension's folder in the file manager; returns its path. */
+  clipperOpenExtensionFolder(): Promise<string>;
   /** A clip was saved as a note. Returns an unsubscribe function. */
   onClipped(cb: (clip: Clipped) => void): Promise<() => void>;
   /** A URL the webview can load a vault file from (images), or null if not possible. */

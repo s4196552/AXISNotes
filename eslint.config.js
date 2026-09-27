@@ -5,7 +5,16 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "src-tauri", "node_modules", "coverage", "extension/vendor"] },
+  {
+    ignores: [
+      "dist",
+      "dist-extension",
+      "src-tauri",
+      "node_modules",
+      "coverage",
+      "extension/vendor",
+    ],
+  },
   {
     // The browser extension: plain JavaScript modules.
     extends: [js.configs.recommended],

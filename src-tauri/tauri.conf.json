@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeBuildCommand": "pnpm build && pnpm build:extension"
   },
   "app": {
     "windows": [
@@ -32,12 +32,29 @@
   "bundle": {
     "active": true,
     "targets": ["msi", "nsis", "dmg", "appimage"],
+    "publisher": "AXIS",
+    "copyright": "© 2026 AXIS contributors",
+    "category": "Productivity",
+    "shortDescription": "Local-first personal knowledge base",
+    "longDescription": "AXIS keeps your notes as plain Markdown files in a folder you choose, with links, search, grids, canvases, handwriting and optional AI using your own keys.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
-      "icons/icon.ico"
-    ]
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "resources": {
+      "../dist-extension/": "extension/"
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
   }
 }

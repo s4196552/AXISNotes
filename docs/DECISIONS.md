@@ -75,6 +75,13 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Spellcheck**: the nspell engine lives in `spellcheck/hunspell.ts`, which only the worker imports, so the dictionary and nspell stay out of the main bundle.
 - Search latency was already covered in Phase 1 (under 100 ms on 5,000 notes). The index and watcher paths were unchanged.
 
+### Installers (T-035)
+
+- **Targets**: Windows `.msi` (WiX) and `.exe` (NSIS), macOS `.dmg` (Apple Silicon and Intel builds), and a Linux AppImage. They are built by `.github/workflows/release.yml` using `tauri-apps/tauri-action` (MIT/Apache-2.0, CI only) when a `v*` tag is pushed or the workflow is started by hand, and attached to a draft release. The AppImage is built on Ubuntu 22.04 so it runs on older glibc versions.
+- **Not code-signed yet.** Windows SmartScreen and macOS Gatekeeper will warn. Signing needs certificates, which means an Apple Developer account and a Windows code-signing certificate. That's the user's call; tauri-action picks up the signing secrets once they exist.
+- **The browser extension ships inside the app.** `pnpm build:extension` also writes a clean `dist-extension/` (no tests), and `tauri build` runs it first (`beforeBuildCommand`). The bundle includes it as the `extension/` resource. Settings → Web clipper → **Open extension folder** opens it in the file manager for "Load unpacked". Development builds fall back to the source `extension/` folder. `build.rs` creates an empty `dist-extension/` so plain `cargo` builds still work. Publishing to the Chrome Web Store or Firefox Add-ons would need developer accounts, so it's left for later.
+- **App icon**: a new AXIS mark (`src-tauri/icons/app-icon.svg`, generated with `tauri icon`) replaces the Tauri placeholder. It is also used for the extension. Version 0.1.0 is now the same in `package.json`, `Cargo.toml` and `tauri.conf.json`.
+
 ## 2026-09-27: Phase 5 AI features (T-025 – T-029)
 
 ### Spellcheck (T-025)

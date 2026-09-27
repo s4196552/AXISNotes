@@ -285,6 +285,7 @@ export function createMemoryBackend(
     clipperStartPairing: async () => ({ code: "000000", expiresInSecs: 300 }),
     clipperCancelPairing: async () => {},
     clipperRevoke: async () => ({ ...clipper }),
+    clipperOpenExtensionFolder: async () => "/app/extension",
     onClipped: async () => () => {},
     fileUrl: () => null,
     // The browser preview can't read folders on disk: importing adds a sample note.

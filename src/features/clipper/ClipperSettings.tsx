@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link2, Trash } from "lucide-react";
+import { FolderOpen, Link2, Trash } from "lucide-react";
 import { backend, type ClipperStatus, isBackendError, type PairingCode } from "../../ipc";
 import "./clipper.css";
 
@@ -14,6 +14,7 @@ export function ClipperSettings() {
   const [error, setError] = useState<string | null>(null);
   const [pairing, setPairing] = useState<(PairingCode & { until: number }) | null>(null);
   const [left, setLeft] = useState(0);
+  const [extensionDir, setExtensionDir] = useState<string | null>(null);
 
   useEffect(() => {
     backend.clipperStatus().then(setStatus, (e: unknown) => setError(message(e)));
@@ -150,12 +151,27 @@ export function ClipperSettings() {
 
       <h3>Install the extension</h3>
       <p className="muted">
-        The extension is in the <code>extension</code> folder of AXIS. In Chrome or Edge, open{" "}
-        <code>chrome://extensions</code>, turn on Developer mode and choose “Load unpacked”. In
-        Firefox, open <code>about:debugging</code> → This Firefox → “Load Temporary Add-on” and pick
-        its <code>manifest.json</code>. Clips taken while AXIS is closed are kept by the extension
-        and delivered the next time AXIS runs.
+        The extension comes with AXIS. In Chrome or Edge, open <code>chrome://extensions</code>,
+        turn on Developer mode, choose “Load unpacked” and pick the extension folder. In Firefox,
+        open <code>about:debugging</code> → This Firefox → “Load Temporary Add-on” and pick its{" "}
+        <code>manifest.json</code>. Clips taken while AXIS is closed are kept by the extension and
+        delivered the next time AXIS runs.
       </p>
+      <button
+        onClick={() =>
+          void backend.clipperOpenExtensionFolder().then(
+            (dir) => (setExtensionDir(dir), setError(null)),
+            (e: unknown) => setError(message(e)),
+          )
+        }
+      >
+        <FolderOpen size={14} /> Open extension folder
+      </button>
+      {extensionDir && (
+        <p className="muted">
+          Opened <code>{extensionDir}</code>
+        </p>
+      )}
     </div>
   );
 }

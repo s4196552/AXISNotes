@@ -98,3 +98,36 @@ pub fn clipper_revoke(c: State<ClipperState>, id: String) -> AppResult<ClipperSt
     c.0.revoke(&id)?;
     Ok(c.0.status())
 }
+
+/// Where the browser extension is: bundled with the installed app, or the source folder
+/// (`extension/`) in development builds.
+fn extension_dir(app: &AppHandle) -> Option<PathBuf> {
+    let bundled = app.path().resource_dir().ok()?.join("extension");
+    if bundled.join("manifest.json").is_file() {
+        return Some(dunce::simplified(&bundled).to_path_buf());
+    }
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../extension");
+    (cfg!(debug_assertions) && source.join("manifest.json").is_file())
+        .then(|| dunce::canonicalize(&source).unwrap_or(source))
+}
+
+/// Opens the extension's folder in the system file manager (for "Load unpacked") and
+/// returns its path.
+#[tauri::command]
+pub fn clipper_open_extension_folder(app: AppHandle) -> AppResult<String> {
+    let dir = extension_dir(&app)
+        .ok_or_else(|| AppError::NotFound("the browser extension folder".into()))?;
+    let opener = if cfg!(windows) {
+        "explorer"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    let mut child = std::process::Command::new(opener)
+        .arg(&dir)
+        .spawn()
+        .map_err(|e| AppError::Io(format!("couldn't open {}: {e}", dir.display())))?;
+    std::thread::spawn(move || child.wait());
+    Ok(dir.to_string_lossy().into_owned())
+}
