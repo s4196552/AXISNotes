@@ -91,6 +91,11 @@ registerCommands([
   },
   { id: "handwriting", label: "Handwriting to text (pen)", run: openHandwriting },
   { id: "diagram", label: "Make a diagram (AI, or from notes)", run: openDiagram },
+  {
+    id: "import-obsidian",
+    label: "Import from Obsidian…",
+    run: () => useUi.getState().open({ kind: "import" }),
+  },
   { id: "time", label: "Time report", run: () => useAppStore.getState().setMainView("time") },
   { id: "stop-timer", label: "Stop timer", run: () => void useTimer.getState().stop() },
   { id: "new-grid", label: "New grid (spreadsheet)", run: () => void newGrid() },

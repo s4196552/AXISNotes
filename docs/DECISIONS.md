@@ -48,6 +48,19 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 | turndown                                   | 7.2.4   | MIT        | HTML → Markdown       |
 | turndown-plugin-gfm                        | 1.0.2   | MIT        | Tables, strikethrough |
 
+### Obsidian import (T-032)
+
+- **Copy, don't convert.** AXIS's Markdown is Obsidian's: wikilinks, embeds, block ids, nested tags, frontmatter and callouts. Notes and attachments are copied byte for byte into a folder of the vault (by default named after the Obsidian vault), or into the root. `[[Folder/Note]]` links keep working inside a subfolder because path links resolve by suffix.
+- **Skipped**: `.obsidian/`, `.trash/`, dotfiles and `node_modules`. **Never overwritten**: a file that already exists is skipped and listed in the report. Importing a folder into itself (or the vault into itself) is refused. After a large import the index is rescanned, instead of relying on thousands of watcher events.
+- **JSON Canvas → AXIS canvas**:
+  - Note nodes become live note cards (`axis:` embeddables).
+  - Text and link nodes become text; links keep the URL as the element's link.
+  - Groups become dashed frames with their label; other file nodes become a frame with `![[file]]`.
+  - Edges become arrows from the named sides, with their labels.
+- **Settings carried over (on request)**: the templates folder and daily-note folder, format and template from `.obsidian/templates.json` and `daily-notes.json`. The Moment.js date tokens Obsidian uses by default are the same in AXIS.
+- **Obsidian syntax is now styled** in the editor: `==highlight==` (markers hidden off the active line), `%%comments%%` (dimmed) and `> [!type]` callouts (coloured by kind: note / tip / warning / question / quote).
+- You can also open an Obsidian vault directly as an AXIS vault. Import is for merging one into an existing vault.
+
 ## 2026-09-27: Phase 5 AI features (T-025 – T-029)
 
 ### Spellcheck (T-025)

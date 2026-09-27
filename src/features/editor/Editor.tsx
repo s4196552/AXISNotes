@@ -19,6 +19,7 @@ import { links, refreshLinks, wikilinkCompletions } from "./links";
 import { anchorCompletions, embeds } from "./embeds";
 import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
+import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
@@ -232,6 +233,7 @@ export function Editor({ path }: EditorProps) {
                 content: markdown({ base: markdownLanguage, codeLanguages: languages }),
               }),
               livePreview,
+              obsidianSyntax,
               mermaidBlocks,
               spellCompartment.current.of(configuredSpellcheck()),
               links({

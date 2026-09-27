@@ -314,3 +314,40 @@ pub fn list_axis_files(state: State<AppState>, subdir: String) -> AppResult<Vec<
     names.sort();
     Ok(names)
 }
+
+/// What importing `source` would bring in (shown before importing).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportPreview {
+    pub obsidian: bool,
+    pub name: String,
+}
+
+#[tauri::command]
+pub fn inspect_import(source: String) -> AppResult<ImportPreview> {
+    let path = PathBuf::from(&source);
+    if !path.is_dir() {
+        return Err(AppError::NotFound(source));
+    }
+    Ok(ImportPreview {
+        obsidian: crate::import::is_obsidian_vault(&path),
+        name: path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+    })
+}
+
+/// Copy an Obsidian vault (or any folder of Markdown) into the open vault.
+#[tauri::command]
+pub async fn import_obsidian(
+    state: State<'_, AppState>,
+    source: String,
+    target: String,
+) -> AppResult<crate::import::ImportReport> {
+    let vault = state.vault()?;
+    let report = crate::import::import_obsidian(&vault, &PathBuf::from(source), &target)?;
+    // Thousands of new files at once: rescan instead of relying on watcher events.
+    state.with_index(|i| i.sync(&vault))?;
+    Ok(report)
+}
