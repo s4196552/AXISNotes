@@ -254,6 +254,27 @@ impl Vault {
         })
     }
 
+    /// Write binary data (screenshots, imported attachments), atomically.
+    pub fn write_bytes(&self, rel: &str, bytes: &[u8]) -> AppResult<()> {
+        let abs = self.resolve_entry(rel)?;
+        validate_name(&abs.file_name().unwrap_or_default().to_string_lossy())?;
+        if let Some(parent) = abs.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let file_name = abs
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        let tmp = abs.with_file_name(format!(".{file_name}.axis-tmp"));
+        fs::write(&tmp, bytes)?;
+        if let Err(e) = fs::rename(&tmp, &abs) {
+            let _ = fs::remove_file(&tmp);
+            return Err(e.into());
+        }
+        Ok(())
+    }
+
     pub fn create_file(&self, rel: &str, content: &str) -> AppResult<VaultEntry> {
         let abs = self.resolve_entry(rel)?;
         validate_name(&abs.file_name().unwrap_or_default().to_string_lossy())?;

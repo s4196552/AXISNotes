@@ -145,3 +145,20 @@ input {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+.image-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.image-view-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+.image-view-body img {
+  max-width: 100%;
+  height: auto;
+}

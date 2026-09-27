@@ -5,9 +5,10 @@ import { type AxisConfig, useConfig } from "../../app/config";
 import { formatDate } from "../../lib/dates";
 import { SLASH_COMMANDS } from "../editor/quickCommands";
 import { AiSettingsPanel } from "../ai/AiSettings";
+import { ClipperSettings } from "../clipper/ClipperSettings";
 import "./settings.css";
 
-type Section = "appearance" | "spelling" | "daily" | "templates" | "commands" | "ai";
+type Section = "appearance" | "spelling" | "daily" | "templates" | "commands" | "ai" | "clipper";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "appearance", label: "Appearance" },
@@ -16,6 +17,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "templates", label: "Templates" },
   { id: "commands", label: "Quick commands" },
   { id: "ai", label: "AI" },
+  { id: "clipper", label: "Web clipper" },
 ];
 
 export function Settings({ onClose }: { onClose(): void }) {
@@ -65,6 +67,7 @@ export function Settings({ onClose }: { onClose(): void }) {
           )}
           {section === "commands" && <Commands config={config} set={set} />}
           {section === "ai" && <AiSettingsPanel />}
+          {section === "clipper" && <ClipperSettings />}
         </div>
       </div>
     </div>

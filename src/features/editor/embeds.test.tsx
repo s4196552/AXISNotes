@@ -145,3 +145,19 @@ describe("copy block link", () => {
     setActiveEditor(null);
   });
 });
+
+describe("image embeds", () => {
+  it("shows ![[image.png|width]] as an image found anywhere in the vault", async () => {
+    h.b = createMemoryBackend({
+      "Pic.md": "Look:\n\n![[cat.png|120]]\n\n![[nope.png]]\n",
+      "pics/cat.png": "",
+    });
+    h.b.fileUrl = (p: string) => `asset://vault/${p}`;
+    await act(() => useAppStore.getState().refreshTree());
+    render(<Editor path="Pic.md" />);
+    const img = (await screen.findByAltText("cat.png")) as HTMLImageElement;
+    expect(img.src).toBe("asset://vault/pics/cat.png");
+    expect(img.width).toBe(120);
+    expect(screen.getByText("🖼 nope.png (not found)")).toBeInTheDocument();
+  });
+});

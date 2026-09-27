@@ -38,6 +38,14 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-028 | 5     | Diagram maker: Mermaid rendering, AI Mermaid/Excalidraw (schema), outline → diagram | claude | merged | agent/claude/T-028 | `src/features/diagrams/**`, `src/lib/diagram*.ts` |
 | T-029 | 5     | Phase 5 E2E + polish                                                        | claude | merged    | agent/claude/T-029 | `e2e/**` |
 
+| T-030 | 6     | Web clipper endpoint (localhost, pairing, clips → notes), image embeds, settings | claude | merged    | agent/claude/T-030 | `src-tauri/src/clipper/**`, `src/features/clipper/**`, `src/lib/attachments.ts` |
+| T-031 | 6     | Browser extension (Chrome/Edge/Firefox MV3): page/selection/screenshot/link, offline queue | claude | todo | agent/claude/T-031 | `extension/**` |
+| T-032 | 6     | Obsidian vault import                                                       | claude | todo      | agent/claude/T-032 | `src-tauri/src/import.rs`, `src/features/import/**` |
+| T-033 | 6     | Onboarding + settings polish                                                | claude | todo      | agent/claude/T-033 | `src/features/vault/**`, `src/features/settings/**` |
+| T-034 | 6     | Performance pass                                                            | claude | todo      | agent/claude/T-034 | build config, lazy loading |
+| T-035 | 6     | Installers (.msi, .dmg, AppImage) + release workflow                        | claude | todo      | agent/claude/T-035 | `src-tauri/tauri.conf.json`, `.github/workflows/release.yml` |
+| T-036 | 6     | Phase 6 E2E + polish                                                        | claude | todo      | agent/claude/T-036 | `e2e/**` |
+
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
-_Codex could not run commands (Windows sandbox provisioning failed: `helper_sandbox_lock_failed`), so per the user Claude builds T-003/T-004 itself. Codex cross-reviews are owed once the sandbox is fixed._
+_Codex could not run commands (Windows sandbox provisioning failed: `helper_sandbox_lock_failed`). From Phase 6 the user dropped Codex entirely: Claude builds and verifies every task, and no Codex reviews are owed._

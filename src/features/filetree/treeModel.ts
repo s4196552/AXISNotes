@@ -51,7 +51,9 @@ export function isMarkdown(name: string): boolean {
 
 /** Files the app can open (notes, grids). Others are shown dimmed. */
 export function isOpenable(entry: VaultEntry): boolean {
-  return entry.kind === "file" && docKind(entry.name) !== null;
+  if (entry.kind !== "file") return false;
+  const kind = docKind(entry.name);
+  return kind !== null && kind !== "other";
 }
 
 /** Notes and grids are shown without their extension. */

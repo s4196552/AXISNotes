@@ -279,6 +279,37 @@ export interface AiLogEntry {
 }
 
 /** Everything the UI may ask of the backend. UI code depends on this, never on `invoke`. */
+// ---- Web clipper (Phase 6); see src-tauri/src/clipper ----
+
+export interface ClipperDevice {
+  id: string;
+  name: string;
+  createdMs: number;
+  lastUsedMs: number | null;
+}
+
+export interface ClipperStatus {
+  enabled: boolean;
+  /** Listening on 127.0.0.1:port. */
+  running: boolean;
+  port: number;
+  /** Vault folder clips are saved in. */
+  folder: string;
+  /** e.g. the port is taken. */
+  error: string | null;
+  devices: ClipperDevice[];
+}
+
+export interface PairingCode {
+  code: string;
+  expiresInSecs: number;
+}
+
+export interface Clipped {
+  path: string;
+  title: string;
+}
+
 export interface Backend {
   /** Show a native folder picker; resolves null if cancelled. */
   pickFolder(): Promise<string | null>;
@@ -337,4 +368,16 @@ export interface Backend {
   aiCancel(runId: string): Promise<void>;
   /** Recent AI requests (metadata only), newest first. */
   aiLog(limit?: number): Promise<AiLogEntry[]>;
+
+  clipperStatus(): Promise<ClipperStatus>;
+  clipperSetEnabled(enabled: boolean): Promise<ClipperStatus>;
+  clipperSetFolder(folder: string): Promise<ClipperStatus>;
+  /** Show a one-time code the browser extension uses to pair. */
+  clipperStartPairing(): Promise<PairingCode>;
+  clipperCancelPairing(): Promise<void>;
+  clipperRevoke(deviceId: string): Promise<ClipperStatus>;
+  /** A clip was saved as a note. Returns an unsubscribe function. */
+  onClipped(cb: (clip: Clipped) => void): Promise<() => void>;
+  /** A URL the webview can load a vault file from (images), or null if not possible. */
+  fileUrl(path: string): string | null;
 }

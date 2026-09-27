@@ -1,0 +1,55 @@
+.clipper-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.clipper-settings h3 {
+  margin: 12px 0 2px;
+  font-size: 14px;
+}
+.clipper-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.clipper-row input:not([type="checkbox"]) {
+  flex: 1;
+  max-width: 280px;
+}
+.clipper-status {
+  margin: 0;
+  font-size: 13px;
+}
+.clipper-devices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.clipper-devices li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.clipper-devices li .muted {
+  flex: 1;
+}
+.clipper-pairing {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.clipper-pairing p {
+  margin: 4px 0;
+}
+.clipper-code {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  letter-spacing: 6px;
+  font-weight: 700;
+}
+.clipper-settings code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}

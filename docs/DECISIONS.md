@@ -2,6 +2,35 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-27: Phase 6 web clipper, import, polish and installers (T-030 – T-036)
+
+- **Process change:** the user dropped Codex. Claude builds and verifies every task, and the cross-review rule in `AGENTS.md` no longer applies.
+
+### Web clipper endpoint (T-030)
+
+- **A tiny HTTP server on `127.0.0.1:38417`** (`tiny_http`, in its own thread), started with the app and switchable off in Settings → Web clipper. It is localhost only and never reachable from the network. `AXIS_CLIPPER_PORT` overrides the port (E2E).
+- **Pairing, not open access:**
+  - The app shows a 6-digit code. It is valid for 5 minutes and dies after 5 wrong tries.
+  - The extension trades the code for a 256-bit random token.
+  - Only the token's SHA-256 is stored, in `clipper.json` in the app config folder (not the vault).
+  - Paired browsers are listed and can be revoked.
+- **Web pages are refused:** any request with an `http(s)://` (or `null`) `Origin` gets a 403. Websites therefore can't pair or clip even though the endpoint is on localhost. The extension's requests carry an extension origin.
+- **Clips become notes** in `Clippings/` (configurable):
+  - Frontmatter: `source`, `clipped` (UTC), `clip` kind, `tags: [clipping, …]`.
+  - Pages carry the extension's Markdown, selections become a blockquote with a link, links are a single Markdown link.
+  - Screenshots go to `Clippings/attachments/*.png`, embedded with `![[…]]`.
+  - Titles become safe file names, and a clash gets " 2", " 3" and so on.
+  - A clip `id` is remembered (the last 500), so a retried delivery from the offline queue isn't saved twice.
+  - With no vault open, the endpoint answers 503 and the extension keeps the clip.
+- **Image embeds**: `![[photo.png]]` (with Obsidian's `|width`) renders in notes. Bare names resolve like Obsidian: the note's folder, then anywhere. Image files open in an image view instead of the text editor.
+  - The images are served through Tauri's **asset protocol**. Its scope starts empty, and only the open vault's folder is allowed at runtime. The CSP allows `asset:` and `http://asset.localhost` for images only.
+
+| Package (Rust)                                  | Version | License            | Purpose                    |
+| ----------------------------------------------- | ------- | ------------------ | -------------------------- |
+| tiny_http (+ ascii, chunked_transfer, httpdate) | 0.12    | MIT OR Apache-2.0  | Localhost clipper endpoint |
+| base64                                          | 0.22    | MIT OR Apache-2.0  | Decode screenshots         |
+| ring (direct; already used through rustls)      | 0.17    | Apache-2.0 AND ISC | Random tokens, SHA-256     |
+
 ## 2026-09-27: Phase 5 AI features (T-025 – T-029)
 
 ### Spellcheck (T-025)

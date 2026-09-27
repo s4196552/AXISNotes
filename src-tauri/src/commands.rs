@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::{AppError, AppResult};
 use crate::index::graph::GraphData;
@@ -90,6 +90,11 @@ impl AppState {
     fn activate(&self, app: &AppHandle, vault: Vault) -> AppResult<VaultInfo> {
         // Drop the old watcher/index before opening the new ones.
         *self.watcher.lock().unwrap() = None;
+        // Images in the vault (embeds, clipped screenshots) load through the asset
+        // protocol; only the open vault is readable that way.
+        let _ = app
+            .asset_protocol_scope()
+            .allow_directory(vault.root(), true);
         *self.index.lock().unwrap() = Some(Index::open(&vault)?);
 
         let emitter = app.clone();
