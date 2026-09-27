@@ -69,6 +69,7 @@ pub fn run() {
             clipper_commands::clipper_start_pairing,
             clipper_commands::clipper_cancel_pairing,
             clipper_commands::clipper_revoke,
+            clipper_commands::clipper_open_extension_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AXIS");

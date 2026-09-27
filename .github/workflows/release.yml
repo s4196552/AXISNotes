@@ -1,0 +1,60 @@
+name: Release
+
+# Builds the installers (Windows .msi + .exe, macOS .dmg, Linux AppImage) and attaches
+# them to a draft GitHub release. Run it by pushing a tag like `v0.1.0`, or by hand.
+# The builds are not code-signed yet (see docs/DECISIONS.md).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installers:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: ""
+          - os: macos-latest
+            args: --target aarch64-apple-darwin
+          - os: macos-latest
+            args: --target x86_64-apple-darwin
+          # The oldest supported Ubuntu, so the AppImage runs on older glibc versions.
+          - os: ubuntu-22.04
+            args: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Linux system deps (Tauri)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: pnpm install --frozen-lockfile
+      # tauri build runs `pnpm build && pnpm build:extension` first (tauri.conf.json).
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
+          releaseName: AXIS v__VERSION__
+          releaseBody: Installers for Windows (.msi / .exe), macOS (.dmg) and Linux (AppImage).
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
