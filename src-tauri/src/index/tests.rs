@@ -354,3 +354,71 @@ fn time_entries_come_from_frontmatter_with_tags_and_project() {
     assert_eq!(e[0].project.as_deref(), Some("Alpha"));
     assert_eq!(e[1].end, None); // running
 }
+
+/// Opens the folder in `AXISNOTES_PROBE` the way the app does and times each step.
+/// Run by hand: `AXISNOTES_PROBE=<dir> cargo test probe_big_vault -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn probe_big_vault() {
+    let Ok(dir) = std::env::var("AXISNOTES_PROBE") else {
+        return;
+    };
+    let t = std::time::Instant::now();
+    let v = crate::vault::Vault::open(std::path::Path::new(&dir)).unwrap();
+    println!("vault open: {:?}", t.elapsed());
+    let t = std::time::Instant::now();
+    match v.list_tree() {
+        Ok(tree) => {
+            let json = serde_json::to_string(&tree).unwrap();
+            println!(
+                "list_tree: {:?}, {} KB of JSON",
+                t.elapsed(),
+                json.len() / 1024
+            );
+        }
+        Err(e) => println!("list_tree FAILED after {:?}: {e}", t.elapsed()),
+    }
+    let t = std::time::Instant::now();
+    match Index::open(&v) {
+        Ok(_) => println!("index (first build): {:?}", t.elapsed()),
+        Err(e) => println!("index FAILED: {e}"),
+    }
+    let t = std::time::Instant::now();
+    Index::open(&v).unwrap();
+    println!("index (reopen, nothing changed): {:?}", t.elapsed());
+}
+
+#[test]
+fn sync_skips_link_loops_reports_progress_and_can_stop() {
+    let dir = tempfile::tempdir().unwrap();
+    for i in 0..1200 {
+        std::fs::write(dir.path().join(format!("n{i}.md")), format!("# N{i}")).unwrap();
+    }
+    let v = crate::vault::Vault::open(dir.path()).unwrap();
+    crate::vault::tests::link_dir(dir.path(), &dir.path().join("loop"));
+
+    let mut idx = Index::open_unsynced(&v).unwrap();
+    let mut seen = Vec::new();
+    idx.sync_with_progress(&v, &|| false, &mut |d, t| seen.push((d, t)))
+        .unwrap();
+    assert_eq!(seen.first(), Some(&(0, 1200)));
+    assert_eq!(seen.last(), Some(&(1200, 1200)));
+    assert_eq!(idx.list_notes().unwrap().len(), 1200);
+
+    // Nothing changed: nothing to read.
+    let mut again = Vec::new();
+    idx.sync_with_progress(&v, &|| false, &mut |d, t| again.push((d, t)))
+        .unwrap();
+    assert_eq!(again, [(0, 0)]);
+
+    // A cancelled sync stops between batches.
+    let fresh = tempfile::tempdir().unwrap();
+    for i in 0..1200 {
+        std::fs::write(fresh.path().join(format!("m{i}.md")), "x").unwrap();
+    }
+    let v2 = crate::vault::Vault::open(fresh.path()).unwrap();
+    let mut idx2 = Index::open_unsynced(&v2).unwrap();
+    idx2.sync_with_progress(&v2, &|| true, &mut |_, _| {})
+        .unwrap();
+    assert_eq!(idx2.list_notes().unwrap().len(), 0);
+}

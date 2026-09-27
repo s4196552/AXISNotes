@@ -26,6 +26,12 @@ describe("AXISNotes desktop app on a real vault", () => {
     await expect(row("Welcome.md")).toBeDisplayed();
     await expect(row("School")).toBeDisplayed();
     await expect($(".sidebar-header")).toHaveText(path.basename(vault));
+    // The seed's looping link and broken link are left out; they don't block the vault.
+    await expect(row("Broken link")).not.toExist();
+    await row("School").click();
+    await expect(row("School/Biology.md")).toBeDisplayed();
+    await expect(row("School/Back to top")).not.toExist();
+    await row("School").click();
   });
 
   it("opens a note with live preview", async () => {

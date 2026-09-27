@@ -35,6 +35,7 @@ export default function App() {
   const mainView = useAppStore((s) => s.mainView);
   const error = useAppStore((s) => s.error);
   const notice = useAppStore((s) => s.notice);
+  const indexing = useAppStore((s) => s.indexing);
   const refreshTree = useAppStore((s) => s.refreshTree);
   useClipNotices();
 
@@ -95,6 +96,24 @@ export default function App() {
     return () => unlisten?.();
   }, [vault, refreshTree]);
 
+  // A big vault opens before its index is complete; show progress, then refresh.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let gone = false;
+    void backend
+      .onIndexProgress((p) => {
+        if (p.finished) {
+          useAppStore.setState({ indexing: null });
+          useAppStore.getState().bumpIndex();
+        } else useAppStore.setState({ indexing: { done: p.done, total: p.total } });
+      })
+      .then((u) => (gone ? u() : (unlisten = u)));
+    return () => {
+      gone = true;
+      unlisten?.();
+    };
+  }, []);
+
   if (!vault) return <WelcomeScreen />;
 
   return (
@@ -127,6 +146,11 @@ export default function App() {
       <Modals />
       <footer className="statusbar">
         <span>{activePath ?? ""}</span>
+        {indexing && (
+          <span className="muted" role="status">
+            Indexing notes… {indexing.done.toLocaleString()} of {indexing.total.toLocaleString()}
+          </span>
+        )}
         {notice && !error && <span className="notice">{notice}</span>}
         <RunningTimer />
         {error && (

@@ -37,11 +37,22 @@ function write(dir: string, rel: string, text: string) {
   fs.writeFileSync(file, text);
 }
 
+/** A folder link: a junction on Windows (no admin rights needed), a symlink elsewhere. */
+function linkDir(target: string, link: string) {
+  fs.symlinkSync(target, link, process.platform === "win32" ? "junction" : "dir");
+}
+
 /** Seeds per spec file (chosen by name); every spec gets a fresh vault. */
 const SEEDS: Record<string, (dir: string) => void> = {
   vault(dir) {
     write(dir, "Welcome.md", "# Welcome\n\nHello from disk\n");
     write(dir, "School/Biology.md", "# Biology\n\n- [ ] read ch. 1\n");
+    // Real folders are messy: a link back up the tree and one to a deleted folder must
+    // not stop the vault from opening.
+    linkDir(dir, path.join(dir, "School", "Back to top"));
+    fs.mkdirSync(path.join(dir, "gone"));
+    linkDir(path.join(dir, "gone"), path.join(dir, "Broken link"));
+    fs.rmdirSync(path.join(dir, "gone"));
   },
   knowledge(dir) {
     write(

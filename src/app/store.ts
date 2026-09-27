@@ -35,6 +35,8 @@ export interface AppState {
   error: string | null;
   /** Short-lived confirmation shown in the status bar. */
   notice: string | null;
+  /** Set while a newly opened vault's index is being caught up. */
+  indexing: { done: number; total: number } | null;
 
   openVault(path: string): Promise<void>;
   /** `files`: notes to start the vault with (path → content). */
@@ -84,6 +86,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   searchQuery: "",
   error: null,
   notice: null,
+  indexing: null,
 
   async openVault(path) {
     try {

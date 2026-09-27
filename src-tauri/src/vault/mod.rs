@@ -3,6 +3,7 @@
 
 pub mod watcher;
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
@@ -58,6 +59,83 @@ pub struct WriteResult {
 /// and our own temp files.
 pub fn is_hidden_name(name: &str) -> bool {
     name.starts_with('.') || name.ends_with(".axisnotes-tmp")
+}
+
+/// A visible item in a folder, with the metadata of what it points to.
+pub(crate) struct Child {
+    pub name: String,
+    pub path: PathBuf,
+    pub is_dir: bool,
+    pub meta: fs::Metadata,
+    /// Where a folder really is (its link target for a folder link); walks pass it down.
+    pub real: PathBuf,
+}
+
+/// The canonical form of a folder, used to recognise one reached twice through links.
+fn canonical(dir: &Path) -> PathBuf {
+    dunce::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf())
+}
+
+/// A walk through a vault: `seen` holds the targets of folder links already followed.
+pub(crate) struct Walk {
+    seen: HashSet<PathBuf>,
+}
+
+impl Walk {
+    /// Start at `root`; returns the walk and the root's real location.
+    pub fn new(root: &Path) -> (Self, PathBuf) {
+        (
+            Self {
+                seen: HashSet::new(),
+            },
+            canonical(root),
+        )
+    }
+
+    /// The visible items in `dir` (really at `real`). Never fails: an unreadable folder
+    /// has no children, and items that can't be read (a broken link, no permission) are
+    /// skipped. A folder link is followed unless it points at a folder the walk is already
+    /// inside (a loop) or has already followed a link to.
+    pub fn children(&mut self, dir: &Path, real: &Path) -> Vec<Child> {
+        let Ok(entries) = fs::read_dir(dir) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if is_hidden_name(&name) {
+                continue;
+            }
+            let path = entry.path();
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            let (meta, real_child) = if kind.is_symlink() {
+                // Follow the link; a broken one fails here and is skipped.
+                let Ok(meta) = fs::metadata(&path) else {
+                    continue;
+                };
+                let target = canonical(&path);
+                if meta.is_dir() && (real.starts_with(&target) || !self.seen.insert(target.clone()))
+                {
+                    continue;
+                }
+                (meta, target)
+            } else {
+                // Cheap: comes from the folder listing itself on Windows.
+                let Ok(meta) = entry.metadata() else { continue };
+                (meta, real.join(&name))
+            };
+            out.push(Child {
+                name,
+                is_dir: meta.is_dir(),
+                path,
+                meta,
+                real: real_child,
+            });
+        }
+        out
+    }
 }
 
 pub(crate) fn modified_ms(meta: &fs::Metadata) -> u64 {
@@ -167,49 +245,66 @@ impl Vault {
         Some(parts.join("/"))
     }
 
+    /// The whole vault as a tree. Items that can't be read (no permission, a link to
+    /// something that no longer exists) are left out instead of failing the vault, and
+    /// folder links are followed only once, so a link back up the tree can't loop.
+    pub fn list_tree(&self) -> AppResult<VaultEntry> {
+        let mut root = self.entry_for(&self.root, true)?;
+        root.name = self.info().name;
+        Ok(root)
+    }
+
+    /// One entry; with `recurse`, its whole subtree.
     fn entry_for(&self, abs: &Path, recurse: bool) -> AppResult<VaultEntry> {
         let meta = fs::metadata(abs)?;
-        let kind = if meta.is_dir() {
-            EntryKind::Dir
-        } else {
-            EntryKind::File
-        };
-        let children = if kind == EntryKind::Dir && recurse {
-            let mut kids = Vec::new();
-            for item in fs::read_dir(abs)? {
-                let item = item?;
-                let name = item.file_name().to_string_lossy().into_owned();
-                if is_hidden_name(&name) {
-                    continue;
-                }
-                kids.push(self.entry_for(&item.path(), true)?);
+        let children = meta.is_dir().then(|| {
+            if recurse {
+                let (mut walk, real) = Walk::new(abs);
+                self.tree_children(abs, &real, &mut walk)
+            } else {
+                Vec::new()
             }
-            kids.sort_by(|a, b| {
-                (a.kind != EntryKind::Dir, a.name.to_lowercase())
-                    .cmp(&(b.kind != EntryKind::Dir, b.name.to_lowercase()))
-            });
-            Some(kids)
-        } else if kind == EntryKind::Dir {
-            Some(Vec::new())
-        } else {
-            None
-        };
+        });
         Ok(VaultEntry {
             path: self.to_rel(abs).unwrap_or_default(),
             name: abs
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default(),
-            kind,
+            kind: if meta.is_dir() {
+                EntryKind::Dir
+            } else {
+                EntryKind::File
+            },
             modified_ms: modified_ms(&meta),
             children,
         })
     }
 
-    pub fn list_tree(&self) -> AppResult<VaultEntry> {
-        let mut root = self.entry_for(&self.root, true)?;
-        root.name = self.info().name;
-        Ok(root)
+    fn tree_children(&self, dir: &Path, real: &Path, walk: &mut Walk) -> Vec<VaultEntry> {
+        let mut kids: Vec<VaultEntry> = walk
+            .children(dir, real)
+            .into_iter()
+            .map(|c| {
+                let children = c.is_dir.then(|| self.tree_children(&c.path, &c.real, walk));
+                VaultEntry {
+                    path: self.to_rel(&c.path).unwrap_or_default(),
+                    name: c.name,
+                    kind: if c.is_dir {
+                        EntryKind::Dir
+                    } else {
+                        EntryKind::File
+                    },
+                    modified_ms: modified_ms(&c.meta),
+                    children,
+                }
+            })
+            .collect();
+        kids.sort_by(|a, b| {
+            (a.kind != EntryKind::Dir, a.name.to_lowercase())
+                .cmp(&(b.kind != EntryKind::Dir, b.name.to_lowercase()))
+        });
+        kids
     }
 
     pub fn read_file(&self, rel: &str) -> AppResult<FileContent> {
@@ -342,7 +437,7 @@ impl Vault {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn vault() -> (tempfile::TempDir, Vault) {
@@ -369,6 +464,62 @@ mod tests {
             "{\"theme\":\"dark\"}"
         );
         assert!(dir.path().join(".axisnotes/themes").is_dir());
+    }
+
+    /// A folder link: a junction on Windows (no admin rights needed), a symlink elsewhere.
+    pub(crate) fn link_dir(target: &Path, link: &Path) {
+        #[cfg(windows)]
+        {
+            let ok = std::process::Command::new("cmd")
+                .args(["/C", "mklink", "/J"])
+                .arg(link)
+                .arg(target)
+                .output()
+                .unwrap()
+                .status
+                .success();
+            assert!(ok, "mklink /J failed");
+        }
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(target, link).unwrap();
+    }
+
+    fn names(e: &VaultEntry, out: &mut Vec<String>) {
+        if !e.path.is_empty() {
+            out.push(e.path.clone());
+        }
+        for c in e.children.iter().flatten() {
+            names(c, out);
+        }
+    }
+
+    #[test]
+    fn tree_survives_broken_links_and_link_loops() {
+        let (dir, v) = vault();
+        fs::write(dir.path().join("a.md"), "a").unwrap();
+        fs::create_dir(dir.path().join("sub")).unwrap();
+        fs::write(dir.path().join("sub/b.md"), "b").unwrap();
+        // A link back to the vault itself, and one to a folder that's since been deleted.
+        link_dir(dir.path(), &dir.path().join("loop"));
+        fs::create_dir(dir.path().join("gone")).unwrap();
+        link_dir(&dir.path().join("gone"), &dir.path().join("broken"));
+        fs::remove_dir(dir.path().join("gone")).unwrap();
+
+        let mut got = Vec::new();
+        names(&v.list_tree().unwrap(), &mut got);
+        got.sort();
+        assert_eq!(got, ["a.md", "sub", "sub/b.md"]);
+    }
+
+    #[test]
+    fn tree_follows_a_link_to_a_folder_outside_the_vault() {
+        let (dir, v) = vault();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(outside.path().join("shared.md"), "s").unwrap();
+        link_dir(outside.path(), &dir.path().join("Shared"));
+        let mut got = Vec::new();
+        names(&v.list_tree().unwrap(), &mut got);
+        assert!(got.contains(&"Shared/shared.md".to_string()), "{got:?}");
     }
 
     #[test]
