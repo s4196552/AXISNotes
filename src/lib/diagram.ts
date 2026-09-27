@@ -371,6 +371,24 @@ export function layoutGraph(g: DiagramGraph): Placed[] {
   return placed.map((n) => ({ ...n, x: Math.round(n.x - minX), y: Math.round(n.y - minY) }));
 }
 
+/** Where the line from `c` (a box's center) toward `to` leaves the box, plus a gap. */
+function border(
+  c: { x: number; y: number },
+  box: { width: number; height: number },
+  to: { x: number; y: number },
+) {
+  const dx = to.x - c.x;
+  const dy = to.y - c.y;
+  if (!dx && !dy) return c;
+  const scale = Math.min(
+    dx ? box.width / 2 / Math.abs(dx) : Infinity,
+    dy ? box.height / 2 / Math.abs(dy) : Infinity,
+  );
+  const len = Math.hypot(dx, dy);
+  const gap = 6 / len;
+  return { x: c.x + dx * (scale + gap), y: c.y + dy * (scale + gap) };
+}
+
 const EXCALIDRAW_SHAPE: Record<Shape, "rectangle" | "ellipse" | "diamond"> = {
   box: "rectangle",
   round: "rectangle",
@@ -400,16 +418,17 @@ export function graphToSkeleton(g: DiagramGraph, origin: { x: number; y: number 
   const arrows = g.edges.map((e) => {
     const a = at.get(e.from)!;
     const b = at.get(e.to)!;
-    const sx = origin.x + a.x + a.width / 2;
-    const sy = origin.y + a.y + a.height / 2;
-    const ex = origin.x + b.x + b.width / 2;
-    const ey = origin.y + b.y + b.height / 2;
+    const ac = { x: origin.x + a.x + a.width / 2, y: origin.y + a.y + a.height / 2 };
+    const bc = { x: origin.x + b.x + b.width / 2, y: origin.y + b.y + b.height / 2 };
+    // From border to border (with a small gap), not through the boxes.
+    const s = border(ac, a, bc);
+    const t = border(bc, b, ac);
     return {
       type: "arrow",
-      x: sx,
-      y: sy,
-      width: ex - sx,
-      height: ey - sy,
+      x: s.x,
+      y: s.y,
+      width: t.x - s.x,
+      height: t.y - s.y,
       start: { id: idOf.get(e.from) },
       end: { id: idOf.get(e.to) },
       ...(e.label?.trim() ? { label: { text: e.label.trim(), fontSize: 14 } } : {}),

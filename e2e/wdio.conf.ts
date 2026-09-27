@@ -117,6 +117,26 @@ const SEEDS: Record<string, (dir: string) => void> = {
     write(dir, "Medical/scan.md", "# Scan\n\nPrivate results.\n");
     write(dir, ".axis/config.json", JSON.stringify({ ai: { folders: { Medical: "never" } } }));
   },
+  phase5(dir) {
+    write(dir, "School/Bio.md", "# Bio\n\nThe mitochondria is teh powerhouse of the cell.\n");
+    write(dir, "Essay.md", "# Essay\n\nI has went to the libary yesterday.\n");
+    write(dir, "Pad.md", "# Pad\n\nWritten by hand:\n");
+    write(dir, "Plan.md", "# Trip\n\n## Before\n- Book flights\n- Pack\n\n## During\n- Museum\n");
+    write(dir, "Private/Diary.md", "# Diary\n\nSecret.\n");
+    write(dir, ".axis/config.json", JSON.stringify({ ai: { folders: { Private: "never" } } }));
+    write(
+      dir,
+      "Board.axcanvas",
+      JSON.stringify({
+        type: "excalidraw",
+        version: 2,
+        source: "axis",
+        elements: [],
+        appState: { gridModeEnabled: false },
+        files: {},
+      }) + "\n",
+    );
+  },
   perf(dir) {
     const words = [
       "cell",
