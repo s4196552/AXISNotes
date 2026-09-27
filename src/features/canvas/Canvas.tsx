@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { StickyNote } from "lucide-react";
+import { PenLine, StickyNote } from "lucide-react";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { effectiveMode } from "../../app/appearance";
@@ -17,6 +17,9 @@ import { PATH_MIME } from "../../lib/fileKinds";
 import { Picker } from "../commands/Picker";
 import { DocBanner } from "../files/DocBanner";
 import { STATUS_TEXT, useFileDocument } from "../files/useFileDocument";
+import { HandwritingDialog } from "../handwriting/HandwritingDialog";
+import { blobToBase64 } from "../handwriting/pad";
+import type { Image } from "../handwriting/recognize";
 import { NoteCard } from "./NoteCard";
 import { type Lib, loadExcalidraw } from "./loadExcalidraw";
 import "./canvas.css";
@@ -52,6 +55,11 @@ export function Canvas({ path }: { path: string }) {
   const [lib, setLib] = useState<Lib | null>(null);
   const [libError, setLibError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  const [handwriting, setHandwriting] = useState<{
+    image: Image;
+    ids: string[];
+    box: { x: number; y: number; bottom: number };
+  } | null>(null);
   const api = useRef<Api | null>(null);
   const track = useRef<Tracking | null>(null);
 
@@ -176,6 +184,70 @@ export function Canvas({ path }: { path: string }) {
     });
   };
 
+  const hwSources = useMemo(() => [path], [path]);
+
+  /** Read the selected strokes (or all pen strokes) with the handwriting model. */
+  const convertHandwriting = async () => {
+    const a = api.current;
+    if (!a || !lib) return;
+    const all = a.getSceneElements();
+    const selected = a.getAppState().selectedElementIds ?? {};
+    let els = all.filter((el) => selected[el.id]);
+    if (!els.length) els = all.filter((el) => el.type === "freedraw");
+    if (!els.length) {
+      useAppStore.getState().notify("Write with the pen (or select handwriting) first.");
+      return;
+    }
+    try {
+      const blob = await lib.exportToBlob({
+        elements: els,
+        appState: {
+          ...a.getAppState(),
+          exportBackground: true,
+          viewBackgroundColor: "#ffffff",
+          exportWithDarkMode: false,
+        },
+        files: a.getFiles(),
+        mimeType: "image/png",
+        exportPadding: 16,
+        maxWidthOrHeight: 1600,
+      });
+      const x = Math.min(...els.map((el) => el.x));
+      const y = Math.min(...els.map((el) => el.y));
+      const bottom = Math.max(...els.map((el) => el.y + el.height));
+      setHandwriting({
+        image: { mime: "image/png", data: await blobToBase64(blob) },
+        ids: els.map((el) => el.id),
+        box: { x, y, bottom },
+      });
+    } catch (e) {
+      useAppStore.getState().setError(`Couldn't render the handwriting: ${String(e)}`);
+    }
+  };
+
+  const addText = (text: string, replace: boolean) => {
+    const a = api.current;
+    if (!a || !lib || !handwriting) return;
+    const { box, ids } = handwriting;
+    const [el] = lib.convertToExcalidrawElements([
+      {
+        type: "text",
+        x: box.x,
+        y: replace ? box.y : box.bottom + 24,
+        text,
+        fontSize: 20,
+      },
+    ]);
+    const gone = new Set(replace ? ids : []);
+    a.updateScene({
+      elements: [
+        ...a.getSceneElements().map((e) => (gone.has(e.id) ? { ...e, isDeleted: true } : e)),
+        el!,
+      ],
+      captureUpdate: lib.CaptureUpdateAction.IMMEDIATELY,
+    });
+  };
+
   const onDrop = (e: React.DragEvent) => {
     const dropped = e.dataTransfer.getData(PATH_MIME);
     if (!dropped || !lib || !api.current) return;
@@ -225,6 +297,14 @@ export function Canvas({ path }: { path: string }) {
           title="Add a note card (or drag a note from the file tree)"
         >
           <StickyNote size={15} /> Add note card
+        </button>
+        <button
+          className="editor-tool canvas-add-card"
+          onClick={() => void convertHandwriting()}
+          disabled={!lib || readOnly}
+          title="Turn pen strokes (the selection, or all of them) into text with AI"
+        >
+          <PenLine size={15} /> Convert to text
         </button>
         <span className={`editor-status status-${file.status}`} role="status" aria-live="polite">
           {STATUS_TEXT[file.status]}
@@ -304,6 +384,17 @@ export function Canvas({ path }: { path: string }) {
           !libError && <div className="empty muted">Loading canvas…</div>
         )}
       </div>
+
+      {handwriting && (
+        <HandwritingDialog
+          image={handwriting.image}
+          sources={hwSources}
+          insertLabel="Add to canvas"
+          offerReplace
+          onInsert={(text, { replace }) => addText(text, replace)}
+          onClose={() => setHandwriting(null)}
+        />
+      )}
 
       {picking && (
         <Picker

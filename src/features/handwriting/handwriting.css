@@ -1,0 +1,116 @@
+.hw-dialog {
+  width: min(760px, calc(100vw - 32px));
+}
+.hw-pad {
+  width: 100%;
+  height: 280px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: crosshair;
+  touch-action: none;
+}
+.hw-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.hw-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.hw-reading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.hw-summary {
+  margin: 0;
+  font-size: 12px;
+}
+.hw-text {
+  white-space: pre-wrap;
+}
+.hw-flag {
+  display: inline;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.hw-flag.hw-unclear {
+  text-decoration-style: dotted;
+  text-decoration-color: #d97706;
+}
+.hw-flag.hw-misspelled,
+.hw-flag.hw-spelling {
+  text-decoration-style: wavy;
+  text-decoration-color: var(--danger);
+}
+.hw-flag.resolved {
+  text-decoration: none;
+  background: var(--bg-active);
+}
+.hw-flag:hover {
+  background: var(--bg-active);
+}
+.hw-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  font-size: 13px;
+  white-space: normal;
+}
+.hw-menu button {
+  padding: 5px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.hw-menu button:hover,
+.hw-menu button:focus-visible {
+  background: var(--bg-active);
+  outline: none;
+}
+.hw-menu .hw-alt {
+  font-weight: 600;
+}
+.hw-menu-note {
+  padding: 3px 10px;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.hw-menu input {
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.hw-replace {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}

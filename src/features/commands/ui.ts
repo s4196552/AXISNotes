@@ -9,6 +9,7 @@ export type Modal =
   | { kind: "settings" }
   | { kind: "icon"; path: string }
   | { kind: "ask"; path?: string; selection?: string }
+  | { kind: "handwriting"; path: string }
   | {
       kind: "fix";
       path: string;

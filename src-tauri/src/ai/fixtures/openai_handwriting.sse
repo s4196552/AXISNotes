@@ -1,0 +1,12 @@
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_hw1","status":"in_progress","model":"gpt-6-sol-2026-09-22"}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"{\"text\": \"Mitochondria make ATP\\nthe powerhouse of the cel\", "}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"\"uncertain\": [{\"word\": \"cel\", \"occurrence\": 1, \"alternatives\": [\"cell\"], \"reason\": \"misspelled\"}]}"}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_hw1","status":"completed","model":"gpt-6-sol-2026-09-22","usage":{"input_tokens":1105,"output_tokens":48,"total_tokens":1153}}}
+

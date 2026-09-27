@@ -117,6 +117,18 @@ export function openFixText() {
   });
 }
 
+/** Open the handwriting pad for the open note. */
+export function openHandwriting() {
+  const path = getActiveEditor()?.path ?? useAppStore.getState().activePath;
+  if (!path || !isNotePath(path)) {
+    useAppStore
+      .getState()
+      .notify("Open a note to write into it. On a canvas, use its “Convert to text” button.");
+    return;
+  }
+  useUi.getState().open({ kind: "handwriting", path });
+}
+
 // ---- Block links ----
 
 /**
