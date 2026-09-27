@@ -15,7 +15,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
-use crate::vault::{is_hidden_name, modified_ms, Vault, META_DIR};
+use crate::vault::{modified_ms, Vault, Walk, META_DIR};
 
 const SCHEMA_VERSION: i32 = 2;
 
@@ -173,19 +173,26 @@ fn line_at(text: &str, pos: usize) -> (usize, &str) {
 }
 
 impl Index {
-    /// Open (or create) the index for `vault` and bring it up to date with the files.
+    /// Open (or create) the index for `vault` and bring it up to date with the files, all
+    /// at once. (The app opens with `open_unsynced` and syncs in the background.)
+    #[cfg(test)]
     pub fn open(vault: &Vault) -> AppResult<Self> {
-        let path = vault.root().join(META_DIR).join("index.db");
-        let mut index = match Self::open_at(&path) {
-            Ok(i) => i,
-            Err(_) => {
-                // Corrupt or unreadable: it is only a cache, so rebuild from scratch.
-                let _ = std::fs::remove_file(&path);
-                Self::open_at(&path)?
-            }
-        };
+        let mut index = Self::open_unsynced(vault)?;
         index.sync(vault)?;
         Ok(index)
+    }
+
+    /// Open (or create) the vault's index without bringing it up to date: opening a vault
+    /// uses this, then catches the index up in the background with `sync_with_progress`.
+    pub fn open_unsynced(vault: &Vault) -> AppResult<Self> {
+        let path = vault.root().join(META_DIR).join("index.db");
+        match Self::open_at(&path) {
+            Ok(i) => Ok(i),
+            Err(_) => {
+                let _ = std::fs::remove_file(&path);
+                Self::open_at(&path)
+            }
+        }
     }
 
     fn open_at(path: &Path) -> AppResult<Self> {
@@ -195,7 +202,9 @@ impl Index {
 
     fn init(conn: Connection) -> AppResult<Self> {
         conn.execute_batch(
-            "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;",
+            // busy_timeout: the background sync and the app share the database file.
+            "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;
+             PRAGMA busy_timeout = 10000;",
         )
         .map_err(db_err)?;
         let version: i32 = conn
@@ -216,6 +225,19 @@ impl Index {
 
     /// Re-index every note whose mtime changed and drop notes that no longer exist.
     pub fn sync(&mut self, vault: &Vault) -> AppResult<()> {
+        self.sync_with_progress(vault, &|| false, &mut |_, _| {})
+    }
+
+    /// `sync`, committing in batches so other connections see progress and aren't locked
+    /// out for long. `progress(done, total)` is called after each batch (`total` = notes
+    /// that need reading); `cancelled()` is checked between batches.
+    pub fn sync_with_progress(
+        &mut self,
+        vault: &Vault,
+        cancelled: &dyn Fn() -> bool,
+        progress: &mut dyn FnMut(usize, usize),
+    ) -> AppResult<()> {
+        const BATCH: usize = 500;
         let mut on_disk: HashMap<String, u64> = HashMap::new();
         collect_notes(vault, vault.root(), &mut on_disk)?;
         let known: HashMap<String, u64> = {
@@ -230,18 +252,32 @@ impl Index {
                 .map_err(db_err)?;
             rows.collect::<Result<_, _>>().map_err(db_err)?
         };
+        let gone: Vec<&String> = known.keys().filter(|p| !on_disk.contains_key(*p)).collect();
+        let changed: Vec<(&String, &u64)> = on_disk
+            .iter()
+            .filter(|(p, m)| known.get(*p) != Some(*m))
+            .collect();
+        let total = changed.len();
         let tx = self.conn.transaction().map_err(db_err)?;
-        for path in known.keys().filter(|p| !on_disk.contains_key(*p)) {
+        for path in gone {
             remove_in(&tx, path)?;
         }
-        for (path, mtime) in &on_disk {
-            if known.get(path) != Some(mtime) {
+        tx.commit().map_err(db_err)?;
+        progress(0, total);
+        for (n, batch) in changed.chunks(BATCH).enumerate() {
+            if cancelled() {
+                return Ok(());
+            }
+            let tx = self.conn.transaction().map_err(db_err)?;
+            for (path, mtime) in batch {
                 if let Ok(text) = std::fs::read_to_string(vault.resolve(path)?) {
-                    upsert_in(&tx, path, *mtime, &text)?;
+                    upsert_in(&tx, path, **mtime, &text)?;
                 }
             }
+            tx.commit().map_err(db_err)?;
+            progress((n * BATCH + batch.len()).min(total), total);
         }
-        tx.commit().map_err(db_err)
+        Ok(())
     }
 
     /// Re-index one path after it changed on disk (removes it if it's gone or not a note).
@@ -631,25 +667,27 @@ pub(crate) fn like_escape(s: &str) -> String {
 }
 
 fn collect_notes(vault: &Vault, dir: &Path, out: &mut HashMap<String, u64>) -> AppResult<()> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Ok(());
-    };
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if is_hidden_name(&name) {
-            continue;
-        }
-        let Ok(meta) = entry.metadata() else { continue };
-        let path = entry.path();
-        if meta.is_dir() {
-            collect_notes(vault, &path, out)?;
-        } else if is_indexed(&name) {
-            if let Some(rel) = vault.to_rel(&path) {
-                out.insert(rel, modified_ms(&meta));
+    let (mut walk, real) = Walk::new(dir);
+    collect_in(vault, dir, &real, &mut walk, out);
+    Ok(())
+}
+
+fn collect_in(
+    vault: &Vault,
+    dir: &Path,
+    real: &Path,
+    walk: &mut Walk,
+    out: &mut HashMap<String, u64>,
+) {
+    for child in walk.children(dir, real) {
+        if child.is_dir {
+            collect_in(vault, &child.path, &child.real, walk, out);
+        } else if is_indexed(&child.name) {
+            if let Some(rel) = vault.to_rel(&child.path) {
+                out.insert(rel, modified_ms(&child.meta));
             }
         }
     }
-    Ok(())
 }
 
 fn remove_in(tx: &rusqlite::Transaction, path: &str) -> AppResult<()> {

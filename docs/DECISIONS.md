@@ -2,6 +2,30 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-28: Big and messy folders open reliably (T-039)
+
+- **The bug:** large real-world folders failed to open or froze the app. Reproduced with 20,000 notes, 40,000 files in `node_modules`, a 50 MB binary, a looping folder link, a broken folder link and a locked folder:
+  - **One unreadable item failed the whole vault.** A broken link or a folder without permission made listing the tree fail with "cannot find the file specified".
+  - **A folder link back up the tree looped** until the path grew too long, so opening hung for minutes.
+  - **Opening waited for the index**, 24 s for 20,000 new notes, with nothing on screen.
+- **Walking a vault (`vault::Walk`)**, shared by the file tree and the indexer:
+  - It never fails: unreadable folders show as empty, and broken or unreadable items are skipped.
+  - Folder links (Windows junctions, symlinks) are followed, so a vault can link to a shared folder elsewhere. A link is skipped when it points at a folder the walk is already inside (a loop) or at a target already followed through another link.
+  - Only links are resolved to their real location, because resolving every folder cost seconds on Windows.
+- **Opening no longer waits for the index:**
+  - `Index::open_unsynced` opens the database at once, and a background thread with its own connection runs `sync_with_progress`, committing every 500 notes.
+  - The database uses WAL with a 10 s busy timeout, so searches keep working meanwhile.
+  - Progress goes out on `index://progress` and shows in the status bar ("Indexing notes… 4,000 of 20,000"). The note list refreshes when it finishes.
+  - Opening another vault stops the old sync (a generation counter).
+- **Measured on the test folder** (release build):
+  - Tree: 0.31 s (6.4 MB).
+  - First full index: 5.6 s, in the background.
+  - Reopen with nothing changed: 0.3 s.
+  - Previously: the tree failed, the index took 24 s in the foreground, and the loop hung.
+- **Still open:**
+  - Every external change reloads the whole tree (0.3 s at this size).
+  - A single expanded folder with tens of thousands of files renders every row (the tree isn't virtualized).
+
 ## 2026-09-27: Renamed to AXISNotes (T-038)
 
 - **Naming:** AXIS is the company, and this app is its product **AXISNotes**, written as one word with no space, like Microsoft and Microsoft Word.

@@ -30,6 +30,13 @@ export interface WriteResult {
 
 export type ChangeKind = "created" | "modified" | "removed" | "renamed";
 
+export interface IndexProgress {
+  /** Notes read so far, of `total` that needed reading. */
+  done: number;
+  total: number;
+  finished: boolean;
+}
+
 export interface VaultChange {
   kind: ChangeKind;
   /** For "renamed": [from, to] when both are known. */
@@ -354,6 +361,9 @@ export interface Backend {
   trashEntry(path: string): Promise<void>;
   /** Subscribe to changes made outside the app. Returns an unsubscribe function. */
   onVaultChanged(cb: (changes: VaultChange[]) => void): Promise<() => void>;
+  /** Progress of catching the index up after a vault opens (big vaults open first and are
+   * indexed in the background). `finished` comes last. Returns an unsubscribe function. */
+  onIndexProgress(cb: (p: IndexProgress) => void): Promise<() => void>;
 
   /** Full-text search; see the query language in `src-tauri/src/index/search.rs`. */
   search(query: string, limit?: number): Promise<SearchHit[]>;

@@ -1,9 +1,10 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AiRunResult, Backend, Clipped, VaultChange, VaultInfo } from "./types";
+import type { AiRunResult, Backend, Clipped, IndexProgress, VaultChange, VaultInfo } from "./types";
 
 export const VAULT_CHANGED_EVENT = "vault://changed";
+export const INDEX_PROGRESS_EVENT = "index://progress";
 export const AI_DELTA_EVENT = "ai://delta";
 export const CLIPPED_EVENT = "clipper://clipped";
 
@@ -80,6 +81,9 @@ export function createTauriBackend(): Backend {
     importObsidian: (source, target) => invoke("import_obsidian", { source, target }),
     async onVaultChanged(cb) {
       return listen<{ changes: VaultChange[] }>(VAULT_CHANGED_EVENT, (e) => cb(e.payload.changes));
+    },
+    async onIndexProgress(cb) {
+      return listen<IndexProgress>(INDEX_PROGRESS_EVENT, (e) => cb(e.payload));
     },
   };
 }

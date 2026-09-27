@@ -433,6 +433,8 @@ export function createMemoryBackend(
       if (!nodes.has(p)) fail("NotFound", path);
       for (const k of [...nodes.keys()]) if (k === p || k.startsWith(p + "/")) nodes.delete(k);
     },
+    // The in-memory index is always up to date.
+    onIndexProgress: async () => () => {},
     async onVaultChanged(cb) {
       listeners.add(cb);
       return () => listeners.delete(cb);

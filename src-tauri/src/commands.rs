@@ -3,7 +3,9 @@
 //! Heavier commands are `async` so they run off the main (UI) thread.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -18,6 +20,8 @@ use crate::vault::watcher::{self, ChangeKind, SelfWrites, VaultChange, VaultWatc
 use crate::vault::{FileContent, Vault, VaultEntry, VaultInfo, WriteResult};
 
 pub const VAULT_CHANGED_EVENT: &str = "vault://changed";
+/// Progress of bringing a newly opened vault's index up to date: `{ done, total, finished }`.
+pub const INDEX_PROGRESS_EVENT: &str = "index://progress";
 
 type SharedIndex = Arc<Mutex<Option<Index>>>;
 
@@ -27,6 +31,16 @@ pub struct AppState {
     watcher: Mutex<Option<VaultWatcher>>,
     index: SharedIndex,
     self_writes: SelfWrites,
+    /// Bumped each time a vault is opened, so a background index sync for the previous
+    /// vault stops.
+    generation: Arc<AtomicU64>,
+}
+
+#[derive(Clone, Serialize)]
+struct IndexProgress {
+    done: usize,
+    total: usize,
+    finished: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -95,7 +109,16 @@ impl AppState {
         let _ = app
             .asset_protocol_scope()
             .allow_directory(vault.root(), true);
-        *self.index.lock().unwrap() = Some(Index::open(&vault)?);
+        // Open straight away; catching the index up happens in the background, so a big
+        // vault opens at once and fills in as it's read.
+        *self.index.lock().unwrap() = Some(Index::open_unsynced(&vault)?);
+        let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        spawn_index_sync(
+            app.clone(),
+            vault.clone(),
+            self.generation.clone(),
+            generation,
+        );
 
         let emitter = app.clone();
         let index = self.index.clone();
@@ -109,6 +132,44 @@ impl AppState {
         *self.vault.lock().unwrap() = Some(vault);
         Ok(info)
     }
+}
+
+/// Bring `vault`'s index up to date on its own thread and connection, reporting progress
+/// with `INDEX_PROGRESS_EVENT`. Stops early if another vault is opened meanwhile.
+fn spawn_index_sync(app: AppHandle, vault: Vault, current: Arc<AtomicU64>, generation: u64) {
+    std::thread::spawn(move || {
+        let stale = || current.load(Ordering::SeqCst) != generation;
+        let mut last = Instant::now();
+        let mut report = |done: usize, total: usize| {
+            // At most a few updates a second, and none for a quick catch-up.
+            if total > 0 && last.elapsed() >= Duration::from_millis(250) {
+                last = Instant::now();
+                let _ = app.emit(
+                    INDEX_PROGRESS_EVENT,
+                    IndexProgress {
+                        done,
+                        total,
+                        finished: false,
+                    },
+                );
+            }
+        };
+        let result = Index::open_unsynced(&vault)
+            .and_then(|mut idx| idx.sync_with_progress(&vault, &stale, &mut report));
+        if let Err(e) = result {
+            eprintln!("indexing {} failed: {e}", vault.root().display());
+        }
+        if !stale() {
+            let _ = app.emit(
+                INDEX_PROGRESS_EVENT,
+                IndexProgress {
+                    done: 0,
+                    total: 0,
+                    finished: true,
+                },
+            );
+        }
+    });
 }
 
 fn change(kind: ChangeKind, paths: &[&str]) -> VaultChange {
