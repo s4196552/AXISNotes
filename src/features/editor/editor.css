@@ -420,3 +420,42 @@
   color: var(--fg-muted);
   font-size: 13px;
 }
+
+/* Obsidian syntax: ==highlight==, %%comment%%, > [!type] callouts */
+.cm-lp-highlight {
+  border-radius: 2px;
+  background: color-mix(in srgb, #f5d547 45%, transparent);
+}
+.cm-lp-comment {
+  color: var(--fg-muted);
+  font-style: italic;
+  opacity: 0.75;
+}
+.cm-line.cm-callout {
+  --callout: var(--accent);
+  border-left: 3px solid var(--callout);
+  background: color-mix(in srgb, var(--callout) 10%, transparent);
+  padding-left: 10px;
+}
+.cm-line.cm-callout-first {
+  margin-top: 4px;
+  font-weight: 600;
+}
+.cm-line.cm-callout-tip {
+  --callout: #2e9d63;
+}
+.cm-line.cm-callout-warning {
+  --callout: #d9822b;
+}
+.cm-line.cm-callout-question {
+  --callout: #3b82c4;
+}
+.cm-line.cm-callout-quote {
+  --callout: var(--fg-muted);
+}
+.cm-callout-type {
+  color: var(--callout);
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

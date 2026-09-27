@@ -10,6 +10,7 @@ export type Modal =
   | { kind: "icon"; path: string }
   | { kind: "ask"; path?: string; selection?: string }
   | { kind: "handwriting"; path: string }
+  | { kind: "import" }
   | { kind: "diagram"; path: string; selection?: string }
   | {
       kind: "fix";

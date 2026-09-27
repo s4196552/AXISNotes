@@ -287,6 +287,35 @@ export function createMemoryBackend(
     clipperRevoke: async () => ({ ...clipper }),
     onClipped: async () => () => {},
     fileUrl: () => null,
+    // The browser preview can't read folders on disk: importing adds a sample note.
+    inspectImport: async (source) => ({ obsidian: true, name: baseName(source) || "Vault" }),
+    async importObsidian(_source, target) {
+      requireVault();
+      const dir = normalize(target);
+      const path = dir ? `${dir}/From Obsidian.md` : "From Obsidian.md";
+      const exists = nodes.has(path);
+      if (!exists)
+        put(path, {
+          kind: "file",
+          content: "# From Obsidian\n\n[[Welcome]]\n",
+          modifiedMs: tick(),
+        });
+      return {
+        target: dir,
+        notes: exists ? 0 : 1,
+        attachments: 0,
+        canvases: 0,
+        skipped: exists
+          ? [{ path: "From Obsidian.md", reason: "already exists in the vault" }]
+          : [],
+        settings: {
+          templatesFolder: dir ? `${dir}/Templates` : "Templates",
+          dailyFolder: null,
+          dailyFormat: null,
+          dailyTemplate: null,
+        },
+      };
+    },
     async pickFolder() {
       return "/memory";
     },

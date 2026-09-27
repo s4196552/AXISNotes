@@ -4,6 +4,7 @@ mod clipper;
 mod clipper_commands;
 mod commands;
 mod error;
+mod import;
 mod index;
 mod vault;
 
@@ -50,6 +51,8 @@ pub fn run() {
             commands::graph,
             commands::list_tasks,
             commands::time_entries,
+            commands::inspect_import,
+            commands::import_obsidian,
             ai_commands::ai_settings,
             ai_commands::ai_save_settings,
             ai_commands::ai_set_key,

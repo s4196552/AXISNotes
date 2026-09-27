@@ -75,6 +75,8 @@ export function createTauriBackend(): Backend {
       const sep = root.includes("\\") ? "\\" : "/";
       return convertFileSrc(root.replace(/[\\/]+$/, "") + sep + path.split("/").join(sep));
     },
+    inspectImport: (source) => invoke("inspect_import", { source }),
+    importObsidian: (source, target) => invoke("import_obsidian", { source, target }),
     async onVaultChanged(cb) {
       return listen<{ changes: VaultChange[] }>(VAULT_CHANGED_EVENT, (e) => cb(e.payload.changes));
     },

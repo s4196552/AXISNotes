@@ -310,6 +310,29 @@ export interface Clipped {
   title: string;
 }
 
+// ---- Import (Phase 6); see src-tauri/src/import ----
+
+export interface ImportPreview {
+  /** Has an `.obsidian` folder. */
+  obsidian: boolean;
+  name: string;
+}
+
+export interface ImportReport {
+  target: string;
+  notes: number;
+  attachments: number;
+  canvases: number;
+  skipped: { path: string; reason: string }[];
+  /** Obsidian settings found (paths inside the vault after import). */
+  settings: {
+    templatesFolder: string | null;
+    dailyFolder: string | null;
+    dailyFormat: string | null;
+    dailyTemplate: string | null;
+  };
+}
+
 export interface Backend {
   /** Show a native folder picker; resolves null if cancelled. */
   pickFolder(): Promise<string | null>;
@@ -380,4 +403,8 @@ export interface Backend {
   onClipped(cb: (clip: Clipped) => void): Promise<() => void>;
   /** A URL the webview can load a vault file from (images), or null if not possible. */
   fileUrl(path: string): string | null;
+
+  inspectImport(source: string): Promise<ImportPreview>;
+  /** Copy a folder (e.g. an Obsidian vault) into `target` in the open vault. */
+  importObsidian(source: string, target: string): Promise<ImportReport>;
 }
