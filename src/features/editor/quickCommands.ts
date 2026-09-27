@@ -106,6 +106,20 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
   {
+    id: "diagram",
+    label: "Diagram…",
+    detail: "AI or outline",
+    run: (v, f, t, cfg) => {
+      v.dispatch({ changes: { from: f, to: t, insert: "" } });
+      cfg.runCommand("diagram");
+    },
+  },
+  {
+    id: "mermaid",
+    label: "Mermaid diagram (code)",
+    run: (v, f, t) => insert(v, f, t, "```mermaid\nflowchart TD\n  A[Start] --> B|\n```"),
+  },
+  {
     id: "handwriting",
     label: "Handwriting to text…",
     detail: "pen",

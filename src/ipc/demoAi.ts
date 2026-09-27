@@ -29,6 +29,22 @@ export function demoAnswer(req: AiRunRequest): string | null {
           { word: "preview", alternatives: ["review", "previews"], reason: "unclear" },
         ],
       });
+    case "diagrams":
+      return req.json
+        ? JSON.stringify({
+            kind: "flowchart",
+            direction: "down",
+            nodes: [
+              { id: "a", label: "Your description" },
+              { id: "b", label: "AI provider (desktop app)", shape: "diamond" },
+              { id: "c", label: "Diagram", shape: "round" },
+            ],
+            edges: [
+              { from: "a", to: "b" },
+              { from: "b", to: "c", label: "validated" },
+            ],
+          })
+        : 'flowchart TD\n  A["Your description"] --> B{"AI provider<br/>(desktop app)"}\n  B -->|validated| C("Mermaid diagram")';
     case "textFixes":
       return FIXES.reduce((t, [re, to]) => t.replace(re, to), lastUserText(req));
     default:

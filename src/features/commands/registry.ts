@@ -11,6 +11,7 @@ import {
   openDailyNote,
   openFixText,
   openHandwriting,
+  openDiagram,
 } from "./actions";
 import { useUi } from "./ui";
 import { useEditorPrefs } from "../editor/prefs";
@@ -89,6 +90,7 @@ registerCommands([
     run: openFixText,
   },
   { id: "handwriting", label: "Handwriting to text (pen)", run: openHandwriting },
+  { id: "diagram", label: "Make a diagram (AI, or from notes)", run: openDiagram },
   { id: "time", label: "Time report", run: () => useAppStore.getState().setMainView("time") },
   { id: "stop-timer", label: "Stop timer", run: () => void useTimer.getState().stop() },
   { id: "new-grid", label: "New grid (spreadsheet)", run: () => void newGrid() },

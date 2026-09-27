@@ -1,0 +1,86 @@
+.cm-mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  cursor: pointer;
+  overflow-x: auto;
+}
+.cm-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+.cm-mermaid-error {
+  justify-content: flex-start;
+  color: var(--danger);
+}
+
+.dg-dialog {
+  width: min(820px, calc(100vw - 32px));
+}
+.dg-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 14px;
+}
+.dg-tabs button {
+  padding: 8px 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.dg-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+}
+.dg-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.dg-row select {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.dg-preview {
+  display: flex;
+  justify-content: center;
+  min-height: 120px;
+  max-height: 44vh;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+}
+.dg-preview svg {
+  max-width: 100%;
+  height: auto;
+}
+.dg-code {
+  width: 100%;
+  min-height: 90px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  resize: vertical;
+}
+.dg-status {
+  margin: 4px 0;
+  font-size: 13px;
+}

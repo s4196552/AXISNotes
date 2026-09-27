@@ -26,6 +26,8 @@ import { TimerButton } from "../time/TimerControls";
 import { openAskAi, openFixText } from "../commands/actions";
 import { allCommands } from "../commands/registry";
 import { configuredSpellcheck, recheck } from "../spellcheck";
+import { mermaidBlocks } from "../diagrams/mermaidBlocks";
+import "../diagrams/diagrams.css";
 import {
   emojiCompletions,
   type QuickCommandConfig,
@@ -230,6 +232,7 @@ export function Editor({ path }: EditorProps) {
                 content: markdown({ base: markdownLanguage, codeLanguages: languages }),
               }),
               livePreview,
+              mermaidBlocks,
               spellCompartment.current.of(configuredSpellcheck()),
               links({
                 openLink: (inner) => void store().openLink(inner, path),

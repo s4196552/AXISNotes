@@ -10,6 +10,7 @@ import { Settings } from "../settings/Settings";
 import { AskAi } from "../ai/AskAi";
 import { FixText } from "../ai/FixText";
 import { NoteHandwriting } from "../handwriting/NoteHandwriting";
+import { NoteDiagram } from "../diagrams/NoteDiagram";
 import "./commands.css";
 
 /** Global keyboard shortcuts (capture phase, so they win over the editor). */
@@ -135,6 +136,14 @@ export function Modals() {
       return <FixText {...modal} onClose={() => useUi.getState().close()} />;
     case "handwriting":
       return <NoteHandwriting path={modal.path} onClose={() => useUi.getState().close()} />;
+    case "diagram":
+      return (
+        <NoteDiagram
+          path={modal.path}
+          selection={modal.selection}
+          onClose={() => useUi.getState().close()}
+        />
+      );
     case "icon":
       return <IconPicker path={modal.path} onClose={() => useUi.getState().close()} />;
     case "prompt":

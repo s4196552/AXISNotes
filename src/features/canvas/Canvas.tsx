@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PenLine, StickyNote } from "lucide-react";
+import { Network, PenLine, StickyNote } from "lucide-react";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { effectiveMode } from "../../app/appearance";
@@ -18,6 +18,8 @@ import { Picker } from "../commands/Picker";
 import { DocBanner } from "../files/DocBanner";
 import { STATUS_TEXT, useFileDocument } from "../files/useFileDocument";
 import { HandwritingDialog } from "../handwriting/HandwritingDialog";
+import { DiagramMaker, type DiagramResult } from "../diagrams/DiagramMaker";
+import { graphToSkeleton, layoutGraph } from "../../lib/diagram";
 import { blobToBase64 } from "../handwriting/pad";
 import type { Image } from "../handwriting/recognize";
 import { NoteCard } from "./NoteCard";
@@ -55,6 +57,7 @@ export function Canvas({ path }: { path: string }) {
   const [lib, setLib] = useState<Lib | null>(null);
   const [libError, setLibError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
+  const [diagramOpen, setDiagramOpen] = useState(false);
   const [handwriting, setHandwriting] = useState<{
     image: Image;
     ids: string[];
@@ -248,6 +251,27 @@ export function Canvas({ path }: { path: string }) {
     });
   };
 
+  /** Add a generated diagram as shapes and arrows, centered in the view. */
+  const addDiagram = (result: DiagramResult) => {
+    const a = api.current;
+    if (!a || !lib || !("graph" in result)) return;
+    const st = a.getAppState();
+    const center = lib.viewportCoordsToSceneCoords(
+      { clientX: st.offsetLeft + st.width / 2, clientY: st.offsetTop + st.height / 2 },
+      st,
+    );
+    const placed = layoutGraph(result.graph);
+    const w = Math.max(...placed.map((n) => n.x + n.width));
+    const h = Math.max(...placed.map((n) => n.y + n.height));
+    const skeleton = graphToSkeleton(result.graph, { x: center.x - w / 2, y: center.y - h / 2 });
+    const els = lib.convertToExcalidrawElements(skeleton as never);
+    a.updateScene({
+      elements: [...a.getSceneElements(), ...els],
+      captureUpdate: lib.CaptureUpdateAction.IMMEDIATELY,
+    });
+    a.scrollToContent(els, { fitToContent: true, animate: false });
+  };
+
   const onDrop = (e: React.DragEvent) => {
     const dropped = e.dataTransfer.getData(PATH_MIME);
     if (!dropped || !lib || !api.current) return;
@@ -305,6 +329,14 @@ export function Canvas({ path }: { path: string }) {
           title="Turn pen strokes (the selection, or all of them) into text with AI"
         >
           <PenLine size={15} /> Convert to text
+        </button>
+        <button
+          className="editor-tool canvas-add-card"
+          onClick={() => setDiagramOpen(true)}
+          disabled={!lib || readOnly}
+          title="Make a diagram with AI, or from a note's outline or links"
+        >
+          <Network size={15} /> Diagram
         </button>
         <span className={`editor-status status-${file.status}`} role="status" aria-live="polite">
           {STATUS_TEXT[file.status]}
@@ -393,6 +425,15 @@ export function Canvas({ path }: { path: string }) {
           offerReplace
           onInsert={(text, { replace }) => addText(text, replace)}
           onClose={() => setHandwriting(null)}
+        />
+      )}
+
+      {diagramOpen && (
+        <DiagramMaker
+          target="canvas"
+          path={path}
+          onInsert={addDiagram}
+          onClose={() => setDiagramOpen(false)}
         />
       )}
 

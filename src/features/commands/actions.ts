@@ -129,6 +129,24 @@ export function openHandwriting() {
   useUi.getState().open({ kind: "handwriting", path });
 }
 
+/** Open the diagram maker for the open note (the selection becomes the description). */
+export function openDiagram() {
+  const active = getActiveEditor();
+  const path = active?.path ?? useAppStore.getState().activePath;
+  if (!path || !isNotePath(path)) {
+    useAppStore
+      .getState()
+      .notify("Open a note to add a diagram. On a canvas, use its “Diagram” button.");
+    return;
+  }
+  let selection: string | undefined;
+  if (active?.path === path) {
+    const { from, to } = active.view.state.selection.main;
+    if (to > from) selection = active.view.state.sliceDoc(from, to);
+  }
+  useUi.getState().open({ kind: "diagram", path, selection });
+}
+
 // ---- Block links ----
 
 /**
