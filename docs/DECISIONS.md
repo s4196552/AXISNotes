@@ -31,6 +31,23 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 | base64                                          | 0.22    | MIT OR Apache-2.0  | Decode screenshots         |
 | ring (direct; already used through rustls)      | 0.17    | Apache-2.0 AND ISC | Random tokens, SHA-256     |
 
+### Browser extension (T-031)
+
+- **One Manifest V3 extension for Chrome, Edge and Firefox** (`extension/`). It is plain JavaScript modules with no bundler. `pnpm build:extension` copies three vendored libraries and the icons in, and both are generated and gitignored. The background script is declared as both `service_worker` (Chromium) and `scripts` (Firefox 121+).
+- **Clip kinds:**
+  - **Page**: Mozilla Readability picks the article, and Turndown with the GFM plugin converts it to Markdown. Tables are kept, links and images are made absolute, and navigation and scripts are dropped.
+  - **Selection** and **Link**: through the popup or the right-click menu.
+  - **Screenshot**: `captureVisibleTab` of the visible tab.
+  - Extraction runs in the page through `scripting.executeScript` with `activeTab`, so there are no always-on content scripts and no broad host access. The only host permission is `http://127.0.0.1/*`. Firefox asks for it when you pair.
+- **Offline queue**: a clip that can't be delivered goes into `storage.local`. That happens when AXIS is closed, when no vault is open (503), or when the browser isn't paired yet. The queue holds up to 200 clips, with `unlimitedStorage` for screenshots. It is retried every minute, at browser start, after pairing, and from the popup's "Send now". Clips carry ids, so AXIS drops duplicates. Clips AXIS rejects as invalid are dropped, with the error shown.
+- **The popup** shows the state (not running / not paired / no vault / connected), the pairing form, the queue count and a port setting.
+
+| Package (dev; vendored into the extension) | Version | License    | Purpose               |
+| ------------------------------------------ | ------- | ---------- | --------------------- |
+| @mozilla/readability                       | 0.6.0   | Apache-2.0 | Find a page's article |
+| turndown                                   | 7.2.4   | MIT        | HTML → Markdown       |
+| turndown-plugin-gfm                        | 1.0.2   | MIT        | Tables, strikethrough |
+
 ## 2026-09-27: Phase 5 AI features (T-025 – T-029)
 
 ### Spellcheck (T-025)

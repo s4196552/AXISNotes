@@ -39,7 +39,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-029 | 5     | Phase 5 E2E + polish                                                        | claude | merged    | agent/claude/T-029 | `e2e/**` |
 
 | T-030 | 6     | Web clipper endpoint (localhost, pairing, clips → notes), image embeds, settings | claude | merged    | agent/claude/T-030 | `src-tauri/src/clipper/**`, `src/features/clipper/**`, `src/lib/attachments.ts` |
-| T-031 | 6     | Browser extension (Chrome/Edge/Firefox MV3): page/selection/screenshot/link, offline queue | claude | todo | agent/claude/T-031 | `extension/**` |
+| T-031 | 6     | Browser extension (Chrome/Edge/Firefox MV3): page/selection/screenshot/link, offline queue | claude | merged | agent/claude/T-031 | `extension/**` |
 | T-032 | 6     | Obsidian vault import                                                       | claude | todo      | agent/claude/T-032 | `src-tauri/src/import.rs`, `src/features/import/**` |
 | T-033 | 6     | Onboarding + settings polish                                                | claude | todo      | agent/claude/T-033 | `src/features/vault/**`, `src/features/settings/**` |
 | T-034 | 6     | Performance pass                                                            | claude | todo      | agent/claude/T-034 | build config, lazy loading |
