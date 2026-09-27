@@ -61,6 +61,13 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Obsidian syntax is now styled** in the editor: `==highlight==` (markers hidden off the active line), `%%comments%%` (dimmed) and `> [!type]` callouts (coloured by kind: note / tip / warning / question / quote).
 - You can also open an Obsidian vault directly as an AXIS vault. Import is for merging one into an existing vault.
 
+### Onboarding and settings polish (T-033)
+
+- **The welcome screen** lists recent vaults (per device, in local storage) and reopens the last one on launch, which can be switched off. It says that Obsidian vaults open as they are. **Create new vault** can add example notes: a "Start here" guide that links to task and diagram examples, plus a meeting template. They are ordinary notes.
+- **Getting started** is a checklist shown once for a newly created vault, and from the palette any time. It covers the guide, AI setup, web clipper pairing, Obsidian import and personalisation, each showing whether it's done where that's known (AI providers, paired browsers), plus the key shortcuts.
+- **Keyboard shortcuts are remappable** (Settings → Keyboard shortcuts): click a command and press the new keys. They are stored in `.axis/config.json` as `hotkeys: { "<command id>": "Ctrl+Shift+K" | "" }`, and `""` removes a shortcut. A shortcut belongs to one command, so assigning or resetting takes it from whichever command had it. The palette shows the shortcuts in effect.
+- **Settings → About** shows the version (from `package.json`, injected at build), where each kind of data lives, and the open-source credits.
+
 ## 2026-09-27: Phase 5 AI features (T-025 – T-029)
 
 ### Spellcheck (T-025)

@@ -11,6 +11,8 @@ import { Grid } from "./features/grid/Grid";
 import { Canvas } from "./features/canvas/Canvas";
 import { ImageView, UnsupportedView } from "./features/files/ImageView";
 import { useClipNotices } from "./features/clipper/useClipNotices";
+import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
+import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
 import { GraphView } from "./features/graph/GraphView";
 import { TasksView } from "./features/tasks/TasksView";
@@ -28,12 +30,28 @@ export default function App() {
   const refreshTree = useAppStore((s) => s.refreshTree);
   useClipNotices();
 
-  // Restore a vault the backend already has open (e.g. after a webview reload).
+  // Restore a vault the backend already has open (e.g. after a webview reload), or
+  // reopen the last one used on this device.
   useEffect(() => {
-    backend.currentVault().then((v) => {
-      if (v) useAppStore.setState({ vault: v });
+    void backend.currentVault().then(async (v) => {
+      if (v) {
+        rememberVault(v);
+        useAppStore.setState({ vault: v });
+        return;
+      }
+      const last = recentVaults()[0];
+      if (last && reopenLast()) {
+        await useAppStore.getState().openVault(last.root);
+        // A vault that moved or was deleted: just show the welcome screen.
+        if (!useAppStore.getState().vault) useAppStore.setState({ error: null });
+      }
     });
   }, []);
+
+  // A vault created just now: show "Getting started" once.
+  useEffect(() => {
+    if (vault && takeGettingStarted(vault.root)) useUi.getState().open({ kind: "getting-started" });
+  }, [vault]);
 
   // Load vault settings; optionally open today's daily note.
   useEffect(() => {

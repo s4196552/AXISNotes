@@ -119,3 +119,51 @@
   flex: 1;
   min-width: 0;
 }
+
+.about ul {
+  padding-left: 18px;
+}
+.about li {
+  margin: 4px 0;
+}
+.about h3 {
+  margin: 14px 0 4px;
+  font-size: 14px;
+}
+.about code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.about-actions {
+  display: flex;
+  gap: 8px;
+}
+.hotkeys-filter {
+  width: 100%;
+  margin-bottom: 6px;
+}
+.hotkeys {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hotkeys li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.hotkeys-label {
+  flex: 1;
+}
+.hotkeys-key {
+  min-width: 110px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.hotkeys-key.recording {
+  border-color: var(--accent);
+  color: var(--accent);
+}

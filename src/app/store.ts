@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { backend, isBackendError, type NoteRef, type VaultEntry, type VaultInfo } from "../ipc";
 import { parseWikilinkInner } from "../lib/markdown";
+import { markNewVault, rememberVault } from "./recentVaults";
 
 /** Where to put the cursor after opening a note. */
 export interface OpenTarget {
@@ -36,7 +37,8 @@ export interface AppState {
   notice: string | null;
 
   openVault(path: string): Promise<void>;
-  createVault(parentDir: string, name: string): Promise<void>;
+  /** `files`: notes to start the vault with (path → content). */
+  createVault(parentDir: string, name: string, files?: Record<string, string>): Promise<void>;
   /** Re-list files and notes, and bump `indexVersion`. */
   refreshTree(): Promise<void>;
   /** Bump `indexVersion` and re-list notes (after the app's own writes). */
@@ -86,6 +88,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   async openVault(path) {
     try {
       const vault = await backend.openVault(path);
+      rememberVault(vault);
       set({ vault, activePath: null, error: null });
       await get().refreshTree();
     } catch (e) {
@@ -93,9 +96,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  async createVault(parentDir, name) {
+  async createVault(parentDir, name, files = {}) {
     try {
       const vault = await backend.createVault(parentDir, name);
+      for (const [path, content] of Object.entries(files)) {
+        const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+        if (dir) await backend.createDir(dir).catch(() => {});
+        await backend.createFile(path, content);
+      }
+      rememberVault(vault);
+      markNewVault(vault.root);
       set({ vault, activePath: null, error: null });
       await get().refreshTree();
     } catch (e) {

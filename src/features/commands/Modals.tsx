@@ -3,7 +3,7 @@ import { useAppStore } from "../../app/store";
 import { insertTemplate, listTemplates, newNote, newNoteFromTemplate } from "./actions";
 import { PromptDialog } from "./PromptDialog";
 import { Picker, type PickerItem } from "./Picker";
-import { allCommands, commandForEvent, hintFor } from "./registry";
+import { allCommands, commandForEvent, hintFor, shortcutOf } from "./registry";
 import { useUi } from "./ui";
 import { IconPicker } from "../icons/IconPicker";
 import { Settings } from "../settings/Settings";
@@ -12,6 +12,7 @@ import { FixText } from "../ai/FixText";
 import { NoteHandwriting } from "../handwriting/NoteHandwriting";
 import { NoteDiagram } from "../diagrams/NoteDiagram";
 import { ImportDialog } from "../import/ImportDialog";
+import { GettingStarted } from "../vault/GettingStarted";
 import "./commands.css";
 
 /** Global keyboard shortcuts (capture phase, so they win over the editor). */
@@ -39,7 +40,7 @@ function CommandPalette() {
         .map((c) => ({
           id: c.id,
           label: c.label,
-          hint: c.shortcut ? hintFor(c.shortcut) : undefined,
+          hint: shortcutOf(c) ? hintFor(shortcutOf(c)!) : undefined,
         })),
     [],
   );
@@ -124,7 +125,9 @@ export function Modals() {
     case "templates":
       return <TemplatePicker mode={modal.mode} />;
     case "settings":
-      return <Settings onClose={() => useUi.getState().close()} />;
+      return <Settings section={modal.section} onClose={() => useUi.getState().close()} />;
+    case "getting-started":
+      return <GettingStarted onClose={() => useUi.getState().close()} />;
     case "ask":
       return (
         <AskAi
