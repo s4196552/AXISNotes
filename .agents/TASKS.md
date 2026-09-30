@@ -29,6 +29,7 @@ The [suite roadmap](../docs/SUITE_ROADMAP.md) defines acceptance and logical fil
 | T-057 | S5 | Calendar planning/linked task/study UI | codex | todo | agent/codex/T-057 | separate Calendar frontend scope |
 | T-058 | S5 | Biology suite acceptance/checkpoint | claude | todo | agent/claude/T-058 | assigned cross-app acceptance tests |
 | T-059 | S6 | Web/mobile/selective sync plan and task split | claude | todo | agent/claude/T-059 | suite client/sync specs, scoped by lead |
+| T-060 | S1 | Fix macOS CI flake in watcher test `reports_external_edits` | claude | approved | agent/claude/T-060 | src-tauri/src/vault/watcher.rs (test module only); briefs/T-060.md; handoffs/T-060.md; this row |
 
 | ID    | Phase | Task                                                                        | Owner  | Status    | Branch            | Files (ownership)                                                                                      |
 | ----- | ----- | --------------------------------------------------------------------------- | ------ | --------- | ----------------- | ------------------------------------------------------------------------------------------------------ |
