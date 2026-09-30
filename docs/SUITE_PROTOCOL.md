@@ -46,11 +46,14 @@ Open is a trusted native action. Adapter responses may not contain arbitrary lau
 shell arguments or URLs to execute. Notes opens its own known resource; Hub website/process
 launch is a separate local user configuration capability, not an adapter mutation.
 
-Connect endpoints: POST /apps/register and POST /apps/heartbeat (paired installation identity,
-descriptor and challenged local endpoint); GET /apps; POST /projects/list; POST /projects/create;
+Connect endpoints: POST /apps/register (AppRegistration: paired descriptor, instance ID and
+challenged loopback endpoint), POST /apps/heartbeat (AppHeartbeat: paired app ID, installation
+ID and instance ID); GET /apps; POST /projects/list; POST /projects/create;
 POST /projects/update; POST /projects/delete; POST /projects/members/add and /remove;
 POST /search/federated; POST /resources/resolve and /open. Project create supplies an operation
-ID and name/colour/icon; all later writes supply operation ID, project ID and expectedRevision.
+ID, caller-issued project ID and name/colour/icon; all later writes supply operation ID,
+project ID and expectedRevision. Create is insert-only: an existing project ID is conflict
+unless the authenticated caller retries the identical persisted operation ID/payload.
 Membership writes supply a ResourceRef. Delete has no content-delete flag or cascading app write.
 Each response is versioned SuiteResult; reject duplicate IDs with different payloads.
 Project listing uses a bounded limit and opaque cursor. Validate colours, icons and membership

@@ -241,6 +241,7 @@ export interface SuiteAdapterV1 {
   mutate(request: MutationRequest): Promise<SuiteResult<ResourceSummary>>;
 }
 
+/** Create IDs are caller-issued; create is insert-only and operationId retries are idempotent. */
 export type ProjectMutation =
   | { kind: "create"; projectId: string; name: string; color: string; icon: string }
   | {
@@ -276,7 +277,14 @@ export interface AppRegistration {
   endpoint: string;
   instanceId: string;
 }
+/** Authenticated liveness for the already-paired app/installation/service instance. */
+export interface AppHeartbeat {
+  appId: SuiteAppId;
+  installationId: string;
+  instanceId: string;
+}
 export interface SuiteConnectV1 {
+  heartbeat(request: AppHeartbeat): Promise<SuiteResult<RegisteredApp>>;
   register(registration: AppRegistration): Promise<SuiteResult<RegisteredApp>>;
   apps(): Promise<SuiteResult<RegisteredApp[]>>;
   projects(limit: number, cursor?: string): Promise<SuiteResult<ProjectPage>>;

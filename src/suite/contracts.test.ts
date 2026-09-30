@@ -77,6 +77,17 @@ describe("source-specific AI permission contract", () => {
   it("treats an empty model allowlist as no allowed models", () => {
     expect(authorizeAi([{ ...medical, models: [] }], local, "read").allowed).toBe(false);
   });
+  it.each(["operations", "executions"] as const)("denies an empty %s allowlist", (key) => {
+    expect(authorizeAi([{ ...medical, [key]: [] }], local, "read").allowed).toBe(false);
+  });
+  it.each([
+    [legacyAiPolicy("any", "r1"), {}],
+    [{}, legacyAiPolicy("any", "r1")],
+    [legacyAiPolicy("any", "r1"), legacyAiPolicy("never", "r2")],
+    [legacyAiPolicy("never", "r2"), legacyAiPolicy("any", "r1")],
+  ])("keeps restrictive policies effective regardless of ordering: %j / %j", (first, second) => {
+    expect(authorizeAi([first, second], local, "read").allowed).toBe(false);
+  });
   it("checks fallbacks independently", () => {
     expect(authorizeAi([medical], local, "read").allowed).toBe(true);
     expect(authorizeAi([medical], cloud, "read").allowed).toBe(false);
