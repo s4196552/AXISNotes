@@ -1,4 +1,7 @@
+import { FeatureBoundary } from "../modules/FeatureBoundary";
 import { Suspense, useEffect, useMemo } from "react";
+import { useConfig } from "../../app/config";
+import { isFeatureEnabled } from "../modules/features";
 import { useAppStore } from "../../app/store";
 import { insertTemplate, listTemplates, newNote, newNoteFromTemplate } from "./actions";
 import { PromptDialog } from "./PromptDialog";
@@ -39,17 +42,15 @@ function useShortcuts() {
 
 function CommandPalette() {
   const close = useUi((s) => s.close);
-  const items = useMemo(
-    () =>
-      allCommands()
-        .filter((c) => c.id !== "palette")
-        .map((c) => ({
-          id: c.id,
-          label: c.label,
-          hint: shortcutOf(c) ? hintFor(shortcutOf(c)!) : undefined,
-        })),
-    [],
-  );
+  useConfig((s) => s.config.features);
+  useConfig((s) => s.config.hotkeys);
+  const items = allCommands()
+    .filter((c) => c.id !== "palette")
+    .map((c) => ({
+      id: c.id,
+      label: c.label,
+      hint: shortcutOf(c) ? hintFor(shortcutOf(c)!) : undefined,
+    }));
   return (
     <Picker
       title="Command palette"
@@ -143,12 +144,38 @@ function useEscapeWithoutFocus(open: boolean) {
 export function Modals() {
   useShortcuts();
   const modal = useUi((s) => s.modal);
+  useConfig((s) => s.config.features);
   useEscapeWithoutFocus(modal !== null);
   if (!modal) return null;
-  return <Suspense fallback={null}>{renderModal(modal)}</Suspense>;
+  return (
+    <FeatureBoundary
+      key={modal.kind === "settings" ? "settings:" + modal.section : modal.kind}
+      name="Tool"
+      onDismiss={() => useUi.getState().close()}
+    >
+      <Suspense fallback={null}>{renderModal(modal)}</Suspense>
+    </FeatureBoundary>
+  );
 }
 
 function renderModal(modal: NonNullable<ReturnType<typeof useUi.getState>["modal"]>) {
+  const feature =
+    modal.kind === "ask" || modal.kind === "fix"
+      ? "aiAssist"
+      : modal.kind === "handwriting"
+        ? "handwriting"
+        : modal.kind === "diagram"
+          ? "diagrams"
+          : null;
+  if (feature && !isFeatureEnabled(feature))
+    return (
+      <div className="modal-backdrop">
+        <div className="modal" role="dialog" aria-label="Feature disabled">
+          <p>This feature is disabled. Enable it in Settings → Features.</p>
+          <button onClick={() => useUi.getState().close()}>Close</button>
+        </div>
+      </div>
+    );
   switch (modal.kind) {
     case "palette":
       return <CommandPalette />;

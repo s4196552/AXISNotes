@@ -23,12 +23,11 @@ import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
-import { TimerButton } from "../time/TimerControls";
+import { TimerButton } from "../modules/TimeTools";
+import { isFeatureEnabled, useFeatureEnabled } from "../modules/features";
 import { openAskAi, openFixText } from "../commands/actions";
 import { allCommands } from "../commands/registry";
 import { configuredSpellcheck, recheck } from "../spellcheck";
-import { mermaidBlocks } from "../diagrams/mermaidBlocks";
-import "../diagrams/diagrams.css";
 import {
   emojiCompletions,
   type QuickCommandConfig,
@@ -39,6 +38,11 @@ import {
 function quickConfig(): QuickCommandConfig {
   return {
     ...useConfig.getState().config.quickCommands,
+    disabled: [
+      ...useConfig.getState().config.quickCommands.disabled,
+      ...(!isFeatureEnabled("handwriting") ? ["handwriting"] : []),
+      ...(!isFeatureEnabled("diagrams") ? ["diagram"] : []),
+    ],
     insertTemplate: () => useUi.getState().open({ kind: "templates", mode: "insert" }),
     runCommand: (id) =>
       allCommands()
@@ -97,6 +101,10 @@ export function Editor({ path }: EditorProps) {
   const quickCompartment = useRef(new Compartment());
   const outlineCompartment = useRef(new Compartment());
   const spellCompartment = useRef(new Compartment());
+  const diagramCompartment = useRef(new Compartment());
+  const aiEnabled = useFeatureEnabled("aiAssist");
+  const diagramsEnabled = useFeatureEnabled("diagrams");
+  const features = useConfig((s) => s.config.features);
   const outlineOn = useEditorPrefs((s) => s.outlineView);
   const toggleOutline = useEditorPrefs((s) => s.toggleOutlineView);
   const propsJson = useRef("{}");
@@ -234,7 +242,7 @@ export function Editor({ path }: EditorProps) {
               }),
               livePreview,
               obsidianSyntax,
-              mermaidBlocks,
+              diagramCompartment.current.of([]),
               spellCompartment.current.of(configuredSpellcheck()),
               links({
                 openLink: (inner) => void store().openLink(inner, path),
@@ -314,7 +322,29 @@ export function Editor({ path }: EditorProps) {
     view.current?.dispatch({
       effects: quickCompartment.current.reconfigure(quickCommandConfig.of(quickConfig())),
     });
-  }, [quickSettings]);
+  }, [quickSettings, features]);
+
+  useEffect(() => {
+    const v = view.current;
+    if (!ready || !v) return;
+    let live = true;
+    v.dispatch({ effects: diagramCompartment.current.reconfigure([]) });
+    if (diagramsEnabled)
+      void import("../diagrams/mermaidBlocks")
+        .then((m) => {
+          if (live)
+            v.dispatch({ effects: diagramCompartment.current.reconfigure(m.mermaidBlocks) });
+        })
+        .catch(() => {
+          if (live)
+            useAppStore
+              .getState()
+              .notify("Diagram rendering is unavailable; its source remains editable.");
+        });
+    return () => {
+      live = false;
+    };
+  }, [ready, diagramsEnabled]);
 
   // Follow the spellcheck settings (on/off, personal dictionary).
   const spellOn = useConfig((s) => s.config.spellcheck.enabled);
@@ -379,23 +409,27 @@ export function Editor({ path }: EditorProps) {
         >
           <ListTree size={15} />
         </button>
-        <button
-          className="editor-tool"
-          aria-label="Ask AI"
-          title="Ask AI about this note (Ctrl+J)"
-          onClick={openAskAi}
-        >
-          <Sparkles size={15} />
-        </button>
-        <button
-          className="editor-tool"
-          aria-label="Fix writing"
-          title="Fix grammar and clarity with AI (Ctrl+Shift+G)"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={openFixText}
-        >
-          <WandSparkles size={15} />
-        </button>
+        {aiEnabled && (
+          <button
+            className="editor-tool"
+            aria-label="Ask AI"
+            title="Ask AI about this note (Ctrl+J)"
+            onClick={openAskAi}
+          >
+            <Sparkles size={15} />
+          </button>
+        )}
+        {aiEnabled && (
+          <button
+            className="editor-tool"
+            aria-label="Fix writing"
+            title="Fix grammar and clarity with AI (Ctrl+Shift+G)"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={openFixText}
+          >
+            <WandSparkles size={15} />
+          </button>
+        )}
         <TimerButton path={path} />
         <span className={`editor-status status-${status}`} role="status" aria-live="polite">
           {STATUS_TEXT[status]}

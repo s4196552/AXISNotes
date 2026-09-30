@@ -1,7 +1,8 @@
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { effectiveMode } from "../../app/appearance";
-import { useTimer } from "../time/timer";
+import { isFeatureEnabled } from "../modules/features";
+import type { FeatureId } from "../modules/catalog";
 import {
   copyBlockLink,
   newCanvas,
@@ -21,6 +22,7 @@ import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 export interface Command {
   id: string;
   label: string;
+  feature?: FeatureId;
   /** Display form of the shortcut, e.g. "Ctrl+P". */
   hint?: string;
   /** Matcher for the global shortcut (mod = Ctrl, or Cmd on macOS). */
@@ -43,7 +45,7 @@ export function registerCommands(list: Command[]) {
 }
 
 export function allCommands(): readonly Command[] {
-  return commands;
+  return commands.filter((c) => !c.feature || isFeatureEnabled(c.feature));
 }
 
 export function hintFor(s: Shortcut): string {
@@ -82,18 +84,30 @@ registerCommands([
   },
   {
     id: "ask-ai",
+    feature: "aiAssist",
     label: "Ask AI about this note",
     shortcut: { key: "j", mod: true },
     run: openAskAi,
   },
   {
     id: "fix-writing",
+    feature: "aiAssist",
     label: "Fix grammar and clarity (AI)",
     shortcut: { key: "g", mod: true, shift: true },
     run: openFixText,
   },
-  { id: "handwriting", label: "Handwriting to text (pen)", run: openHandwriting },
-  { id: "diagram", label: "Make a diagram (AI, or from notes)", run: openDiagram },
+  {
+    feature: "handwriting",
+    id: "handwriting",
+    label: "Handwriting to text (pen)",
+    run: openHandwriting,
+  },
+  {
+    feature: "diagrams",
+    id: "diagram",
+    label: "Make a diagram (AI, or from notes)",
+    run: openDiagram,
+  },
   {
     id: "getting-started",
     label: "Getting started with AXISNotes",
@@ -104,8 +118,18 @@ registerCommands([
     label: "Import from Obsidian…",
     run: () => useUi.getState().open({ kind: "import" }),
   },
-  { id: "time", label: "Time report", run: () => useAppStore.getState().setMainView("time") },
-  { id: "stop-timer", label: "Stop timer", run: () => void useTimer.getState().stop() },
+  {
+    feature: "timeTracking",
+    id: "time",
+    label: "Time report",
+    run: () => useAppStore.getState().setMainView("time"),
+  },
+  {
+    feature: "timeTracking",
+    id: "stop-timer",
+    label: "Stop timer",
+    run: () => void import("../time/timer").then((m) => m.useTimer.getState().stop()),
+  },
   { id: "new-grid", label: "New grid (spreadsheet)", run: () => void newGrid() },
   { id: "new-canvas", label: "New canvas (whiteboard)", run: () => void newCanvas() },
   {
@@ -122,6 +146,7 @@ registerCommands([
   },
   {
     id: "graph",
+    feature: "graph",
     label: "Open graph view",
     shortcut: { key: "g", mod: true },
     run: () => useAppStore.getState().setMainView("graph"),
@@ -200,7 +225,7 @@ registerCommands([
 
 /** Find the command bound to a keyboard event, if any. */
 export function commandForEvent(e: KeyboardEvent): Command | undefined {
-  return commands.find((c) => {
+  return allCommands().find((c) => {
     const s = shortcutOf(c);
     if (s === undefined || !matches(s, e)) return false;
     return !(c.ignoreIn && e.target instanceof Element && e.target.closest(c.ignoreIn));

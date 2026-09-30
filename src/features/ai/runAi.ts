@@ -5,6 +5,8 @@ import {
   backend,
   isBackendError,
 } from "../../ipc";
+import { useConfig } from "../../app/config";
+import { isFeatureEnabled } from "../modules/features";
 import { InvalidAnswer } from "../../lib/aiJson";
 
 // Shared plumbing for AI features: a cancellable run, and "ask for a structured answer,
@@ -16,7 +18,7 @@ export class AiRun {
   cancelled = false;
   cancel() {
     this.cancelled = true;
-    if (this.runId) void backend.aiCancel(this.runId);
+    if (this.runId) void backend.aiCancel(this.runId).catch(() => {});
   }
 }
 
@@ -35,12 +37,22 @@ export async function runAi(
   onDelta: (text: string) => void = () => {},
   run: AiRun = new AiRun(),
 ): Promise<AiRunResult> {
+  if (!isFeatureEnabled("aiAssist"))
+    throw { code: "Blocked", message: "AI assistance is disabled for this vault." };
   if (run.cancelled) throw { code: "Cancelled", message: "cancelled" };
   const runId = crypto.randomUUID();
   run.runId = runId;
+  const unsubscribe = useConfig.subscribe(() => {
+    if (!isFeatureEnabled("aiAssist")) run.cancel();
+  });
   try {
-    return await backend.aiRun(runId, request, onDelta);
+    const result = await backend.aiRun(runId, request, (delta) => {
+      if (!run.cancelled) onDelta(delta);
+    });
+    if (run.cancelled) throw { code: "Cancelled", message: "cancelled" };
+    return result;
   } finally {
+    unsubscribe();
     if (run.runId === runId) run.runId = null;
   }
 }

@@ -1,3 +1,4 @@
+import { FeatureBoundary } from "./features/modules/FeatureBoundary";
 import { Suspense, useEffect } from "react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
@@ -26,12 +27,16 @@ const Canvas = lazyNamed(() => import("./features/canvas/Canvas"), "Canvas");
 const GraphView = lazyNamed(() => import("./features/graph/GraphView"), "GraphView");
 const TasksView = lazyNamed(() => import("./features/tasks/TasksView"), "TasksView");
 const TimeReport = lazyNamed(() => import("./features/time/TimeReport"), "TimeReport");
-import { RunningTimer } from "./features/time/TimerControls";
-import { useTimer } from "./features/time/timer";
+import { RunningTimer } from "./features/modules/TimeTools";
+import { useFeatureEnabled } from "./features/modules/features";
+const TimeRuntime = lazyNamed(() => import("./features/time/TimeRuntime"), "TimeRuntime");
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
+  const graphEnabled = useFeatureEnabled("graph");
+  const timeEnabled = useFeatureEnabled("timeTracking");
+  const configReady = useConfig((s) => s.loaded && s.vaultRoot === vault?.root);
   const activePath = useAppStore((s) => s.activePath);
   const mainView = useAppStore((s) => s.mainView);
   const error = useAppStore((s) => s.error);
@@ -72,7 +77,6 @@ export default function App() {
       .load()
       .then(async () => {
         if (cancelled) return;
-        void useTimer.getState().restore();
         if (!useConfig.getState().config.dailyNotes.openOnStartup) return;
         await useAppStore.getState().refreshTree();
         if (!cancelled && !useAppStore.getState().activePath) await openDailyNote();
@@ -122,18 +126,43 @@ export default function App() {
   }, []);
 
   if (!vault) return <WelcomeScreen />;
+  if (!configReady)
+    return (
+      <div className="empty muted" role="status">
+        Loading vault settings…
+      </div>
+    );
 
   return (
     <div className="shell">
+      {timeEnabled && (
+        <Suspense fallback={null}>
+          <FeatureBoundary key={vault.root} name="Time tracking">
+            <TimeRuntime key={vault.root} />
+          </FeatureBoundary>
+        </Suspense>
+      )}
       <LeftSidebar />
       <main className="content">
         <Suspense fallback={<div className="empty muted">Loading…</div>}>
-          {mainView === "graph" ? (
-            <GraphView />
+          {mainView === "graph" && graphEnabled ? (
+            <FeatureBoundary
+              key="graph"
+              name="Graph"
+              onDismiss={() => useAppStore.getState().setMainView("note")}
+            >
+              <GraphView />
+            </FeatureBoundary>
           ) : mainView === "tasks" ? (
             <TasksView />
-          ) : mainView === "time" ? (
-            <TimeReport />
+          ) : mainView === "time" && timeEnabled ? (
+            <FeatureBoundary
+              key="time"
+              name="Time report"
+              onDismiss={() => useAppStore.getState().setMainView("note")}
+            >
+              <TimeReport />
+            </FeatureBoundary>
           ) : activePath && docKind(activePath) === "grid" ? (
             <Grid key={activePath} path={activePath} />
           ) : activePath && docKind(activePath) === "canvas" ? (

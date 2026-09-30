@@ -38,6 +38,18 @@ The human approved a family of **independent, connected applications**, with loc
 - **Durability:** owner-issued app/collection/resource IDs survive known renames and index rebuilds. Missing/ambiguous references need visible relinking, never silent rebinding. Back up authoritative identity/project/reference data, card history and calendar records; keep derived indexes rebuildable.
 - **Scope:** built-in configurable features/panels/commands/templates/views first. Third-party extensions, external calendar sync, accounts, hosting and collaboration are deferred. Production web/mobile and selective sync follow the local phases; Athena/ULAP source libraries stay local by default. Memory fixtures and canned AI are demos, not production clients.
 
+### Modularity and performance
+
+The human-requested Notes module implementation and detailed design are on `agent/codex/T-062` (`docs/SUITE_MODULES.md`), pending other-model review and lead merge. If absent in this checkout, read them with `git show agent/codex/T-062:docs/SUITE_MODULES.md`; do not assume the future suite apps already implement these lifetimes.
+
+- Keep each AXIS product independent and useful out of the box. Build main features as bundled modules behind explicit interfaces; expose optional tools through feature settings. Built-in modules, installable third-party extensions and standalone app adapters are different mechanisms. Third-party execution and a marketplace remain deferred.
+- Keep storage, durable identity, saving/recovery, permissions and each product's essential workflow in its dependable core. Deck owns scheduling/reviews; Calendar owns recurrence/time zones; source protection and provenance remain mandatory in Athena/ULAP. Modules request owner-supported mutations; they never write another app's database or bypass AI policy.
+- Load optional views, tools, libraries and models on demand. An enabled feature need not start at launch. Disabled features must not mount, register active shortcuts, poll, scan, subscribe, run timers or start workers/models. Dispose feature-owned work when disabled or closed; ignore stale asynchronous completions. Resolve active writes/runs safely before disabling.
+- Preserve feature data and settings when disabling or removing a module. Show a useful explanation for disabled/unavailable capabilities and keep files readable. Do not silently delete history, rewrite originals or hide the only recovery/export route.
+- Use inexpensive in-process modules for ordinary UI; use bounded workers/jobs for expensive analysis. Reuse owner services and compatible results instead of duplicate watchers/scans. Separate processes are an isolation choice with memory/IPC cost, not a universal performance improvement. Browser tabs and loaded AI models need their own lifetime controls.
+- Declare stable feature IDs, defaults, dependencies and supported platforms. Keep credentials and authorization in native backends. A UI feature switch is not a security boundary; local model unloading requires an owning runner's supported lifecycle, not merely closing a panel.
+- Compare startup/first-use latency, initial JS, idle CPU/memory, typing responsiveness and background concurrency using reproducible scenarios. Record baseline, environment and actual results; do not claim savings from code organization alone. Already-imported JavaScript may remain cached after disable, even when its activity stops.
+
 ### Current handoff — 2026-09-30
 
 - **T-042 / S1:** architecture, research, contracts and tested reference helpers implemented; baseline commit `7502644`, with documentation follow-ups on the same branch. See [handoff](.agents/handoffs/T-042.md). Status is **in-review**, not merged or approved.

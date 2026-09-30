@@ -1,3 +1,4 @@
+import "./diagrams.css";
 import { syntaxTree } from "@codemirror/language";
 import { type EditorState, type Range, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, WidgetType } from "@codemirror/view";

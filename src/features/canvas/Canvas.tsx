@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Network, PenLine, StickyNote } from "lucide-react";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
@@ -17,8 +17,15 @@ import { PATH_MIME } from "../../lib/fileKinds";
 import { Picker } from "../commands/Picker";
 import { DocBanner } from "../files/DocBanner";
 import { STATUS_TEXT, useFileDocument } from "../files/useFileDocument";
-import { HandwritingDialog } from "../handwriting/HandwritingDialog";
-import { DiagramMaker, type DiagramResult } from "../diagrams/DiagramMaker";
+import { FeatureBoundary } from "../modules/FeatureBoundary";
+import { lazyNamed } from "../../app/lazy";
+import { useFeatureEnabled } from "../modules/features";
+import type { DiagramResult } from "../diagrams/DiagramMaker";
+const HandwritingDialog = lazyNamed(
+  () => import("../handwriting/HandwritingDialog"),
+  "HandwritingDialog",
+);
+const DiagramMaker = lazyNamed(() => import("../diagrams/DiagramMaker"), "DiagramMaker");
 import { graphToSkeleton, layoutGraph } from "../../lib/diagram";
 import { blobToBase64 } from "../handwriting/pad";
 import type { Image } from "../handwriting/recognize";
@@ -54,6 +61,8 @@ function titleOf(path: string) {
 }
 
 export function Canvas({ path }: { path: string }) {
+  const handwritingEnabled = useFeatureEnabled("handwriting");
+  const diagramsEnabled = useFeatureEnabled("diagrams");
   const [lib, setLib] = useState<Lib | null>(null);
   const [libError, setLibError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
@@ -330,22 +339,26 @@ export function Canvas({ path }: { path: string }) {
         >
           <StickyNote size={15} /> Add note card
         </button>
-        <button
-          className="editor-tool canvas-add-card"
-          onClick={() => void convertHandwriting()}
-          disabled={!lib || readOnly}
-          title="Turn pen strokes (the selection, or all of them) into text with AI"
-        >
-          <PenLine size={15} /> Convert to text
-        </button>
-        <button
-          className="editor-tool canvas-add-card"
-          onClick={() => setDiagramOpen(true)}
-          disabled={!lib || readOnly}
-          title="Make a diagram with AI, or from a note's outline or links"
-        >
-          <Network size={15} /> Diagram
-        </button>
+        {handwritingEnabled && (
+          <button
+            className="editor-tool canvas-add-card"
+            onClick={() => void convertHandwriting()}
+            disabled={!lib || readOnly}
+            title="Turn pen strokes (the selection, or all of them) into text with AI"
+          >
+            <PenLine size={15} /> Convert to text
+          </button>
+        )}
+        {diagramsEnabled && (
+          <button
+            className="editor-tool canvas-add-card"
+            onClick={() => setDiagramOpen(true)}
+            disabled={!lib || readOnly}
+            title="Make a diagram with AI, or from a note's outline or links"
+          >
+            <Network size={15} /> Diagram
+          </button>
+        )}
         <span className={`editor-status status-${file.status}`} role="status" aria-live="polite">
           {STATUS_TEXT[file.status]}
         </span>
@@ -425,24 +438,32 @@ export function Canvas({ path }: { path: string }) {
         )}
       </div>
 
-      {handwriting && (
-        <HandwritingDialog
-          image={handwriting.image}
-          sources={hwSources}
-          insertLabel="Add to canvas"
-          offerReplace
-          onInsert={(text, { replace }) => addText(text, replace)}
-          onClose={() => setHandwriting(null)}
-        />
+      {handwritingEnabled && handwriting && (
+        <FeatureBoundary name="Handwriting" onDismiss={() => setHandwriting(null)}>
+          <Suspense fallback={<p role="status">Loading handwriting…</p>}>
+            <HandwritingDialog
+              image={handwriting.image}
+              sources={hwSources}
+              insertLabel="Add to canvas"
+              offerReplace
+              onInsert={(text, { replace }) => addText(text, replace)}
+              onClose={() => setHandwriting(null)}
+            />
+          </Suspense>
+        </FeatureBoundary>
       )}
 
-      {diagramOpen && (
-        <DiagramMaker
-          target="canvas"
-          path={path}
-          onInsert={addDiagram}
-          onClose={() => setDiagramOpen(false)}
-        />
+      {diagramsEnabled && diagramOpen && (
+        <FeatureBoundary name="Diagram tools" onDismiss={() => setDiagramOpen(false)}>
+          <Suspense fallback={<p role="status">Loading diagram tools…</p>}>
+            <DiagramMaker
+              target="canvas"
+              path={path}
+              onInsert={addDiagram}
+              onClose={() => setDiagramOpen(false)}
+            />
+          </Suspense>
+        </FeatureBoundary>
       )}
 
       {picking && (

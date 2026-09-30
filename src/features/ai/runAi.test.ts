@@ -3,7 +3,8 @@ import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend
 import { setAiResponder } from "../../ipc/memoryAi";
 import type { AiRunRequest } from "../../ipc";
 import { InvalidAnswer, parseAnswer, type Schema } from "../../lib/aiJson";
-import { askValidated, text } from "./runAi";
+import { useConfig, mergeConfig } from "../../app/config";
+import { runAi, askValidated, text } from "./runAi";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -17,6 +18,7 @@ const request: AiRunRequest = { task: "diagrams", json: true, messages: [text("u
 const seen: AiRunRequest[] = [];
 
 beforeEach(async () => {
+  useConfig.setState({ config: mergeConfig({}) });
   h.b = createMemoryBackend({});
   await h.b.openVault("/v");
   const { settings } = await h.b.aiSettings();
@@ -55,4 +57,27 @@ describe("askValidated", () => {
       InvalidAnswer,
     );
   });
+});
+
+it("does not dispatch AI when assistance is disabled", async () => {
+  useConfig.setState({ config: mergeConfig({ features: { aiAssist: false } }) });
+  const spy = vi.spyOn(h.b, "aiRun");
+  await expect(runAi(request)).rejects.toMatchObject({ code: "Blocked" });
+  expect(spy).not.toHaveBeenCalled();
+});
+it("cancels in-flight AI and discards late output after disable", async () => {
+  let resolve!: (v: { text: string }) => void;
+  vi.spyOn(h.b, "aiRun").mockImplementation(
+    () =>
+      new Promise((r) => {
+        resolve = r as typeof resolve;
+      }),
+  );
+  const cancel = vi.spyOn(h.b, "aiCancel").mockResolvedValue();
+  const pending = runAi(request);
+  const cancelled = expect(pending).rejects.toMatchObject({ code: "Cancelled" });
+  useConfig.setState({ config: mergeConfig({ features: { aiAssist: false } }) });
+  expect(cancel).toHaveBeenCalledOnce();
+  resolve({ text: "late output" });
+  await cancelled;
 });

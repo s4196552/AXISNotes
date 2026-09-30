@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { DEFAULT_FEATURES, type FeatureFlags } from "../features/modules/catalog";
+import { useAppStore } from "./store";
 import { type AiRule, backend, isBackendError } from "../ipc";
 
 // Per-vault settings in `.axisnotes/config.json`. Unknown keys are preserved on save.
@@ -21,6 +23,8 @@ export interface FolderIcon {
 export type EditorWidth = "narrow" | "medium" | "wide" | "full";
 
 export interface AxisConfig {
+  /** Bundled optional modules; disabled modules retain all their data. */
+  features: FeatureFlags;
   /** Per-folder AI access, enforced by the Rust AI layer (`src-tauri/src/ai/privacy.rs`). */
   ai: { folders: Record<string, AiRule> };
   /** "system", "light", "dark", or the name of a theme in `.axisnotes/themes/<name>.css`. */
@@ -58,6 +62,7 @@ export interface AxisConfig {
 }
 
 export const DEFAULT_CONFIG: AxisConfig = {
+  features: DEFAULT_FEATURES,
   ai: { folders: {} },
   theme: "system",
   snippets: [],
@@ -93,31 +98,54 @@ export function mergeConfig(raw: unknown): AxisConfig & Record<string, unknown> 
 interface ConfigState {
   config: AxisConfig;
   loaded: boolean;
+  vaultRoot: string | null;
   load(): Promise<void>;
   /** Apply `fn` to the config and persist it. */
   update(fn: (c: AxisConfig) => AxisConfig): Promise<void>;
 }
 
+let loadGeneration = 0;
+
 export const useConfig = create<ConfigState>((set, get) => ({
   config: DEFAULT_CONFIG,
   loaded: false,
+  vaultRoot: null,
 
   async load() {
+    const vaultRoot = useAppStore.getState().vault?.root ?? null;
+    const generation = ++loadGeneration;
+    set({ loaded: false });
     try {
       const file = await backend.readFile(CONFIG_PATH);
-      set({ config: mergeConfig(JSON.parse(file.content || "{}")), loaded: true });
+      if (
+        generation !== loadGeneration ||
+        vaultRoot !== (useAppStore.getState().vault?.root ?? null)
+      )
+        return;
+      set({ config: mergeConfig(JSON.parse(file.content || "{}")), loaded: true, vaultRoot });
     } catch (e) {
       // Missing or invalid: fall back to defaults (written on first change).
       if (!(isBackendError(e) && e.code === "NotFound") && !(e instanceof SyntaxError)) {
         console.warn("config load failed", e);
       }
-      set({ config: DEFAULT_CONFIG, loaded: true });
+      if (
+        generation !== loadGeneration ||
+        vaultRoot !== (useAppStore.getState().vault?.root ?? null)
+      )
+        return;
+      set({ config: DEFAULT_CONFIG, loaded: true, vaultRoot });
     }
   },
 
   async update(fn) {
-    const next = fn(get().config);
+    const previous = get().config;
+    const next = fn(previous);
     set({ config: next });
-    await backend.writeFile(CONFIG_PATH, JSON.stringify(next, null, 2) + "\n");
+    try {
+      await backend.writeFile(CONFIG_PATH, JSON.stringify(next, null, 2) + "\n");
+    } catch (e) {
+      if (get().config === next) set({ config: previous });
+      throw e;
+    }
   },
 }));

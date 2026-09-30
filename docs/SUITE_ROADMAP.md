@@ -110,6 +110,14 @@ not permission to create another application's code inside the Notes Rust core.
 | T-058 | S5    | claude | Full Biology integration acceptance and checkpoint                                                   |
 | T-059 | S6    | claude | Approved web/mobile/sync design and per-platform task split                                          |
 
+## Bundled module acceptance
+
+All product tasks apply [SUITE_MODULES.md](SUITE_MODULES.md): first-use loading, preserved
+data on disable, safe teardown and late completions, dependency/platform capabilities and
+reproducible performance evidence. T-062 implements current Notes frontend feature controls;
+future native model/job lifetimes belong to their owning product tasks. No third-party
+marketplace or new suite phase is approved by this modularity change.
+
 ## Validation and evidence
 
 For each task run applicable lint, typecheck, Vitest and Rust/Python checks. Real native

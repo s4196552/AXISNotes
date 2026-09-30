@@ -119,6 +119,7 @@ describe("Phase 2: blocks, outliner and graph on a real vault", () => {
     });
     await expect(title()).toHaveText("Groceries");
     // The header is CSS-uppercased, and WebDriver returns rendered text.
+    await $("button=Show local graph").click();
     await expect($('[aria-label="Local graph"]')).toHaveText(expect.stringMatching(/2 notes/i));
     await snapshot("03-local-graph");
   });

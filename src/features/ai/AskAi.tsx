@@ -8,6 +8,7 @@ import {
   backend,
   isBackendError,
 } from "../../ipc";
+import { AiRun, runAi } from "./runAi";
 import { useAppStore } from "../../app/store";
 import { getActiveEditor } from "../editor/activeEditor";
 import { editNote } from "../files/editNote";
@@ -28,7 +29,7 @@ export interface AskAiProps {
 type Phase =
   | { kind: "idle" }
   | { kind: "confirm"; plan: AiPlan }
-  | { kind: "running"; runId: string }
+  | { kind: "running" }
   | { kind: "done"; result: AiRunResult }
   | { kind: "error"; message: string; blocked: boolean };
 
@@ -50,6 +51,8 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [answer, setAnswer] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const currentRun = useRef<AiRun | null>(null);
+  useEffect(() => () => currentRun.current?.cancel(), []);
 
   useEffect(() => {
     backend.aiSettings().then(
@@ -105,20 +108,22 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
 
   async function send(confirmed = false) {
     if (!prompt.trim() || phase.kind === "running") return;
+    const run = new AiRun();
+    currentRun.current = run;
     if (!confirmed) {
       // The plan only decides whether to ask first. If it fails (e.g. a privacy rule),
       // the run below reports the authoritative error and records it in the request log.
       const p = await backend.aiPlan(request).catch(() => null);
+      if (run.cancelled) return;
       if (p?.needsConfirm) {
         setPhase({ kind: "confirm", plan: p });
         return;
       }
     }
-    const runId = crypto.randomUUID();
     setAnswer("");
-    setPhase({ kind: "running", runId });
+    setPhase({ kind: "running" });
     try {
-      const result = await backend.aiRun(runId, request, (d) => setAnswer((a) => a + d));
+      const result = await runAi(request, (d) => setAnswer((a) => a + d), run);
       setAnswer(result.text);
       setPhase({ kind: "done", result });
     } catch (e) {
@@ -291,7 +296,7 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
           )}
           <span className="ask-ai-spacer" />
           {running ? (
-            <button onClick={() => phase.kind === "running" && void backend.aiCancel(phase.runId)}>
+            <button onClick={() => currentRun.current?.cancel()}>
               <Square size={12} /> Stop
             </button>
           ) : (

@@ -1,3 +1,4 @@
+import { isFeatureEnabled } from "../modules/features";
 import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { type AxisConfig, useConfig } from "../../app/config";
@@ -81,6 +82,7 @@ async function newFile(title: string, folder: string, content: string, ext: stri
 
 /** Open "Ask AI" with the open note (and the editor's selection, if any) as context. */
 export function openAskAi() {
+  if (!isFeatureEnabled("aiAssist")) return;
   const active = getActiveEditor();
   const path = active?.path ?? useAppStore.getState().activePath ?? undefined;
   let selection: string | undefined;
@@ -97,6 +99,7 @@ export function openAskAi() {
 
 /** Open "Fix writing" for the editor's selection, or the note's body if nothing is selected. */
 export function openFixText() {
+  if (!isFeatureEnabled("aiAssist")) return;
   const active = getActiveEditor();
   if (!active) {
     useAppStore.getState().notify("Open a note to fix its writing.");
@@ -119,6 +122,7 @@ export function openFixText() {
 
 /** Open the handwriting pad for the open note. */
 export function openHandwriting() {
+  if (!isFeatureEnabled("handwriting")) return;
   const path = getActiveEditor()?.path ?? useAppStore.getState().activePath;
   if (!path || !isNotePath(path)) {
     useAppStore
@@ -131,6 +135,7 @@ export function openHandwriting() {
 
 /** Open the diagram maker for the open note (the selection becomes the description). */
 export function openDiagram() {
+  if (!isFeatureEnabled("diagrams")) return;
   const active = getActiveEditor();
   const path = active?.path ?? useAppStore.getState().activePath;
   if (!path || !isNotePath(path)) {

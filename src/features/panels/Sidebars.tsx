@@ -1,4 +1,5 @@
-import { Suspense } from "react";
+import { FeatureBoundary } from "../modules/FeatureBoundary";
+import { Suspense, useState } from "react";
 import {
   Clock,
   FolderTree,
@@ -10,8 +11,9 @@ import {
 } from "lucide-react";
 import { lazyNamed } from "../../app/lazy";
 
-// The local graph (and its graph library) loads right after the first paint.
+// The local graph loads only when expanded by the user.
 const LocalGraph = lazyNamed(() => import("../graph/GraphView"), "LocalGraph");
+import { useFeatureEnabled } from "../modules/features";
 import { useUi } from "../commands/ui";
 import { type LeftPanel, useAppStore } from "../../app/store";
 import { Calendar } from "../daily/Calendar";
@@ -28,6 +30,8 @@ const TABS: { id: LeftPanel; label: string; Icon: typeof Search }[] = [
 ];
 
 export function LeftSidebar() {
+  const graphEnabled = useFeatureEnabled("graph");
+  const timeEnabled = useFeatureEnabled("timeTracking");
   const vault = useAppStore((s) => s.vault);
   const panel = useAppStore((s) => s.leftPanel);
   const setPanel = useAppStore((s) => s.setLeftPanel);
@@ -45,14 +49,16 @@ export function LeftSidebar() {
         </button>
       </header>
       <div className="sidebar-tabs" role="tablist" aria-label="Sidebar views">
-        <button
-          className="sidebar-graph"
-          aria-label="Graph view"
-          title="Graph view (Ctrl+G)"
-          onClick={() => useAppStore.getState().setMainView("graph")}
-        >
-          <Network size={15} />
-        </button>
+        {graphEnabled && (
+          <button
+            className="sidebar-graph"
+            aria-label="Graph view"
+            title="Graph view (Ctrl+G)"
+            onClick={() => useAppStore.getState().setMainView("graph")}
+          >
+            <Network size={15} />
+          </button>
+        )}
         <button
           className="sidebar-graph"
           aria-label="Tasks"
@@ -61,14 +67,16 @@ export function LeftSidebar() {
         >
           <ListChecks size={15} />
         </button>
-        <button
-          className="sidebar-graph"
-          aria-label="Time report"
-          title="Time report"
-          onClick={() => useAppStore.getState().setMainView("time")}
-        >
-          <Clock size={15} />
-        </button>
+        {timeEnabled && (
+          <button
+            className="sidebar-graph"
+            aria-label="Time report"
+            title="Time report"
+            onClick={() => useAppStore.getState().setMainView("time")}
+          >
+            <Clock size={15} />
+          </button>
+        )}
         {TABS.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -93,12 +101,26 @@ export function LeftSidebar() {
 }
 
 export function RightSidebar() {
+  const graphEnabled = useFeatureEnabled("graph");
+  const activePath = useAppStore((s) => s.activePath);
+  const [graphOpen, setGraphOpen] = useState(false);
   return (
     <aside className="sidebar sidebar-right" aria-label="Links">
       <Calendar />
-      <Suspense fallback={null}>
-        <LocalGraph />
-      </Suspense>
+      {graphEnabled && activePath && (
+        <div>
+          <button aria-expanded={graphOpen} onClick={() => setGraphOpen(!graphOpen)}>
+            {graphOpen ? "Hide local graph" : "Show local graph"}
+          </button>
+          {graphOpen && (
+            <Suspense fallback={<span className="muted">Loading graph…</span>}>
+              <FeatureBoundary name="Local graph" onDismiss={() => setGraphOpen(false)}>
+                <LocalGraph />
+              </FeatureBoundary>
+            </Suspense>
+          )}
+        </div>
+      )}
       <div className="sidebar-body">
         <BacklinksPanel />
       </div>

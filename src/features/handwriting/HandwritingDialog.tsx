@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Eraser, HardDrive, Loader, PenLine, Square, Undo2, X } from "lucide-react";
 import { type AiPlan, type AiRunResult, backend } from "../../ipc";
 import { AiRun, errorMessage, isCancelled } from "../ai/runAi";
-import { getSpeller } from "../spellcheck/engine";
+import { getSpeller, retainSpeller } from "../spellcheck/engine";
 import { HandwritingPad } from "./HandwritingPad";
 import { type Stroke, strokesToImage } from "./pad";
 import {
@@ -155,6 +155,13 @@ export function HandwritingDialog({
   const [chosen, setChosen] = useState<Map<number, string>>(new Map());
   const [replace, setReplace] = useState(false);
   const run = useRef<AiRun | null>(null);
+  useEffect(() => {
+    const release = retainSpeller();
+    return () => {
+      run.current?.cancel();
+      release();
+    };
+  }, []);
 
   // Where the image will go (a placeholder image is enough to resolve the provider).
   const planRequest = useMemo(
@@ -183,7 +190,9 @@ export function HandwritingDialog({
         run: r,
         onRetry: () => setPhase({ kind: "reading", retrying: true }),
       });
+      if (r.cancelled) return;
       const pieces = await flagWords(recognition, getSpeller());
+      if (r.cancelled) return;
       setPhase({ kind: "review", pieces, result });
     } catch (e) {
       setPhase(

@@ -11,6 +11,7 @@ The [suite roadmap](../docs/SUITE_ROADMAP.md) defines acceptance and logical fil
 
 | ID | Phase | Task | Owner | Status | Branch | Files (ownership) |
 | --- | --- | --- | --- | --- | --- | --- |
+| T-062 | Notes modularity | Human-requested bundled feature controls and performance design | codex | in-review | agent/codex/T-062 | AGENTS.md modularity section; docs/SUITE_MODULES.md; docs/SUITE.md modularity paragraph; docs/SUITE_ROADMAP.md module acceptance; src/App.tsx; src/app/config{,.test}.ts; src/features/modules/**; assigned feature loading/gating/lifecycle changes in editor, panels, commands, settings, time, AI, canvas, diagrams and spellcheck; tasks timer import; scripts/measure-module-bundle.mjs; e2e/specs/{modules,blocks}.e2e.ts; T-062 brief/handoff/review; task-board row |
 | T-042 | S1 | Architecture/research/contracts baseline | codex | in-review | agent/codex/T-042 | AGENTS.md suite context; AXIS_BUILD_PROMPT.md banner; docs/DECISIONS.md suite entry; docs/SUITE*.md; docs/research/suite-landscape-2026-09-30.md; src/suite/**; src-tauri/capabilities/default.json (format only); .github/workflows/ci.yml (task push CI); reviews/T-042.md; this section; briefs/T-042.md; handoffs/T-042.md |
 | T-043 | S2 | Protocol/security/repository placement review | claude | todo | agent/claude/T-043 | docs/DECISIONS.md, docs/SUITE_PROTOCOL.md after T-042 |
 | T-044 | S2 | Connect local coordination service | claude | todo | agent/claude/T-044 | separate Connect repository, scoped by lead |

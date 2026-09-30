@@ -37,6 +37,7 @@ export function FixText({ path, from, to, original, scope, onClose }: FixTextPro
   const [streamed, setStreamed] = useState("");
   const [rejected, setRejected] = useState<Set<number>>(new Set());
   const run = useRef<AiRun | null>(null);
+  useEffect(() => () => run.current?.cancel(), []);
 
   const request = useMemo(() => fixRequest(original, mode, path), [original, mode, path]);
 

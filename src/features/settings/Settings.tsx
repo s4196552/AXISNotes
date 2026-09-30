@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { backend } from "../../ipc";
 import { type AxisConfig, type EditorWidth, useConfig } from "../../app/config";
@@ -6,13 +6,16 @@ import { EDITOR_WIDTHS, fontStack, NOTE_FONT_SIZES } from "../../app/appearance"
 import { useZoom, ZOOM_STEPS, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { formatDate } from "../../lib/dates";
 import { SLASH_COMMANDS } from "../editor/quickCommands";
-import { AiSettingsPanel } from "../ai/AiSettings";
+import { lazyNamed } from "../../app/lazy";
+import { FeaturesSettings } from "../modules/FeaturesSettings";
+const AiSettingsPanel = lazyNamed(() => import("../ai/AiSettings"), "AiSettingsPanel");
 import { ClipperSettings } from "../clipper/ClipperSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
 import { About } from "./About";
 import "./settings.css";
 
 export type Section =
+  | "features"
   | "appearance"
   | "spelling"
   | "daily"
@@ -24,6 +27,7 @@ export type Section =
   | "about";
 
 const SECTIONS: { id: Section; label: string }[] = [
+  { id: "features", label: "Features" },
   { id: "appearance", label: "Appearance" },
   { id: "spelling", label: "Spelling" },
   { id: "daily", label: "Daily notes" },
@@ -68,6 +72,7 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
               <X size={16} />
             </button>
           </header>
+          {section === "features" && <FeaturesSettings />}
           {section === "appearance" && <Appearance config={config} set={set} />}
           {section === "spelling" && <Spelling config={config} set={set} />}
           {section === "daily" && <Daily config={config} set={set} />}
@@ -81,7 +86,11 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
             </Field>
           )}
           {section === "commands" && <Commands config={config} set={set} />}
-          {section === "ai" && <AiSettingsPanel />}
+          {section === "ai" && (
+            <Suspense fallback={<p role="status">Loading AI settings…</p>}>
+              <AiSettingsPanel />
+            </Suspense>
+          )}
           {section === "clipper" && <ClipperSettings />}
           {section === "hotkeys" && <HotkeysSettings config={config} set={set} />}
           {section === "about" && <About />}

@@ -6,7 +6,7 @@ import { formatDate } from "../../lib/dates";
 import { type Bucket, BUCKETS, bucketOf, matchesFilter, PRIORITY } from "./taskModel";
 import { setTaskDone } from "../../lib/tasks";
 import { editNote } from "../files/editNote";
-import { TaskTimerButton } from "../time/TimerControls";
+import { TaskTimerButton } from "../modules/TimeTools";
 import "./tasks.css";
 
 // Every task in the vault, grouped by due date. Checking a task edits its note.

@@ -177,5 +177,8 @@ arbitrary source folders: expose capability-aware handoff/pickers instead. Athen
 libraries stay local by default; synced catalogues require deliberate selection and policy
 checks. No accounts, hosting, collaboration or shared cloud library in the initial local phases.
 
-Modularity initially covers configurable built-in features, panels, commands, templates and
-views. Third-party plugin execution is a later security/product phase.
+Modularity uses bundled feature modules with a dependable product core, metadata-only
+catalogs, explicit interfaces and first-use loading. Disabled features release owned activity
+while retaining user data. Use bounded workers/jobs for expensive analysis; keep ordinary UI
+in process. See [module design](SUITE_MODULES.md) for product boundaries, lifecycle rules and
+measurement scenarios. Third-party plugin execution remains a later security/product phase.

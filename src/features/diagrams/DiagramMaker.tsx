@@ -1,3 +1,4 @@
+import { useFeatureEnabled } from "../modules/features";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HardDrive, Network, Sparkles, Square, X } from "lucide-react";
 import { type AiPlan, backend } from "../../ipc";
@@ -78,7 +79,9 @@ function Preview({ code }: { code: string }) {
 
 export function DiagramMaker({ target, path, selection, onInsert, onClose }: DiagramMakerProps) {
   const notes = useAppStore((s) => s.notes);
-  const [tab, setTab] = useState<Tab>("ai");
+  const aiEnabled = useFeatureEnabled("aiAssist");
+  const [tab, setTab] = useState<Tab>(aiEnabled ? "ai" : "structure");
+  const selectedTab = !aiEnabled && tab === "ai" ? "structure" : tab;
   const [prompt, setPrompt] = useState(selection?.trim() ?? "");
   const [kind, setKind] = useState<MermaidKind>("auto");
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -90,6 +93,7 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
   const [source, setSource] = useState<"outline" | "links">("outline");
   const [notePath, setNotePath] = useState(target === "note" ? path : "");
   const run = useRef<AiRun | null>(null);
+  useEffect(() => () => run.current?.cancel(), []);
 
   const canvasKind: "auto" | "flowchart" | "mindmap" =
     kind === "flowchart" || kind === "mindmap" ? kind : "auto";
@@ -103,7 +107,7 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
   );
 
   useEffect(() => {
-    if (tab !== "ai") return;
+    if (selectedTab !== "ai") return;
     let live = true;
     const t = setTimeout(() => {
       backend.aiPlan(request).then(
@@ -115,7 +119,7 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
       live = false;
       clearTimeout(t);
     };
-  }, [request, tab]);
+  }, [request, selectedTab]);
 
   async function generate() {
     if (!prompt.trim()) return;
@@ -141,7 +145,7 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
 
   // "From notes": rebuild whenever the choice changes.
   useEffect(() => {
-    if (tab !== "structure" || !notePath) return;
+    if (selectedTab !== "structure" || !notePath) return;
     let live = true;
     const title = noteName(notePath);
     const build =
@@ -160,7 +164,7 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
     return () => {
       live = false;
     };
-  }, [tab, source, notePath]);
+  }, [selectedTab, source, notePath]);
 
   const switchTab = (t: Tab) => {
     setTab(t);
@@ -189,17 +193,19 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
           </button>
         </header>
         <div className="dg-tabs" role="tablist">
+          {aiEnabled && (
+            <button
+              role="tab"
+              aria-selected={selectedTab === "ai"}
+              onClick={() => switchTab("ai")}
+              disabled={running}
+            >
+              Describe it (AI)
+            </button>
+          )}
           <button
             role="tab"
-            aria-selected={tab === "ai"}
-            onClick={() => switchTab("ai")}
-            disabled={running}
-          >
-            Describe it (AI)
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === "structure"}
+            aria-selected={selectedTab === "structure"}
             onClick={() => switchTab("structure")}
             disabled={running}
           >
@@ -208,7 +214,7 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
         </div>
 
         <div className="ask-ai-body">
-          {tab === "ai" ? (
+          {selectedTab === "ai" ? (
             <>
               <textarea
                 className="ask-ai-input"
@@ -332,7 +338,7 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
             </button>
           ) : (
             <>
-              {tab === "ai" && (
+              {selectedTab === "ai" && (
                 <button
                   onClick={() => void generate()}
                   disabled={!prompt.trim()}

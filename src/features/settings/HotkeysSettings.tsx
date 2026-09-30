@@ -23,7 +23,7 @@ export function HotkeysSettings({ config, set }: Props) {
         .sort((a, b) => a.label.localeCompare(b.label)),
     // `config` changes when a shortcut changes; the list re-reads the bindings.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filter, config.hotkeys],
+    [filter, config.hotkeys, config.features],
   );
 
   /** Set a command's shortcut (null = back to its default, "" = none). */
