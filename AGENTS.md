@@ -1,6 +1,53 @@
 # AXIS: Multi-Agent Working Agreement
 
-This file is read by **every** coding agent on this project. OpenAI Codex reads `AGENTS.md` automatically, and Claude Code reads it through `CLAUDE.md`. The product spec is in `AXIS_BUILD_PROMPT.md`.
+This file is read by **every** coding agent on this project. OpenAI Codex reads `AGENTS.md` automatically, and Claude Code reads it through `CLAUDE.md`. Read the suite context below before taking a task. `AXIS_BUILD_PROMPT.md` remains the historical AXISNotes implementation spec; the suite documents govern new suite work.
+
+## AXIS suite context
+
+The human approved a family of **independent, connected applications**, with local integration first. Every product must offer optional **BYOK and on-device AI** and target **desktop, mobile apps (iOS/Android), and usable web clients**. These are delivery requirements, not claims that these clients already exist. Windows is the first suite integration target. Core workflows must remain useful without AI or an AXIS account.
+
+| Product           | Responsibility                                                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **AXIS Hub**      | Nested sections/folders for applications, games, websites, files and AXIS resources; shared projects, colours and federated search |
+| **AXISNotes**     | Existing Markdown/grid/canvas knowledge app, daily-note navigator and tasks; source-specific AI access                             |
+| **AXIS Deck**     | Standalone card authoring/study, spaced repetition, snapshots and review history                                                   |
+| **AXIS Calendar** | Standalone time blocking, recurrence and day/week/month views; linked tasks and study allocations                                  |
+| **AXIS Athena**   | Broad document/media catalogue, deterministic extraction first, optional AI, summaries, filters and graph                          |
+| **AXIS ULAP**     | Deep photo/video intelligence, OCR, speech, people/scenes, semantic search and gallery                                             |
+| **AXIS Connect**  | Optional local coordination service for app registration, projects and durable cross-app references; separate from Hub's window    |
+
+### Read before implementing
+
+1. [Suite specification](docs/SUITE.md): approved scope, ownership and boundaries.
+2. [Protocol](docs/SUITE_PROTOCOL.md) and [TypeScript contracts](src/suite/contracts.ts): proposed v1 adapter/Connect interfaces and reference helpers.
+3. [Suite roadmap](docs/SUITE_ROADMAP.md): phases S1–S6, acceptance scenarios and proposed task split.
+4. [Research report](docs/research/suite-landscape-2026-09-30.md): 15 comparable products, sourced features/funding/stack observations and improvements for AXIS.
+5. [Task board](.agents/TASKS.md), your written brief, relevant handoffs/reviews and [decision log](docs/DECISIONS.md).
+
+**Branch availability:** the suite baseline is on `agent/codex/T-042` and is not merged. If these files are absent in your checkout, locate the existing task worktree with `git worktree list`, or read them with `git show agent/codex/T-042:docs/SUITE.md` (likewise for the other paths). Do not recreate the baseline or assume missing files mean the suite was cancelled.
+
+### Required product behaviour and boundaries
+
+- **Hub:** support a Gaming section containing Spotify (site), Discord (desktop app) and VALORANT (game). Support custom logos/icons, including Google Stitch and Open Design shortcuts. Native apps open in their own windows; websites use dedicated isolated tabs or a chosen external browser/profile. Multiple-account shortcuts need separate sessions/profiles and an Open in browser fallback. Sessions, executable paths and profile mappings are device-local. Launch with executable/argument arrays, never shell interpolation.
+- **Projects:** name, colour, icon and references across apps. Membership never moves files. Explicit item colours override project defaults. Deleting a project deletes coordination metadata only, never app content.
+- **Notes compatibility:** retain `app.axis.axisnotes`, the AXISNotes keychain namespace, `.axisnotes` settings, Markdown, `.axgrid`, `.axcanvas`, existing block IDs and canvas `axis:` links. Retain the daily-note navigator and task view. Current note references are path-based; durable suite identity must be added without relying on rebuildable SQLite row IDs.
+- **AI access:** users select the exact provider, endpoint and model allowed to read/suggest/apply to each source. Example: cloud AI may access study notes; medical notes permit only selected on-device models. Intersect restrictions across all inputs, inherited rules and derivative provenance, including cards, summaries, OCR and embeddings. Recheck fallbacks and policy revisions. Invalid/unreadable/missing rules fail closed. Localhost does not prove on-device inference; private-server and cloud execution are distinct. Credentials and enforcement stay in owning native backends.
+- **Deck/Calendar:** Deck owns spaced repetition and review history; plan FSRS, with implementation/version/license selection still pending. Note-to-card creation saves a snapshot and source reference; source changes require reviewed updates and never silently reset history. Calendar owns time allocations. Moving a study block cannot change card due dates or reviews. Completing a linked task calls Notes' supported mutation with revision checks. Test recurrence, time zones and DST.
+- **Athena/ULAP:** preserve their Python engines, ULAP's Tauri shell, independent repositories and separate databases. Originals are never moved, renamed, imported or rewritten. Derived metadata lives outside source libraries. Reuse compatible media analysis for the same content version with provenance/status; fingerprints are not resource identity. Athena initially uses its existing local web interface.
+- **Integration:** apps alone write their own content/databases. Connect stores coordination metadata and references. Use versioned authenticated loopback HTTP/JSON between native backends; no credentials or privileged capabilities in remote webviews. Test unauthenticated requests and remote-tab access denial. Search apps concurrently and show partial results when one is unavailable; ULAP semantic search is an explicit mode. Standalone workflows survive Hub/Connect failure.
+- **Durability:** owner-issued app/collection/resource IDs survive known renames and index rebuilds. Missing/ambiguous references need visible relinking, never silent rebinding. Back up authoritative identity/project/reference data, card history and calendar records; keep derived indexes rebuildable.
+- **Scope:** built-in configurable features/panels/commands/templates/views first. Third-party extensions, external calendar sync, accounts, hosting and collaboration are deferred. Production web/mobile and selective sync follow the local phases; Athena/ULAP source libraries stay local by default. Memory fixtures and canned AI are demos, not production clients.
+
+### Current handoff — 2026-09-30
+
+- **T-042 / S1:** architecture, research, contracts and tested reference helpers implemented; baseline commit `7502644`, with documentation follow-ups on the same branch. See [handoff](.agents/handoffs/T-042.md). Status is **in-review**, not merged or approved.
+- Lint and both TypeScript checks passed; 301 Vitest tests passed (31 new contract vectors); Rust: 95 passed, 2 existing tests ignored. Repository-wide Prettier fails on unchanged `src-tauri/capabilities/default.json`; owned baseline files pass. Green CI is not claimed.
+- Claude CLI was installed but not authenticated at handoff. Required other-model review remains pending; a self-review is not a substitute. Recheck availability rather than assuming the old environment state persists.
+- The TypeScript AI evaluator is a reference implementation, **not enforcement in the existing Notes Rust runtime**. Hub, Connect, Deck and Calendar runtime apps are not implemented. Real-Tauri integration/remote-tab tests and the full Biology workflow remain future acceptance work.
+- **Next:** lead adopts/rebriefs proposed T-043–T-059; S2 delivers Hub + Connect + Notes. Historical Notes phases 0–6 are distinct from suite phases S1–S6. Full local acceptance in S5: Biology project → notes/reference documents → linked deck → scheduled study → reopen every item through Hub.
+- Preserve uncommitted `DESIGN.md` and `design/` in the primary checkout. Do not treat them as disposable generated files. Do not modify sibling repositories without their own scoped task/worktree.
+
+The latest human-supplied working agreement below applies to new work. Older task-board/decision-log entries about dropping Codex or waiving cross-review describe historical work and do not override it. Each suite phase ends at a human checkpoint; permission to update documentation is not approval to begin the next phase.
 
 ## Roles
 

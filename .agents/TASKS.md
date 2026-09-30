@@ -11,7 +11,7 @@ The [suite roadmap](../docs/SUITE_ROADMAP.md) defines acceptance and logical fil
 
 | ID | Phase | Task | Owner | Status | Branch | Files (ownership) |
 | --- | --- | --- | --- | --- | --- | --- |
-| T-042 | S1 | Architecture/research/contracts baseline | codex | in-review | agent/codex/T-042 | AXIS_BUILD_PROMPT.md banner; docs/DECISIONS.md suite entry; docs/SUITE*.md; docs/research/suite-landscape-2026-09-30.md; src/suite/**; this section; briefs/T-042.md; handoffs/T-042.md |
+| T-042 | S1 | Architecture/research/contracts baseline | codex | in-review | agent/codex/T-042 | AGENTS.md suite context; AXIS_BUILD_PROMPT.md banner; docs/DECISIONS.md suite entry; docs/SUITE*.md; docs/research/suite-landscape-2026-09-30.md; src/suite/**; this section; briefs/T-042.md; handoffs/T-042.md |
 | T-043 | S2 | Protocol/security/repository placement review | claude | todo | agent/claude/T-043 | docs/DECISIONS.md, docs/SUITE_PROTOCOL.md after T-042 |
 | T-044 | S2 | Connect local coordination service | claude | todo | agent/claude/T-044 | separate Connect repository, scoped by lead |
 | T-045 | S2 | Notes durable resources/adapter/exact AI rules | claude | todo | agent/claude/T-045 | Notes Rust identity/adapter/AI boundaries, scoped by lead |
