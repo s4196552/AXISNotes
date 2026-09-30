@@ -1,0 +1,78 @@
+{
+  "brand": "AXIS",
+  "tagline": "Your notes, on your own axis",
+  "brief": "A local-first desktop knowledge base: notes stay as plain Markdown files on your own machine, with links, a graph, grids, canvases, handwriting and optional AI using your own keys. For students, researchers and heavy note-takers.",
+  "adjectives": [
+    "grounded",
+    "precise",
+    "connected",
+    "calm",
+    "yours"
+  ],
+  "criteria": "Success: distinct from the category's blue/purple gems, graphs and brains; recognisable at 16 px; works in one colour and reversed; carries the name AXIS or the idea of an axis.",
+  "mockups": [
+    "app-icon",
+    "favicon-tab",
+    "website",
+    "readme",
+    "sticker",
+    "social"
+  ],
+  "nav": [
+    "Features",
+    "Download",
+    "Docs"
+  ],
+  "brand_color": "#E4472B",
+  "greyscale": false,
+  "designer": "Claude (logo-design skill)",
+  "round": 2,
+  "concepts": [
+    {
+      "name": "Lambda A",
+      "symbol": "kit/a-lambda/axis-a-lambda-symbol.svg",
+      "lockup": "kit/a-lambda/axis-a-lambda-horizontal.svg",
+      "symbol_on_tile": "kit/a-lambda/axis-a-lambda-symbol-reversed.svg",
+      "lockup_on_dark": "kit/a-lambda/axis-a-lambda-horizontal-reversed.svg",
+      "idea": "An A whose crossbar is a single point: the one idea you're holding.",
+      "rationale": [
+        "Carries the name; builds recognition of AXIS directly",
+        "Strongest at 16 px: the A and the point both survive",
+        "The signal point is a reusable accent (cursor, bullets, loading)"
+      ]
+    },
+    {
+      "name": "Origin",
+      "symbol": "kit/b-origin/axis-b-origin-symbol.svg",
+      "lockup": "kit/b-origin/axis-b-origin-horizontal.svg",
+      "symbol_on_tile": "kit/b-origin/axis-b-origin-symbol-reversed.svg",
+      "lockup_on_dark": "kit/b-origin/axis-b-origin-horizontal-reversed.svg",
+      "idea": "Two axes and one plotted point: your notes start from your own origin.",
+      "rationale": [
+        "The most literal 'axis': precise and grounded",
+        "Axes and point extend into a grid pattern for the brand",
+        "Risk: can read as an analytics or charting product"
+      ]
+    },
+    {
+      "name": "Own axis",
+      "symbol": "kit/c-own-axis/axis-c-own-axis-symbol.svg",
+      "lockup": "kit/c-own-axis/axis-c-own-axis-horizontal.svg",
+      "symbol_on_tile": "kit/c-own-axis/axis-c-own-axis-symbol-reversed.svg",
+      "lockup_on_dark": "kit/c-own-axis/axis-c-own-axis-horizontal-reversed.svg",
+      "idea": "A ring split by a bar at Earth's 23.4° tilt: your world on its own axis.",
+      "rationale": [
+        "A specific, ownable detail with a real story",
+        "Dynamic diagonal stands out on a shelf of square icons",
+        "Risk: reads as the empty-set symbol ∅"
+      ]
+    }
+  ],
+  "recommendation": "Lambda A: it names the product, stays clear at every size, and its signal point grows into a small system of accents.",
+  "next_steps": [
+    "Pick a direction",
+    "Final refinements and the app's icons replaced",
+    "Guidelines handed over with the master files"
+  ],
+  "tile_color": "#16181D"
+}
