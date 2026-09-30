@@ -325,6 +325,64 @@ mod tests {
         );
     }
 
+    type Batches = Vec<Vec<VaultChange>>;
+
+    /// Collect watcher batches until one mentions `path` or `timeout` elapses. Backends may
+    /// deliver unrelated batches first (macOS FSEvents reports startup/root events), so the
+    /// first batch is not assumed to be the target. `Err` carries every batch received.
+    fn wait_for_path(
+        rx: &std::sync::mpsc::Receiver<Vec<VaultChange>>,
+        path: &str,
+        timeout: Duration,
+    ) -> Result<Batches, Batches> {
+        let deadline = Instant::now() + timeout;
+        let mut batches = Vec::new();
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(batches);
+            }
+            let Ok(batch) = rx.recv_timeout(remaining) else {
+                return Err(batches);
+            };
+            let hit = batch.iter().any(|c| c.paths.iter().any(|p| p == path));
+            batches.push(batch);
+            if hit {
+                return Ok(batches);
+            }
+        }
+    }
+
+    #[test]
+    fn wait_for_path_skips_unrelated_batches_and_fails_without_target() {
+        let other = || vec![change(ChangeKind::Modified, &["other.md"])];
+        let target = vec![change(ChangeKind::Created, &["ext.md"])];
+
+        // Unrelated first batches must not pass; the later target batch must.
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(other()).unwrap();
+        tx.send(other()).unwrap();
+        tx.send(target.clone()).unwrap();
+        let got = wait_for_path(&rx, "ext.md", Duration::from_secs(1)).unwrap();
+        assert_eq!(got, vec![other(), other(), target]);
+
+        // Only unrelated batches, sender still alive: fails at the deadline with diagnostics.
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(other()).unwrap();
+        let started = Instant::now();
+        let err = wait_for_path(&rx, "ext.md", Duration::from_millis(100)).unwrap_err();
+        assert!(started.elapsed() >= Duration::from_millis(100));
+        assert_eq!(err, vec![other()]);
+        drop(tx);
+
+        // A path that merely contains the target as a substring is not a match.
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(vec![change(ChangeKind::Created, &["sub/ext.md"])])
+            .unwrap();
+        drop(tx);
+        assert!(wait_for_path(&rx, "ext.md", Duration::from_millis(100)).is_err());
+    }
+
     #[test]
     fn reports_external_edits() {
         let dir = tempfile::tempdir().unwrap();
@@ -336,11 +394,8 @@ mod tests {
         .unwrap();
         std::thread::sleep(Duration::from_millis(200));
         std::fs::write(v.root().join("ext.md"), "hi").unwrap();
-        let changes = rx
-            .recv_timeout(Duration::from_secs(5))
-            .expect("no watcher event");
-        assert!(changes
-            .iter()
-            .any(|c| c.paths.contains(&"ext.md".to_string())));
+        if let Err(batches) = wait_for_path(&rx, "ext.md", Duration::from_secs(5)) {
+            panic!("no watcher event for ext.md within 5s; received batches: {batches:?}");
+        }
     }
 }

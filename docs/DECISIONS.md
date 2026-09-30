@@ -2,6 +2,28 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-30: AXIS suite baseline (T-042; proposed for lead review)
+
+- AXIS becomes six independent applications connected by optional AXIS Connect. Preserve
+  AXISNotes identifiers, Rust core, file formats, settings and existing axis: canvas links;
+  preserve Athena's Python engine and ULAP's Python/Tauri service in their own repositories.
+- [SUITE.md](SUITE.md), [SUITE_PROTOCOL.md](SUITE_PROTOCOL.md) and
+  [SUITE_ROADMAP.md](SUITE_ROADMAP.md) govern new suite scope; historical Notes phases remain.
+- Owners alone write content. Connect owns coordination metadata. Stable resource IDs and
+  authoritative identity/provenance are independent of disposable indexes and source paths.
+- Every product targets desktop/mobile/web, optional BYOK and on-device AI. Local integration
+  precedes selective sync; no production web/mobile client is implied by a memory demo.
+- Exact provider/endpoint/model access is source-specific and intersected across provenance.
+  Fail closed on invalid/unreadable policies; a localhost gateway is not proof of on-device AI.
+  T-042 adds a tested reference evaluator; actual Notes runtime enforcement is T-045.
+- Hub supports nested mixed launch sections, isolated website sessions and configured external
+  browser profiles. Remote webviews get no privileged capabilities or Connect credentials.
+- Deck owns spaced repetition and review history; Calendar owns study time allocations.
+  FSRS implementation/version/license selection remains T-053, not a new baseline dependency.
+- The latest human-supplied AGENTS.md agreement restores Codex building/review and other-model
+  approval before merges. Older entries about dropping Codex describe historical work only.
+- No package, storage migration, account, hosted service or new library dependency is added.
+
 ## 2026-09-28: Zoom, text size, fonts and editor width (T-040)
 
 - **Zoom for the whole app:**

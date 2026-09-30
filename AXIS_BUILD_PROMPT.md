@@ -1,5 +1,7 @@
 # Build Prompt: AXIS, a Local-First Personal Knowledge Base
 
+> **Suite scope (2026-09-30):** [docs/SUITE.md](docs/SUITE.md) and [docs/SUITE_ROADMAP.md](docs/SUITE_ROADMAP.md) take precedence for new AXIS suite work. This document retains the historical AXISNotes implementation spec and phase history. Preserve existing Notes data, identifiers and behaviours; suite phases S1–S6 are separate from Notes phases 0–6.
+
 > Paste everything below this line into a coding agent (Claude Code, OpenAI Codex, or another agent) at the root of an empty project folder. The prompt doesn't depend on a particular agent. If you use two agents on the same project, both should follow `docs/DECISIONS.md` and the phase gates.
 
 ---
