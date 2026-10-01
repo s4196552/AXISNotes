@@ -19,7 +19,7 @@ import { DocBanner } from "../files/DocBanner";
 import { STATUS_TEXT, useFileDocument } from "../files/useFileDocument";
 import { FeatureBoundary } from "../modules/FeatureBoundary";
 import { lazyNamed } from "../../app/lazy";
-import { useFeatureEnabled } from "../modules/features";
+import { isFeatureEnabled, useFeatureEnabled } from "../modules/features";
 import type { DiagramResult } from "../diagrams/DiagramMaker";
 const HandwritingDialog = lazyNamed(
   () => import("../handwriting/HandwritingDialog"),
@@ -72,6 +72,15 @@ export function Canvas({ path }: { path: string }) {
     ids: string[];
     box: { x: number; y: number; bottom: number };
   } | null>(null);
+  if (!handwritingEnabled && handwriting) setHandwriting(null);
+  if (!diagramsEnabled && diagramOpen) setDiagramOpen(false);
+  const captureGeneration = useRef(0);
+  useEffect(
+    () => () => {
+      ++captureGeneration.current;
+    },
+    [handwritingEnabled],
+  );
   const api = useRef<Api | null>(null);
   const track = useRef<Tracking | null>(null);
 
@@ -200,6 +209,7 @@ export function Canvas({ path }: { path: string }) {
 
   /** Read the selected strokes (or all pen strokes) with the handwriting model. */
   const convertHandwriting = async () => {
+    const generation = captureGeneration.current;
     const a = api.current;
     if (!a || !lib) return;
     const all = a.getSceneElements();
@@ -227,13 +237,16 @@ export function Canvas({ path }: { path: string }) {
       const x = Math.min(...els.map((el) => el.x));
       const y = Math.min(...els.map((el) => el.y));
       const bottom = Math.max(...els.map((el) => el.y + el.height));
+      const data = await blobToBase64(blob);
+      if (generation !== captureGeneration.current || !isFeatureEnabled("handwriting")) return;
       setHandwriting({
-        image: { mime: "image/png", data: await blobToBase64(blob) },
+        image: { mime: "image/png", data },
         ids: els.map((el) => el.id),
         box: { x, y, bottom },
       });
     } catch (e) {
-      useAppStore.getState().setError(`Couldn't render the handwriting: ${String(e)}`);
+      if (generation === captureGeneration.current && isFeatureEnabled("handwriting"))
+        useAppStore.getState().setError(`Couldn't render the handwriting: ${String(e)}`);
     }
   };
 

@@ -50,11 +50,16 @@ when AI assistance is disabled. Core tasks and the daily-note navigator remain a
 
 The local graph starts collapsed and loads on expansion. Timer runtime/restoration waits for
 the current vault configuration; disabled timer controls do not import the timer implementation.
+Timer start and disable wait for persisted restoration; a failed restore blocks both actions.
 Disabling time tracking requires stopping an active timer, so the switch does not silently edit
 or leave a running entry. Stale restoration cannot reactivate a suspended timer. Spellcheck's
-worker terminates on disable and settles pending requests. Shared AI dispatch rejects disabled
+first-use worker is retained by the owning vault across note navigation; it terminates on
+disable or vault close and settles pending requests. Shared AI dispatch rejects disabled
 assistance and cancels outstanding runs. Canvas handwriting/diagram dialogs and AI settings
-load on first opening. Optional chunk failures leave core editing and source data available.
+load on first opening. Cancelled canvas dialogs stay closed on re-enable, and stale image
+exports cannot restart recognition. Shortcut remapping resolves conflicts with disabled commands
+before they are re-enabled. Optional chunk failures explain how to reload after saving work
+and leave core editing and source data available.
 
 This changes frontend module lifetimes, not the native AI policy implementation. Exact model
 allowlists/attestation remain T-045. The existing Rust index still owns shared indexing; no
@@ -71,3 +76,5 @@ Tests must cover disabled entry points/shortcuts, first-use imports, teardown, l
 re-enable, vault switches, failures, active-write/run handling and data preservation. Native
 runtime changes require real Tauri tests; core workflows still work with optional modules,
 AI, Hub and Connect unavailable. Every released platform declares supported capabilities.
+
+AI tool lifetimes also end when the active vault changes: source-bound dialogs close, pending previews cannot dispatch old context, native runs are cancelled, and late deltas/results or asynchronous validation retries are discarded.

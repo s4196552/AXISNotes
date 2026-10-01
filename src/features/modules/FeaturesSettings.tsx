@@ -11,10 +11,7 @@ export function FeaturesSettings() {
     try {
       if (id === "timeTracking" && !enabled) {
         const { useTimer } = await import("../time/timer");
-        if (useTimer.getState().busy)
-          throw new Error("Wait for the timer to finish saving before disabling time tracking.");
-        if (useTimer.getState().running)
-          throw new Error("Stop the running timer before disabling time tracking.");
+        await useTimer.getState().prepareToDisable();
       }
       await useConfig
         .getState()

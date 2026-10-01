@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { RotateCcw, X } from "lucide-react";
 import { type AxisConfig } from "../../app/config";
 import { effectiveShortcut, formatHotkey, hotkeyFromEvent, parseHotkey } from "../commands/hotkeys";
-import { allCommands, shortcutOf } from "../commands/registry";
+import { allCommands, registeredCommands, shortcutOf } from "../commands/registry";
 
 // Settings → Keyboard shortcuts: every command, its shortcut, and remapping by pressing
 // the new keys. Overrides live in `.axisnotes/config.json` (`hotkeys`).
@@ -30,7 +30,7 @@ export function HotkeysSettings({ config, set }: Props) {
   const bind = (id: string, hotkey: string | null) =>
     set((c) => {
       const hotkeys = { ...c.hotkeys };
-      const cmd = allCommands().find((x) => x.id === id);
+      const cmd = registeredCommands().find((x) => x.id === id);
       let result = hotkey;
       if (hotkey === null) {
         delete hotkeys[id];
@@ -38,7 +38,7 @@ export function HotkeysSettings({ config, set }: Props) {
       } else hotkeys[id] = hotkey;
       // One shortcut, one command: take it from any other command that has it.
       if (result)
-        for (const other of allCommands()) {
+        for (const other of registeredCommands()) {
           const s = effectiveShortcut(other.id, other.shortcut, hotkeys);
           if (other.id !== id && s && formatHotkey(s) === result) hotkeys[other.id] = "";
         }

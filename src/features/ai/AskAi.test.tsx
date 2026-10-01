@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
 import { AskAi } from "./AskAi";
+import type { AiPlan } from "../../ipc";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -98,4 +99,25 @@ describe("Ask AI", () => {
       ),
     );
   });
+});
+
+it("does not send old note context when a pending plan completes in another vault", async () => {
+  useAppStore.setState({ vault: { root: "/v", name: "v" } });
+  render(<AskAi path="School/Bio.md" onClose={() => {}} />);
+  await waitFor(() => expect(screen.getByLabelText("Destination")).toHaveTextContent("Ollama"));
+  const plan = await h.b.aiPlan({ task: "chat", messages: [], attach: ["School/Bio.md"] });
+  let resolve!: (value: AiPlan) => void;
+  vi.spyOn(h.b, "aiPlan").mockImplementation(
+    () =>
+      new Promise((r) => {
+        resolve = r;
+      }),
+  );
+  const run = vi.spyOn(h.b, "aiRun");
+  ask("Summarize this note");
+  useAppStore.setState({ vault: { root: "/other", name: "other" } });
+  await act(async () => {
+    resolve(plan);
+  });
+  expect(run).not.toHaveBeenCalled();
 });

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { Extension } from "@codemirror/state";
 import { ViewPlugin } from "@codemirror/view";
 import { useConfig } from "../../app/config";
@@ -10,6 +11,18 @@ export { recheck, openSpellFix } from "./spellcheck";
 useConfig.subscribe((state) => {
   if (!state.config.spellcheck.enabled) stopSpeller();
 });
+
+/** Keep a first-use worker across note switches, then release it on disable/vault close. */
+export function useVaultSpellcheck(root: string | undefined, enabled: boolean) {
+  useEffect(() => {
+    if (!root || !enabled) return;
+    const release = retainSpeller();
+    return () => {
+      release();
+      stopSpeller();
+    };
+  }, [root, enabled]);
+}
 
 let known: { words: string[]; set: Set<string> } | null = null;
 

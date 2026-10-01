@@ -6,6 +6,8 @@ import { AUTOSAVE_DELAY_MS } from "../files/useFileDocument";
 import { serializeCanvas } from "../../lib/canvas";
 import { setAiResponder } from "../../ipc/memoryAi";
 import { Canvas } from "./Canvas";
+import { mergeConfig, useConfig } from "../../app/config";
+import * as pad from "../handwriting/pad";
 
 type El = {
   id: string;
@@ -43,6 +45,7 @@ const h = vi.hoisted(() => ({
   mounts: 0,
   selected: {} as Record<string, boolean>,
   exported: [] as El[][],
+  exportGate: null as Promise<Blob> | null,
 }));
 
 vi.mock("../../ipc", async (orig) => {
@@ -101,7 +104,7 @@ vi.mock("./excalidraw", async () => {
     CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY" },
     exportToBlob: ({ elements }: { elements: El[] }) => {
       h.exported.push(elements);
-      return Promise.resolve(new Blob(["png"], { type: "image/png" }));
+      return h.exportGate ?? Promise.resolve(new Blob(["png"], { type: "image/png" }));
     },
     convertToExcalidrawElements: (els: Omit<El, "id">[]) =>
       els.map((e) => ({ ...e, id: `new${n++}`, version: 1 })),
@@ -141,6 +144,8 @@ beforeEach(() => {
   h.mounts = 0;
   h.selected = {};
   h.exported = [];
+  h.exportGate = null;
+  useConfig.setState({ config: mergeConfig({}) });
   useAppStore.setState({
     error: null,
     activePath: "Board.axcanvas",
@@ -151,7 +156,11 @@ beforeEach(() => {
     ],
   });
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  setAiResponder(null);
+});
 
 const saved = () =>
   JSON.parse(h.b.files()["Board.axcanvas"]!) as { elements: El[]; source: string };
@@ -261,5 +270,61 @@ describe("Canvas", () => {
     } finally {
       setAiResponder(null);
     }
+  });
+
+  it("does not resend an old handwriting image when assistance is reenabled", async () => {
+    vi.useRealTimers();
+    const { settings } = await h.b.aiSettings();
+    await h.b.aiSaveSettings({
+      ...settings,
+      providers: [{ id: "ollama", kind: "ollama", name: "Ollama", baseUrl: "", enabled: true }],
+    });
+    let requests = 0;
+    setAiResponder(() => {
+      ++requests;
+      return JSON.stringify({ text: "Buy milk", uncertain: [] });
+    });
+    await open();
+    act(() =>
+      h.api!.updateScene({
+        elements: [
+          ...h.api!.getSceneElements(),
+          { id: "ink", type: "freedraw", x: 10, y: 20, width: 100, height: 40 },
+        ],
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Convert to text/ }));
+    expect(await screen.findByLabelText("Transcription")).toHaveTextContent("Buy milk");
+    const original = h.api!.getSceneElements();
+    act(() => useConfig.setState({ config: mergeConfig({ features: { aiAssist: false } }) }));
+    expect(screen.queryByLabelText("Transcription")).toBeNull();
+    await act(async () => useConfig.setState({ config: mergeConfig({}) }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(requests).toBe(1);
+    expect(h.api!.getSceneElements()).toEqual(original);
+  });
+  it("ignores a handwriting image export that finishes after disable and reenable", async () => {
+    vi.useRealTimers();
+    vi.spyOn(pad, "blobToBase64").mockResolvedValue("fixture-image");
+    let finish!: (value: Blob) => void;
+    h.exportGate = new Promise((r) => {
+      finish = r;
+    });
+    await open();
+    act(() =>
+      h.api!.updateScene({
+        elements: [
+          ...h.api!.getSceneElements(),
+          { id: "ink", type: "freedraw", x: 10, y: 20, width: 100, height: 40 },
+        ],
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Convert to text/ }));
+    expect(h.exported).toHaveLength(1);
+    act(() => useConfig.setState({ config: mergeConfig({ features: { handwriting: false } }) }));
+    act(() => useConfig.setState({ config: mergeConfig({}) }));
+    await act(async () => finish(new Blob(["png"])));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(h.api!.getSceneElements().some((e) => e.id === "ink")).toBe(true);
   });
 });

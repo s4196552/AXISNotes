@@ -5,6 +5,7 @@ import type { AiRunRequest } from "../../ipc";
 import { InvalidAnswer, parseAnswer, type Schema } from "../../lib/aiJson";
 import { useConfig, mergeConfig } from "../../app/config";
 import { runAi, askValidated, text } from "./runAi";
+import { useAppStore } from "../../app/store";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -18,6 +19,7 @@ const request: AiRunRequest = { task: "diagrams", json: true, messages: [text("u
 const seen: AiRunRequest[] = [];
 
 beforeEach(async () => {
+  useAppStore.setState({ vault: { root: "/v", name: "v" } });
   useConfig.setState({ config: mergeConfig({}) });
   h.b = createMemoryBackend({});
   await h.b.openVault("/v");
@@ -81,3 +83,48 @@ it("cancels in-flight AI and discards late output after disable", async () => {
   resolve({ text: "late output" });
   await cancelled;
 });
+
+it("cancels previous-vault AI even when the new vault also enables AI", async () => {
+  let resolve!: (value: { text: string }) => void;
+  let emit!: (value: string) => void;
+  vi.spyOn(h.b, "aiRun").mockImplementation((_id, _request, onDelta) => {
+    emit = onDelta!;
+    return new Promise((r) => {
+      resolve = r as typeof resolve;
+    });
+  });
+  const cancel = vi.spyOn(h.b, "aiCancel").mockResolvedValue();
+  const onDelta = vi.fn();
+  const pending = runAi(request, onDelta);
+  const cancelled = expect(pending).rejects.toMatchObject({ code: "Cancelled" });
+  useAppStore.setState({ vault: { root: "/other", name: "other" } });
+  emit("late previous-vault delta");
+  resolve({ text: "late previous-vault result" });
+  await cancelled;
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(onDelta).not.toHaveBeenCalled();
+});
+
+it.each([false, true])(
+  "discards validation after vault switch without retrying (invalid=%s)",
+  async (invalid) => {
+    setAiResponder(() => '{"title":"ok"}');
+    const ai = vi.spyOn(h.b, "aiRun");
+    let finish!: () => void;
+    const parse = vi.fn(
+      () =>
+        new Promise<string>((resolve, reject) => {
+          finish = () => (invalid ? reject(new InvalidAnswer(["bad"])) : resolve("old vault"));
+        }),
+    );
+    const onRetry = vi.fn();
+    const pending = askValidated(request, parse, { onRetry });
+    const cancelled = expect(pending).rejects.toMatchObject({ code: "Cancelled" });
+    await vi.waitFor(() => expect(parse).toHaveBeenCalledOnce());
+    useAppStore.setState({ vault: { root: "/other", name: "other" } });
+    finish();
+    await cancelled;
+    expect(ai).toHaveBeenCalledOnce();
+    expect(onRetry).not.toHaveBeenCalled();
+  },
+);

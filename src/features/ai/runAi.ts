@@ -6,6 +6,7 @@ import {
   isBackendError,
 } from "../../ipc";
 import { useConfig } from "../../app/config";
+import { useAppStore } from "../../app/store";
 import { isFeatureEnabled } from "../modules/features";
 import { InvalidAnswer } from "../../lib/aiJson";
 
@@ -17,6 +18,7 @@ export class AiRun {
   runId: string | null = null;
   cancelled = false;
   cancel() {
+    if (this.cancelled) return;
     this.cancelled = true;
     if (this.runId) void backend.aiCancel(this.runId).catch(() => {});
   }
@@ -32,6 +34,23 @@ export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/** A run belongs to its original vault, including asynchronous validation and retries. */
+function watchRunLifetime(run: AiRun) {
+  const vault = useAppStore.getState().vault?.root;
+  const unsubscribeConfig = useConfig.subscribe(() => {
+    if (!isFeatureEnabled("aiAssist")) run.cancel();
+  });
+  const unsubscribeVault = useAppStore.subscribe((state) => {
+    if (state.vault?.root !== vault) run.cancel();
+  });
+  return () => {
+    unsubscribeConfig();
+    unsubscribeVault();
+  };
+}
+const checkCancelled = (run: AiRun) => {
+  if (run.cancelled) throw { code: "Cancelled", message: "cancelled" };
+};
 export async function runAi(
   request: AiRunRequest,
   onDelta: (text: string) => void = () => {},
@@ -42,9 +61,7 @@ export async function runAi(
   if (run.cancelled) throw { code: "Cancelled", message: "cancelled" };
   const runId = crypto.randomUUID();
   run.runId = runId;
-  const unsubscribe = useConfig.subscribe(() => {
-    if (!isFeatureEnabled("aiAssist")) run.cancel();
-  });
+  const unsubscribe = watchRunLifetime(run);
   try {
     const result = await backend.aiRun(runId, request, (delta) => {
       if (!run.cancelled) onDelta(delta);
@@ -78,25 +95,36 @@ export async function askValidated<T>(
   parse: (answer: string) => T | Promise<T>,
   opts: { run?: AiRun; onDelta?(text: string): void; onRetry?(problems: string[]): void } = {},
 ): Promise<Validated<T>> {
-  const first = await runAi(request, opts.onDelta, opts.run);
+  const run = opts.run ?? new AiRun();
+  const unsubscribe = watchRunLifetime(run);
   try {
-    return { value: await parse(first.text), result: first, attempts: 1 };
-  } catch (e) {
-    if (!(e instanceof InvalidAnswer)) throw e;
-    opts.onRetry?.(e.problems);
-    const retry: AiRunRequest = {
-      ...request,
-      messages: [
-        ...request.messages,
-        text("assistant", first.text),
-        text(
-          "user",
-          `That answer can't be used:\n- ${e.problems.slice(0, 8).join("\n- ")}\n` +
-            "Reply again with only the corrected answer in the required format.",
-        ),
-      ],
-    };
-    const second = await runAi(retry, opts.onDelta, opts.run);
-    return { value: await parse(second.text), result: second, attempts: 2 };
+    const first = await runAi(request, opts.onDelta, run);
+    try {
+      const value = await parse(first.text);
+      checkCancelled(run);
+      return { value, result: first, attempts: 1 };
+    } catch (e) {
+      checkCancelled(run);
+      if (!(e instanceof InvalidAnswer)) throw e;
+      opts.onRetry?.(e.problems);
+      const retry: AiRunRequest = {
+        ...request,
+        messages: [
+          ...request.messages,
+          text("assistant", first.text),
+          text(
+            "user",
+            `That answer can't be used:\n- ${e.problems.slice(0, 8).join("\n- ")}\n` +
+              "Reply again with only the corrected answer in the required format.",
+          ),
+        ],
+      };
+      const second = await runAi(retry, opts.onDelta, run);
+      const value = await parse(second.text);
+      checkCancelled(run);
+      return { value, result: second, attempts: 2 };
+    }
+  } finally {
+    unsubscribe();
   }
 }

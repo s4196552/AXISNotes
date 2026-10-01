@@ -143,6 +143,16 @@ function useEscapeWithoutFocus(open: boolean) {
 
 export function Modals() {
   useShortcuts();
+  useEffect(
+    () =>
+      useAppStore.subscribe((state, previous) => {
+        if (state.vault?.root === previous.vault?.root) return;
+        const kind = useUi.getState().modal?.kind;
+        if (kind === "ask" || kind === "fix" || kind === "handwriting" || kind === "diagram")
+          useUi.getState().close();
+      }),
+    [],
+  );
   const modal = useUi((s) => s.modal);
   useConfig((s) => s.config.features);
   useEscapeWithoutFocus(modal !== null);

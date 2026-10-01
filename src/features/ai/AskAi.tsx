@@ -108,13 +108,17 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
 
   async function send(confirmed = false) {
     if (!prompt.trim() || phase.kind === "running") return;
+    const vault = useAppStore.getState().vault?.root;
     const run = new AiRun();
     currentRun.current = run;
     if (!confirmed) {
       // The plan only decides whether to ask first. If it fails (e.g. a privacy rule),
       // the run below reports the authoritative error and records it in the request log.
       const p = await backend.aiPlan(request).catch(() => null);
-      if (run.cancelled) return;
+      if (run.cancelled || vault !== useAppStore.getState().vault?.root) {
+        run.cancel();
+        return;
+      }
       if (p?.needsConfirm) {
         setPhase({ kind: "confirm", plan: p });
         return;

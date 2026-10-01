@@ -44,6 +44,11 @@ export function registerCommands(list: Command[]) {
   }
 }
 
+/** Metadata for conflict resolution; disabled commands remain inactive. */
+export function registeredCommands(): readonly Command[] {
+  return commands;
+}
+
 export function allCommands(): readonly Command[] {
   return commands.filter((c) => !c.feature || isFeatureEnabled(c.feature));
 }

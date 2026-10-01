@@ -1,3 +1,5 @@
+import { renderHook } from "@testing-library/react";
+import { useVaultSpellcheck } from "./index";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mergeConfig, useConfig } from "../../app/config";
 import { getSpeller, noSpeller, stopSpeller, retainSpeller } from "./engine";
@@ -51,4 +53,28 @@ it("keeps a shared worker while another view uses it and releases it on the last
   getSpeller();
   expect(instances).toHaveLength(2);
   closeNext();
+});
+
+it("retains the first-use worker across note navigation and releases it on vault close", () => {
+  const owner = renderHook(() => useVaultSpellcheck("/vault", true));
+  expect(instances).toHaveLength(0);
+  const closeNote = retainSpeller();
+  const worker = getSpeller();
+  closeNote(); // New note loading creates a gap between editor consumers.
+  expect(instances[0]!.terminate).not.toHaveBeenCalled();
+  const closeNext = retainSpeller();
+  expect(getSpeller()).toBe(worker);
+  expect(instances).toHaveLength(1);
+  closeNext();
+  owner.unmount();
+  expect(instances[0]!.terminate).toHaveBeenCalledOnce();
+});
+it("ends a vault lease immediately when spellcheck is disabled", () => {
+  const owner = renderHook(({ enabled }) => useVaultSpellcheck("/vault", enabled), {
+    initialProps: { enabled: true },
+  });
+  getSpeller();
+  owner.rerender({ enabled: false });
+  expect(instances[0]!.terminate).toHaveBeenCalledOnce();
+  owner.unmount();
 });

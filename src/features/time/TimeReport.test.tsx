@@ -29,8 +29,10 @@ beforeEach(async () => {
     "Home.md": "# Home\n",
   });
   await h.b.openVault("/v");
-  useTimer.setState({ running: null });
+  useTimer.getState().suspend();
+  useTimer.setState({ busy: false });
   useAppStore.setState({
+    vault: { root: "/v", name: "v" },
     error: null,
     notice: null,
     activePath: null,

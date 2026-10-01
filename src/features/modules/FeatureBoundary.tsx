@@ -13,6 +13,7 @@ export class FeatureBoundary extends Component<
       return (
         <div className="empty muted" role="alert">
           <p>{this.props.name} could not load. Your files and history are preserved.</p>
+          <p>Save your work, then reload AXISNotes to retry this feature.</p>
           {this.props.onDismiss && <button onClick={this.props.onDismiss}>Dismiss</button>}
           <button onClick={() => useUi.getState().open({ kind: "settings", section: "features" })}>
             Feature settings

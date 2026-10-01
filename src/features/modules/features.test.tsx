@@ -4,6 +4,7 @@ import { DEFAULT_CONFIG, mergeConfig, useConfig } from "../../app/config";
 import { useAppStore } from "../../app/store";
 import { featureEnabled, DEFAULT_FEATURES } from "./catalog";
 import { FeaturesSettings } from "./FeaturesSettings";
+import { HotkeysSettings } from "../settings/HotkeysSettings";
 import { allCommands, commandForEvent } from "../commands/registry";
 import { useTimer } from "../time/timer";
 import { RightSidebar } from "../panels/Sidebars";
@@ -17,7 +18,7 @@ vi.mock("../panels/BacklinksPanel", () => ({ BacklinksPanel: () => null }));
 vi.mock("../graph/GraphView", () => ({ LocalGraph: () => <p>Loaded graph</p> }));
 beforeEach(() => {
   h.write.mockReset().mockResolvedValue({ modifiedMs: 1 });
-  h.timeEntries.mockReset();
+  h.timeEntries.mockReset().mockResolvedValue([]);
   h.graph.mockReset();
   useConfig.setState({ config: mergeConfig({}), loaded: true });
   useTimer.getState().suspend();
@@ -82,7 +83,7 @@ describe("bundled features", () => {
     expect(screen.getByRole("checkbox", { name: "Graph views" })).toBeChecked();
   });
   it("requires stopping a running timer before disabling its feature", async () => {
-    useTimer.setState({ running: { path: "Note.md", start: "2026-09-30T01:00:00Z" } });
+    useTimer.setState({ running: { path: "Note.md", start: "2026-09-30T01:00:00" } });
     render(<FeaturesSettings />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Time tracking" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Stop the running timer");
@@ -112,7 +113,7 @@ describe("bundled features", () => {
     );
     const restoring = useTimer.getState().restore();
     useTimer.getState().suspend();
-    resolve([{ path: "Note.md", start: "2026-09-30T01:00:00Z", end: null }]);
+    resolve([{ path: "Note.md", start: "2026-09-30T01:00:00", end: null }]);
     await restoring;
     expect(useTimer.getState().running).toBeNull();
   });
@@ -125,4 +126,57 @@ it("waits for a timer write before allowing disable", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("finish saving");
   expect(h.write).not.toHaveBeenCalled();
   useTimer.setState({ busy: false });
+});
+
+it("waits for persisted timer restoration before allowing disable", async () => {
+  let resolve!: (value: unknown[]) => void;
+  h.timeEntries.mockImplementation(
+    () =>
+      new Promise((r) => {
+        resolve = r;
+      }),
+  );
+  const pending = useTimer.getState().restore();
+  render(<FeaturesSettings />);
+  fireEvent.click(screen.getByRole("checkbox", { name: "Time tracking" }));
+  await waitFor(() =>
+    expect(screen.getByRole("checkbox", { name: "Time tracking" })).toBeDisabled(),
+  );
+  expect(h.write).not.toHaveBeenCalled();
+  await act(async () => {
+    resolve([{ path: "Note.md", start: "2026-09-30T01:00:00", end: null }]);
+    await pending;
+  });
+  expect(await screen.findByRole("alert")).toHaveTextContent("Stop the running timer");
+  expect(useConfig.getState().config.features.timeTracking).toBe(true);
+  expect(h.write).not.toHaveBeenCalled();
+});
+it("keeps tracking enabled when persisted timer state is unreadable", async () => {
+  h.timeEntries.mockRejectedValue(new Error("Index unavailable"));
+  render(<FeaturesSettings />);
+  fireEvent.click(screen.getByRole("checkbox", { name: "Time tracking" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Timer state could not be restored");
+  expect(useConfig.getState().config.features.timeTracking).toBe(true);
+  expect(h.write).not.toHaveBeenCalled();
+});
+it("removes a disabled command's shortcut conflict before that feature is reenabled", () => {
+  useConfig.setState({ config: mergeConfig({ features: { graph: false } }) });
+  render(
+    <HotkeysSettings
+      config={useConfig.getState().config}
+      set={(fn) => useConfig.setState({ config: fn(useConfig.getState().config) })}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Shortcut for Quick switcher: open a note" }));
+  fireEvent.keyDown(screen.getByRole("button", { name: "Press keys…" }), {
+    key: "g",
+    ctrlKey: true,
+  });
+  expect(useConfig.getState().config.hotkeys.graph).toBe("");
+  useConfig.setState({
+    config: { ...useConfig.getState().config, features: { ...DEFAULT_FEATURES, graph: true } },
+  });
+  expect(commandForEvent(new KeyboardEvent("keydown", { key: "g", ctrlKey: true }))?.id).toBe(
+    "switcher",
+  );
 });

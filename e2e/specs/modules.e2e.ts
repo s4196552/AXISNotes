@@ -59,6 +59,10 @@ describe("bundled modules in the real desktop app", () => {
     await $('[aria-label="Start timer"]').waitForDisplayed();
     await $('[aria-label="Start timer"]').click();
     await browser.waitUntil(() => content().includes("time_log:"));
+    await browser.execute(() => location.reload());
+    await $('[data-path="Welcome.md"]').waitForDisplayed();
+    await $('[data-path="Welcome.md"]').click();
+    await $('[aria-label="Stop timer"]').waitForDisplayed();
     await features();
     await $("#feature-timeTracking").click();
     await expect($('[role="alert"]')).toHaveText(expect.stringContaining("Stop the running timer"));
@@ -71,5 +75,21 @@ describe("bundled modules in the real desktop app", () => {
     await $("#feature-timeTracking").click();
     await close();
     expect(content()).toBe(original);
+  });
+  it("returns an active graph to the note and keeps it closed after reenable", async () => {
+    await $('[aria-label="Graph view"]').click();
+    await $('[data-testid="graph-canvas"]').waitForDisplayed();
+    await features();
+    await $("#feature-graph").click();
+    await close();
+    await expect($(".editor-title")).toHaveText("Welcome");
+    await expect($('[data-testid="graph-canvas"]')).not.toExist();
+    await features();
+    await $("#feature-graph").click();
+    await close();
+    await expect($(".editor-title")).toHaveText("Welcome");
+    await expect($('[data-testid="graph-canvas"]')).not.toExist();
+    await browser.keys([Key.Ctrl, "g"]);
+    await $('[data-testid="graph-canvas"]').waitForDisplayed();
   });
 });

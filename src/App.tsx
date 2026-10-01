@@ -9,6 +9,7 @@ import { openDailyNote } from "./features/commands/actions";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
 import { Editor } from "./features/editor";
+import { useVaultSpellcheck } from "./features/spellcheck";
 import { lazyNamed } from "./app/lazy";
 import { loadFunctions } from "./lib/formula/functions";
 import { ImageView, UnsupportedView } from "./features/files/ImageView";
@@ -37,6 +38,8 @@ export default function App() {
   const graphEnabled = useFeatureEnabled("graph");
   const timeEnabled = useFeatureEnabled("timeTracking");
   const configReady = useConfig((s) => s.loaded && s.vaultRoot === vault?.root);
+  const spellingEnabled = useConfig((s) => s.config.spellcheck.enabled);
+  useVaultSpellcheck(configReady ? vault?.root : undefined, spellingEnabled);
   const activePath = useAppStore((s) => s.activePath);
   const mainView = useAppStore((s) => s.mainView);
   const error = useAppStore((s) => s.error);
@@ -44,6 +47,10 @@ export default function App() {
   const indexing = useAppStore((s) => s.indexing);
   const refreshTree = useAppStore((s) => s.refreshTree);
   useClipNotices();
+  useEffect(() => {
+    if ((mainView === "graph" && !graphEnabled) || (mainView === "time" && !timeEnabled))
+      useAppStore.getState().setMainView("note");
+  }, [mainView, graphEnabled, timeEnabled]);
 
   // Restore a vault the backend already has open (e.g. after a webview reload), or
   // reopen the last one used on this device.
