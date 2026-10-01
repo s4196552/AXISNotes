@@ -37,7 +37,7 @@ describe("native rendered-text diagnostics", () => {
           title,
           style,
         );
-        expect(await readVisibleText(title)).toBe("");
+        expect(await readVisibleText(await title.getElement())).toBe("");
       }
     } finally {
       await browser.execute(
