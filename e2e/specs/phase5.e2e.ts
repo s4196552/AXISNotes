@@ -225,11 +225,8 @@ describe("Phase 5: AI features on the real app", () => {
     await openNote("School/Bio.md", "Bio");
     const bad = $(".cm-misspelled=teh");
     await bad.waitForDisplayed({ timeout: 15_000 }); // the dictionary loads in a worker
-    // CI 36810827554: WebKit retained buttons=2 after the previous context click,
-    // suppressing the later handwriting pointerdown. The action already contains
-    // an explicit right-button up; avoid the redundant releaseActions reset.
     const stopContextTrace = await tracePointer(".cm-misspelled");
-    await bad.click({ button: "right", skipRelease: true });
+    await bad.click({ button: "right" });
     const menu = $(".cm-spell-menu");
     await menu.waitForDisplayed();
     await snapshot("01-spellcheck");
@@ -241,6 +238,14 @@ describe("Phase 5: AI features on the real app", () => {
       timeoutMsg: "spelling fix not saved",
     });
     expect(seen).toHaveLength(0); // spellcheck never touches the network
+    // CI 36811988518 and WebKit 2.52.6 Session.cpp: pointerUp clears the
+    // right button before dispatch, so GTK emits a left up and retains right.
+    // Isolate the completed context-menu workflow from later native drawing.
+    // No failed assertion is retried; files/settings remain in the same fixture.
+    await browser.reloadSession();
+    await row("School/Bio.md").waitForDisplayed();
+    // Credentials are memory-only and must be re-established in the new process.
+    await invoke("ai_set_key", { providerId: "claude", key: "sk-ant-e2e" });
   });
 
   it("fixes grammar with AI, showing each change before applying it", async () => {
