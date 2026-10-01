@@ -2,6 +2,13 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-02: Hide/show side panels (T-064)
+
+- **A button at the top right of the main area** hides both side panels, and brings them back. The same toggle is the command "Hide/show side panels" (`Ctrl+\`), and there are separate commands for the left and the right panel.
+- **Per device:** which panels show is kept in local storage (`axisnotes.layout`), like zoom. It's about the screen you're on, not the vault.
+- **Hidden left panel stays mounted** so the file tree and search keep their state. **The hidden right panel is unmounted** so its live graph does no work while it isn't visible.
+- **Choosing a left-side view** (Files, Search, Tags, or Ctrl+Shift+F) shows the left panel again, so the result is never invisible.
+
 ## 2026-09-28: Zoom, text size, fonts and editor width (T-040)
 
 - **Zoom for the whole app:**

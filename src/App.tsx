@@ -1,4 +1,5 @@
 import { Suspense, useEffect } from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
@@ -15,6 +16,9 @@ import { useClipNotices } from "./features/clipper/useClipNotices";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
+import { toggleSidePanels, useLayout } from "./app/layout";
+import { formatHotkey } from "./features/commands/hotkeys";
+import { allCommands, shortcutOf } from "./features/commands/registry";
 
 // Views other than the note editor load on first use (grids also need the formula
 // function library before they render).
@@ -38,6 +42,8 @@ export default function App() {
   const notice = useAppStore((s) => s.notice);
   const indexing = useAppStore((s) => s.indexing);
   const refreshTree = useAppStore((s) => s.refreshTree);
+  const showLeft = useLayout((s) => s.left);
+  const showRight = useLayout((s) => s.right);
   useClipNotices();
 
   // Restore a vault the backend already has open (e.g. after a webview reload), or
@@ -124,9 +130,20 @@ export default function App() {
   if (!vault) return <WelcomeScreen />;
 
   return (
-    <div className="shell">
-      <LeftSidebar />
+    <div
+      className="shell"
+      style={{
+        gridTemplateColumns: [showLeft && "260px", "minmax(0, 1fr)", showRight && "280px"]
+          .filter(Boolean)
+          .join(" "),
+      }}
+    >
+      {/* Hidden rather than unmounted, so the file tree and search keep their state. */}
+      <div className="sidebar-slot" hidden={!showLeft}>
+        <LeftSidebar />
+      </div>
       <main className="content">
+        <SidePanelsButton hidden={!showLeft && !showRight} />
         <Suspense fallback={<div className="empty muted">Loading…</div>}>
           {mainView === "graph" ? (
             <GraphView />
@@ -149,7 +166,8 @@ export default function App() {
           )}
         </Suspense>
       </main>
-      <RightSidebar />
+      {/* The right side (with its live graph) only runs while it's showing. */}
+      {showRight && <RightSidebar />}
       <Modals />
       <footer className="statusbar">
         <span>{activePath ?? ""}</span>
@@ -167,5 +185,23 @@ export default function App() {
         )}
       </footer>
     </div>
+  );
+}
+
+/** Top right of the main area: hide both side panels for a focused view, or bring them back. */
+function SidePanelsButton({ hidden }: { hidden: boolean }) {
+  const cmd = allCommands().find((c) => c.id === "toggle-side-panels");
+  const key = cmd && shortcutOf(cmd);
+  const label = hidden ? "Show side panels" : "Hide side panels";
+  return (
+    <button
+      className="side-panels-toggle"
+      aria-label={label}
+      aria-pressed={hidden}
+      title={key ? `${label} (${formatHotkey(key)})` : label}
+      onClick={toggleSidePanels}
+    >
+      {hidden ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+    </button>
   );
 }
