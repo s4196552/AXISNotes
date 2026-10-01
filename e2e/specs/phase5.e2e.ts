@@ -243,7 +243,7 @@ describe("Phase 5: AI features on the real app", () => {
     // Isolate the completed context-menu workflow from later native drawing.
     // No failed assertion is retried; files/settings remain in the same fixture.
     await browser.reloadSession();
-    await row("School/Bio.md").waitForDisplayed();
+    await row("Pad.md").waitForDisplayed();
     // Credentials are memory-only and must be re-established in the new process.
     await invoke("ai_set_key", { providerId: "claude", key: "sk-ant-e2e" });
   });
