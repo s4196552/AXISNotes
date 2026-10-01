@@ -2,6 +2,86 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-09-30: S2 foundation decisions (T-043; lead proposal, awaiting Codex review)
+
+Details and rationale: [S2_FOUNDATION.md](S2_FOUNDATION.md) (IDs S2-D01 – S2-D43). Protocol
+changes are in the "v1 refinements" section of [SUITE_PROTOCOL.md](SUITE_PROTOCOL.md). None
+of this is implemented yet, and no dependency is added by this entry.
+
+- **Threat model:** S2 defends against web content, other OS users, stale or impostor
+  services, confused deputies, replay and fail-open AI. Same-user native malware is explicitly
+  out of scope, and the UI and release notes say so.
+- **Repositories:** Notes stays at `A:/M. PROJECTS/AXIS`. The new local sibling repositories
+  are `AXIS-Protocol` and `AXIS-Connect` (T-044), then `AXIS-Hub` (T-047), and later
+  `AXIS-Deck` and `AXIS-Calendar`. Athena and ULAP are unchanged. Each repository has one task,
+  one branch and one worktree per task (`../axis-<repo>-T-###`). No remotes are published
+  without a later human instruction, and until then no hosted CI is claimed for them.
+- **Versions:** each app has its own semver. The wire version is `protocolVersion: 1` under
+  `/axis/v1`. The Protocol crate has its own semver, tagged `protocol-v1.0.0`, and is vendored
+  into consumers with its source tag, commit SHA and tree hash recorded. TypeScript, Rust and
+  later Python run the same JSON vectors.
+- **Connect:** a headless per-user Rust binary with no admin rights, service or autostart. It
+  keeps a single-instance lock file, binds an ephemeral port on `127.0.0.1`, writes an atomic
+  readiness manifest, and exits after 10 idle minutes with no leases. Leases are 30 s with a
+  10 s heartbeat. Candidate crates are families already vetted in this log (tiny_http,
+  reqwest/rustls, serde, ring, rusqlite, keyring). T-044 records exact versions and licenses in
+  its own repository's log, verified from `cargo metadata` and the crate sources.
+- **Authentication:** every request and every response to an authenticated request is
+  HMAC-SHA256 signed, including bootstrap status/pair responses and a pending client's status
+  responses; pending clients are denied everywhere else. HMAC gives
+  authenticity, not confidentiality, and loopback bodies are plaintext. Per-client secrets are
+  derived from a keychain master key and a generation counter, so revocation is instant. They
+  cross the wire only once, AEAD-sealed under a key derived from the bootstrap key in the
+  pairing response, with no forward secrecy. Pairing is native-only, through a user-profile
+  bootstrap key. The bootstrap key also signs a liveness probe, so launchers tell a dead
+  service from an invalid credential and never spawn a second Connect for the latter. Revoked
+  installations re-pair only by explicit user action, and restore keeps revocations.
+  Capabilities come from a fixed table per app. Adapters authorize mutations per
+  originating app. A registration endpoint must be `http://127.0.0.1:<port>` and must pass a
+  signed challenge. Any Origin, Referer or Sec-Fetch header, an OPTIONS request or a wrong
+  Host is refused before authentication.
+- **Connect storage:** authoritative SQLite in the user's local app data. Project revisions,
+  insert-only caller-issued IDs, per-caller idempotency records (kept 30 days or more),
+  tombstones and a change feed are written in one transaction per mutation. Backups use the
+  SQLite online backup API (14 kept), plus JSON export and restore. Restore rotates all
+  credentials. Deleting a project never touches app content.
+- **Search:** fan-out with a 1.5 s timeout per adapter and a 2.5 s overall deadline. v1
+  returns one array of groups with explicit unavailable and unsupported states. For project
+  search, owners receive member filters, never a bare `projectId`.
+- **Notes identity:** lives in `.axisnotes/suite/` and is authoritative, a documented exception
+  to "`.axisnotes/` is rebuildable". It is kept out of `index.db`, is written only by native
+  code, and is refused by generic file commands. IDs are minted lazily, and no Markdown file
+  is rewritten for identity. Renames use a journal. Unknown changes resolve as missing with
+  explicit relink candidates. Offline content changes keep an ID only on recorded continuity
+  evidence (an unchanged hash, a surviving block ID, or line-sketch similarity of at least
+  0.5); otherwise the entry becomes ambiguous for the user to decide. Copied vaults and duplicated block IDs resolve as ambiguous.
+  Task anchors reuse or add standard `^blockId` markers, only through an explicit command
+  with a revision check.
+- **Notes AI policy:** in `.axisnotes/ai-policy.json`, written natively. Parsing is strict,
+  inheritance is intersection, and widening needs explicit confirmation. Legacy `ai.folders`
+  is kept, never rewritten by migration, and intersected. It is native-owned: generic config
+  writes preserve it, and changes go through a native command that confirms widening.
+  Applying AI output records persistent per-resource provenance first, and later checks
+  intersect each source's current policy. Every recorded source keeps its identity: an apply
+  that would exceed 256 unique sources for a destination is refused with no change, and
+  provenance is never compacted. Legacy `local` means verified on-device. Invalid
+  or unreadable config now denies instead of failing open. `endpointId` is derived from the
+  normalised base URL. On-device requires runner-probe evidence; unknown loopback gateways are
+  denied. Checks run at plan, before each dispatch or fallback, and before apply.
+- **Notes UI contract:** additive native commands and events for policy, candidates, status
+  and project badges. The memory backend reports `enforcement: "demo"`, and the UI must label
+  it. T-046 is gated on T-045.
+- **Hub:** Tauri 2 with no HTTP server. Portable library data is kept separate from
+  device-local mappings and sessions. Launches go by item ID only, using argument arrays; only
+  `.exe` applications are allowed, script hosts are refused, and URI schemes need an allowlist
+  plus a denylist. Website sessions use per-session WebView2 data directories, and remote
+  webviews have no capabilities. Open in browser is always available. Browser profiles use
+  argument templates. AI is optional and OpenAI-compatible only in S2, returns validated
+  suggestions only, and never produces targets.
+- **Rejected:** Windows named pipes (the approved design is loopback HTTP, and it is simpler
+  for the Python adapters in S3); bearer tokens on the wire; embedding IDs in Markdown
+  frontmatter; treating the rebuildable index as identity; fixed ports; a Windows service.
+
 ## 2026-09-30: AXIS suite baseline (T-042; proposed for lead review)
 
 - AXIS becomes six independent applications connected by optional AXIS Connect. Preserve

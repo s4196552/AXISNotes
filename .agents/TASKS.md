@@ -9,16 +9,27 @@ rows retain their status; old Notes phase numbers do not imply suite completion.
 assigned the baseline continuation to Codex. Future rows await lead adoption and written briefs.
 The [suite roadmap](../docs/SUITE_ROADMAP.md) defines acceptance and logical file ownership.
 
+S2 adoption (T-043, 2026-09-30): the lead adopted T-044–T-049 with written briefs and exact
+ownership, per [S2_FOUNDATION.md](../docs/S2_FOUNDATION.md). Adoption is not permission to
+start: each task starts only when its dependency gate in the brief is met, and runtime work
+waits for T-042/T-043 review and the lead's go. Order: T-044 M1 → (T-045 M1/M3 can start in
+parallel) → T-045 M2 and T-047 → T-046 after T-045 M3, T-048 after T-047 M1 → T-049 after
+T-044–T-048 are approved. Rows T-050+ remain proposals. T-043 revision 2 (after the first
+Codex review, changes-requested) is back in-review; it extends T-046 to the AI-output insert
+call sites, with no ownership overlap. Each task also owns its own
+`.agents/handoffs/T-###.md` (and `.agents/briefs/T-###.md` copy) in every repository it
+touches.
+
 | ID | Phase | Task | Owner | Status | Branch | Files (ownership) |
 | --- | --- | --- | --- | --- | --- | --- |
 | T-042 | S1 | Architecture/research/contracts baseline | codex | in-review | agent/codex/T-042 | AGENTS.md suite context; AXIS_BUILD_PROMPT.md banner; docs/DECISIONS.md suite entry; docs/SUITE*.md; docs/research/suite-landscape-2026-09-30.md; src/suite/**; src-tauri/capabilities/default.json (format only); .github/workflows/ci.yml (task push CI); reviews/T-042.md; this section; briefs/T-042.md; handoffs/T-042.md |
-| T-043 | S2 | Protocol/security/repository placement review | claude | todo | agent/claude/T-043 | docs/DECISIONS.md, docs/SUITE_PROTOCOL.md after T-042 |
-| T-044 | S2 | Connect local coordination service | claude | todo | agent/claude/T-044 | separate Connect repository, scoped by lead |
-| T-045 | S2 | Notes durable resources/adapter/exact AI rules | claude | todo | agent/claude/T-045 | Notes Rust identity/adapter/AI boundaries, scoped by lead |
-| T-046 | S2 | Notes exact AI settings/project UI | codex | todo | agent/codex/T-046 | assigned Notes AI/settings/project UI after T-045 |
-| T-047 | S2 | Hub native launcher/session isolation | claude | todo | agent/claude/T-047 | separate Hub native repository scope |
-| T-048 | S2 | Hub sections/shortcuts/projects/search UI | codex | todo | agent/codex/T-048 | separate Hub frontend scope |
-| T-049 | S2 | Real-Tauri integration acceptance/checkpoint | claude | todo | agent/claude/T-049 | assigned e2e/QA scopes |
+| T-043 | S2 | S2 decisions: repositories, Connect/security/storage, Notes identity/AI policy, Hub launch; briefs T-044–049 | claude | in-review | agent/claude/T-043 | docs/S2_FOUNDATION.md (new); docs/SUITE_PROTOCOL.md (v1 refinements); docs/DECISIONS.md (S2 entry); .agents/TASKS.md (S2 rows); .agents/briefs/T-043.md … T-049.md; .agents/handoffs/T-043.md |
+| T-044 | S2 | AXIS-Protocol crate + vectors (M1, tag protocol-v1.0.0); AXIS-Connect service (M2) | claude | todo | agent/claude/T-044 (both repos) | new repo A:/M. PROJECTS/AXIS-Protocol/** ; new repo A:/M. PROJECTS/AXIS-Connect/** ; docs/DECISIONS.md (own entry, append-only) |
+| T-045 | S2 | Notes durable identity (M1), adapter + Connect client (M2), exact AI policy/evidence + IPC contract (M3) | claude | todo | agent/claude/T-045 | src-tauri/src/suite/** (new); src-tauri/src/suite_commands.rs (new); src-tauri/src/ai/{privacy,policy(new),attest(new),service,mod}.rs; src-tauri/src/ai/service/tests.rs; src-tauri/src/ai/fixtures/probe/** (new); src-tauri/src/ai_commands.rs; src-tauri/src/lib.rs; src-tauri/src/commands.rs (protected paths, rename/trash hooks); src-tauri/src/vault/{mod,watcher}.rs (protected paths, rename hook); src-tauri/Cargo.toml; src-tauri/Cargo.lock; src-tauri/vendor/axis-suite-protocol/**; src/ipc/{types,tauriBackend,memoryBackend,memoryAi}.ts; src/ipc/memoryBackend.test.ts; src/suite/**; docs/DECISIONS.md (own entry) |
+| T-046 | S2 | Notes exact AI policy UI, candidates/evidence, Connect settings, project badges, relink UI, legacy rule writer migration, AI-output apply call sites (gated on T-045 M3) | codex | todo | agent/codex/T-046 | src/features/ai/** ; src/features/suite/** (new); src/features/filetree/FileTree.tsx + FileTree.test.tsx; src/features/settings/Settings.tsx (section registration); src/features/editor/Editor.tsx (badge strip mount only); AI-output insert call sites only: src/features/handwriting/NoteHandwriting.tsx, src/features/diagrams/NoteDiagram.tsx, src/features/canvas/Canvas.tsx (+ their tests if needed) |
+| T-047 | S2 | Hub scaffold + IPC contract + memory backend (M1); native launch, sessions, browsers, Connect client, optional AI (M2) | claude | todo | agent/claude/T-047 (AXIS-Hub) | new repo A:/M. PROJECTS/AXIS-Hub: root configs, src-tauri/**, src/ipc/**, src/main.tsx, src/App.tsx (shell only), src/app/Shell.tsx (M1 placeholder, then T-048's), vendor/axis-suite-protocol/**, scripts/agents/**, docs/** |
+| T-048 | S2 | Hub sections/items/launch UI, session/browser pickers, projects, federated search, connected apps, AI review UI | codex | todo | agent/codex/T-048 (AXIS-Hub) | AXIS-Hub: src/features/** ; src/app/** ; src/styles/** (not src/ipc/**, not src-tauri/**) |
+| T-049 | S2 | Real-Tauri S2 acceptance, cross-reviews of T-046/T-048, QA screenshots, checkpoint report | claude | todo | agent/claude/T-049 (AXIS + AXIS-Hub) | AXIS: e2e/specs/suite.e2e.ts (new), e2e/wdio.conf.ts (suite seed/env only), e2e/support/suite/** (new), .agents/reviews/T-046.md, .agents/qa/S2/** ; AXIS-Hub: e2e/** (incl. e2e/fixtures/launch-probe/**), scripts/acceptance/** (new), .agents/reviews/T-048.md |
 | T-050 | S3 | Athena catalogue adapter/provenance | claude | todo | agent/claude/T-050 | Athena repository, local brief required |
 | T-051 | S3 | ULAP adapter/search/status/project references | codex | todo | agent/codex/T-051 | ULAP repository, local brief required |
 | T-052 | S3 | Non-destructive integration acceptance/checkpoint | claude | todo | agent/claude/T-052 | assigned integration tests |
