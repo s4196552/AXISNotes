@@ -49,6 +49,8 @@ jobs:
     # Real app + real files via tauri-driver (WebKitWebDriver). Windows E2E runs locally
     # with msedgedriver; see docs/DECISIONS.md.
     needs: check
+    # Keep native diagnostics available after a failed check; every check still gates merge.
+    if: ${{ always() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,7 +66,7 @@ jobs:
       - name: System deps (Tauri, WebKitWebDriver, Xvfb)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb x11-utils
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb
       - run: cargo install tauri-driver --locked
       - run: pnpm install --frozen-lockfile
       - run: pnpm e2e:build
@@ -78,10 +80,10 @@ jobs:
             cargo install --list
             dpkg-query -W libwebkit2gtk-4.1-0 webkit2gtk-driver xvfb
             WebKitWebDriver --version || WebKitWebDriver --help
-            xvfb-run sh -c 'xdpyinfo | head -25'
+            printf '%s\n' 'Xvfb screen 0: 1280x1024x24 (explicit test server arguments)'
           } > "$RUNNER_TEMP/axis-e2e-versions.txt" 2>&1
           cat "$RUNNER_TEMP/axis-e2e-versions.txt"
-      - run: xvfb-run pnpm e2e
+      - run: xvfb-run --server-args="-screen 0 1280x1024x24" pnpm e2e
         env:
           AXIS_E2E_ARTIFACTS: ${{ runner.temp }}/axis-e2e-artifacts
       - name: Upload bounded fixture-only native diagnostics
