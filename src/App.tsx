@@ -190,6 +190,8 @@ export default function App() {
 
 /** Top right of the main area: hide both side panels for a focused view, or bring them back. */
 function SidePanelsButton({ hidden }: { hidden: boolean }) {
+  // Re-render when shortcuts are remapped in Settings, so the tooltip stays right.
+  useConfig((s) => s.config.hotkeys);
   const cmd = allCommands().find((c) => c.id === "toggle-side-panels");
   const key = cmd && shortcutOf(cmd);
   const label = hidden ? "Show side panels" : "Hide side panels";

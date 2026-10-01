@@ -4,6 +4,7 @@ import { createMemoryBackend, type MemoryBackend } from "../ipc/memoryBackend";
 import { useAppStore } from "./store";
 import { useLayout } from "./layout";
 import { commandForEvent } from "../features/commands/registry";
+import { DEFAULT_CONFIG, useConfig } from "./config";
 import App from "../App";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
@@ -18,6 +19,7 @@ beforeEach(async () => {
   h.b = createMemoryBackend({ "Welcome.md": "# Welcome\n" });
   const vault = await h.b.openVault("/v");
   useLayout.setState({ left: true, right: true });
+  useConfig.setState({ config: structuredClone(DEFAULT_CONFIG) });
   useAppStore.setState({ vault, activePath: null, mainView: "note", leftPanel: "files" });
 });
 
@@ -55,6 +57,22 @@ describe("side panels", () => {
     // One side still showing: the button hides the rest.
     fireEvent.click(screen.getByRole("button", { name: "Hide side panels" }));
     expect(nav()).not.toBeInTheDocument();
+  });
+
+  it("shows the current shortcut, including after it's remapped", () => {
+    render(<App />);
+    const button = screen.getByRole("button", { name: "Hide side panels" });
+    expect(button).toHaveAttribute("title", String.raw`Hide side panels (Ctrl+\)`);
+    act(() =>
+      useConfig.setState({
+        config: { ...DEFAULT_CONFIG, hotkeys: { "toggle-side-panels": "Ctrl+Shift+H" } },
+      }),
+    );
+    expect(button).toHaveAttribute("title", "Hide side panels (Ctrl+Shift+H)");
+    act(() =>
+      useConfig.setState({ config: { ...DEFAULT_CONFIG, hotkeys: { "toggle-side-panels": "" } } }),
+    );
+    expect(button).toHaveAttribute("title", "Hide side panels");
   });
 
   it("hides one side on its own", () => {

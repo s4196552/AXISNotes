@@ -135,7 +135,24 @@ async function mountSigma(
   // Exposed for end-to-end tests, which can't click WebGL nodes by label.
   (el as HTMLElement & { __sigma?: unknown }).__sigma = renderer;
 
+  // The container also changes size without a window resize, e.g. when the side panels
+  // are hidden or shown, so redraw to fit it (once per frame at most).
+  let frame = 0;
+  const observer =
+    typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => {
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(() => {
+            renderer.resize(true);
+            renderer.refresh({ skipIndexation: true });
+          });
+        });
+  observer?.observe(el);
+
   return () => {
+    observer?.disconnect();
+    cancelAnimationFrame(frame);
     if (stopTimer) clearTimeout(stopTimer);
     layout?.kill();
     renderer.kill();

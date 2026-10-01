@@ -11,7 +11,9 @@ const h = vi.hoisted(() => ({
   sigmas: [] as {
     graph: { order: number };
     handlers: Record<string, (e: { node: string }) => void>;
+    resizes: number;
   }[],
+  observers: [] as { cb: () => void; disconnected: boolean }[],
 }));
 vi.mock("../../ipc", async (orig) => {
   const mod = await orig<typeof import("../../ipc")>();
@@ -23,6 +25,7 @@ vi.mock("./graphLibs", () => ({
   loadGraphLibs: async () => ({
     Sigma: class {
       handlers: Record<string, (e: { node: string }) => void> = {};
+      resizes = 0;
       constructor(public graph: { order: number }) {
         h.sigmas.push(this);
       }
@@ -30,6 +33,9 @@ vi.mock("./graphLibs", () => ({
         this.handlers[event] = fn;
       }
       refresh() {}
+      resize() {
+        this.resizes++;
+      }
       kill() {}
     },
     forceAtlas2: { inferSettings: () => ({}), assign: () => {} },
@@ -146,6 +152,36 @@ describe("graph views", () => {
       target: { value: "2" },
     });
     expect(screen.getByText("3 notes")).toBeInTheDocument();
+  });
+
+  it("redraws when its container changes size (side panels hidden or shown)", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        o: { cb: () => void; disconnected: boolean };
+        constructor(cb: () => void) {
+          this.o = { cb, disconnected: false };
+          h.observers.push(this.o);
+        }
+        observe() {}
+        disconnect() {
+          this.o.disconnected = true;
+        }
+      },
+    );
+    vi.stubGlobal("requestAnimationFrame", (fn: () => void) => (fn(), 1));
+    try {
+      const { unmount } = render(<GraphView />);
+      await waitFor(() => expect(h.sigmas.length).toBeGreaterThan(0));
+      const sigma = h.sigmas.at(-1)!;
+      const observer = h.observers.at(-1)!;
+      observer.cb();
+      expect(sigma.resizes).toBe(1);
+      unmount();
+      expect(observer.disconnected).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("closes back to the note", async () => {
