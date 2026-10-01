@@ -3,6 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
+import { captureUi, recordCommand } from "./helpers/diagnostics";
 
 // End-to-end tests drive the real AXISNotes desktop build through tauri-driver (WebDriver),
 // against a throwaway vault on disk. Runs on Windows and Linux (tauri-driver has no macOS support).
@@ -44,6 +46,10 @@ function linkDir(target: string, link: string) {
 
 /** Seeds per spec file (chosen by name); every spec gets a fresh vault. */
 const SEEDS: Record<string, (dir: string) => void> = {
+  diagnostics(dir) {
+    SEEDS.vault!(dir);
+    SEEDS.structured!(dir);
+  },
   vault(dir) {
     write(dir, "Welcome.md", "# Welcome\n\nHello from disk\n");
     write(dir, "School/Biology.md", "# Biology\n\n- [ ] read ch. 1\n");
@@ -239,6 +245,12 @@ export const config: WebdriverIO.Config = {
 
   beforeSession(_config, _caps, specs) {
     const vault = createVault(specs[0] ?? "");
+    process.env.AXIS_E2E_CAPTURE_NONCE = randomUUID();
+    write(
+      vault,
+      ".axis-e2e-fixture.json",
+      JSON.stringify({ nonce: process.env.AXIS_E2E_CAPTURE_NONCE }),
+    );
     // Read by the spec (same worker) and by the app launched through tauri-driver.
     process.env.AXIS_E2E_VAULT = vault;
     process.env.AXIS_OPEN_VAULT = vault;
@@ -257,6 +269,19 @@ export const config: WebdriverIO.Config = {
     });
   },
 
+  afterCommand(command, args, result) {
+    recordCommand(command, args, result);
+  },
+
+  async afterTest(test, _context, { passed }) {
+    if (!passed) {
+      try {
+        await captureUi(`${test.parent}-${test.title}`);
+      } catch (error) {
+        console.warn(`E2E diagnostic capture failed: ${String(error).slice(0, 300)}`);
+      }
+    }
+  },
   afterSession() {
     driver?.kill();
     const config = process.env.AXIS_CONFIG_DIR;

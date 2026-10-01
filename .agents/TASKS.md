@@ -30,6 +30,7 @@ The [suite roadmap](../docs/SUITE_ROADMAP.md) defines acceptance and logical fil
 | T-058 | S5 | Biology suite acceptance/checkpoint | claude | todo | agent/claude/T-058 | assigned cross-app acceptance tests |
 | T-059 | S6 | Web/mobile/selective sync plan and task split | claude | todo | agent/claude/T-059 | suite client/sync specs, scoped by lead |
 | T-060 | S1 | Fix macOS CI flake in watcher test `reports_external_edits` | claude | approved | agent/claude/T-060 | src-tauri/src/vault/watcher.rs (test module only); briefs/T-060.md; handoffs/T-060.md; this row |
+| T-061 | S1 | Diagnose/fix Linux native E2E failures (run 36672935411: 17 pass, 36 fail) | codex | in-progress | agent/codex/T-061 | e2e/**; .github/workflows/ci.yml (e2e-linux job: bounded diagnostics, version capture, artifact upload, proven runner changes only); briefs/T-061.md; handoffs/T-061.md; reviews/T-061.md; this row |
 
 | ID    | Phase | Task                                                                        | Owner  | Status    | Branch            | Files (ownership)                                                                                      |
 | ----- | ----- | --------------------------------------------------------------------------- | ------ | --------- | ----------------- | ------------------------------------------------------------------------------------------------------ |

@@ -68,4 +68,29 @@ jobs:
       - run: cargo install tauri-driver --locked
       - run: pnpm install --frozen-lockfile
       - run: pnpm e2e:build
+      - name: Record native runner versions
+        run: |
+          {
+            cat /etc/os-release
+            node --version
+            pnpm --version
+            rustc --version
+            cargo install --list
+            dpkg-query -W libwebkit2gtk-4.1-0 webkit2gtk-driver xvfb
+            WebKitWebDriver --version || WebKitWebDriver --help
+            xvfb-run sh -c 'xdpyinfo | head -25'
+          } > "$RUNNER_TEMP/axis-e2e-versions.txt" 2>&1
+          cat "$RUNNER_TEMP/axis-e2e-versions.txt"
       - run: xvfb-run pnpm e2e
+        env:
+          AXIS_E2E_ARTIFACTS: ${{ runner.temp }}/axis-e2e-artifacts
+      - name: Upload bounded fixture-only native diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-e2e-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/axis-e2e-artifacts
+            ${{ runner.temp }}/axis-e2e-versions.txt
+          retention-days: 3
+          if-no-files-found: warn
