@@ -225,13 +225,18 @@ describe("Phase 5: AI features on the real app", () => {
     await openNote("School/Bio.md", "Bio");
     const bad = $(".cm-misspelled=teh");
     await bad.waitForDisplayed({ timeout: 15_000 }); // the dictionary loads in a worker
-    await bad.click({ button: "right" });
+    // CI 36810827554: WebKit retained buttons=2 after the previous context click,
+    // suppressing the later handwriting pointerdown. The action already contains
+    // an explicit right-button up; avoid the redundant releaseActions reset.
+    const stopContextTrace = await tracePointer(".cm-misspelled");
+    await bad.click({ button: "right", skipRelease: true });
     const menu = $(".cm-spell-menu");
     await menu.waitForDisplayed();
     await snapshot("01-spellcheck");
     const the = menu.$("button=the");
     await the.waitForDisplayed({ timeout: 15_000 }); // suggestions arrive from the worker
     await the.click();
+    console.log(`Spellcheck native pointer trace: ${JSON.stringify(await stopContextTrace())}`);
     await browser.waitUntil(() => read("School/Bio.md").includes("is the powerhouse"), {
       timeoutMsg: "spelling fix not saved",
     });

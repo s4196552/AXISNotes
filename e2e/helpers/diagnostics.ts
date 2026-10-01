@@ -284,8 +284,9 @@ export async function tracePointer(selector: string) {
       },
     };
   }, selector);
-  return async () =>
-    browser.execute(() => {
+  return async () => {
+    await requireFixtureSession();
+    return browser.execute(() => {
       const state = window as unknown as {
         __AXIS_E2E_POINTER?: { events: unknown[]; rect: unknown; stop(): void };
       };
@@ -294,4 +295,5 @@ export async function tracePointer(selector: string) {
       delete state.__AXIS_E2E_POINTER;
       return trace ? { rect: trace.rect, events: trace.events } : null;
     });
+  };
 }

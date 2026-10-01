@@ -4,7 +4,7 @@ import path from "node:path";
 import { $, browser, expect } from "@wdio/globals";
 import { Key } from "webdriverio";
 import { readVisibleText } from "../helpers/linux-driver";
-import { captureUi, inspectRenderedElement } from "../helpers/diagnostics";
+import { captureUi, inspectRenderedElement, tracePointer } from "../helpers/diagnostics";
 
 // Preserve native text assertions while capturing independent rendering evidence.
 describe("native rendered-text diagnostics", () => {
@@ -62,6 +62,7 @@ describe("native rendered-text diagnostics", () => {
     await expect($(".editor-title")).toHaveText("Welcome");
   });
   it("refuses capture when the native app has a different vault open", async () => {
+    const stopTrace = await tracePointer(".editor-title");
     const original = process.env.AXIS_E2E_VAULT;
     const other = fs.mkdtempSync(path.join(os.tmpdir(), "axis-e2e-capture-"));
     const marker = path.join(other, ".axis-e2e-fixture.json");
@@ -73,9 +74,11 @@ describe("native rendered-text diagnostics", () => {
       await expect(captureUi("must-not-capture-other-vault")).rejects.toThrow(
         "native app is not using the fixture vault",
       );
+      await expect(stopTrace()).rejects.toThrow("native app is not using the fixture vault");
       expect(fs.existsSync(artifacts) ? fs.readdirSync(artifacts) : []).toEqual(before);
     } finally {
       process.env.AXIS_E2E_VAULT = original;
+      await stopTrace();
       fs.unlinkSync(marker);
       fs.rmdirSync(other);
     }
