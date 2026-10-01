@@ -238,3 +238,60 @@ export async function captureUi(label: string, selectors: string[] = []) {
       : JSON.stringify({ label, errors: ["DOM diagnostic exceeded the 128 KiB limit"] }),
   );
 }
+
+/** Trace native input in the attested fixture, without synthesizing any events. */
+export async function tracePointer(selector: string) {
+  await requireFixtureSession();
+  await browser.execute((query: string) => {
+    const pad = document.querySelector(query);
+    if (!pad) throw new Error("Pointer diagnostic target missing");
+    const rect = pad.getBoundingClientRect();
+    const events: unknown[] = [];
+    const listener = (event: Event) => {
+      if (events.length >= 48) return;
+      const e = event as PointerEvent;
+      const target = e.target as HTMLElement;
+      events.push({
+        type: e.type,
+        x: e.clientX,
+        y: e.clientY,
+        button: e.button,
+        buttons: e.buttons,
+        pointerType: e.pointerType,
+        trusted: e.isTrusted,
+        target: target.tagName,
+        className: String(target.className).slice(0, 100),
+        label: target.getAttribute("aria-label"),
+      });
+    };
+    const types = [
+      "pointerdown",
+      "pointermove",
+      "pointerup",
+      "pointercancel",
+      "mousedown",
+      "mouseup",
+    ];
+    for (const type of types) document.addEventListener(type, listener, true);
+    const state = window as unknown as {
+      __AXIS_E2E_POINTER: { events: unknown[]; rect: unknown; stop(): void };
+    };
+    state.__AXIS_E2E_POINTER = {
+      events,
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      stop() {
+        for (const type of types) document.removeEventListener(type, listener, true);
+      },
+    };
+  }, selector);
+  return async () =>
+    browser.execute(() => {
+      const state = window as unknown as {
+        __AXIS_E2E_POINTER?: { events: unknown[]; rect: unknown; stop(): void };
+      };
+      const trace = state.__AXIS_E2E_POINTER;
+      trace?.stop();
+      delete state.__AXIS_E2E_POINTER;
+      return trace ? { rect: trace.rect, events: trace.events } : null;
+    });
+}

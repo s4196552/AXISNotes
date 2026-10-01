@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { $, browser, expect } from "@wdio/globals";
 import { Key } from "webdriverio";
+import { tracePointer } from "../helpers/diagnostics";
 
 // Phase 5 acceptance on the real app: offline spellcheck with quick fixes; the AI "fix
 // grammar" action; handwriting converted to editable text with uncertain words flagged,
@@ -174,15 +175,21 @@ async function slash(command: string) {
 async function scribble() {
   const pad = $(".hw-pad");
   await pad.waitForDisplayed();
-  await browser
-    .action("pointer", { parameters: { pointerType: "mouse" } })
-    .move({ origin: pad, x: -150, y: -20 })
-    .down()
-    .move({ origin: pad, x: -100, y: 30, duration: 100 })
-    .move({ origin: pad, x: -50, y: -30, duration: 100 })
-    .move({ origin: pad, x: 0, y: 30, duration: 100 })
-    .up()
-    .perform();
+  const stopTrace = await tracePointer(".hw-pad");
+  try {
+    await browser
+      .action("pointer", { parameters: { pointerType: "mouse" } })
+      .move({ origin: pad, x: -150, y: -20 })
+      .down()
+      .move({ origin: pad, x: -100, y: 30, duration: 100 })
+      .move({ origin: pad, x: -50, y: -30, duration: 100 })
+      .move({ origin: pad, x: 0, y: 30, duration: 100 })
+      .up()
+      .perform();
+  } finally {
+    console.log(`Handwriting native pointer trace: ${JSON.stringify(await stopTrace())}`);
+  }
+  await $("button*=Convert to text").waitForEnabled();
 }
 
 describe("Phase 5: AI features on the real app", () => {
