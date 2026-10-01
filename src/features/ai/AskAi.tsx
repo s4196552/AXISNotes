@@ -52,11 +52,20 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
   const [answer, setAnswer] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const currentRun = useRef<AiRun | null>(null);
-  useEffect(() => () => currentRun.current?.cancel(), []);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      currentRun.current?.cancel();
+    };
+  }, []);
 
   useEffect(() => {
     backend.aiSettings().then(
-      (v) => setEffort(v.settings.effort),
+      (v) => {
+        if (mounted.current) setEffort(v.settings.effort);
+      },
       () => {},
     );
   }, []);
@@ -127,10 +136,18 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
     setAnswer("");
     setPhase({ kind: "running" });
     try {
-      const result = await runAi(request, (d) => setAnswer((a) => a + d), run);
+      const result = await runAi(
+        request,
+        (d) => {
+          if (mounted.current) setAnswer((a) => a + d);
+        },
+        run,
+      );
+      if (!mounted.current) return;
       setAnswer(result.text);
       setPhase({ kind: "done", result });
     } catch (e) {
+      if (!mounted.current) return;
       if (isBackendError(e) && e.code === "Cancelled") setPhase({ kind: "idle" });
       else setPhase(errorOf(e));
     }

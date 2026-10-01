@@ -121,3 +121,27 @@ it("does not send old note context when a pending plan completes in another vaul
   });
   expect(run).not.toHaveBeenCalled();
 });
+
+it("cancels a closed dialog without updating React after its window is destroyed", async () => {
+  const ui = render(<AskAi onClose={() => {}} />);
+  await waitFor(() => expect(screen.getByLabelText("Destination")).toHaveTextContent("Ollama"));
+  let resolve!: (value: { text: string }) => void;
+  const run = vi.spyOn(h.b, "aiRun").mockImplementation(
+    () =>
+      new Promise((r) => {
+        resolve = r as typeof resolve;
+      }),
+  );
+  const cancel = vi.spyOn(h.b, "aiCancel").mockResolvedValue();
+  ask("A pending request");
+  await waitFor(() => expect(run).toHaveBeenCalledOnce());
+  ui.unmount();
+  expect(cancel).toHaveBeenCalledOnce();
+  try {
+    vi.stubGlobal("window", undefined);
+    resolve({ text: "late result" });
+    await new Promise((r) => setTimeout(r, 25));
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
