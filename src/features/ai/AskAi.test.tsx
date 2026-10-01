@@ -136,6 +136,8 @@ it("cancels a closed dialog without updating React after its window is destroyed
   ask("A pending request");
   await waitFor(() => expect(run).toHaveBeenCalledOnce());
   ui.unmount();
+  // Drain already-queued React scheduler work before simulating environment teardown.
+  await new Promise<void>((resolve) => setImmediate(resolve));
   expect(cancel).toHaveBeenCalledOnce();
   try {
     vi.stubGlobal("window", undefined);
