@@ -67,7 +67,7 @@ export function recordCommand(command: string, args: unknown[], result: unknown)
 export async function inspectRenderedElement(selector: string) {
   await requireFixtureSession();
   const element = await browser.$(selector);
-  const webdriverText = await element.getText();
+  const webdriverText = await browser.getElementText(await element.elementId);
   const displayed = await element.isDisplayed();
   const dom = await browser.execute((query: string) => {
     const element = document.querySelector(query) as HTMLElement | null;

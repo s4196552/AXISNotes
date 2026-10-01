@@ -2,6 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { $, browser, expect } from "@wdio/globals";
+import { Key } from "webdriverio";
+import { readVisibleText } from "../helpers/linux-driver";
 import { captureUi, inspectRenderedElement } from "../helpers/diagnostics";
 
 // Preserve native text assertions while capturing independent rendering evidence.
@@ -22,6 +24,42 @@ describe("native rendered-text diagnostics", () => {
     console.log(`Grid probe: ${JSON.stringify(await inspectRenderedElement('[data-addr="B4"]'))}`);
     await captureUi("probe-grid-cell", ['[data-addr="B4"]']);
     await expect($('[data-addr="B4"]')).toHaveText("7.5");
+  });
+  it("does not report hidden or transparent title text as visible", async () => {
+    await $('[data-path="Welcome.md"]').click();
+    const title = await $(".editor-title");
+    await expect(title).toHaveText("Welcome");
+    const original = await title.getAttribute("style");
+    try {
+      for (const style of ["display:none", "visibility:hidden", "opacity:0"]) {
+        await browser.execute(
+          (element: HTMLElement, value: string) => element.setAttribute("style", value),
+          title,
+          style,
+        );
+        expect(await readVisibleText(title)).toBe("");
+      }
+    } finally {
+      await browser.execute(
+        (element: HTMLElement, value: string | null) => {
+          if (value === null) element.removeAttribute("style");
+          else element.setAttribute("style", value);
+        },
+        title,
+        original,
+      );
+    }
+    await expect(title).toHaveText("Welcome");
+  });
+  it("types repeated characters with native key-down/key-up pairs", async () => {
+    await browser.keys([Key.Ctrl, "o"]);
+    const input = await $('[role="combobox"][aria-label="Quick switcher"]');
+    await input.waitForDisplayed();
+    await browser.keys("http://bookkeeper 4999");
+    await expect(input).toHaveValue("http://bookkeeper 4999");
+    await browser.keys([Key.Ctrl, "a"]);
+    await browser.keys(["Welcome", Key.Enter]);
+    await expect($(".editor-title")).toHaveText("Welcome");
   });
   it("refuses capture when the native app has a different vault open", async () => {
     const original = process.env.AXIS_E2E_VAULT;

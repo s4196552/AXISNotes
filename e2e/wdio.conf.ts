@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { captureUi, recordCommand } from "./helpers/diagnostics";
+import { installLinuxDriverCompatibility } from "./helpers/linux-driver";
 
 // End-to-end tests drive the real AXISNotes desktop build through tauri-driver (WebDriver),
 // against a throwaway vault on disk. Runs on Windows and Linux (tauri-driver has no macOS support).
@@ -267,6 +268,10 @@ export const config: WebdriverIO.Config = {
       stdio: [null, process.stdout, process.stderr],
       env: process.env,
     });
+  },
+
+  before() {
+    installLinuxDriverCompatibility();
   },
 
   afterCommand(command, args, result) {
