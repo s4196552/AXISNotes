@@ -240,6 +240,11 @@ describe("review fixes", () => {
       "[[/2026-12-25|2026-12-25]]",
     );
     expect(dailyLink(day, "YYYY-MM-DD", "")).toBe("[[2026-12-25]]");
+    // A note with that date as an alias would capture the bare link.
+    const meeting = { path: "Meeting.md", name: "Meeting", title: null, aliases: ["2026-12-25"] };
+    expect(dailyLink(day, "YYYY-MM-DD", "", [meeting])).toBe("[[/2026-12-25|2026-12-25]]");
+    await h.b.writeFile("Meeting.md", "---\naliases: [2026-12-25]\n---\n");
+    expect(await h.b.resolveLink("/2026-12-25", "Plan.md")).toBeNull();
     // Following it from inside the archive opens the real daily note.
     await h.b.writeFile("Daily/2026-12-25.md", "real");
     await h.b.writeFile("Archive/Daily/2026-12-25.md", "old");

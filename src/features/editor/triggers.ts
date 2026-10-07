@@ -68,9 +68,12 @@ export function dailyLink(
   const dir = folder.replace(/^\/+|\/+$/g, "");
   const path = dir ? `${dir}/${name}` : name;
   const want = path.toLowerCase();
+  // Another note whose path ends the same, or (for a bare name) whose name or alias matches.
   const clash = notes.some((n) => {
     const p = n.path.replace(/\.md$/i, "").toLowerCase();
-    return p !== want && (p.endsWith("/" + want) || (!dir && noteName(p) === want));
+    if (p === want) return false;
+    if (p.endsWith("/" + want)) return true;
+    return !dir && (noteName(p) === want || n.aliases.some((a) => a.toLowerCase() === want));
   });
   const target = clash ? `/${path}` : path;
   return target === name ? `[[${name}]]` : `[[${target}|${name}]]`;
