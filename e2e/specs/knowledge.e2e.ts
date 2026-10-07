@@ -99,19 +99,52 @@ describe("Phase 1: knowledge features on a real vault", () => {
     expect(fs.existsSync(onDisk("Budget.md"))).toBe(true);
   });
 
-  it("runs / commands and [[ autocomplete in the editor", async () => {
+  // CodeMirror ignores Enter for ~75 ms after the popup opens (interactionDelay).
+  const accept = async () => {
+    await $(".cm-tooltip-autocomplete").waitForDisplayed();
+    await browser.pause(150);
+    await browser.keys(Key.Enter);
+  };
+
+  it("runs the Ctrl+/ command menu and [[ autocomplete in the editor", async () => {
     await $(".cm-content").click();
-    // CodeMirror ignores Enter for ~75 ms after the popup opens (interactionDelay).
-    const accept = async () => {
-      await $(".cm-tooltip-autocomplete").waitForDisplayed();
-      await browser.pause(150);
-      await browser.keys(Key.Enter);
-    };
-    await browser.keys("/h2");
+    // A typed `/` no longer opens the menu: it stays text.
+    await browser.keys(["a/b", Key.Backspace, Key.Backspace, Key.Backspace]);
+    await browser.keys([Key.Ctrl, "/"]);
+    await browser.keys(Key.Ctrl); // release
+    await browser.keys("h2");
     await accept();
     await browser.keys(["Costs", Key.Enter, "[[Cel"]);
     await accept();
     await untilEquals(() => read("Budget.md"), "## Costs\n[[Cells]]");
+  });
+
+  it("links properties, blocks, dates and math with ::, ((, @@ and $$", async () => {
+    await browser.keys([Key.End, Key.Enter, "::sta"]);
+    await accept(); // "status", from Project Alpha's frontmatter (via the Rust index)
+    await browser.keys(["done", Key.Enter, "((mitochondria"]);
+    await accept(); // the paragraph in Research/Cells.md, which gets an id on disk
+    await until(() => /\^[a-z0-9]{6}\n?$/.test(read("Research/Cells.md")), "block id written");
+    const id = /\^([a-z0-9]{6})/.exec(read("Research/Cells.md"))![1];
+    await browser.keys([Key.Enter, "Next @@tom"]);
+    await accept();
+    await browser.keys([Key.End, Key.Enter, "$$x^2"]); // the closing $$ is added
+    await browser.keys([Key.End, Key.Enter, "end"]);
+    const d = new Date();
+    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const ymd = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+    await untilEquals(
+      () => read("Budget.md"),
+      `## Costs\n[[Cells]]\nstatus:: done\n[[Cells#^${id}]]\nNext [[${ymd}]]\n$$x^2$$\nend`,
+    );
+    // KaTeX renders the math once the cursor has left it.
+    await $(".cm-math .katex").waitForDisplayed();
+    // The inline property is indexed: prop: search finds it.
+    await $('[role="tab"][aria-label="Search"]').click();
+    await $('input[aria-label="Search notes"]').setValue("prop:status=done");
+    await expect($('[aria-label="Search results"]')).toHaveText(expect.stringContaining("Budget"));
+    await snapshot("03-typed-triggers");
   });
 
   it("searches full text and by tag", async () => {

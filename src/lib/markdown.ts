@@ -144,6 +144,28 @@ export function aliasesOf(props: Props): string[] {
   return [...propStrings(props.aliases), ...propStrings(props.alias)];
 }
 
+const INLINE_PROP_RE =
+  /^[ \t]*(?:[-*+][ \t]+(?:\[[ xX]\][ \t]+)?)?(\p{L}[\p{L}\p{N} _-]{0,39}?)[ \t]*::(.*)$/u;
+
+/**
+ * Inline `key:: value` properties (Dataview style), outside code fences. Mirrors the
+ * indexer (`inline_property` in `src-tauri/src/index/parse.rs`).
+ */
+export function inlineProperties(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  let fence = false;
+  for (const line of text.slice(splitFrontmatter(text).length).split("\n")) {
+    if (/^[ \t]*(```|~~~)/.test(line)) {
+      fence = !fence;
+      continue;
+    }
+    if (fence) continue;
+    const m = INLINE_PROP_RE.exec(line);
+    if (m && !(m[1]!.trim() in out)) out[m[1]!.trim()] = m[2]!.trim();
+  }
+  return out;
+}
+
 /** Basename without `.md`. */
 export function noteName(path: string): string {
   const base = path.slice(path.lastIndexOf("/") + 1);

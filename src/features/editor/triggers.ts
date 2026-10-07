@@ -1,0 +1,352 @@
+import type { Completion, CompletionContext, CompletionResult } from "@codemirror/autocomplete";
+import type { EditorView } from "@codemirror/view";
+import { backend, isBackendError, type PropertyKey } from "../../ipc";
+import { useAppStore } from "../../app/store";
+import { formatDate } from "../../lib/dates";
+import { type BlockChoice, ensureBlockId, listBlocks } from "../../lib/blocks";
+import { noteName } from "../../lib/markdown";
+import { renderTemplate } from "../templates/templates";
+import { linkHost } from "./links";
+import { notePath } from "./embeds";
+import { escapeRe, quickCommandConfig } from "./quickCommands";
+import { minimalChange } from "./targets";
+
+// The typed menus besides commands and emoji, each with a configurable trigger:
+//   @@  dates and notes        → [[2026-10-07]] (or 📅 2026-10-07 on a task), [[Note]]
+//   ((  blocks across the vault → [[Note#^id]] (adding the id to the block if needed)
+//   ::  inline properties      → key:: (keys already used in the vault first)
+//   {{  template variables     → {{date}} in templates, the value itself elsewhere
+// Everything they insert is plain Markdown that Obsidian and other editors understand.
+
+/** The trigger and what's been typed after it, at a line start or after a space. */
+function matchTrigger(
+  context: CompletionContext,
+  trigger: string,
+  body: string,
+  max: number,
+  before = "\\s([",
+) {
+  if (!trigger) return null;
+  const m = context.matchBefore(
+    new RegExp(`(^|[${before}])${escapeRe(trigger)}${body}{0,${max}}$`, "u"),
+  );
+  if (!m) return null;
+  const start = m.text.startsWith(trigger) ? m.from : m.from + 1;
+  const queryFrom = start + trigger.length;
+  return { start, queryFrom, query: context.state.sliceDoc(queryFrom, context.pos) };
+}
+
+/** Replace from..to with `text`, cursor after it (or at `|` in it). */
+function put(view: EditorView, from: number, to: number, text: string) {
+  const at = text.indexOf("|");
+  const clean = at === -1 ? text : text.slice(0, at) + text.slice(at + 1);
+  view.dispatch({
+    changes: { from, to, insert: clean },
+    selection: { anchor: from + (at === -1 ? clean.length : at) },
+  });
+}
+
+// ---- @@ dates and notes ----
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** The dates offered by `@@`, relative to `now`. */
+export function mentionDates(now: Date): { label: string; date: Date }[] {
+  const at = (days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);
+  const out = [
+    { label: "Today", date: at(0) },
+    { label: "Tomorrow", date: at(1) },
+    { label: "Yesterday", date: at(-1) },
+  ];
+  for (let d = 1; d <= 7; d++) {
+    const date = at(d);
+    out.push({ label: `Next ${WEEKDAYS[date.getDay()]}`, date });
+  }
+  out.push({ label: "In a week", date: at(7) }, { label: "In two weeks", date: at(14) });
+  return out;
+}
+
+const TASK_LINE_RE = /^\s*[-*+]\s+\[[ xX]\]\s/;
+
+export function mentionCompletions(context: CompletionContext): CompletionResult | null {
+  const cfg = context.state.facet(quickCommandConfig);
+  const m = matchTrigger(context, cfg.mentionTrigger, "[\\p{L}\\p{N} _'.-]", 40);
+  if (!m) return null;
+  const { start } = m;
+  const line = context.state.doc.lineAt(context.pos);
+  const onTask = TASK_LINE_RE.test(line.text);
+  const dateText = (date: Date) =>
+    onTask ? `📅 ${formatDate(date, "YYYY-MM-DD")}` : `[[${formatDate(date, cfg.dailyFormat)}]]`;
+  const dates = mentionDates(new Date());
+  // A typed date, e.g. @@2026-12-25.
+  const typed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(m.query.trim());
+  if (typed) {
+    const date = new Date(+typed[1]!, +typed[2]! - 1, +typed[3]!);
+    if (!Number.isNaN(date.getTime())) dates.unshift({ label: m.query.trim(), date });
+  }
+  const options: Completion[] = dates.map(({ label, date }) => ({
+    label,
+    detail: `${formatDate(date, "ddd D MMM YYYY")}${onTask ? " · due date" : ""}`,
+    type: "constant",
+    boost: 10,
+    apply: (view, _c, _f, to) => put(view, start, to, dateText(date)),
+  }));
+  for (const n of context.state.facet(linkHost).notes()) {
+    const folder = n.path.includes("/") ? n.path.slice(0, n.path.lastIndexOf("/")) : "";
+    options.push({
+      label: n.name,
+      detail: folder || "note",
+      type: "text",
+      apply: (view, _c, _f, to) => put(view, start, to, `[[${n.name}]]`),
+    });
+  }
+  return { from: m.queryFrom, options, validFor: /^[\p{L}\p{N} _'.-]*$/u };
+}
+
+// ---- (( blocks across the vault ----
+
+const SEARCH_NOTES = 12;
+const MAX_BLOCKS = 40;
+
+interface FoundBlock extends BlockChoice {
+  path: string;
+}
+
+/** A block's text for the menu: Markdown marks removed, links shown as their text. */
+export function blockPreview(s: string, n = 72): string {
+  const plain = s
+    .replace(/!?\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, "$1")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|__|~~|==|`)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.length > n ? plain.slice(0, n - 1) + "…" : plain;
+}
+
+/** Blocks whose text contains every word of `query` (current note first). */
+async function findBlocks(
+  query: string,
+  current: { path: string; text: string; cursor: number },
+): Promise<FoundBlock[]> {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = (b: BlockChoice) => words.every((w) => b.label.toLowerCase().includes(w));
+  // Not the block being typed in (it would link to itself).
+  const own = listBlocks(current.text).filter((b, i, all) => {
+    const next = all[i + 1]?.pos ?? Infinity;
+    return !(current.cursor >= b.pos && current.cursor < next);
+  });
+  const out: FoundBlock[] = own.filter(matches).map((b) => ({ ...b, path: current.path }));
+  if (words.length === 0) return out.slice(0, MAX_BLOCKS);
+  const terms = words.map((w) => w.replace(/["()]/g, "")).filter(Boolean);
+  if (terms.length === 0) return out;
+  let hits: string[] = [];
+  try {
+    hits = (await backend.search(terms.join(" "), SEARCH_NOTES)).map((h) => h.path);
+  } catch {
+    // Search unavailable: offer this note's blocks only.
+  }
+  for (const path of hits) {
+    if (out.length >= MAX_BLOCKS) break;
+    if (path === current.path || !path.endsWith(".md")) continue;
+    try {
+      const { content } = await backend.readFile(path);
+      for (const b of listBlocks(content)) if (matches(b)) out.push({ ...b, path });
+    } catch {
+      // Removed since it was indexed.
+    }
+  }
+  return out.slice(0, MAX_BLOCKS);
+}
+
+/** Insert a link to block `b`, first giving it an id if it has none. */
+async function linkBlock(view: EditorView, from: number, to: number, b: FoundBlock) {
+  const current = view.state.facet(notePath);
+  const store = useAppStore.getState();
+  if (b.path === current) {
+    // Same note: remove the typed `((query`, add the id, insert the link, all in one edit.
+    const doc = view.state.doc.toString();
+    const without = doc.slice(0, from) + doc.slice(to);
+    const pos = b.pos > to ? b.pos - (to - from) : b.pos;
+    const r = b.id ? { text: without, id: b.id } : ensureBlockId(without, pos);
+    if (!r) return;
+    const added = minimalChange(without, r.text);
+    const at = added.from < from ? from + (r.text.length - without.length) : from;
+    const link = `[[${noteName(current)}#^${r.id}]]`;
+    const final = r.text.slice(0, at) + link + r.text.slice(at);
+    view.dispatch({
+      changes: minimalChange(doc, final),
+      selection: { anchor: at + link.length },
+    });
+    return;
+  }
+  let id = b.id;
+  if (!id) {
+    try {
+      const fresh = await backend.readFile(b.path);
+      const r = ensureBlockId(fresh.content, b.pos);
+      if (!r) return;
+      if (r.text !== fresh.content) await backend.writeFile(b.path, r.text, fresh.modifiedMs);
+      id = r.id;
+      store.bumpIndex();
+    } catch (e) {
+      store.setError(
+        isBackendError(e) && e.code === "Conflict"
+          ? `${noteName(b.path)} changed on disk; try again.`
+          : `Couldn't link the block: ${isBackendError(e) ? e.message : String(e)}`,
+      );
+      return;
+    }
+  }
+  put(view, from, to, `[[${noteName(b.path)}#^${id}]]`);
+}
+
+export async function blockCompletions(
+  context: CompletionContext,
+): Promise<CompletionResult | null> {
+  const cfg = context.state.facet(quickCommandConfig);
+  const m = matchTrigger(context, cfg.blockTrigger, "[^()\\n]", 60, "\\s([");
+  if (!m) return null;
+  const current = context.state.facet(notePath);
+  const blocks = await findBlocks(m.query.trim(), {
+    path: current,
+    text: context.state.doc.toString(),
+    cursor: context.pos,
+  });
+  if (context.aborted) return null;
+  const { start } = m;
+  return {
+    from: m.queryFrom,
+    filter: false,
+    options: blocks.map<Completion>((b) => ({
+      label: blockPreview(b.label),
+      detail: `${b.path === current ? "this note" : noteName(b.path)}${b.id ? "" : " · new id"}`,
+      type: "text",
+      // Returns the promise (CodeMirror ignores it; tests await it).
+      apply: (view, _c, _f, to) => linkBlock(view, start, to, b),
+    })),
+  };
+}
+
+// ---- :: inline properties ----
+
+let keyCache: { at: number; keys: PropertyKey[] } | null = null;
+const KEY_CACHE_MS = 5000;
+
+async function propertyKeys(): Promise<PropertyKey[]> {
+  if (keyCache && Date.now() - keyCache.at < KEY_CACHE_MS) return keyCache.keys;
+  try {
+    keyCache = { at: Date.now(), keys: await backend.listPropertyKeys() };
+  } catch {
+    keyCache = { at: Date.now(), keys: [] };
+  }
+  return keyCache.keys;
+}
+
+/** Forget cached property keys (tests, and after a vault switch). */
+export function clearPropertyKeyCache() {
+  keyCache = null;
+}
+
+export async function propertyCompletions(
+  context: CompletionContext,
+): Promise<CompletionResult | null> {
+  const cfg = context.state.facet(quickCommandConfig);
+  if (!cfg.propertyTrigger) return null;
+  // At the start of a line (or of a list item), like `key:: value` is written.
+  const m = context.matchBefore(
+    new RegExp(
+      `^[ \\t]*(?:[-*+][ \\t]+(?:\\[[ xX]\\][ \\t]+)?)?${escapeRe(cfg.propertyTrigger)}[\\p{L}\\p{N} _-]{0,40}$`,
+      "u",
+    ),
+  );
+  if (!m) return null;
+  const start = m.from + m.text.lastIndexOf(cfg.propertyTrigger, m.text.length);
+  const queryFrom = start + cfg.propertyTrigger.length;
+  const query = context.state.sliceDoc(queryFrom, context.pos).trim();
+  const keys = await propertyKeys();
+  if (context.aborted) return null;
+  // Our own matching and order (CodeMirror would rank a new key that equals the typed
+  // text above an existing longer one): keys starting with the text, then containing
+  // it, each most used first; a new key with the typed text last.
+  const q = query.toLowerCase();
+  const rank = (k: PropertyKey) => {
+    const key = k.key.toLowerCase();
+    return key.startsWith(q) ? 0 : key.includes(q) ? 1 : 2;
+  };
+  const options: Completion[] = keys
+    .filter((k) => !["tags", "tag", "aliases", "alias"].includes(k.key) && rank(k) < 2)
+    .sort((a, b) => rank(a) - rank(b) || b.count - a.count)
+    .map((k) => ({
+      label: k.key,
+      detail: `${k.count} ${k.count === 1 ? "note" : "notes"}`,
+      type: "property",
+      apply: (view, _c, _f, to) => put(view, start, to, `${k.key}:: `),
+    }));
+  if (query && /^\p{L}/u.test(query) && !keys.some((k) => k.key.toLowerCase() === q)) {
+    options.push({
+      label: query,
+      detail: "new property",
+      type: "property",
+      apply: (view, _c, _f, to) => put(view, start, to, `${query}:: `),
+    });
+  }
+  return { from: queryFrom, options, filter: false };
+}
+
+// ---- {{ template variables ----
+
+interface TemplateVar {
+  name: string;
+  label: string;
+  /** Only meaningful inside a template (not filled in when typed in a note). */
+  templateOnly?: boolean;
+  /** Text inserted inside a template; `|` marks the cursor. */
+  insert?: string;
+}
+
+export const TEMPLATE_VARS: TemplateVar[] = [
+  { name: "title", label: "Note title" },
+  { name: "date", label: "Date (YYYY-MM-DD)" },
+  { name: "date:dddd, MMMM D, YYYY", label: "Date, long" },
+  { name: "time", label: "Time (HH:mm)" },
+  { name: "cursor", label: "Where the cursor starts", templateOnly: true },
+  {
+    name: "prompt",
+    label: "Ask a question when inserted",
+    templateOnly: true,
+    insert: "{{prompt:|}}",
+  },
+];
+
+export function templateCompletions(context: CompletionContext): CompletionResult | null {
+  const cfg = context.state.facet(quickCommandConfig);
+  if (!cfg.templateTrigger) return null;
+  const m = context.matchBefore(new RegExp(`${escapeRe(cfg.templateTrigger)}[\\w:, ]{0,30}$`));
+  if (!m) return null;
+  const start = m.from;
+  const queryFrom = start + cfg.templateTrigger.length;
+  const path = context.state.facet(notePath);
+  const folder = cfg.templatesFolder.replace(/^\/+|\/+$/g, "");
+  const inTemplate = !!folder && path.startsWith(folder + "/");
+  // Swallow a `}}` already after the cursor (typed or auto-closed).
+  const closeAfter = context.state.sliceDoc(context.pos, context.pos + 2) === "}}" ? 2 : 0;
+  const now = new Date();
+  const value = (name: string) =>
+    renderTemplate(`{{${name}}}`, { title: noteName(path), now }).text;
+  const options = TEMPLATE_VARS.filter((v) => inTemplate || !v.templateOnly).map<Completion>(
+    (v) => ({
+      label: v.name,
+      displayLabel: `{{${v.name}}}`,
+      detail: inTemplate ? v.label : `${v.label} → ${value(v.name)}`,
+      type: "variable",
+      apply: (view, _c, _f, to) =>
+        put(
+          view,
+          start,
+          to + closeAfter,
+          inTemplate ? (v.insert ?? `{{${v.name}}}`) : value(v.name),
+        ),
+    }),
+  );
+  return { from: queryFrom, options, validFor: /^[\w:, ]*$/ };
+}

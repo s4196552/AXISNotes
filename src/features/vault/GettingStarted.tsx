@@ -12,8 +12,10 @@ const KEYS: [string, string][] = [
   ["Ctrl+N", "New note"],
   ["Ctrl+O", "Find a note"],
   ["Ctrl+P", "All commands"],
-  ["/", "Insert anything (in a note)"],
+  ["Ctrl+/", "Insert anything (in a note)"],
   ["[[", "Link to a note"],
+  ["@@", "A date or note"],
+  ["((", "Link a paragraph"],
   ["Ctrl+J", "Ask AI"],
 ];
 

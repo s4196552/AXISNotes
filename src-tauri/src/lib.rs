@@ -47,6 +47,7 @@ pub fn run() {
             commands::trash_entry,
             commands::search,
             commands::list_tags,
+            commands::list_property_keys,
             commands::list_notes,
             commands::resolve_link,
             commands::backlinks,

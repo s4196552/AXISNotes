@@ -6,6 +6,7 @@ import {
   maskCode,
   noteName,
   splitFrontmatter,
+  inlineProperties,
 } from "../lib/markdown";
 import { compareTasks, findTasks } from "../lib/tasks";
 import { createMemoryAi } from "./memoryAi";
@@ -464,6 +465,20 @@ export function createMemoryBackend(
       return [...counts.entries()]
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([tag, count]) => ({ tag, count }));
+    },
+    async listPropertyKeys() {
+      requireVault();
+      const counts = new Map<string, number>();
+      for (const n of notes()) {
+        const keys = new Set([
+          ...Object.keys(splitFrontmatter(n.text).props),
+          ...Object.keys(inlineProperties(n.text)),
+        ]);
+        for (const k of keys) counts.set(k, (counts.get(k) ?? 0) + 1);
+      }
+      return [...counts.entries()]
+        .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+        .map(([key, count]) => ({ key, count }));
     },
     async listNotes() {
       requireVault();

@@ -17,7 +17,8 @@ use serde::Serialize;
 use crate::error::{AppError, AppResult};
 use crate::vault::{modified_ms, Vault, Walk, META_DIR};
 
-const SCHEMA_VERSION: i32 = 2;
+// 3: inline `key:: value` properties are indexed (rebuilds older indexes once).
+const SCHEMA_VERSION: i32 = 3;
 
 const SCHEMA: &str = "
 CREATE TABLE notes(
@@ -100,6 +101,14 @@ pub struct Mention {
 #[serde(rename_all = "camelCase")]
 pub struct TagCount {
     pub tag: String,
+    pub count: usize,
+}
+
+/// A property name used in the vault (frontmatter or inline), with how many notes use it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PropertyKey {
+    pub key: String,
     pub count: usize,
 }
 
@@ -614,6 +623,26 @@ impl Index {
             .query_map([], |r| {
                 Ok(TagCount {
                     tag: r.get(0)?,
+                    count: r.get::<_, i64>(1)? as usize,
+                })
+            })
+            .map_err(db_err)?;
+        rows.collect::<Result<_, _>>().map_err(db_err)
+    }
+
+    /// Property names across the vault, most used first, for `::` completion.
+    pub fn property_keys(&self) -> AppResult<Vec<PropertyKey>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT j.key, COUNT(*) AS n FROM notes, json_each(notes.props) j
+                 GROUP BY j.key ORDER BY n DESC, j.key COLLATE NOCASE",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(PropertyKey {
+                    key: r.get(0)?,
                     count: r.get::<_, i64>(1)? as usize,
                 })
             })

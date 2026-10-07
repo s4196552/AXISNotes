@@ -36,6 +36,7 @@ export function createTauriBackend(): Backend {
     trashEntry: (path) => invoke("trash_entry", { path }),
     search: (query, limit) => invoke("search", { query, limit }),
     listTags: () => invoke("list_tags"),
+    listPropertyKeys: () => invoke("list_property_keys"),
     listNotes: () => invoke("list_notes"),
     resolveLink: (target, from) => invoke("resolve_link", { target, from }),
     backlinks: (path) => invoke("backlinks", { path }),

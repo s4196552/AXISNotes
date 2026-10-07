@@ -13,9 +13,12 @@ yours: open them in any editor, sync them however you like, and they still work.
 ## The basics
 
 - **Ctrl+N** new note · **Ctrl+O** find a note · **Ctrl+P** every command
-- Type \`/\` in a note for headings, tables, templates, diagrams and more; \`:\` for emoji.
+- **Ctrl+/** in a note opens the menu for headings, tables, templates, diagrams and more.
 - Link notes with \`[[\`: try [[Tasks and dates]] or [[Diagrams]]. The note you link to
   lists this one under *Backlinks*.
+- Shortcuts while you type: \`@@\` a date or note (\`@@today\`), \`((\` link a paragraph from
+  any note, \`::\` a property at the start of a line (\`status:: done\`), \`:\` emoji,
+  \`$$\` math (\`$$E = mc^2$$\`), and \`{{\` template variables.
 - Tags like #axis/guide group notes; nested tags such as #work/projects work too.
 
 ## Beyond notes
@@ -42,7 +45,7 @@ yours: open them in any editor, sync them however you like, and they still work.
 Checkboxes anywhere in your vault show up in the *Tasks* view.
 
 - [ ] Try the tasks view (Ctrl+Shift+T) 📅 2030-01-01 ⏫
-- [ ] Add a due date with \`/due\` and a priority with \`/priority\`
+- [ ] Add a due date with \`@@tomorrow\`, and a priority from the Ctrl+/ menu
 - [x] Open this example
 
 Back to [[Start here]].
@@ -50,7 +53,7 @@ Back to [[Start here]].
   "Examples/Diagrams.md": `# Diagrams
 
 Diagrams are written in Mermaid and drawn as you type. Put the cursor in one to edit it,
-or type \`/diagram\` to make one from a description or from a note's outline.
+or press Ctrl+/ and choose *Diagram…* to make one from a description or a note's outline.
 
 \`\`\`mermaid
 flowchart LR

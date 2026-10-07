@@ -16,6 +16,8 @@ import {
 import { useUi } from "./ui";
 import { effectiveShortcut, formatHotkey, matches, type Shortcut } from "./hotkeys";
 import { useEditorPrefs } from "../editor/prefs";
+import { getActiveEditor } from "../editor/activeEditor";
+import { openCommandMenu } from "../editor/quickCommands";
 import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 
 export interface Command {
@@ -61,6 +63,17 @@ registerCommands([
     label: "Open command palette",
     shortcut: { key: "p", mod: true },
     run: () => useUi.getState().open({ kind: "palette" }),
+  },
+  {
+    id: "command-menu",
+    label: "Command menu (at the cursor)",
+    shortcut: { key: "/", mod: true },
+    // In a note: the menu of things to insert. Elsewhere: the command palette.
+    run: () => {
+      const active = getActiveEditor();
+      if (active) openCommandMenu(active.view);
+      else useUi.getState().open({ kind: "palette" });
+    },
   },
   {
     id: "switcher",

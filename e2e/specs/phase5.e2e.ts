@@ -162,9 +162,12 @@ async function cursorAtEnd() {
   await browser.keys([Key.Ctrl, Key.End]);
 }
 
+/** Run a command from the Ctrl+/ menu on a new line. */
 async function slash(command: string) {
   await browser.keys(Key.Enter);
-  await browser.keys(`/${command}`);
+  await browser.keys([Key.Ctrl, "/"]);
+  await browser.keys(Key.Ctrl); // release
+  await browser.keys(command);
   await $(".cm-tooltip-autocomplete").waitForDisplayed();
   await browser.pause(200); // completions ignore Enter for a moment after they open
   await browser.keys(Key.Enter);
