@@ -537,6 +537,8 @@ describe("$$ math", () => {
     expect(findMath(String.raw`a $$x^2$$ b \$$not math and $$ $$`)).toEqual([
       { from: 2, to: 9, tex: "x^2" },
     ]);
+    // An empty, just auto-closed `$$$$` doesn't swallow the next equation's `$$`.
+    expect(findMath("$$$$\n\n$$x^2$$")).toEqual([{ from: 6, to: 13, tex: "x^2" }]);
   });
 
   it("doesn't let a $$ inside code pair with real math", () => {

@@ -85,7 +85,9 @@ export function findMath(
   masked = maskCode(text),
 ): { from: number; to: number; tex: string }[] {
   const out: { from: number; to: number; tex: string }[] = [];
-  const re = /(?<!\\)\$\$([\s\S]+?)(?<!\\)\$\$/g;
+  // `*?`, not `+?`: an empty `$$$$` is a pair of its own (skipped below), so its closing
+  // `$$` can't open a span that swallows the next equation's opening one.
+  const re = /(?<!\\)\$\$([\s\S]*?)(?<!\\)\$\$/g;
   for (const m of masked.matchAll(re)) {
     const tex = text.slice(m.index + 2, m.index + m[0].length - 2).trim();
     if (tex) out.push({ from: m.index, to: m.index + m[0].length, tex });
