@@ -68,6 +68,8 @@ registerCommands([
     id: "command-menu",
     label: "Command menu (at the cursor)",
     shortcut: { key: "/", mod: true },
+    // Not while typing in a text field (search, settings, dialogs).
+    ignoreIn: "input, textarea, select",
     // In a note: the menu of things to insert. Elsewhere: the command palette.
     run: () => {
       const active = getActiveEditor();

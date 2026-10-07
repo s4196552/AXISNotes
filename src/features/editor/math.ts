@@ -89,48 +89,93 @@ export function findMath(text: string): { from: number; to: number; tex: string 
   return out;
 }
 
-function build(state: EditorState): DecorationSet {
+interface MathSpan {
+  /** The `$$…$$` source. */
+  from: number;
+  to: number;
+  tex: string;
+  display: boolean;
+  /** What the widget replaces: whole lines for display math, the span for inline. */
+  rFrom: number;
+  rTo: number;
+}
+
+/** Renderable math spans (outside code). Scans the document, so only on edits. */
+function mathSpans(state: EditorState): MathSpan[] {
   const text = state.doc.toString();
-  if (!text.includes("$$")) return Decoration.none;
-  const out: Range<Decoration>[] = [];
-  const sel = state.selection.main;
+  if (!text.includes("$$")) return [];
+  const out: MathSpan[] = [];
   for (const { from, to, tex } of findMath(text)) {
     if (inCode(state, from)) continue;
-    if (sel.from <= to && sel.to >= from) continue; // being edited: show the source
     const first = state.doc.lineAt(from);
     const last = state.doc.lineAt(to);
     const ownLines =
       state.sliceDoc(first.from, from).trim() === "" && state.sliceDoc(to, last.to).trim() === "";
-    if (ownLines) {
-      out.push(
-        Decoration.replace({ widget: new MathWidget(tex, true), block: true }).range(
-          first.from,
-          last.to,
-        ),
-      );
-    } else if (first.number === last.number) {
-      out.push(Decoration.replace({ widget: new MathWidget(tex, false) }).range(from, to));
-    }
+    if (ownLines) out.push({ from, to, tex, display: true, rFrom: first.from, rTo: last.to });
+    else if (first.number === last.number)
+      out.push({ from, to, tex, display: false, rFrom: from, rTo: to });
   }
-  return Decoration.set(out, true);
+  return out;
 }
 
-const mathField = StateField.define<DecorationSet>({
-  create: build,
-  update: (value, tr) =>
-    tr.docChanged || tr.selection || syntaxTree(tr.state) !== syntaxTree(tr.startState)
-      ? build(tr.state)
-      : value,
-  provide: (f) => EditorView.decorations.from(f),
+interface MathState {
+  spans: MathSpan[];
+  /** Which spans the selection touches (shown as source), e.g. "0,3". */
+  editing: string;
+  deco: DecorationSet;
+}
+
+function decorate(spans: MathSpan[], state: EditorState): MathState {
+  const sel = state.selection.main;
+  const shown: Range<Decoration>[] = [];
+  const editing: number[] = [];
+  spans.forEach((s, i) => {
+    if (sel.from <= s.to && sel.to >= s.from) {
+      editing.push(i); // being edited: show the source
+      return;
+    }
+    const widget = new MathWidget(s.tex, s.display);
+    shown.push(
+      Decoration.replace(s.display ? { widget, block: true } : { widget }).range(s.rFrom, s.rTo),
+    );
+  });
+  return { spans, editing: editing.join(","), deco: Decoration.set(shown, true) };
+}
+
+const mathField = StateField.define<MathState>({
+  create: (state) => decorate(mathSpans(state), state),
+  update(value, tr) {
+    // Rescan only when the text or its parse changed; a cursor move just re-checks which
+    // spans it touches, and keeps the decorations if that didn't change.
+    if (tr.docChanged || syntaxTree(tr.state) !== syntaxTree(tr.startState)) {
+      return decorate(mathSpans(tr.state), tr.state);
+    }
+    if (!tr.selection) return value;
+    const next = decorate(value.spans, tr.state);
+    return next.editing === value.editing ? value : next;
+  },
+  provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
 });
 
-/** Typing the second `$` of `$$` adds the closing `$$` with the cursor between. */
+/**
+ * Typing the second `$` of `$$` adds the closing `$$` with the cursor between. Typing a
+ * `$` just before a closing `$` steps over it instead, so typing the closing `$$` by
+ * hand doesn't leave an extra one.
+ */
 const closeMath = EditorView.inputHandler.of((view, from, to, text) => {
   if (text !== "$" || from !== to) return false;
   const { state } = view;
+  if (inCode(state, from)) return false;
+  const next2 = state.sliceDoc(to, to + 2);
+  const stepOver =
+    next2 === "$$" || (next2.startsWith("$") && state.sliceDoc(from - 1, from) === "$");
+  if (stepOver) {
+    view.dispatch({ selection: { anchor: to + 1 } });
+    return true;
+  }
   if (state.sliceDoc(from - 1, from) !== "$" || state.sliceDoc(from - 2, from - 1) === "$")
     return false;
-  if (state.sliceDoc(to, to + 2) === "$$" || inCode(state, from)) return false;
+  if (next2 === "$$") return false;
   view.dispatch({ changes: { from, insert: "$$$" }, selection: { anchor: from + 1 } });
   return true;
 });

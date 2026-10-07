@@ -265,18 +265,20 @@ export function dailyNotePath(
 }
 
 /**
- * The date a link target names if it's a daily note: the file name parses with the
- * daily-note format, and any folder in the target is the daily-note folder.
+ * The date a link target names if it's a daily note: its last segments parse with the
+ * daily-note format (which may itself hold folders, e.g. `YYYY/MM/DD`), and any folder
+ * before them is the daily-note folder.
  */
 export function dailyDateOf(
   target: string,
   cfg: AxisConfig["dailyNotes"] = useConfig.getState().config.dailyNotes,
 ): Date | null {
-  const clean = target.replace(/^\/+/, "").replace(/\.md$/i, "");
-  const slash = clean.lastIndexOf("/");
-  const folder = slash === -1 ? "" : clean.slice(0, slash);
+  const parts = target.replace(/^\/+/, "").replace(/\.md$/i, "").split("/");
+  const own = cfg.format.split("/").length;
+  if (parts.length < own) return null;
+  const folder = parts.slice(0, parts.length - own).join("/");
   if (folder && folder !== cfg.folder.replace(/^\/+|\/+$/g, "")) return null;
-  return parseDate(clean.slice(slash + 1), cfg.format);
+  return parseDate(parts.slice(parts.length - own).join("/"), cfg.format);
 }
 
 /**

@@ -228,8 +228,10 @@ export function createMemoryBackend(
             break;
           case "prop": {
             const [k = "", want] = v.split("=");
-            const key = Object.keys(fm.props).find((x) => x.toLowerCase() === k);
-            const val = key === undefined ? undefined : fm.props[key];
+            // Inline `key:: value` properties too, like the indexer (frontmatter wins).
+            const props = { ...inlineProperties(n.text), ...fm.props };
+            const key = Object.keys(props).find((x) => x.toLowerCase() === k);
+            const val = key === undefined ? undefined : props[key];
             match =
               key !== undefined &&
               (want === undefined || [val].flat().some((x) => String(x).toLowerCase() === want));

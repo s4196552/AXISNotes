@@ -29,6 +29,7 @@ import {
   clearPropertyKeyCache,
   linkTargetFor,
   mentionCompletions,
+  typedDate,
   propertyCompletions,
   templateCompletions,
 } from "./triggers";
@@ -220,6 +221,39 @@ describe("@@ dates and notes", () => {
   });
 });
 
+describe("review fixes", () => {
+  it("offers a date typed after @@ opened, and only real dates", () => {
+    const r = mentionCompletions(ctx(viewWith("@@")))!;
+    const valid = r.validFor as (t: string) => boolean;
+    expect(valid("tom")).toBe(true);
+    expect(valid("2026-12")).toBe(false); // re-run, so the typed date gets offered
+    const later = mentionCompletions(ctx(viewWith("@@2026-12-25")))!;
+    expect(later.options[0]!.label).toBe("2026-12-25");
+    expect(typedDate("2026-02-30")).toBeNull();
+    expect(typedDate("2026-13-01")).toBeNull();
+    expect(typedDate("2028-02-29")?.getDate()).toBe(29);
+  });
+
+  it("follows daily links whose format has folders", () => {
+    const cfg = { folder: "Daily", format: "YYYY/MM/DD", template: "", openOnStartup: false };
+    expect(dailyDateOf("Daily/2026/10/08", cfg)?.getDate()).toBe(8);
+    expect(dailyDateOf("2026/10/08", cfg)?.getMonth()).toBe(9);
+    expect(dailyDateOf("Notes/2026/10/08", cfg)).toBeNull();
+    expect(dailyDateOf("10/08", cfg)).toBeNull();
+  });
+
+  it("keeps a ( typed before the (( trigger", async () => {
+    const view = viewWith("(((cells div");
+    const r = await blockCompletions(ctx(view));
+    expect(await pick(view, r, "Cells divide")).toBe("([[Biology#^cell1]]");
+  });
+
+  it("finds inline properties with prop: search in the memory backend", async () => {
+    const hits = await h.b.search("prop:status=done");
+    expect(hits.map((x) => x.path)).toEqual(["Projects/Alpha.md"]);
+  });
+});
+
 describe("(( blocks", () => {
   it("links a block in another note, adding its id there", async () => {
     const view = viewWith("Remember ((mitochondria");
@@ -402,5 +436,27 @@ describe("$$ math", () => {
     expect(handled).toBe(true);
     expect(view.state.doc.toString()).toBe("x $$$$");
     expect(view.state.selection.main.head).toBe(4);
+  });
+
+  it("steps over the closing $$ when it's typed by hand", () => {
+    const view = viewWith("$$x$$", { cursor: 3, extra: [math] });
+    const typeDollar = () =>
+      view.state.facet(EditorView.inputHandler).some((f) => {
+        const at = view.state.selection.main.head;
+        return f(view, at, at, "$", () => view.state.update({}));
+      });
+    expect(typeDollar()).toBe(true);
+    expect(typeDollar()).toBe(true);
+    expect(view.state.doc.toString()).toBe("$$x$$");
+    expect(view.state.selection.main.head).toBe(5);
+  });
+
+  it("keeps decorations on cursor moves that don't enter math", async () => {
+    await loadKatex();
+    const view = viewWith("$$a$$\n\nplain text here", { extra: [math] });
+    const before = view.dom.querySelector(".cm-math");
+    view.dispatch({ selection: { anchor: 10 } });
+    view.dispatch({ selection: { anchor: 12 } });
+    expect(view.dom.querySelector(".cm-math")).toBe(before);
   });
 });

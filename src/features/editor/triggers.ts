@@ -1,13 +1,14 @@
 import type { Completion, CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import type { EditorView } from "@codemirror/view";
-import { backend, isBackendError, type NoteRef, type PropertyKey } from "../../ipc";
+import { backend, type NoteRef, type PropertyKey } from "../../ipc";
 import { useAppStore } from "../../app/store";
-import { formatDate } from "../../lib/dates";
+import { formatDate, parseDate } from "../../lib/dates";
 import { type BlockChoice, ensureBlockId, listBlocks, newBlockId } from "../../lib/blocks";
 import { LIST_PREFIX, noteName } from "../../lib/markdown";
 import { renderTemplate } from "../templates/templates";
 import { linkHost } from "./links";
 import { notePath } from "./embeds";
+import { editNote } from "../files/editNote";
 import { escapeRe, quickCommandConfig } from "./quickCommands";
 import { minimalChange } from "./targets";
 
@@ -27,11 +28,12 @@ function matchTrigger(
   before = "\\s([",
 ) {
   if (!trigger) return null;
-  const m = context.matchBefore(
-    new RegExp(`(^|[${before}])${escapeRe(trigger)}${body}{0,${max}}$`, "u"),
-  );
+  const re = new RegExp(`(^|[${before}])${escapeRe(trigger)}${body}{0,${max}}$`, "u");
+  const m = context.matchBefore(re);
   if (!m) return null;
-  const start = m.text.startsWith(trigger) ? m.from : m.from + 1;
+  // Skip the character before the trigger, if one was matched (a `(` before `((` is the
+  // user's own, not part of the trigger).
+  const start = m.from + (re.exec(m.text)?.[1]?.length ?? 0);
   const queryFrom = start + trigger.length;
   return { start, queryFrom, query: context.state.sliceDoc(queryFrom, context.pos) };
 }
@@ -101,11 +103,8 @@ export function mentionCompletions(context: CompletionContext): CompletionResult
       : dailyLink(date, cfg.dailyFormat, cfg.dailyFolder);
   const dates = mentionDates(new Date());
   // A typed date, e.g. @@2026-12-25.
-  const typed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(m.query.trim());
-  if (typed) {
-    const date = new Date(+typed[1]!, +typed[2]! - 1, +typed[3]!);
-    if (!Number.isNaN(date.getTime())) dates.unshift({ label: m.query.trim(), date });
-  }
+  const date = typedDate(m.query.trim());
+  if (date) dates.unshift({ label: m.query.trim(), date });
   const options: Completion[] = dates.map(({ label, date }) => ({
     label,
     detail: `${formatDate(date, "ddd D MMM YYYY")}${onTask ? " · due date" : ""}`,
@@ -123,13 +122,22 @@ export function mentionCompletions(context: CompletionContext): CompletionResult
       apply: (view, _c, _f, to) => put(view, start, to, `[[${linkTargetFor(n.path, notes)}]]`),
     });
   }
-  return { from: m.queryFrom, options, validFor: /^[\p{L}\p{N} _'.-]*$/u };
+  // Re-run for digits, so a date typed after the menu opened (@@2026-12-25) is offered.
+  return { from: m.queryFrom, options, validFor: (text) => MENTION_TEXT.test(text) };
+}
+
+const MENTION_TEXT = /^[\p{L} _'.-][\p{L}\p{N} _'.-]*$|^$/u;
+
+/** A real `YYYY-MM-DD` date (not one that rolls over, like 2026-02-30), or null. */
+export function typedDate(text: string): Date | null {
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? parseDate(text, "YYYY-MM-DD") : null;
 }
 
 // ---- (( blocks across the vault ----
 
 const SEARCH_NOTES = 12;
 const MAX_BLOCKS = 40;
+const BLOCK_DEBOUNCE_MS = 120;
 
 interface FoundBlock extends BlockChoice {
   path: string;
@@ -169,16 +177,21 @@ async function findBlocks(
   } catch {
     // Search unavailable: offer this note's blocks only.
   }
-  for (const path of hits) {
-    if (out.length >= MAX_BLOCKS) break;
-    if (path === current.path || !path.endsWith(".md")) continue;
-    try {
-      const { content } = await backend.readFile(path);
-      for (const b of listBlocks(content)) if (matches(b)) out.push({ ...b, path });
-    } catch {
-      // Removed since it was indexed.
-    }
-  }
+  // Read the matching notes in parallel; keep the search order.
+  const others = hits.filter((path) => path !== current.path && path.endsWith(".md"));
+  const contents = await Promise.all(
+    others.map((path) =>
+      backend.readFile(path).then(
+        (f) => f.content,
+        () => null, // Removed since it was indexed.
+      ),
+    ),
+  );
+  others.forEach((path, i) => {
+    const content = contents[i];
+    if (content == null) return;
+    for (const b of listBlocks(content)) if (matches(b)) out.push({ ...b, path });
+  });
   return out.slice(0, MAX_BLOCKS);
 }
 
@@ -231,24 +244,32 @@ async function linkBlock(view: EditorView, from: number, to: number, b: FoundBlo
   const link = `[[${target}#^${id}]]`;
   put(view, from, to, link);
   if (b.id) return;
+  let problem: string | null = null;
+  let linkedId = id;
   try {
-    const fresh = await backend.readFile(b.path);
-    const block = relocateBlock(fresh.content, b);
-    if (!block) throw new Error(`that paragraph changed in ${noteName(b.path)}`);
-    const r = ensureBlockId(fresh.content, block.pos, () => id);
-    if (!r) throw new Error(`that paragraph can't take an id`);
-    // It got an id elsewhere in the meantime: link to that one instead.
-    if (r.id !== id) replaceText(view, link, `[[${target}#^${r.id}]]`);
-    if (r.text !== fresh.content) await backend.writeFile(b.path, r.text, fresh.modifiedMs);
-    store.bumpIndex();
+    // editNote goes through the note's editor if it's open, and retries a changed file.
+    await editNote(b.path, (text) => {
+      const block = relocateBlock(text, b);
+      const r = block && ensureBlockId(text, block.pos, () => id);
+      problem = !block
+        ? `that paragraph changed in ${noteName(b.path)}`
+        : !r
+          ? "that paragraph can't take an id"
+          : null;
+      if (!r) return null;
+      linkedId = r.id;
+      return r.text;
+    });
   } catch (e) {
+    problem = e instanceof Error ? e.message : String(e);
+  }
+  if (problem) {
     // Put back what was typed (if the link is still as inserted), so it can be retried.
     replaceText(view, link, typed);
-    store.setError(
-      isBackendError(e) && e.code === "Conflict"
-        ? `${noteName(b.path)} changed on disk; try again.`
-        : `Couldn't link the block: ${isBackendError(e) ? e.message : String(e)}`,
-    );
+    store.setError(`Couldn't link the block: ${problem}`);
+  } else if (linkedId !== id) {
+    // It got an id elsewhere in the meantime: link to that one instead.
+    replaceText(view, link, `[[${target}#^${linkedId}]]`);
   }
 }
 
@@ -258,6 +279,11 @@ export async function blockCompletions(
   const cfg = context.state.facet(quickCommandConfig);
   const m = matchTrigger(context, cfg.blockTrigger, "[^()\\n]", 60, "\\s([");
   if (!m) return null;
+  // Wait for a pause in typing: each query searches the vault and reads notes.
+  if (m.query.trim()) {
+    await new Promise((r) => setTimeout(r, BLOCK_DEBOUNCE_MS));
+    if (context.aborted) return null;
+  }
   const current = context.state.facet(notePath);
   const blocks = await findBlocks(m.query.trim(), {
     path: current,
