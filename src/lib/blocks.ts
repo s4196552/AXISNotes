@@ -19,11 +19,13 @@ const HEADING_RE = /^(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*$/;
 const BLOCK_ID_RE = /(?:^|[ \t])\^([A-Za-z0-9-]+)[ \t]*$/;
 const FENCE_RE = /^[ \t]*(```|~~~)/;
 
+/** Lines without their `\n` or `\r\n`, so ids are found (and added) before a CRLF too. */
 function lines(text: string): LineInfo[] {
   const out: LineInfo[] = [];
   let from = 0;
   for (const raw of text.split("\n")) {
-    out.push({ text: raw, from, to: from + raw.length });
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    out.push({ text: line, from, to: from + line.length });
     from += raw.length + 1;
   }
   return out;

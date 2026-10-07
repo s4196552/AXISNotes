@@ -136,7 +136,7 @@ describe("Phase 1: knowledge features on a real vault", () => {
     const ymd = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
     await untilEquals(
       () => read("Budget.md"),
-      `## Costs\n[[Cells]]\nstatus:: done\n[[Cells#^${id}]]\nNext [[${ymd}]]\n$$x^2$$\nend`,
+      `## Costs\n[[Cells]]\nstatus:: done\n[[Cells#^${id}]]\nNext [[Daily/${ymd}|${ymd}]]\n$$x^2$$\nend`,
     );
     // KaTeX renders the math once the cursor has left it.
     await $(".cm-math .katex").waitForDisplayed();

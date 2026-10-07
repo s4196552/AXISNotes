@@ -1,9 +1,9 @@
 import type { Completion, CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import type { EditorView } from "@codemirror/view";
-import { backend, isBackendError, type PropertyKey } from "../../ipc";
+import { backend, isBackendError, type NoteRef, type PropertyKey } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { formatDate } from "../../lib/dates";
-import { type BlockChoice, ensureBlockId, listBlocks } from "../../lib/blocks";
+import { type BlockChoice, ensureBlockId, listBlocks, newBlockId } from "../../lib/blocks";
 import { noteName } from "../../lib/markdown";
 import { renderTemplate } from "../templates/templates";
 import { linkHost } from "./links";
@@ -12,7 +12,7 @@ import { escapeRe, quickCommandConfig } from "./quickCommands";
 import { minimalChange } from "./targets";
 
 // The typed menus besides commands and emoji, each with a configurable trigger:
-//   @@  dates and notes        → [[2026-10-07]] (or 📅 2026-10-07 on a task), [[Note]]
+//   @@  dates and notes        → [[Daily/2026-10-07|2026-10-07]] (📅 2026-10-07 on a task), [[Note]]
 //   ((  blocks across the vault → [[Note#^id]] (adding the id to the block if needed)
 //   ::  inline properties      → key:: (keys already used in the vault first)
 //   {{  template variables     → {{date}} in templates, the value itself elsewhere
@@ -36,13 +36,31 @@ function matchTrigger(
   return { start, queryFrom, query: context.state.sliceDoc(queryFrom, context.pos) };
 }
 
-/** Replace from..to with `text`, cursor after it (or at `|` in it). */
-function put(view: EditorView, from: number, to: number, text: string) {
-  const at = text.indexOf("|");
-  const clean = at === -1 ? text : text.slice(0, at) + text.slice(at + 1);
+/**
+ * How to write a link to `path`: its name, or its path (without `.md`) when another note
+ * has the same name, so the link can't resolve to the wrong one.
+ */
+export function linkTargetFor(path: string, notes: readonly NoteRef[]): string {
+  const name = noteName(path);
+  const same = notes.filter((n) => n.name.toLowerCase() === name.toLowerCase()).length;
+  return same > 1 ? path.replace(/\.md$/i, "") : name;
+}
+
+/** A link to the daily note for `date`, in its folder, showing just the date. */
+export function dailyLink(date: Date, format: string, folder: string): string {
+  const name = formatDate(date, format);
+  const dir = folder.replace(/^\/+|\/+$/g, "");
+  return dir ? `[[${dir}/${name}|${name}]]` : `[[${name}]]`;
+}
+
+/**
+ * Replace from..to with `text`; the cursor goes `cursor` characters into it (default: the
+ * end). No marker characters, so `|` in a link alias is kept.
+ */
+function put(view: EditorView, from: number, to: number, text: string, cursor = text.length) {
   view.dispatch({
-    changes: { from, to, insert: clean },
-    selection: { anchor: from + (at === -1 ? clean.length : at) },
+    changes: { from, to, insert: text },
+    selection: { anchor: from + cursor },
   });
 }
 
@@ -75,8 +93,12 @@ export function mentionCompletions(context: CompletionContext): CompletionResult
   const { start } = m;
   const line = context.state.doc.lineAt(context.pos);
   const onTask = TASK_LINE_RE.test(line.text);
+  // A daily-note link in the daily folder (following it creates the note from the daily
+  // template), or the Tasks due date on a task line.
   const dateText = (date: Date) =>
-    onTask ? `📅 ${formatDate(date, "YYYY-MM-DD")}` : `[[${formatDate(date, cfg.dailyFormat)}]]`;
+    onTask
+      ? `📅 ${formatDate(date, "YYYY-MM-DD")}`
+      : dailyLink(date, cfg.dailyFormat, cfg.dailyFolder);
   const dates = mentionDates(new Date());
   // A typed date, e.g. @@2026-12-25.
   const typed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(m.query.trim());
@@ -91,13 +113,14 @@ export function mentionCompletions(context: CompletionContext): CompletionResult
     boost: 10,
     apply: (view, _c, _f, to) => put(view, start, to, dateText(date)),
   }));
-  for (const n of context.state.facet(linkHost).notes()) {
+  const notes = context.state.facet(linkHost).notes();
+  for (const n of notes) {
     const folder = n.path.includes("/") ? n.path.slice(0, n.path.lastIndexOf("/")) : "";
     options.push({
       label: n.name,
       detail: folder || "note",
       type: "text",
-      apply: (view, _c, _f, to) => put(view, start, to, `[[${n.name}]]`),
+      apply: (view, _c, _f, to) => put(view, start, to, `[[${linkTargetFor(n.path, notes)}]]`),
     });
   }
   return { from: m.queryFrom, options, validFor: /^[\p{L}\p{N} _'.-]*$/u };
@@ -158,20 +181,41 @@ async function findBlocks(
   return out.slice(0, MAX_BLOCKS);
 }
 
-/** Insert a link to block `b`, first giving it an id if it has none. */
+/**
+ * Where block `b` is now in `text`: the block with the same text nearest its old place
+ * (the text may have changed since it was listed), or null if it's gone.
+ */
+export function relocateBlock(text: string, b: BlockChoice): BlockChoice | null {
+  let best: BlockChoice | null = null;
+  for (const c of listBlocks(text)) {
+    if (c.label !== b.label) continue;
+    if (!best || Math.abs(c.pos - b.pos) < Math.abs(best.pos - b.pos)) best = c;
+  }
+  return best;
+}
+
+/** Replace the first `from` text in the editor with `to` (no-op if it's not there). */
+function replaceText(view: EditorView, from: string, to: string) {
+  const at = view.state.doc.toString().indexOf(from);
+  if (at !== -1) view.dispatch({ changes: { from: at, to: at + from.length, insert: to } });
+}
+
+/** Insert a link to block `b`, giving the block an id if it has none. */
 async function linkBlock(view: EditorView, from: number, to: number, b: FoundBlock) {
   const current = view.state.facet(notePath);
   const store = useAppStore.getState();
+  const target = linkTargetFor(b.path, view.state.facet(linkHost).notes());
   if (b.path === current) {
     // Same note: remove the typed `((query`, add the id, insert the link, all in one edit.
     const doc = view.state.doc.toString();
     const without = doc.slice(0, from) + doc.slice(to);
-    const pos = b.pos > to ? b.pos - (to - from) : b.pos;
-    const r = b.id ? { text: without, id: b.id } : ensureBlockId(without, pos);
+    const block = relocateBlock(without, { ...b, pos: b.pos > to ? b.pos - (to - from) : b.pos });
+    if (!block) return;
+    const r = block.id ? { text: without, id: block.id } : ensureBlockId(without, block.pos);
     if (!r) return;
     const added = minimalChange(without, r.text);
     const at = added.from < from ? from + (r.text.length - without.length) : from;
-    const link = `[[${noteName(current)}#^${r.id}]]`;
+    const link = `[[${target}#^${r.id}]]`;
     const final = r.text.slice(0, at) + link + r.text.slice(at);
     view.dispatch({
       changes: minimalChange(doc, final),
@@ -179,25 +223,32 @@ async function linkBlock(view: EditorView, from: number, to: number, b: FoundBlo
     });
     return;
   }
-  let id = b.id;
-  if (!id) {
-    try {
-      const fresh = await backend.readFile(b.path);
-      const r = ensureBlockId(fresh.content, b.pos);
-      if (!r) return;
-      if (r.text !== fresh.content) await backend.writeFile(b.path, r.text, fresh.modifiedMs);
-      id = r.id;
-      store.bumpIndex();
-    } catch (e) {
-      store.setError(
-        isBackendError(e) && e.code === "Conflict"
-          ? `${noteName(b.path)} changed on disk; try again.`
-          : `Couldn't link the block: ${isBackendError(e) ? e.message : String(e)}`,
-      );
-      return;
-    }
+  // Another note. Insert the link right away (with the id it will have), so nothing typed
+  // meanwhile can be overwritten; then add that id to the block on disk.
+  const typed = view.state.sliceDoc(from, to);
+  const id = b.id ?? newBlockId();
+  const link = `[[${target}#^${id}]]`;
+  put(view, from, to, link);
+  if (b.id) return;
+  try {
+    const fresh = await backend.readFile(b.path);
+    const block = relocateBlock(fresh.content, b);
+    if (!block) throw new Error(`that paragraph changed in ${noteName(b.path)}`);
+    const r = ensureBlockId(fresh.content, block.pos, () => id);
+    if (!r) throw new Error(`that paragraph can't take an id`);
+    // It got an id elsewhere in the meantime: link to that one instead.
+    if (r.id !== id) replaceText(view, link, `[[${target}#^${r.id}]]`);
+    if (r.text !== fresh.content) await backend.writeFile(b.path, r.text, fresh.modifiedMs);
+    store.bumpIndex();
+  } catch (e) {
+    // Put back what was typed (if the link is still as inserted), so it can be retried.
+    replaceText(view, link, typed);
+    store.setError(
+      isBackendError(e) && e.code === "Conflict"
+        ? `${noteName(b.path)} changed on disk; try again.`
+        : `Couldn't link the block: ${isBackendError(e) ? e.message : String(e)}`,
+    );
   }
-  put(view, from, to, `[[${noteName(b.path)}#^${id}]]`);
 }
 
 export async function blockCompletions(
@@ -219,7 +270,7 @@ export async function blockCompletions(
     filter: false,
     options: blocks.map<Completion>((b) => ({
       label: blockPreview(b.label),
-      detail: `${b.path === current ? "this note" : noteName(b.path)}${b.id ? "" : " · new id"}`,
+      detail: `${b.path === current ? "this note" : b.path.replace(/\.md$/i, "")}${b.id ? "" : " · new id"}`,
       type: "text",
       // Returns the promise (CodeMirror ignores it; tests await it).
       apply: (view, _c, _f, to) => linkBlock(view, start, to, b),
@@ -300,8 +351,9 @@ interface TemplateVar {
   label: string;
   /** Only meaningful inside a template (not filled in when typed in a note). */
   templateOnly?: boolean;
-  /** Text inserted inside a template; `|` marks the cursor. */
+  /** Text inserted inside a template, and where the cursor goes in it. */
   insert?: string;
+  cursor?: number;
 }
 
 export const TEMPLATE_VARS: TemplateVar[] = [
@@ -314,7 +366,8 @@ export const TEMPLATE_VARS: TemplateVar[] = [
     name: "prompt",
     label: "Ask a question when inserted",
     templateOnly: true,
-    insert: "{{prompt:|}}",
+    insert: "{{prompt:}}",
+    cursor: "{{prompt:".length,
   },
 ];
 
@@ -339,13 +392,10 @@ export function templateCompletions(context: CompletionContext): CompletionResul
       displayLabel: `{{${v.name}}}`,
       detail: inTemplate ? v.label : `${v.label} → ${value(v.name)}`,
       type: "variable",
-      apply: (view, _c, _f, to) =>
-        put(
-          view,
-          start,
-          to + closeAfter,
-          inTemplate ? (v.insert ?? `{{${v.name}}}`) : value(v.name),
-        ),
+      apply: (view, _c, _f, to) => {
+        const text = inTemplate ? (v.insert ?? `{{${v.name}}}`) : value(v.name);
+        put(view, start, to + closeAfter, text, inTemplate ? v.cursor : undefined);
+      },
     }),
   );
   return { from: queryFrom, options, validFor: /^[\w:, ]*$/ };

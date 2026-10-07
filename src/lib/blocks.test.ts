@@ -64,6 +64,19 @@ describe("blocks", () => {
     expect(ensureBlockId(NOTE, NOTE.indexOf("# Title"))).toBeNull();
   });
 
+  it("handles CRLF line endings: finds existing ids and adds new ones before the \\r", () => {
+    const crlf = "Alpha target. ^existing\r\n\r\nNext para\r\n";
+    expect(ensureBlockId(crlf, 3)).toEqual({ text: crlf, id: "existing" });
+    expect(listBlocks(crlf).map((b) => [b.label, b.id])).toEqual([
+      ["Alpha target.", "existing"],
+      ["Next para", null],
+    ]);
+    expect(ensureBlockId(crlf, crlf.indexOf("Next"), () => "n1")!.text).toBe(
+      "Alpha target. ^existing\r\n\r\nNext para ^n1\r\n",
+    );
+    expect(findBlock(crlf, "existing")).toEqual({ from: 0, to: 23 });
+  });
+
   it("lists referenceable blocks and headings", () => {
     const blocks = listBlocks(NOTE);
     expect(blocks.map((b) => [b.label, b.id])).toEqual([

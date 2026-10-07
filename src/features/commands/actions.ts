@@ -1,8 +1,14 @@
 import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { type AxisConfig, useConfig } from "../../app/config";
-import { formatDate } from "../../lib/dates";
-import { isNotePath, noteName, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
+import { formatDate, parseDate } from "../../lib/dates";
+import {
+  isNotePath,
+  noteName,
+  parseWikilinkInner,
+  splitFrontmatter,
+  withFrontmatter,
+} from "../../lib/markdown";
 import { ensureBlockId } from "../../lib/blocks";
 import { CANVAS_EXT, GRID_EXT } from "../../lib/fileKinds";
 import { emptyCanvas, serializeCanvas } from "../../lib/canvas";
@@ -256,6 +262,38 @@ export function dailyNotePath(
 ): string {
   const { folder, format } = cfg;
   return join(folder.replace(/^\/+|\/+$/g, ""), `${formatDate(date, format)}.md`);
+}
+
+/**
+ * The date a link target names if it's a daily note: the file name parses with the
+ * daily-note format, and any folder in the target is the daily-note folder.
+ */
+export function dailyDateOf(
+  target: string,
+  cfg: AxisConfig["dailyNotes"] = useConfig.getState().config.dailyNotes,
+): Date | null {
+  const clean = target.replace(/^\/+/, "").replace(/\.md$/i, "");
+  const slash = clean.lastIndexOf("/");
+  const folder = slash === -1 ? "" : clean.slice(0, slash);
+  if (folder && folder !== cfg.folder.replace(/^\/+|\/+$/g, "")) return null;
+  return parseDate(clean.slice(slash + 1), cfg.format);
+}
+
+/**
+ * Follow a wikilink from note `from`. A daily note that doesn't exist yet is created in
+ * the daily folder from the daily template (like the calendar does), not as an empty note.
+ */
+export async function followLink(inner: string, from: string) {
+  const { target } = parseWikilinkInner(inner);
+  const date = target ? dailyDateOf(target) : null;
+  if (date) {
+    try {
+      if (!(await backend.resolveLink(target, from))) return await openDailyNote(date);
+    } catch {
+      // Fall through to a normal link.
+    }
+  }
+  return useAppStore.getState().openLink(inner, from);
 }
 
 /** Open the daily note for `date`, creating it from the daily template if needed. */

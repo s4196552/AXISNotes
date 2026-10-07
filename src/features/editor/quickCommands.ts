@@ -26,8 +26,9 @@ export interface QuickCommandConfig {
   templateTrigger: string;
   disabled: string[];
   custom: CustomQuickCommand[];
-  /** Daily note file-name format, for `@@today` links. */
+  /** Daily note file-name format and folder, for `@@today` links. */
   dailyFormat: string;
+  dailyFolder: string;
   /** Folder of user templates: `{{` inserts variables there, values elsewhere. */
   templatesFolder: string;
   /** Opens the template picker (host UI). */
@@ -46,6 +47,7 @@ export const DEFAULT_QUICK_CONFIG: QuickCommandConfig = {
   disabled: [],
   custom: [],
   dailyFormat: "YYYY-MM-DD",
+  dailyFolder: "Daily",
   templatesFolder: "Templates",
   insertTemplate: () => {},
   runCommand: () => {},

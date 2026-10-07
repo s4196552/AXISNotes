@@ -27,6 +27,7 @@ import {
   blockCompletions,
   blockPreview,
   clearPropertyKeyCache,
+  linkTargetFor,
   mentionCompletions,
   propertyCompletions,
   templateCompletions,
@@ -34,6 +35,9 @@ import {
 import { linkHost } from "./links";
 import { notePath } from "./embeds";
 import { findMath, loadKatex, math } from "./math";
+import { useAppStore } from "../../app/store";
+import { dailyDateOf, followLink } from "../commands/actions";
+import type { NoteRef } from "../../ipc";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -61,6 +65,7 @@ function viewWith(
     cfg?: Partial<QuickCommandConfig>;
     cursor?: number;
     extra?: Extension[];
+    notes?: NoteRef[];
     /** Completion sources the view runs itself (for ranking tests). */
     sources?: Parameters<typeof autocompletion>[0] extends infer C
       ? C extends { override?: infer O }
@@ -84,7 +89,10 @@ function viewWith(
           openLink: () => {},
           openTag: () => {},
           isKnown: () => true,
-          notes: () => [{ path: "School/Biology.md", name: "Biology", title: "Bio", aliases: [] }],
+          notes: () =>
+            opts.notes ?? [
+              { path: "School/Biology.md", name: "Biology", title: "Bio", aliases: [] },
+            ],
         }),
         ...(opts.extra ?? []),
       ],
@@ -154,15 +162,53 @@ describe("@@ dates and notes", () => {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
   };
 
-  it("links the daily note for a date, or a note by name", async () => {
-    let view = viewWith("Meet @@tom", { cfg: { dailyFormat: "YYYY-MM-DD" } });
+  it("links the daily note for a date (in the daily folder), or a note by name", async () => {
+    const t = formatDate(tomorrow(), "YYYY-MM-DD");
+    let view = viewWith("Meet @@tom");
     expect(await pick(view, mentionCompletions(ctx(view)), "Tomorrow")).toBe(
-      `Meet [[${formatDate(tomorrow(), "YYYY-MM-DD")}]]`,
+      `Meet [[Daily/${t}|${t}]]`,
     );
+    view = viewWith("Meet @@tom", { cfg: { dailyFolder: "" } });
+    expect(await pick(view, mentionCompletions(ctx(view)), "Tomorrow")).toBe(`Meet [[${t}]]`);
     view = viewWith("See @@bio");
     expect(await pick(view, mentionCompletions(ctx(view)), "Biology")).toBe("See [[Biology]]");
     view = viewWith("On @@2026-12-25");
-    expect(await pick(view, mentionCompletions(ctx(view)), "2026-12-25")).toBe("On [[2026-12-25]]");
+    expect(await pick(view, mentionCompletions(ctx(view)), "2026-12-25")).toBe(
+      "On [[Daily/2026-12-25|2026-12-25]]",
+    );
+  });
+
+  it("writes the path when two notes share a name", async () => {
+    const notes = [
+      { path: "School/Biology.md", name: "Biology", title: null, aliases: [] },
+      { path: "Archive/Biology.md", name: "Biology", title: null, aliases: [] },
+      { path: "Plan.md", name: "Plan", title: null, aliases: [] },
+    ];
+    expect(linkTargetFor("Archive/Biology.md", notes)).toBe("Archive/Biology");
+    expect(linkTargetFor("Plan.md", notes)).toBe("Plan");
+    const view = viewWith("See @@bio", { notes });
+    const r = mentionCompletions(ctx(view));
+    const opt = r!.options.find((o) => o.detail === "Archive")!;
+    (opt.apply as (v: EditorView, c: Completion, f: number, t: number) => void)(
+      view,
+      opt,
+      r!.from,
+      9,
+    );
+    expect(view.state.doc.toString()).toBe("See [[Archive/Biology]]");
+  });
+
+  it("opens a missing daily note from a link in the daily folder, from the daily template", async () => {
+    expect(dailyDateOf("Daily/2026-12-25")?.getDate()).toBe(25);
+    expect(dailyDateOf("2026-12-25")?.getMonth()).toBe(11);
+    expect(dailyDateOf("Notes/2026-12-25")).toBeNull();
+    expect(dailyDateOf("Biology")).toBeNull();
+    useAppStore.setState({ vault: { root: "/v", name: "v" }, notes: [] });
+    await followLink("Daily/2026-12-25|2026-12-25", "Plan.md");
+    expect((await h.b.readFile("Daily/2026-12-25.md")).content).toContain(
+      "# Friday, December 25, 2026",
+    );
+    expect(useAppStore.getState().activePath).toBe("Daily/2026-12-25.md");
   });
 
   it("writes a due date on a task line, and ignores @@ inside words", async () => {
@@ -178,11 +224,43 @@ describe("(( blocks", () => {
   it("links a block in another note, adding its id there", async () => {
     const view = viewWith("Remember ((mitochondria");
     const r = await blockCompletions(ctx(view));
-    expect(r?.options.map((o) => o.detail)).toEqual(["Biology · new id"]);
+    expect(r?.options.map((o) => o.detail)).toEqual(["School/Biology · new id"]);
     const text = await pick(view, r, "Mitochondria make energy for the cell.");
     const id = /\[\[Biology#\^([a-z0-9]+)\]\]$/.exec(text)?.[1];
     expect(text).toMatch(/^Remember \[\[Biology#\^[a-z0-9]+\]\]$/);
     expect((await h.b.readFile("School/Biology.md")).content).toContain(`for the cell. ^${id}`);
+  });
+
+  it("keeps what's typed while the id is being added in the other note", async () => {
+    const view = viewWith("Remember ((mitochondria");
+    const r = await blockCompletions(ctx(view));
+    const opt = r!.options[0]!;
+    const apply = opt.apply as (
+      v: EditorView,
+      c: Completion,
+      f: number,
+      t: number,
+    ) => Promise<void>;
+    const pending = apply(view, opt, r!.from, view.state.doc.length);
+    type(view, " and more"); // typed before the file write finishes
+    await pending;
+    expect(view.state.doc.toString()).toMatch(/^Remember \[\[Biology#\^[a-z0-9]+\]\] and more$/);
+  });
+
+  it("finds the block again if the note changed after it was listed", async () => {
+    const view = viewWith("((mitochondria");
+    const r = await blockCompletions(ctx(view));
+    // Another editor adds a paragraph above it before the menu item is chosen.
+    const file = await h.b.readFile("School/Biology.md");
+    await h.b.writeFile(
+      "School/Biology.md",
+      file.content.replace("# Bio\n", "# Bio\n\nNew intro.\n"),
+    );
+    const text = await pick(view, r, "Mitochondria make energy for the cell.");
+    const id = /\^([a-z0-9]+)\]\]$/.exec(text)![1];
+    const after = (await h.b.readFile("School/Biology.md")).content;
+    expect(after).toContain("New intro.\n");
+    expect(after).toContain(`for the cell. ^${id}`);
   });
 
   it("shows block text without Markdown marks", () => {

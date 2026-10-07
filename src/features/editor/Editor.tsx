@@ -24,7 +24,7 @@ import { PropertiesPanel } from "./PropertiesPanel";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
-import { openAskAi, openFixText } from "../commands/actions";
+import { followLink, openAskAi, openFixText } from "../commands/actions";
 import { allCommands } from "../commands/registry";
 import { configuredSpellcheck, recheck } from "../spellcheck";
 import { mermaidBlocks } from "../diagrams/mermaidBlocks";
@@ -49,6 +49,7 @@ function quickConfig(): QuickCommandConfig {
   return {
     ...config.quickCommands,
     dailyFormat: config.dailyNotes.format,
+    dailyFolder: config.dailyNotes.folder,
     templatesFolder: config.templatesFolder,
     insertTemplate: () => useUi.getState().open({ kind: "templates", mode: "insert" }),
     runCommand: (id) =>
@@ -254,7 +255,7 @@ export function Editor({ path }: EditorProps) {
               math,
               spellCompartment.current.of(configuredSpellcheck()),
               links({
-                openLink: (inner) => void store().openLink(inner, path),
+                openLink: (inner) => void followLink(inner, path),
                 openTag: (tag) => store().search(`tag:${tag}`),
                 isKnown: (target) => isKnownTarget(store().notes, target),
                 notes: () => store().notes,
@@ -333,13 +334,13 @@ export function Editor({ path }: EditorProps) {
 
   // Follow changes to the quick-command settings.
   const quickSettings = useConfig((s) => s.config.quickCommands);
-  const dailyFormat = useConfig((s) => s.config.dailyNotes.format);
+  const dailyNotes = useConfig((s) => s.config.dailyNotes);
   const templatesFolder = useConfig((s) => s.config.templatesFolder);
   useEffect(() => {
     view.current?.dispatch({
       effects: quickCompartment.current.reconfigure(quickCommandConfig.of(quickConfig())),
     });
-  }, [quickSettings, dailyFormat, templatesFolder]);
+  }, [quickSettings, dailyNotes, templatesFolder]);
 
   // Follow the spellcheck settings (on/off, personal dictionary).
   const spellOn = useConfig((s) => s.config.spellcheck.enabled);
