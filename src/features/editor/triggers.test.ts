@@ -213,6 +213,14 @@ describe("@@ dates and notes", () => {
       "# Friday, December 25, 2026",
     );
     expect(useAppStore.getState().activePath).toBe("Daily/2026-12-25.md");
+    // A heading in the link is where the new note opens, not the template's cursor.
+    useAppStore.setState({ notes: [] });
+    await followLink("Daily/2026-12-24#Notes|Notes", "Plan.md");
+    expect(useAppStore.getState().activePath).toBe("Daily/2026-12-24.md");
+    expect(useAppStore.getState().pendingTarget).toEqual({
+      path: "Daily/2026-12-24.md",
+      heading: "Notes",
+    });
   });
 
   it("writes a due date on a task line, and ignores @@ inside words", async () => {

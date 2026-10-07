@@ -1,5 +1,5 @@
 import { backend, isBackendError } from "../../ipc";
-import { useAppStore } from "../../app/store";
+import { type OpenTarget, useAppStore } from "../../app/store";
 import { type AxisConfig, useConfig } from "../../app/config";
 import { formatDate, parseDate } from "../../lib/dates";
 import {
@@ -289,11 +289,16 @@ export function dailyDateOf(
  * the daily folder from the daily template (like the calendar does), not as an empty note.
  */
 export async function followLink(inner: string, from: string) {
-  const { target } = parseWikilinkInner(inner);
+  const { target, heading, block } = parseWikilinkInner(inner);
   const date = target ? dailyDateOf(target) : null;
   if (date) {
     try {
-      if (!(await backend.resolveLink(target, from))) return await openDailyNote(date);
+      if (!(await backend.resolveLink(target, from))) {
+        const jump: OpenTarget = {};
+        if (heading) jump.heading = heading;
+        if (block) jump.block = block;
+        return await openDailyNote(date, jump);
+      }
     } catch {
       // Fall through to a normal link.
     }
@@ -302,7 +307,7 @@ export async function followLink(inner: string, from: string) {
 }
 
 /** Open the daily note for `date`, creating it from the daily template if needed. */
-export async function openDailyNote(date = new Date()) {
+export async function openDailyNote(date = new Date(), target?: OpenTarget) {
   const store = useAppStore.getState();
   const path = dailyNotePath(date);
   try {
@@ -323,10 +328,12 @@ export async function openDailyNote(date = new Date()) {
         if (!(isBackendError(e) && e.code === "AlreadyExists")) throw e;
       }
       await store.refreshTree();
-      useAppStore.getState().openFile(path, { line: lineOfOffset(text, cursor) });
+      // A heading or block the link asked for wins over the template's cursor.
+      const jump = target?.heading || target?.block ? target : undefined;
+      useAppStore.getState().openFile(path, jump ?? { line: lineOfOffset(text, cursor) });
       return;
     }
-    store.openFile(path);
+    store.openFile(path, target);
   } catch (e) {
     report(e);
   }
