@@ -273,11 +273,14 @@ export function dailyDateOf(
   target: string,
   cfg: AxisConfig["dailyNotes"] = useConfig.getState().config.dailyNotes,
 ): Date | null {
-  const parts = target.replace(/^\/+/, "").replace(/\.md$/i, "").split("/");
+  // A vault-absolute `/…` target names its folder exactly (none = the vault root).
+  const absolute = target.trimStart().startsWith("/");
+  const parts = target.trim().replace(/^\/+/, "").replace(/\.md$/i, "").split("/");
   const own = cfg.format.split("/").length;
   if (parts.length < own) return null;
   const folder = parts.slice(0, parts.length - own).join("/");
-  if (folder && folder !== cfg.folder.replace(/^\/+|\/+$/g, "")) return null;
+  const daily = cfg.folder.replace(/^\/+|\/+$/g, "");
+  if ((folder || absolute) && folder !== daily) return null;
   return parseDate(parts.slice(parts.length - own).join("/"), cfg.format);
 }
 

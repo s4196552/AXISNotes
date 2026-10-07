@@ -163,8 +163,10 @@ export interface BlockChoice {
   text: string;
   /** Existing block id, if any. */
   id: string | null;
-  /** Offset inside the block (for `ensureBlockId`). */
+  /** Offset inside the block (for `ensureBlockId`): where it starts. */
   pos: number;
+  /** Where its own text ends (a list item's own line; a paragraph's last line). */
+  end: number;
 }
 
 /** Referenceable blocks (paragraphs and list items) of a note, for `[[Note#^` completion. */
@@ -194,7 +196,8 @@ export function listBlocks(text: string): BlockChoice[] {
       .join(" ")
       .replace(BLOCK_ID_RE, "")
       .trim();
-    if (label) out.push({ label, text: body, id, pos: ls[first]!.from });
+    const end = ls[isList ? first : last]!.to;
+    if (label) out.push({ label, text: body, id, pos: ls[first]!.from, end });
     // List items: step into children (each is referenceable); paragraphs: skip to the end.
     i = isList ? first + 1 : last + 1;
   }

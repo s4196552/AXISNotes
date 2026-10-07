@@ -187,8 +187,9 @@ const closeMath = EditorView.inputHandler.of((view, from, to, text) => {
     view.dispatch({ selection: { anchor: to + 1 } });
     return true;
   }
-  if (state.sliceDoc(from - 1, from) !== "$" || state.sliceDoc(from - 2, from - 1) === "$")
-    return false;
+  // Only after a single, unescaped `$` (`\$$` is a literal dollar and a `$`).
+  const before = state.sliceDoc(from - 2, from - 1);
+  if (state.sliceDoc(from - 1, from) !== "$" || before === "$" || before === "\\") return false;
   if (next2 === "$$") return false;
   view.dispatch({ changes: { from, insert: "$$$" }, selection: { anchor: from + 1 } });
   return true;

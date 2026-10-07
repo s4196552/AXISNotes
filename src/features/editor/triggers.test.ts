@@ -264,6 +264,28 @@ describe("review fixes", () => {
     expect((await h.b.readFile("School/Ref2.md")).content).toBe("[[/Maths]]");
   });
 
+  it("treats a /path daily target as exact: root is not the daily folder", () => {
+    const cfg = { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false };
+    expect(dailyDateOf("/2026-12-25", cfg)).toBeNull();
+    expect(dailyDateOf("/Daily/2026-12-25", cfg)?.getDate()).toBe(25);
+    expect(dailyDateOf("/2026-12-25", { ...cfg, folder: "" })?.getDate()).toBe(25);
+  });
+
+  it("offers a block that sits above a heading the cursor is in", async () => {
+    const view = viewWith("Alpha idea.\n\n# See ((alpha");
+    const r = await blockCompletions(ctx(view));
+    expect(r?.options.map((o) => o.label)).toEqual(["Alpha idea."]);
+  });
+
+  it("doesn't close an escaped \\$$", () => {
+    const view = viewWith("cost \\$", { extra: [math] });
+    const at = view.state.doc.length;
+    const handled = view.state
+      .facet(EditorView.inputHandler)
+      .some((f) => f(view, at, at, "$", () => view.state.update({})));
+    expect(handled).toBe(false);
+  });
+
   it("links a duplicate-named root note with a vault-absolute path", async () => {
     const notes = [
       "Biology.md",

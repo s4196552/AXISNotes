@@ -185,10 +185,9 @@ async function findBlocks(
   // Match the whole block (a paragraph's later lines too); the label is just for display.
   const matches = (b: BlockChoice) => words.every((w) => b.text.toLowerCase().includes(w));
   // Not the block being typed in (it would link to itself).
-  const own = listBlocks(current.text).filter((b, i, all) => {
-    const next = all[i + 1]?.pos ?? Infinity;
-    return !(current.cursor >= b.pos && current.cursor < next);
-  });
+  const own = listBlocks(current.text).filter(
+    (b) => !(current.cursor >= b.pos && current.cursor <= b.end),
+  );
   const out: FoundBlock[] = own.filter(matches).map((b) => ({ ...b, path: current.path }));
   if (words.length === 0) return out.slice(0, MAX_BLOCKS);
   const terms = words.map((w) => w.replace(/["()]/g, "")).filter(Boolean);
