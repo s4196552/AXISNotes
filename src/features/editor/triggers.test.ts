@@ -224,6 +224,39 @@ describe("@@ dates and notes", () => {
 });
 
 describe("review fixes", () => {
+  it("links a duplicate-named root note with a vault-absolute path", async () => {
+    const notes = [
+      "Biology.md",
+      "School/Biology.md",
+      "X/School/Biology.md",
+      "Other/Biology.md",
+    ].map((path) => ({ path, name: "Biology", title: null, aliases: [] }));
+    expect(linkTargetFor("Biology.md", notes)).toBe("/Biology");
+    expect(linkTargetFor("School/Biology.md", notes)).toBe("/School/Biology");
+    expect(linkTargetFor("Other/Biology.md", notes)).toBe("Other/Biology");
+    await h.b.writeFile("Biology.md", "root");
+    await h.b.writeFile("School/Plan.md", "x");
+    await h.b.writeFile("School/Biology.md", "school");
+    expect(await h.b.resolveLink("/Biology", "School/Plan.md")).toBe("Biology.md");
+    expect(await h.b.resolveLink("Biology", "School/Plan.md")).toBe("School/Biology.md");
+    expect(await h.b.resolveLink("/Missing", "School/Plan.md")).toBeNull();
+  });
+
+  it("recognises daily links with month names", () => {
+    const cfg = { folder: "Daily", format: "MMMM D, YYYY", template: "", openOnStartup: false };
+    expect(dailyDateOf("Daily/October 8, 2026", cfg)?.getMonth()).toBe(9);
+    expect(dailyDateOf("Daily/Smarch 8, 2026", cfg)).toBeNull();
+    const short = { ...cfg, format: "ddd D MMM YYYY" };
+    expect(dailyDateOf("Daily/Thu 8 Oct 2026", short)?.getDate()).toBe(8);
+  });
+
+  it("writes a due date on numbered task lines too", async () => {
+    for (const line of ["1. [ ] Work @@tom", "2) [x] Work @@tom"]) {
+      const view = viewWith(line);
+      expect(await pick(view, mentionCompletions(ctx(view)), "Tomorrow")).toContain("📅 ");
+    }
+  });
+
   it("relocates a block by its full text and refuses an ambiguous one", () => {
     const doc = "Overview\nof Alpha.\n\nOverview\nof Beta.\n";
     const beta = listBlocks(doc)[1]!;

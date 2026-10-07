@@ -146,21 +146,24 @@ export function createMemoryBackend(
       .map(([path, n]) => ({ path, text: n.content }));
 
   const resolve = (target: string, from: string): string | null => {
-    let t = target.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+    const raw = target.trim().replace(/\\/g, "/");
+    // A leading `/` is a vault-absolute path: only that exact note.
+    const absolute = raw.startsWith("/");
+    let t = raw.replace(/^\/+/, "");
     if (t.toLowerCase().endsWith(".md")) t = t.slice(0, -3);
     if (!t) return from;
     const name = noteName(t).toLowerCase();
     let candidates = notes()
       .map((n) => n.path)
       .filter((p) => noteName(p).toLowerCase() === name);
-    if (t.includes("/")) {
+    if (absolute || t.includes("/")) {
       const want = t.toLowerCase();
       candidates = candidates.filter((p) => {
         const q = p.slice(0, -3).toLowerCase();
-        return q === want || q.endsWith("/" + want);
+        return q === want || (!absolute && q.endsWith("/" + want));
       });
     }
-    if (candidates.length === 0 && !t.includes("/")) {
+    if (candidates.length === 0 && !absolute && !t.includes("/")) {
       candidates = notes()
         .filter((n) =>
           aliasesOf(splitFrontmatter(n.text).props).some(

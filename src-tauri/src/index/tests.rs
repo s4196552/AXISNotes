@@ -452,3 +452,27 @@ fn property_keys_count_frontmatter_and_inline_and_search_inline() {
         .collect();
     assert_eq!(hits, vec!["b.md".to_string()]);
 }
+
+#[test]
+fn leading_slash_resolves_only_the_exact_vault_path() {
+    let (_d, _v, idx) = vault_with(&[
+        ("Biology.md", "root"),
+        ("School/Biology.md", "school"),
+        ("School/Plan.md", "[[/Biology]] and [[Biology]]"),
+        ("X/School/Biology.md", "deeper"),
+    ]);
+    let r = |t: &str| idx.resolve(t, "School/Plan.md").unwrap();
+    assert_eq!(r("Biology").as_deref(), Some("School/Biology.md"));
+    assert_eq!(r("/Biology").as_deref(), Some("Biology.md"));
+    assert_eq!(r("/School/Biology").as_deref(), Some("School/Biology.md"));
+    assert_eq!(
+        r("/X/School/Biology.md").as_deref(),
+        Some("X/School/Biology.md")
+    );
+    assert_eq!(r("/Missing"), None);
+    let g = idx.graph().unwrap();
+    assert!(g
+        .edges
+        .iter()
+        .any(|e| e.source == "School/Plan.md" && e.target == "Biology.md"));
+}

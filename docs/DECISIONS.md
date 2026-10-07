@@ -2,6 +2,15 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-07: `[[/path]]` links are vault-absolute (T-065)
+
+A wikilink target that starts with `/` names one exact note path from the vault root (`[[/Biology]]` is `Biology.md`, never `School/Biology.md`), with no name, suffix or alias matching. Without it, a root note can't be linked from a folder that has a note with the same name, because same-folder notes win.
+
+- All three resolvers follow the rule: Rust `Index::resolve`, the graph `Resolver`, and the memory backend.
+- `@@` and `((` write the shortest target that can't resolve elsewhere: the name; else the path; else `/path`.
+- Obsidian also reads vault paths, so these links stay portable.
+- Rename rewriting doesn't produce `/path` targets yet. That is unchanged behaviour, noted in the T-065 handoff.
+
 ## 2026-10-07: Command symbols: Ctrl+/, @@, ((, ::, :, $$, {{ (T-065)
 
 The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq, Tana and Slack use.

@@ -387,8 +387,10 @@ impl Index {
     /// Resolve a wikilink target written in `from` to a note path (Obsidian semantics:
     /// by name anywhere in the vault; paths narrow it; same folder, then shortest path wins).
     pub fn resolve(&self, target: &str, from: &str) -> AppResult<Option<String>> {
-        let t = target.trim().replace('\\', "/");
-        let t = strip_md(t.trim_start_matches('/'));
+        let raw = target.trim().replace('\\', "/");
+        // A leading `/` is a vault-absolute path: only that exact note.
+        let absolute = raw.starts_with('/');
+        let t = strip_md(raw.trim_start_matches('/'));
         if t.is_empty() {
             return Ok(Some(from.to_string())); // [[#Heading]] = this note
         }
@@ -401,14 +403,14 @@ impl Index {
             let rows = stmt.query_map([&name], |r| r.get(0)).map_err(db_err)?;
             rows.collect::<Result<_, _>>().map_err(db_err)?
         };
-        if t.contains('/') {
+        if absolute || t.contains('/') {
             let want = t.to_lowercase();
             candidates.retain(|p| {
                 let p = strip_md(p).to_lowercase();
-                p == want || p.ends_with(&format!("/{want}"))
+                p == want || (!absolute && p.ends_with(&format!("/{want}")))
             });
         }
-        if candidates.is_empty() && !t.contains('/') {
+        if candidates.is_empty() && !absolute && !t.contains('/') {
             let mut stmt = self
                 .conn
                 .prepare_cached("SELECT n.path FROM aliases a JOIN notes n ON n.id = a.note_id WHERE lower(a.alias) = ?1")

@@ -39,13 +39,18 @@ function matchTrigger(
 }
 
 /**
- * How to write a link to `path`: its name, or its path (without `.md`) when another note
- * has the same name, so the link can't resolve to the wrong one.
+ * How to write a link to `path` so it can't resolve to another note: its name when that's
+ * unique; else its path without `.md`; else (a root note, or a path that's also the end
+ * of a longer one) the vault-absolute `/path`, which only matches that exact note.
  */
 export function linkTargetFor(path: string, notes: readonly NoteRef[]): string {
   const name = noteName(path);
   const same = notes.filter((n) => n.name.toLowerCase() === name.toLowerCase()).length;
-  return same > 1 ? path.replace(/\.md$/i, "") : name;
+  if (same <= 1) return name;
+  const full = path.replace(/\.md$/i, "");
+  const suffix = "/" + full.toLowerCase();
+  const clash = notes.some((n) => n.path.replace(/\.md$/i, "").toLowerCase().endsWith(suffix));
+  return full.includes("/") && !clash ? full : `/${full}`;
 }
 
 /** A link to the daily note for `date`, in its folder, showing just the date. */
@@ -86,7 +91,8 @@ export function mentionDates(now: Date): { label: string; date: Date }[] {
   return out;
 }
 
-const TASK_LINE_RE = /^\s*[-*+]\s+\[[ xX]\]\s/;
+/** A task in any list form the task parsers read: `-`, `*`, `+`, `1.` or `1)`. */
+const TASK_LINE_RE = /^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\]\s/;
 
 export function mentionCompletions(context: CompletionContext): CompletionResult | null {
   const cfg = context.state.facet(quickCommandConfig);
