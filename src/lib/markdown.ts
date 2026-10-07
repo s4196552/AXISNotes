@@ -146,6 +146,11 @@ export function aliasesOf(props: Props): string[] {
 
 /** An optional list marker (`-`, `*`, `+`, `1.`, `1)`) and task checkbox before `key::`. */
 export const LIST_PREFIX = String.raw`(?:(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?)?`;
+/** Whether `key` can be written as an inline `key:: value` (same rule as the indexer). */
+export function isInlinePropertyKey(key: string): boolean {
+  return /^\p{L}[\p{L}\p{N} _-]{0,39}$/u.test(key) && key.trim() === key;
+}
+
 const INLINE_PROP_RE = new RegExp(
   String.raw`^[ \t]*${LIST_PREFIX}(\p{L}[\p{L}\p{N} _-]{0,39}?)[ \t]*::(.*)$`,
   "u",

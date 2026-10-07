@@ -342,6 +342,15 @@ describe("review fixes", () => {
     expect(r?.options.map((o) => o.label)).toEqual(["Mitochondria in caps land."]);
   });
 
+  it("only suggests property keys that can be written inline", async () => {
+    await h.b.writeFile("Rated.md", "---\nrating.score: 5\nrating: 4\n---\n");
+    const view = viewWith("::rat");
+    const r = await propertyCompletions(ctx(view));
+    // `rating.score` is left out; the typed text is still offered as a new key.
+    expect(r?.options.map((o) => o.label)).toEqual(["rating", "rat"]);
+    expect(inlineProperties("rating.score:: 5")).toEqual({});
+  });
+
   it("reads inline properties on CRLF lines", () => {
     expect(inlineProperties("status:: done\r\nowner:: Ada\r\n")).toEqual({
       status: "done",

@@ -4,7 +4,7 @@ import { backend, type NoteRef, type PropertyKey } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { formatDate, parseDate } from "../../lib/dates";
 import { type BlockChoice, ensureBlockId, listBlocks, newBlockId } from "../../lib/blocks";
-import { isNotePath, LIST_PREFIX, noteName } from "../../lib/markdown";
+import { isInlinePropertyKey, isNotePath, LIST_PREFIX, noteName } from "../../lib/markdown";
 import { renderTemplate } from "../templates/templates";
 import { linkHost } from "./links";
 import { notePath } from "./embeds";
@@ -374,7 +374,13 @@ export async function propertyCompletions(
     return key.startsWith(q) ? 0 : key.includes(q) ? 1 : 2;
   };
   const options: Completion[] = keys
-    .filter((k) => !["tags", "tag", "aliases", "alias"].includes(k.key) && rank(k) < 2)
+    // Only keys that read back as inline properties (not e.g. a YAML `rating.score`).
+    .filter(
+      (k) =>
+        !["tags", "tag", "aliases", "alias"].includes(k.key) &&
+        isInlinePropertyKey(k.key) &&
+        rank(k) < 2,
+    )
     .sort((a, b) => rank(a) - rank(b) || b.count - a.count)
     .map((k) => ({
       label: k.key,
@@ -382,7 +388,7 @@ export async function propertyCompletions(
       type: "property",
       apply: (view, _c, _f, to) => put(view, start, to, `${k.key}:: `),
     }));
-  if (query && /^\p{L}/u.test(query) && !keys.some((k) => k.key.toLowerCase() === q)) {
+  if (isInlinePropertyKey(query) && !keys.some((k) => k.key.toLowerCase() === q)) {
     options.push({
       label: query,
       detail: "new property",
