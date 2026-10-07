@@ -144,8 +144,12 @@ export function aliasesOf(props: Props): string[] {
   return [...propStrings(props.aliases), ...propStrings(props.alias)];
 }
 
-const INLINE_PROP_RE =
-  /^[ \t]*(?:[-*+][ \t]+(?:\[[ xX]\][ \t]+)?)?(\p{L}[\p{L}\p{N} _-]{0,39}?)[ \t]*::(.*)$/u;
+/** An optional list marker (`-`, `*`, `+`, `1.`, `1)`) and task checkbox before `key::`. */
+export const LIST_PREFIX = String.raw`(?:(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?)?`;
+const INLINE_PROP_RE = new RegExp(
+  String.raw`^[ \t]*${LIST_PREFIX}(\p{L}[\p{L}\p{N} _-]{0,39}?)[ \t]*::(.*)$`,
+  "u",
+);
 
 /**
  * Inline `key:: value` properties (Dataview style), outside code fences. Mirrors the

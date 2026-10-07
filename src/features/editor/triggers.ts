@@ -4,7 +4,7 @@ import { backend, isBackendError, type NoteRef, type PropertyKey } from "../../i
 import { useAppStore } from "../../app/store";
 import { formatDate } from "../../lib/dates";
 import { type BlockChoice, ensureBlockId, listBlocks, newBlockId } from "../../lib/blocks";
-import { noteName } from "../../lib/markdown";
+import { LIST_PREFIX, noteName } from "../../lib/markdown";
 import { renderTemplate } from "../templates/templates";
 import { linkHost } from "./links";
 import { notePath } from "./embeds";
@@ -152,7 +152,8 @@ async function findBlocks(
   current: { path: string; text: string; cursor: number },
 ): Promise<FoundBlock[]> {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const matches = (b: BlockChoice) => words.every((w) => b.label.toLowerCase().includes(w));
+  // Match the whole block (a paragraph's later lines too); the label is just for display.
+  const matches = (b: BlockChoice) => words.every((w) => b.text.toLowerCase().includes(w));
   // Not the block being typed in (it would link to itself).
   const own = listBlocks(current.text).filter((b, i, all) => {
     const next = all[i + 1]?.pos ?? Infinity;
@@ -303,10 +304,10 @@ export async function propertyCompletions(
 ): Promise<CompletionResult | null> {
   const cfg = context.state.facet(quickCommandConfig);
   if (!cfg.propertyTrigger) return null;
-  // At the start of a line (or of a list item), like `key:: value` is written.
+  // At the start of a line, list item or task (any form the indexer reads `key::` in).
   const m = context.matchBefore(
     new RegExp(
-      `^[ \\t]*(?:[-*+][ \\t]+(?:\\[[ xX]\\][ \\t]+)?)?${escapeRe(cfg.propertyTrigger)}[\\p{L}\\p{N} _-]{0,40}$`,
+      String.raw`^[ \t]*${LIST_PREFIX}${escapeRe(cfg.propertyTrigger)}[\p{L}\p{N} _-]{0,40}$`,
       "u",
     ),
   );

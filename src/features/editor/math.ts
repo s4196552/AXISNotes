@@ -1,6 +1,7 @@
 import { syntaxTree } from "@codemirror/language";
 import { type EditorState, type Range, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, WidgetType } from "@codemirror/view";
+import { maskCode } from "../../lib/markdown";
 
 // `$$…$$` math, rendered with KaTeX when the cursor is elsewhere (like Obsidian's live
 // preview). On a line of its own it's display math; inside a sentence it's inline.
@@ -74,12 +75,15 @@ function inCode(state: EditorState, pos: number): boolean {
   return false;
 }
 
-/** `$$…$$` spans in `text` (non-empty, not escaped): offsets and whether they're display. */
+/**
+ * `$$…$$` spans in `text` (non-empty, not escaped). Code (fenced and inline) is blanked
+ * out first, so a `$$` inside code can't pair with a real one outside it.
+ */
 export function findMath(text: string): { from: number; to: number; tex: string }[] {
   const out: { from: number; to: number; tex: string }[] = [];
   const re = /(?<!\\)\$\$([\s\S]+?)(?<!\\)\$\$/g;
-  for (const m of text.matchAll(re)) {
-    const tex = m[1]!.trim();
+  for (const m of maskCode(text).matchAll(re)) {
+    const tex = text.slice(m.index + 2, m.index + m[0].length - 2).trim();
     if (tex) out.push({ from: m.index, to: m.index + m[0].length, tex });
   }
   return out;

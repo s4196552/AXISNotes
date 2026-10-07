@@ -263,6 +263,13 @@ describe("(( blocks", () => {
     expect(after).toContain(`for the cell. ^${id}`);
   });
 
+  it("matches words anywhere in a paragraph, not just its first line", async () => {
+    await h.b.writeFile("Notes/Intro.md", "A general introduction\nRibosomes build proteins.\n");
+    const view = viewWith("((ribosomes");
+    const r = await blockCompletions(ctx(view));
+    expect(r?.options.map((o) => o.label)).toEqual(["A general introduction"]);
+  });
+
   it("shows block text without Markdown marks", () => {
     expect(blockPreview("This is **demo** and `code` see [[Note|the note]] or [x](http://y)")).toBe(
       "This is demo and code see the note or x",
@@ -327,6 +334,18 @@ describe(":: inline properties", () => {
       ),
     ).toEqual({ status: "done", owner: "Ada" });
   });
+
+  it("reads and completes properties in every list and task form, like the indexer", async () => {
+    expect(
+      inlineProperties("* [ ] a:: 1\n+ [x] b:: 2\n1. c:: 3\n2) [X] d:: 4\n*e:: no\n- [ ]f:: no\n"),
+    ).toEqual({ a: "1", b: "2", c: "3", d: "4" });
+    for (const line of ["* [ ] ::st", "+ ::st", "1. ::st", "2) [x] ::st"]) {
+      const view = viewWith(line);
+      expect(await pick(view, await propertyCompletions(ctx(view)), "status"), line).toBe(
+        line.replace("::st", "status:: "),
+      );
+    }
+  });
 });
 
 describe("{{ template variables", () => {
@@ -356,6 +375,13 @@ describe("$$ math", () => {
     expect(findMath(String.raw`a $$x^2$$ b \$$not math and $$ $$`)).toEqual([
       { from: 2, to: 9, tex: "x^2" },
     ]);
+  });
+
+  it("doesn't let a $$ inside code pair with real math", () => {
+    expect(findMath("Use `$$` like this:\n\n$$x^2$$\n")).toEqual([
+      { from: 21, to: 28, tex: "x^2" },
+    ]);
+    expect(findMath("```\n$$a\n```\n$$b$$")).toEqual([{ from: 12, to: 17, tex: "b" }]);
   });
 
   it("renders display and inline math with KaTeX unless the cursor is in it", async () => {

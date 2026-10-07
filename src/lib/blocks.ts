@@ -158,6 +158,9 @@ export function ensureBlockId(
 export interface BlockChoice {
   /** First line of the block, without list markup or id. */
   label: string;
+  /** All of the block's own text, for searching: every line of a paragraph (a list
+   *  item's children are blocks of their own). */
+  text: string;
   /** Existing block id, if any. */
   id: string | null;
   /** Offset inside the block (for `ensureBlockId`). */
@@ -185,7 +188,13 @@ export function listBlocks(text: string): BlockChoice[] {
       .replace(/^\[[ xX]\][ \t]*/, "")
       .replace(BLOCK_ID_RE, "")
       .trim();
-    if (label) out.push({ label, id, pos: ls[first]!.from });
+    const own = isList ? [first] : Array.from({ length: last - first + 1 }, (_, k) => first + k);
+    const body = own
+      .map((n) => ls[n]!.text.replace(LIST_RE, "").replace(/^\[[ xX]\][ \t]*/, ""))
+      .join(" ")
+      .replace(BLOCK_ID_RE, "")
+      .trim();
+    if (label) out.push({ label, text: body, id, pos: ls[first]!.from });
     // List items: step into children (each is referenceable); paragraphs: skip to the end.
     i = isList ? first + 1 : last + 1;
   }
