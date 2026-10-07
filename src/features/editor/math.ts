@@ -106,22 +106,30 @@ interface MathSpan {
   rTo: number;
 }
 
+/**
+ * The document up to `end` with code blanked out: every code node the parser knows
+ * (indented code too), on top of fenced and inline code anywhere (covering any part not
+ * parsed yet). Offsets are unchanged.
+ */
+function withoutCode(state: EditorState, end = state.doc.length): string {
+  const chars = maskCode(state.sliceDoc(0, end)).split("");
+  syntaxTree(state).iterate({
+    to: end,
+    enter: (n) => {
+      if (!CODE_NODES.has(n.name)) return;
+      for (let i = n.from; i < Math.min(n.to, end); i++) if (chars[i] !== "\n") chars[i] = " ";
+      return false;
+    },
+  });
+  return chars.join("");
+}
+
 /** Renderable math spans (outside code). Scans the document, so only on edits. */
 function mathSpans(state: EditorState): MathSpan[] {
   const text = state.doc.toString();
   if (!text.includes("$$")) return [];
-  // Blank out every code node the parser knows (indented code too), on top of fenced and
-  // inline code anywhere (covering any part not parsed yet).
-  const chars = maskCode(text).split("");
-  syntaxTree(state).iterate({
-    enter: (n) => {
-      if (!CODE_NODES.has(n.name)) return;
-      for (let i = n.from; i < n.to; i++) if (chars[i] !== "\n") chars[i] = " ";
-      return false;
-    },
-  });
   const out: MathSpan[] = [];
-  for (const { from, to, tex } of findMath(text, chars.join(""))) {
+  for (const { from, to, tex } of findMath(text, withoutCode(state))) {
     if (inCode(state, from)) continue;
     const first = state.doc.lineAt(from);
     const last = state.doc.lineAt(to);
@@ -173,10 +181,12 @@ const mathField = StateField.define<MathState>({
   provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
 });
 
-/** Whether `pos` is inside `$$…$$` math: an odd number of `$$` (outside code) before it. */
+/**
+ * Whether `pos` is inside `$$…$$` math: an odd number of `$$` before it, outside code
+ * (masked the same way as for rendering).
+ */
 function insideMath(state: EditorState, pos: number): boolean {
-  const before = maskCode(state.sliceDoc(0, pos));
-  return (before.match(/(?<!\\)\$\$/g)?.length ?? 0) % 2 === 1;
+  return (withoutCode(state, pos).match(/(?<!\\)\$\$/g)?.length ?? 0) % 2 === 1;
 }
 
 /**

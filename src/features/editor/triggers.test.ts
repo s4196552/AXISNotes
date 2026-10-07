@@ -603,6 +603,18 @@ describe("$$ math", () => {
     expect(view.state.selection.main.head).toBe(5);
   });
 
+  it("steps over the closing $$ after a $$ in indented code", () => {
+    const doc = "    $$\n\n$$x$$";
+    const view = viewWith(doc, { cursor: doc.length - 2, extra: [math] });
+    const at = view.state.selection.main.head;
+    const handled = view.state
+      .facet(EditorView.inputHandler)
+      .some((f) => f(view, at, at, "$", () => view.state.update({})));
+    expect(handled).toBe(true);
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(view.state.selection.main.head).toBe(at + 1);
+  });
+
   it("types a $ before an existing equation instead of stepping into it", () => {
     const view = viewWith("$$x$$", { cursor: 0, extra: [math] });
     const handled = view.state
