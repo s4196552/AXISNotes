@@ -173,18 +173,25 @@ const mathField = StateField.define<MathState>({
   provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
 });
 
+/** Whether `pos` is inside `$$…$$` math: an odd number of `$$` (outside code) before it. */
+function insideMath(state: EditorState, pos: number): boolean {
+  const before = maskCode(state.sliceDoc(0, pos));
+  return (before.match(/(?<!\\)\$\$/g)?.length ?? 0) % 2 === 1;
+}
+
 /**
- * Typing the second `$` of `$$` adds the closing `$$` with the cursor between. Typing a
- * `$` just before a closing `$` steps over it instead, so typing the closing `$$` by
- * hand doesn't leave an extra one.
+ * Typing the second `$` of `$$` adds the closing `$$` with the cursor between. Inside
+ * math, typing a `$` just before its closing `$` steps over it instead, so typing the
+ * closing `$$` by hand doesn't leave an extra one. (Before an equation, `$` is typed.)
  */
 const closeMath = EditorView.inputHandler.of((view, from, to, text) => {
   if (text !== "$" || from !== to) return false;
   const { state } = view;
   if (inCode(state, from)) return false;
   const next2 = state.sliceDoc(to, to + 2);
-  const stepOver =
+  const closing =
     next2 === "$$" || (next2.startsWith("$") && state.sliceDoc(from - 1, from) === "$");
+  const stepOver = closing && insideMath(state, from);
   if (stepOver) {
     view.dispatch({ selection: { anchor: to + 1 } });
     return true;

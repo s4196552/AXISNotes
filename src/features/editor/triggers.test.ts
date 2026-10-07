@@ -603,6 +603,21 @@ describe("$$ math", () => {
     expect(view.state.selection.main.head).toBe(5);
   });
 
+  it("types a $ before an existing equation instead of stepping into it", () => {
+    const view = viewWith("$$x$$", { cursor: 0, extra: [math] });
+    const handled = view.state
+      .facet(EditorView.inputHandler)
+      .some((f) => f(view, 0, 0, "$", () => view.state.update({})));
+    expect(handled).toBe(false); // left to the default input: a plain `$`
+    expect(view.state.selection.main.head).toBe(0);
+  });
+
+  it("ends a code fence only on a matching fence line", () => {
+    const doc = "````md\n```\nstatus:: done\n```\n````\nowner:: Ada\n";
+    expect(inlineProperties(doc)).toEqual({ owner: "Ada" });
+    expect(inlineProperties("~~~\na:: 1\n```\nb:: 2\n~~~\nc:: 3")).toEqual({ c: "3" });
+  });
+
   it("keeps decorations on cursor moves that don't enter math", async () => {
     await loadKatex();
     const view = viewWith("$$a$$\n\nplain text here", { extra: [math] });

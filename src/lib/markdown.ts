@@ -162,10 +162,19 @@ const INLINE_PROP_RE = new RegExp(
  */
 export function inlineProperties(text: string): Record<string, string> {
   const out: Record<string, string> = {};
-  let fence = false;
+  // The open fence, if any. Like the indexer, it closes only on a line of just the same
+  // character, at least as many (so ``` inside a ```` example doesn't end it).
+  let fence: string | null = null;
   for (const line of text.slice(splitFrontmatter(text).length).split(/\r?\n/)) {
-    if (/^[ \t]*(```|~~~)/.test(line)) {
-      fence = !fence;
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+    if (marker) {
+      if (!fence) fence = marker;
+      else if (
+        marker.charAt(0) === fence.charAt(0) &&
+        marker.length >= fence.length &&
+        line.trim() === marker
+      )
+        fence = null;
       continue;
     }
     if (fence) continue;
