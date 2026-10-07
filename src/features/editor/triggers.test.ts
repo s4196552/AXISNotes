@@ -27,6 +27,7 @@ import {
   blockCompletions,
   blockPreview,
   clearPropertyKeyCache,
+  dailyLink,
   linkTargetFor,
   mentionCompletions,
   typedDate,
@@ -224,6 +225,45 @@ describe("@@ dates and notes", () => {
 });
 
 describe("review fixes", () => {
+  it("makes a date link vault-absolute only when another note could match it", async () => {
+    const day = new Date(2026, 11, 25);
+    const ref = (path: string) => ({ path, name: "2026-12-25", title: null, aliases: [] });
+    expect(dailyLink(day, "YYYY-MM-DD", "Daily", [ref("Daily/2026-12-25.md")])).toBe(
+      "[[Daily/2026-12-25|2026-12-25]]",
+    );
+    expect(dailyLink(day, "YYYY-MM-DD", "Daily", [ref("Notes/2026-12-25.md")])).toBe(
+      "[[Daily/2026-12-25|2026-12-25]]",
+    );
+    const dup = [ref("Daily/2026-12-25.md"), ref("Archive/Daily/2026-12-25.md")];
+    expect(dailyLink(day, "YYYY-MM-DD", "Daily", dup)).toBe("[[/Daily/2026-12-25|2026-12-25]]");
+    expect(dailyLink(day, "YYYY-MM-DD", "", [ref("Old/2026-12-25.md")])).toBe(
+      "[[/2026-12-25|2026-12-25]]",
+    );
+    expect(dailyLink(day, "YYYY-MM-DD", "")).toBe("[[2026-12-25]]");
+    // Following it from inside the archive opens the real daily note.
+    await h.b.writeFile("Daily/2026-12-25.md", "real");
+    await h.b.writeFile("Archive/Daily/2026-12-25.md", "old");
+    expect(await h.b.resolveLink("/Daily/2026-12-25", "Archive/Daily/Plan.md")).toBe(
+      "Daily/2026-12-25.md",
+    );
+  });
+
+  it("keeps links absolute and reachable when a note is renamed", async () => {
+    await h.b.writeFile("Biology.md", "");
+    await h.b.writeFile("School/Biology.md", "");
+    await h.b.writeFile("School/Chemistry.md", "");
+    await h.b.writeFile("School/Plan.md", "[[/Biology]] and [[Idea]]");
+    await h.b.writeFile("Idea.md", "");
+    await h.b.renameEntry("Biology.md", "Chemistry.md");
+    await h.b.renameEntry("Idea.md", "Physics.md");
+    expect((await h.b.readFile("School/Plan.md")).content).toBe("[[/Chemistry]] and [[Physics]]");
+    await h.b.writeFile("School/Maths.md", "");
+    await h.b.writeFile("Ref.md", "");
+    await h.b.writeFile("School/Ref2.md", "[[Ref]]");
+    await h.b.renameEntry("Ref.md", "Maths.md");
+    expect((await h.b.readFile("School/Ref2.md")).content).toBe("[[/Maths]]");
+  });
+
   it("links a duplicate-named root note with a vault-absolute path", async () => {
     const notes = [
       "Biology.md",

@@ -53,11 +53,27 @@ export function linkTargetFor(path: string, notes: readonly NoteRef[]): string {
   return full.includes("/") && !clash ? full : `/${full}`;
 }
 
-/** A link to the daily note for `date`, in its folder, showing just the date. */
-export function dailyLink(date: Date, format: string, folder: string): string {
+/**
+ * A link to the daily note for `date`, in its folder, showing just the date. It's
+ * vault-absolute (`/Daily/…`) when another note could also match it, e.g. an
+ * `Archive/Daily/2026-12-25` copy.
+ */
+export function dailyLink(
+  date: Date,
+  format: string,
+  folder: string,
+  notes: readonly NoteRef[] = [],
+): string {
   const name = formatDate(date, format);
   const dir = folder.replace(/^\/+|\/+$/g, "");
-  return dir ? `[[${dir}/${name}|${name}]]` : `[[${name}]]`;
+  const path = dir ? `${dir}/${name}` : name;
+  const want = path.toLowerCase();
+  const clash = notes.some((n) => {
+    const p = n.path.replace(/\.md$/i, "").toLowerCase();
+    return p !== want && (p.endsWith("/" + want) || (!dir && noteName(p) === want));
+  });
+  const target = clash ? `/${path}` : path;
+  return target === name ? `[[${name}]]` : `[[${target}|${name}]]`;
 }
 
 /**
@@ -106,7 +122,7 @@ export function mentionCompletions(context: CompletionContext): CompletionResult
   const dateText = (date: Date) =>
     onTask
       ? `📅 ${formatDate(date, "YYYY-MM-DD")}`
-      : dailyLink(date, cfg.dailyFormat, cfg.dailyFolder);
+      : dailyLink(date, cfg.dailyFormat, cfg.dailyFolder, context.state.facet(linkHost).notes());
   const dates = mentionDates(new Date());
   // A typed date, e.g. @@2026-12-25.
   const date = typedDate(m.query.trim());

@@ -9,7 +9,8 @@ A wikilink target that starts with `/` names one exact note path from the vault 
 - All three resolvers follow the rule: Rust `Index::resolve`, the graph `Resolver`, and the memory backend.
 - `@@` and `((` write the shortest target that can't resolve elsewhere: the name; else the path; else `/path`.
 - Obsidian also reads vault paths, so these links stay portable.
-- Rename rewriting doesn't produce `/path` targets yet. That is unchanged behaviour, noted in the T-065 handoff.
+- Rename rewriting (Rust and memory) keeps a `/path` link absolute. When the new name and path would both resolve elsewhere, it falls back to `/path`.
+- `@@` date links use `/Daily/…` only when another note could also match them, such as an archived copy.
 
 ## 2026-10-07: Command symbols: Ctrl+/, @@, ((, ::, :, $$, {{ (T-065)
 

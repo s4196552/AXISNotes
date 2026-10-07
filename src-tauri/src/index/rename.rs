@@ -68,13 +68,21 @@ pub fn rename_with_links(
             continue; // still resolves (alias, or unchanged name after a folder move)
         }
         let new_full = strip_md(&new_path).to_string();
-        let mut replacement = if site.target.contains('/') {
+        // A vault-absolute `/path` stays absolute; otherwise the name, then the path, then
+        // `/path` as the one form that can't resolve to another note.
+        let absolute = format!("/{new_full}");
+        let mut replacement = if site.target.trim_start().starts_with('/') {
+            absolute.clone()
+        } else if site.target.contains('/') {
             new_full.clone()
         } else {
             basename_no_md(&new_path).to_string()
         };
-        if index.resolve(&replacement, &source)?.as_deref() != Some(new_path.as_str()) {
-            replacement = new_full;
+        for fallback in [new_full, absolute] {
+            if index.resolve(&replacement, &source)?.as_deref() == Some(new_path.as_str()) {
+                break;
+            }
+            replacement = fallback;
         }
         if replacement != site.target {
             edits.entry(source).or_default().push((
@@ -209,6 +217,33 @@ mod tests {
         rename_with_links(&v2, &mut idx2, "Work/Idea.md", "Work/Topic.md", |_| {}).unwrap();
         // From the root, bare "Topic" would hit Topic.md, so the path is used.
         assert_eq!(read(&v2, "Home.md"), "[[Work/Topic]]");
+    }
+
+    #[test]
+    fn absolute_links_stay_absolute_and_root_notes_stay_reachable() {
+        let (_d, v, mut idx) = setup(&[
+            ("Biology.md", ""),
+            ("School/Biology.md", ""),
+            ("School/Chemistry.md", ""),
+            ("School/Plan.md", "[[/Biology]]"),
+        ]);
+        rename_with_links(&v, &mut idx, "Biology.md", "Chemistry.md", |_| {}).unwrap();
+        assert_eq!(read(&v, "School/Plan.md"), "[[/Chemistry]]");
+        assert_eq!(
+            idx.resolve("/Chemistry", "School/Plan.md")
+                .unwrap()
+                .as_deref(),
+            Some("Chemistry.md")
+        );
+
+        // A bare link to a root note whose new name is taken in the source's folder.
+        let (_d2, v2, mut idx2) = setup(&[
+            ("Idea.md", ""),
+            ("School/Chemistry.md", ""),
+            ("School/Plan.md", "[[Idea]]"),
+        ]);
+        rename_with_links(&v2, &mut idx2, "Idea.md", "Chemistry.md", |_| {}).unwrap();
+        assert_eq!(read(&v2, "School/Plan.md"), "[[/Chemistry]]");
     }
 
     #[test]

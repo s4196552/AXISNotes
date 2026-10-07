@@ -407,8 +407,15 @@ export function createMemoryBackend(
         const source = inMoved ? dst + site.source.slice(src.length) : site.source;
         if (resolve(site.link.target, source) === site.newPath) continue;
         const full = site.newPath.slice(0, -3);
-        let target = site.link.target.includes("/") ? full : noteName(site.newPath);
+        // A vault-absolute `/path` stays absolute; otherwise the name, then the path, then
+        // `/path` as the one form that can't resolve to another note.
+        let target = site.link.target.trim().startsWith("/")
+          ? `/${full}`
+          : site.link.target.includes("/")
+            ? full
+            : noteName(site.newPath);
         if (resolve(target, source) !== site.newPath) target = full;
+        if (resolve(target, source) !== site.newPath) target = `/${full}`;
         const raw = site.text.slice(site.link.from, site.link.to);
         const list = bySource.get(source) ?? [];
         list.push({
