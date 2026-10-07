@@ -8,6 +8,7 @@ import { formatDate } from "../../lib/dates";
 import { SLASH_COMMANDS } from "../editor/quickCommands";
 import { AiSettingsPanel } from "../ai/AiSettings";
 import { ClipperSettings } from "../clipper/ClipperSettings";
+import { UpdatesSettings } from "../updates/UpdatesSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
 import { About } from "./About";
 import "./settings.css";
@@ -21,6 +22,7 @@ export type Section =
   | "hotkeys"
   | "ai"
   | "clipper"
+  | "updates"
   | "about";
 
 const SECTIONS: { id: Section; label: string }[] = [
@@ -32,6 +34,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "hotkeys", label: "Keyboard shortcuts" },
   { id: "ai", label: "AI" },
   { id: "clipper", label: "Web clipper" },
+  { id: "updates", label: "Updates" },
   { id: "about", label: "About" },
 ];
 
@@ -83,6 +86,7 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
           {section === "commands" && <Commands config={config} set={set} />}
           {section === "ai" && <AiSettingsPanel />}
           {section === "clipper" && <ClipperSettings />}
+          {section === "updates" && <UpdatesSettings />}
           {section === "hotkeys" && <HotkeysSettings config={config} set={set} />}
           {section === "about" && <About />}
         </div>

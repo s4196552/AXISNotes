@@ -2,6 +2,30 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-07: Updates from a folder (T-066)
+
+- **The user chose:** check on launch and ask before installing, with updates coming from a local folder for now (not GitHub Releases).
+- **How it works:**
+  - `scripts/publish-update.ps1 -Version X.Y.Z [-Notes …] [-Folder …]` sets the version, builds the NSIS installer and copies it into the updates folder next to a `latest.json` (`version`, `notes`, `pubDate`, and per platform a `file` and its `sha256`).
+  - The default folder is `%USERPROFILE%\AXISNotes Updates`. Settings → Updates can point it anywhere, including a network share.
+  - On launch, AXISNotes reads `latest.json`. If the version is newer (semver), a banner offers **Install and restart**. Nothing installs without that click. "Check for updates" is also in the command palette and in Settings.
+  - Installing copies the installer to `%TEMP%\AXISNotes-update`, checks the copy's SHA-256 against the manifest and runs the copy with the NSIS flags `/P /UPDATE /R`: passive progress, update mode (shortcuts left as they are), relaunch when done. The app then quits so the installer can replace it.
+- **Safety:**
+  - The manifest's `file` must be a plain file name in the folder; paths are rejected.
+  - The installer is started with an argument array, never a shell string.
+  - The checksum is checked on the copy that runs, so a file changed after the check is never run.
+  - The checksum proves the installer is the one the manifest names, not who made it. Anyone who can write to the updates folder can publish an update, so it should only be writable by you. Signed updates (Tauri's minisign updater) come with hosted releases.
+  - Development builds refuse to install, so testing never overwrites the installed app.
+  - Settings live in `updates.json` in the app's settings folder (device-local). With `AXIS_CONFIG_DIR` set (E2E tests), the default updates folder moves there too.
+- **No network traffic:** AXISNotes only reads a folder. GitHub Releases with `tauri-plugin-updater` can be added later behind the same banner and settings.
+- **Windows only for now:** macOS and Linux show the update but refuse to install.
+- **The version now matters:** each published update needs a higher version. The script sets it in `package.json`, `tauri.conf.json` and `Cargo.toml`. This release is 0.2.0.
+- **The first updater build has to be installed by hand.** 0.1.0 has no updater, so 0.2.0 is installed once with its installer. Later versions arrive through the banner.
+
+| Package (Rust) | Version | License           | Purpose                                                 |
+| -------------- | ------- | ----------------- | ------------------------------------------------------- |
+| semver         | 1.0     | MIT OR Apache-2.0 | Comparing versions (already in the build through Tauri) |
+
 ## 2026-09-28: Zoom, text size, fonts and editor width (T-040)
 
 - **Zoom for the whole app:**

@@ -317,6 +317,25 @@ export interface Clipped {
   title: string;
 }
 
+// ---- Updates from a folder (T-066); see src-tauri/src/updates.rs ----
+
+export interface UpdateSettings {
+  checkOnLaunch: boolean;
+  /** The updates folder in use: the chosen one, or the default. */
+  folder: string;
+  defaultFolder: string;
+  currentVersion: string;
+}
+
+/** A newer version found in the updates folder. */
+export interface AvailableUpdate {
+  version: string;
+  notes: string;
+  pubDate: string | null;
+  /** The installer's file name in the updates folder. */
+  file: string;
+}
+
 // ---- Import (Phase 6); see src-tauri/src/import ----
 
 export interface ImportPreview {
@@ -419,6 +438,14 @@ export interface Backend {
   onClipped(cb: (clip: Clipped) => void): Promise<() => void>;
   /** A URL the webview can load a vault file from (images), or null if not possible. */
   fileUrl(path: string): string | null;
+
+  updatesSettings(): Promise<UpdateSettings>;
+  /** An empty `folder` goes back to the default folder. */
+  updatesSaveSettings(checkOnLaunch: boolean, folder: string): Promise<UpdateSettings>;
+  /** A newer version in the updates folder, or null. */
+  updatesCheck(): Promise<AvailableUpdate | null>;
+  /** Verifies and starts the installer, which closes the app, updates it and reopens it. */
+  updatesInstall(version: string): Promise<void>;
 
   inspectImport(source: string): Promise<ImportPreview>;
   /** Copy a folder (e.g. an Obsidian vault) into `target` in the open vault. */

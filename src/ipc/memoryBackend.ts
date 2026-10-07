@@ -19,6 +19,7 @@ import type {
   Mention,
   SearchHit,
   TimeEntry,
+  UpdateSettings,
   VaultChange,
   VaultEntry,
   VaultInfo,
@@ -274,6 +275,14 @@ export function createMemoryBackend(
     devices: [],
   };
 
+  // Updates come from a folder on this computer; the browser preview never has one.
+  let updates: UpdateSettings = {
+    checkOnLaunch: true,
+    folder: "/home/AXISNotes Updates",
+    defaultFolder: "/home/AXISNotes Updates",
+    currentVersion: "0.0.0",
+  };
+
   return {
     ...ai,
     clipperStatus: async () => ({ ...clipper }),
@@ -286,6 +295,13 @@ export function createMemoryBackend(
     clipperCancelPairing: async () => {},
     clipperRevoke: async () => ({ ...clipper }),
     clipperOpenExtensionFolder: async () => "/app/extension",
+    updatesSettings: async () => ({ ...updates }),
+    updatesSaveSettings: async (checkOnLaunch, folder) => {
+      updates = { ...updates, checkOnLaunch, folder: folder.trim() || updates.defaultFolder };
+      return { ...updates };
+    },
+    updatesCheck: async () => null,
+    updatesInstall: async () => fail("Io", "Updates install in the desktop app."),
     onClipped: async () => () => {},
     fileUrl: () => null,
     // The browser preview can't read folders on disk: importing adds a sample note.

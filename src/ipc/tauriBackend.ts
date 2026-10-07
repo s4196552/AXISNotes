@@ -70,6 +70,11 @@ export function createTauriBackend(): Backend {
     clipperCancelPairing: () => invoke("clipper_cancel_pairing"),
     clipperRevoke: (id) => invoke("clipper_revoke", { id }),
     clipperOpenExtensionFolder: () => invoke("clipper_open_extension_folder"),
+    updatesSettings: () => invoke("updates_settings"),
+    updatesSaveSettings: (checkOnLaunch, folder) =>
+      invoke("updates_save_settings", { checkOnLaunch, folder }),
+    updatesCheck: () => invoke("updates_check"),
+    updatesInstall: (version) => invoke("updates_install", { version }),
     async onClipped(cb) {
       return listen<Clipped>(CLIPPED_EVENT, (e) => cb(e.payload));
     },

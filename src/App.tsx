@@ -12,6 +12,8 @@ import { lazyNamed } from "./app/lazy";
 import { loadFunctions } from "./lib/formula/functions";
 import { ImageView, UnsupportedView } from "./features/files/ImageView";
 import { useClipNotices } from "./features/clipper/useClipNotices";
+import { UpdateBanner } from "./features/updates/UpdateBanner";
+import { checkOnLaunch } from "./features/updates/updates";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
@@ -94,6 +96,9 @@ export default function App() {
   // Zoom applies to the welcome screen too, so it doesn't wait for a vault.
   useEffect(() => installZoom(), []);
 
+  // A newer version in the updates folder is offered by a banner (never installed unasked).
+  useEffect(() => void checkOnLaunch(), []);
+
   // Keep the tree in sync with edits made outside the app.
   useEffect(() => {
     if (!vault) return;
@@ -121,7 +126,13 @@ export default function App() {
     };
   }, []);
 
-  if (!vault) return <WelcomeScreen />;
+  if (!vault)
+    return (
+      <>
+        <WelcomeScreen />
+        <UpdateBanner />
+      </>
+    );
 
   return (
     <div className="shell">
@@ -151,6 +162,7 @@ export default function App() {
       </main>
       <RightSidebar />
       <Modals />
+      <UpdateBanner />
       <footer className="statusbar">
         <span>{activePath ?? ""}</span>
         {indexing && (

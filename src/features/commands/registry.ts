@@ -17,6 +17,7 @@ import { useUi } from "./ui";
 import { effectiveShortcut, formatHotkey, matches, type Shortcut } from "./hotkeys";
 import { useEditorPrefs } from "../editor/prefs";
 import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
+import { useUpdates } from "../updates/updates";
 
 export interface Command {
   id: string;
@@ -165,6 +166,14 @@ registerCommands([
     label: "Open settings",
     shortcut: { key: ",", mod: true },
     run: () => useUi.getState().open({ kind: "settings" }),
+  },
+  {
+    id: "check-updates",
+    label: "Check for updates",
+    run: () => {
+      useUi.getState().open({ kind: "settings", section: "updates" });
+      void useUpdates.getState().check();
+    },
   },
   {
     id: "zoom-in",
