@@ -31,8 +31,10 @@ import {
   mentionCompletions,
   typedDate,
   propertyCompletions,
+  relocateBlock,
   templateCompletions,
 } from "./triggers";
+import { listBlocks } from "../../lib/blocks";
 import { linkHost } from "./links";
 import { notePath } from "./embeds";
 import { findMath, loadKatex, math } from "./math";
@@ -222,6 +224,37 @@ describe("@@ dates and notes", () => {
 });
 
 describe("review fixes", () => {
+  it("relocates a block by its full text and refuses an ambiguous one", () => {
+    const doc = "Overview\nof Alpha.\n\nOverview\nof Beta.\n";
+    const beta = listBlocks(doc)[1]!;
+    // Beta moved; Alpha (same first line) must not be picked instead.
+    expect(relocateBlock("Intro.\n\n" + doc, beta)?.text).toBe("Overview of Beta.");
+    expect(relocateBlock("Overview\nof Alpha.\n", beta)).toBeNull();
+    const twin = "Same.\n\nSame.\n";
+    const second = listBlocks(twin)[1]!;
+    expect(relocateBlock(twin, second)?.pos).toBe(second.pos);
+    expect(relocateBlock("X.\n\n" + twin, second)).toBeNull();
+  });
+
+  it("searches blocks in .MD notes too", async () => {
+    await h.b.writeFile("Other.MD", "Mitochondria in caps land.\n");
+    const r = await blockCompletions(ctx(viewWith("((caps land")));
+    expect(r?.options.map((o) => o.label)).toEqual(["Mitochondria in caps land."]);
+  });
+
+  it("reads inline properties on CRLF lines", () => {
+    expect(inlineProperties("status:: done\r\nowner:: Ada\r\n")).toEqual({
+      status: "done",
+      owner: "Ada",
+    });
+  });
+
+  it("doesn't let a $$ in indented code pair with real math", async () => {
+    await loadKatex();
+    const view = viewWith("Text\n\n    $$ literal\n\n$$x^2$$\n\nend", { extra: [math] });
+    expect(view.dom.querySelectorAll(".cm-math-display .katex")).toHaveLength(1);
+  });
+
   it("offers a date typed after @@ opened, and only real dates", () => {
     const r = mentionCompletions(ctx(viewWith("@@")))!;
     const valid = r.validFor as (t: string) => boolean;

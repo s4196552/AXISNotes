@@ -4,7 +4,7 @@ import { backend, type NoteRef, type PropertyKey } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { formatDate, parseDate } from "../../lib/dates";
 import { type BlockChoice, ensureBlockId, listBlocks, newBlockId } from "../../lib/blocks";
-import { LIST_PREFIX, noteName } from "../../lib/markdown";
+import { isNotePath, LIST_PREFIX, noteName } from "../../lib/markdown";
 import { renderTemplate } from "../templates/templates";
 import { linkHost } from "./links";
 import { notePath } from "./embeds";
@@ -178,7 +178,7 @@ async function findBlocks(
     // Search unavailable: offer this note's blocks only.
   }
   // Read the matching notes in parallel; keep the search order.
-  const others = hits.filter((path) => path !== current.path && path.endsWith(".md"));
+  const others = hits.filter((path) => path !== current.path && isNotePath(path));
   const contents = await Promise.all(
     others.map((path) =>
       backend.readFile(path).then(
@@ -196,16 +196,14 @@ async function findBlocks(
 }
 
 /**
- * Where block `b` is now in `text`: the block with the same text nearest its old place
- * (the text may have changed since it was listed), or null if it's gone.
+ * Where block `b` is now in `text` (which may have changed since it was listed): the one
+ * block with the same full text, or the one still at its old place if several have it.
+ * Null if it's gone or can't be told apart, so an id never goes on the wrong block.
  */
 export function relocateBlock(text: string, b: BlockChoice): BlockChoice | null {
-  let best: BlockChoice | null = null;
-  for (const c of listBlocks(text)) {
-    if (c.label !== b.label) continue;
-    if (!best || Math.abs(c.pos - b.pos) < Math.abs(best.pos - b.pos)) best = c;
-  }
-  return best;
+  const same = listBlocks(text).filter((c) => c.text === b.text);
+  if (same.length === 1) return same[0]!;
+  return same.find((c) => c.pos === b.pos) ?? null;
 }
 
 /** Replace the first `from` text in the editor with `to` (no-op if it's not there). */

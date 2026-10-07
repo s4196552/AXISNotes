@@ -158,7 +158,7 @@ const INLINE_PROP_RE = new RegExp(
 export function inlineProperties(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   let fence = false;
-  for (const line of text.slice(splitFrontmatter(text).length).split("\n")) {
+  for (const line of text.slice(splitFrontmatter(text).length).split(/\r?\n/)) {
     if (/^[ \t]*(```|~~~)/.test(line)) {
       fence = !fence;
       continue;

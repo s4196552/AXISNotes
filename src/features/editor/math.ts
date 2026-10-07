@@ -76,13 +76,17 @@ function inCode(state: EditorState, pos: number): boolean {
 }
 
 /**
- * `$$…$$` spans in `text` (non-empty, not escaped). Code (fenced and inline) is blanked
- * out first, so a `$$` inside code can't pair with a real one outside it.
+ * `$$…$$` spans in `text` (non-empty, not escaped). Code is blanked out first (`masked`
+ * is `text` with code replaced by spaces; fenced and inline code by default), so a `$$`
+ * inside code can't pair with a real one outside it.
  */
-export function findMath(text: string): { from: number; to: number; tex: string }[] {
+export function findMath(
+  text: string,
+  masked = maskCode(text),
+): { from: number; to: number; tex: string }[] {
   const out: { from: number; to: number; tex: string }[] = [];
   const re = /(?<!\\)\$\$([\s\S]+?)(?<!\\)\$\$/g;
-  for (const m of maskCode(text).matchAll(re)) {
+  for (const m of masked.matchAll(re)) {
     const tex = text.slice(m.index + 2, m.index + m[0].length - 2).trim();
     if (tex) out.push({ from: m.index, to: m.index + m[0].length, tex });
   }
@@ -104,8 +108,18 @@ interface MathSpan {
 function mathSpans(state: EditorState): MathSpan[] {
   const text = state.doc.toString();
   if (!text.includes("$$")) return [];
+  // Blank out every code node the parser knows (indented code too), on top of fenced and
+  // inline code anywhere (covering any part not parsed yet).
+  const chars = maskCode(text).split("");
+  syntaxTree(state).iterate({
+    enter: (n) => {
+      if (!CODE_NODES.has(n.name)) return;
+      for (let i = n.from; i < n.to; i++) if (chars[i] !== "\n") chars[i] = " ";
+      return false;
+    },
+  });
   const out: MathSpan[] = [];
-  for (const { from, to, tex } of findMath(text)) {
+  for (const { from, to, tex } of findMath(text, chars.join(""))) {
     if (inCode(state, from)) continue;
     const first = state.doc.lineAt(from);
     const last = state.doc.lineAt(to);
