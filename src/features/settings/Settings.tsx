@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Plus, X } from "lucide-react";
 import { backend } from "../../ipc";
 import { type AxisConfig, type EditorWidth, useConfig } from "../../app/config";
 import {
   blurUnavailable,
+  onBlurAvailabilityChange,
   EDITOR_WIDTHS,
   fontStack,
   NOTE_FONT_SIZES,
@@ -127,7 +128,9 @@ function Translucency(p: {
   setA(patch: Partial<AxisConfig["appearance"]>): void;
 }) {
   const can = backend.canBeTranslucent();
-  const noBlur = can && blurUnavailable();
+  // Live: the hint tells the user to change a Windows setting while this is open.
+  const unavailable = useSyncExternalStore(onBlurAvailabilityChange, blurUnavailable);
+  const noBlur = can && unavailable;
   return (
     <>
       <Field

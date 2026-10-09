@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
@@ -135,12 +135,20 @@ describe("Translucent", () => {
   it("skips the blur while Windows' transparency effects are off (it'd be solid grey)", async () => {
     h.b.canBeTranslucent = () => true;
     const blur = vi.spyOn(h.b, "setWindowBlur");
-    const reduce = (on: boolean) =>
-      vi.stubGlobal("matchMedia", (q: string) => ({
-        matches: on && q.includes("reduced-transparency: reduce"),
-        addEventListener() {},
-        removeEventListener() {},
-      }));
+    // One media query whose answer can change, like Windows' setting being switched.
+    let reduced = false;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      get matches() {
+        return reduced && q.includes("reduced-transparency: reduce");
+      },
+      addEventListener: (_: string, f: () => void) => listeners.add(f),
+      removeEventListener: (_: string, f: () => void) => listeners.delete(f),
+    }));
+    const reduce = (on: boolean) => {
+      reduced = on;
+      act(() => listeners.forEach((f) => f()));
+    };
     try {
       reduce(false);
       await applyTranslucency("axis:translucent", look);
@@ -151,10 +159,14 @@ describe("Translucent", () => {
       expect(blur).toHaveBeenLastCalledWith(false);
       render(<Settings section="appearance" onClose={vi.fn()} />);
       fireEvent.click(screen.getByRole("radio", { name: "Translucent" }));
-      expect(
-        await screen.findByRole("checkbox", { name: "Blur behind the window" }),
-      ).toBeDisabled();
+      const box = await screen.findByRole("checkbox", { name: "Blur behind the window" });
+      expect(box).toBeDisabled();
       expect(screen.getByText(/transparency effects/)).toBeInTheDocument();
+      // Turned on in Windows while Settings is open: the option comes back right away.
+      reduce(false);
+      expect(box).toBeEnabled();
+      expect(box).toBeChecked();
+      expect(screen.queryByText(/transparency effects/)).toBeNull();
     } finally {
       vi.unstubAllGlobals();
     }
