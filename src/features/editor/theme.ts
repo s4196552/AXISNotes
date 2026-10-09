@@ -29,6 +29,33 @@ const editorTheme = EditorView.theme({
   ".cm-panels": { backgroundColor: "var(--bg-sidebar)", color: "var(--fg)" },
   ".cm-panels input, .cm-panels button": { fontSize: "13px" },
   ".cm-searchMatch": { backgroundColor: "var(--bg-active)" },
+  // Menus (Ctrl+/, @@, ((, ::, {{, [[, emoji): themed, so they're readable in dark mode.
+  ".cm-tooltip": {
+    color: "var(--fg)",
+    backgroundColor: "var(--bg)",
+    border: "1px solid var(--border)",
+    borderRadius: "8px",
+    boxShadow: "0 6px 24px rgba(0, 0, 0, 0.18)",
+    overflow: "hidden",
+  },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul": {
+    fontFamily: "var(--font-ui)",
+    fontSize: "13px",
+    maxHeight: "18em",
+    minWidth: "240px",
+  },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li": { padding: "3px 10px", lineHeight: "1.6" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]": {
+    color: "var(--fg)",
+    backgroundColor: "var(--bg-active)",
+  },
+  ".cm-completionDetail": { color: "var(--fg-muted)", fontStyle: "normal", marginLeft: "1em" },
+  ".cm-completionMatchedText": {
+    textDecoration: "none",
+    fontWeight: "600",
+    color: "var(--accent)",
+  },
+  ".cm-completionIcon": { opacity: "0.55", width: "1.1em", paddingRight: "0.5em" },
 });
 
 const highlight = HighlightStyle.define([

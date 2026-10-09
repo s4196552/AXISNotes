@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG, mergeConfig } from "../../app/config";
 import { formatDate, parseDate } from "../../lib/dates";
 import {
+  DEFAULT_QUICK_CONFIG,
   emojiCompletions,
   loadEmoji,
   quickCommandConfig,
@@ -89,12 +90,8 @@ function viewWith(doc: string, cfg = {}) {
       selection: { anchor: doc.length },
       extensions: [
         markdown(),
-        quickCommandConfig.of({
-          ...DEFAULT_CONFIG.quickCommands,
-          insertTemplate: () => {},
-          runCommand: () => {},
-          ...cfg,
-        }),
+        // These tests use a typed `/` trigger (off by default; Ctrl+/ opens the menu).
+        quickCommandConfig.of({ ...DEFAULT_QUICK_CONFIG, slashTrigger: "/", ...cfg }),
       ],
     }),
   });

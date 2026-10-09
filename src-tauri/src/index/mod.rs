@@ -17,7 +17,8 @@ use serde::Serialize;
 use crate::error::{AppError, AppResult};
 use crate::vault::{modified_ms, Vault, Walk, META_DIR};
 
-const SCHEMA_VERSION: i32 = 2;
+// 3: inline `key:: value` properties are indexed (rebuilds older indexes once).
+const SCHEMA_VERSION: i32 = 3;
 
 const SCHEMA: &str = "
 CREATE TABLE notes(
@@ -100,6 +101,14 @@ pub struct Mention {
 #[serde(rename_all = "camelCase")]
 pub struct TagCount {
     pub tag: String,
+    pub count: usize,
+}
+
+/// A property name used in the vault (frontmatter or inline), with how many notes use it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PropertyKey {
+    pub key: String,
     pub count: usize,
 }
 
@@ -378,8 +387,10 @@ impl Index {
     /// Resolve a wikilink target written in `from` to a note path (Obsidian semantics:
     /// by name anywhere in the vault; paths narrow it; same folder, then shortest path wins).
     pub fn resolve(&self, target: &str, from: &str) -> AppResult<Option<String>> {
-        let t = target.trim().replace('\\', "/");
-        let t = strip_md(t.trim_start_matches('/'));
+        let raw = target.trim().replace('\\', "/");
+        // A leading `/` is a vault-absolute path: only that exact note.
+        let absolute = raw.starts_with('/');
+        let t = strip_md(raw.trim_start_matches('/'));
         if t.is_empty() {
             return Ok(Some(from.to_string())); // [[#Heading]] = this note
         }
@@ -392,14 +403,14 @@ impl Index {
             let rows = stmt.query_map([&name], |r| r.get(0)).map_err(db_err)?;
             rows.collect::<Result<_, _>>().map_err(db_err)?
         };
-        if t.contains('/') {
+        if absolute || t.contains('/') {
             let want = t.to_lowercase();
             candidates.retain(|p| {
                 let p = strip_md(p).to_lowercase();
-                p == want || p.ends_with(&format!("/{want}"))
+                p == want || (!absolute && p.ends_with(&format!("/{want}")))
             });
         }
-        if candidates.is_empty() && !t.contains('/') {
+        if candidates.is_empty() && !absolute && !t.contains('/') {
             let mut stmt = self
                 .conn
                 .prepare_cached("SELECT n.path FROM aliases a JOIN notes n ON n.id = a.note_id WHERE lower(a.alias) = ?1")
@@ -614,6 +625,26 @@ impl Index {
             .query_map([], |r| {
                 Ok(TagCount {
                     tag: r.get(0)?,
+                    count: r.get::<_, i64>(1)? as usize,
+                })
+            })
+            .map_err(db_err)?;
+        rows.collect::<Result<_, _>>().map_err(db_err)
+    }
+
+    /// Property names across the vault, most used first, for `::` completion.
+    pub fn property_keys(&self) -> AppResult<Vec<PropertyKey>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT j.key, COUNT(*) AS n FROM notes, json_each(notes.props) j
+                 GROUP BY j.key ORDER BY n DESC, j.key COLLATE NOCASE",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(PropertyKey {
+                    key: r.get(0)?,
                     count: r.get::<_, i64>(1)? as usize,
                 })
             })

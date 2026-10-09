@@ -6,6 +6,8 @@ import { EDITOR_WIDTHS, fontStack, NOTE_FONT_SIZES } from "../../app/appearance"
 import { useZoom, ZOOM_STEPS, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { formatDate } from "../../lib/dates";
 import { SLASH_COMMANDS } from "../editor/quickCommands";
+import { allCommands, shortcutOf } from "../commands/registry";
+import { formatHotkey } from "../commands/hotkeys";
 import { AiSettingsPanel } from "../ai/AiSettings";
 import { ClipperSettings } from "../clipper/ClipperSettings";
 import { UpdatesSettings } from "../updates/UpdatesSettings";
@@ -360,17 +362,60 @@ function Commands({ config, set }: SectionProps) {
     set((c) => ({ ...c, quickCommands: { ...c.quickCommands, ...patch } }));
   const [label, setLabel] = useState("");
   const [text, setText] = useState("");
+  const menuCmd = allCommands().find((c) => c.id === "command-menu");
+  const menuShortcut = menuCmd && shortcutOf(menuCmd);
+  const commandMenuKey = menuShortcut ? formatHotkey(menuShortcut) : "";
   return (
     <>
-      <Field label="Command trigger" hint="Typed at the start of a line or after a space.">
+      <p className="muted settings-note">
+        {commandMenuKey
+          ? `${commandMenuKey} opens the command menu at the cursor (change it under Hotkeys).`
+          : "The command menu has no shortcut (set one under Hotkeys)."}{" "}
+        Typed triggers work at the start of a line or after a space. Leave one empty to turn it off.
+        Math is written between <code>$$</code> and <code>$$</code>.
+      </p>
+      <Field label="Command menu, typed" hint="Optional, e.g. / (off by default).">
         <input
           aria-label="Command trigger"
           maxLength={3}
+          placeholder="off"
           defaultValue={q.slashTrigger}
           onBlur={(e) => setQ({ slashTrigger: e.target.value })}
         />
       </Field>
-      <Field label="Emoji trigger" hint="Followed by at least two letters, e.g. :rocket">
+      <Field label="Dates and notes" hint="e.g. @@today, @@next friday, @@Biology">
+        <input
+          aria-label="Mention trigger"
+          maxLength={3}
+          defaultValue={q.mentionTrigger}
+          onBlur={(e) => setQ({ mentionTrigger: e.target.value })}
+        />
+      </Field>
+      <Field label="Link a block" hint="Search every note's paragraphs and list items.">
+        <input
+          aria-label="Block reference trigger"
+          maxLength={3}
+          defaultValue={q.blockTrigger}
+          onBlur={(e) => setQ({ blockTrigger: e.target.value })}
+        />
+      </Field>
+      <Field label="Inline property" hint="At the start of a line: becomes key:: value.">
+        <input
+          aria-label="Property trigger"
+          maxLength={3}
+          defaultValue={q.propertyTrigger}
+          onBlur={(e) => setQ({ propertyTrigger: e.target.value })}
+        />
+      </Field>
+      <Field label="Template variable" hint="{{date}} in templates; the value itself in notes.">
+        <input
+          aria-label="Template variable trigger"
+          maxLength={3}
+          defaultValue={q.templateTrigger}
+          onBlur={(e) => setQ({ templateTrigger: e.target.value })}
+        />
+      </Field>
+      <Field label="Emoji" hint="Followed by at least two letters, e.g. :rocket">
         <input
           aria-label="Emoji trigger"
           maxLength={3}

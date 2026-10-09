@@ -24,21 +24,33 @@ import { PropertiesPanel } from "./PropertiesPanel";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
-import { openAskAi, openFixText } from "../commands/actions";
+import { followLink, openAskAi, openFixText } from "../commands/actions";
 import { allCommands } from "../commands/registry";
 import { configuredSpellcheck, recheck } from "../spellcheck";
 import { mermaidBlocks } from "../diagrams/mermaidBlocks";
 import "../diagrams/diagrams.css";
 import {
+  commandMenuAnchor,
   emojiCompletions,
   type QuickCommandConfig,
   quickCommandConfig,
   slashCompletions,
 } from "./quickCommands";
+import {
+  blockCompletions,
+  mentionCompletions,
+  propertyCompletions,
+  templateCompletions,
+} from "./triggers";
+import { math } from "./math";
 
 function quickConfig(): QuickCommandConfig {
+  const config = useConfig.getState().config;
   return {
-    ...useConfig.getState().config.quickCommands,
+    ...config.quickCommands,
+    dailyFormat: config.dailyNotes.format,
+    dailyFolder: config.dailyNotes.folder,
+    templatesFolder: config.templatesFolder,
     insertTemplate: () => useUi.getState().open({ kind: "templates", mode: "insert" }),
     runCommand: (id) =>
       allCommands()
@@ -220,8 +232,13 @@ export function Editor({ path }: EditorProps) {
                   wikilinkCompletions,
                   slashCompletions,
                   emojiCompletions,
+                  mentionCompletions,
+                  blockCompletions,
+                  propertyCompletions,
+                  templateCompletions,
                 ],
               }),
+              commandMenuAnchor,
               embeds(path),
               quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
               outlinerKeys,
@@ -235,15 +252,22 @@ export function Editor({ path }: EditorProps) {
               livePreview,
               obsidianSyntax,
               mermaidBlocks,
+              math,
               spellCompartment.current.of(configuredSpellcheck()),
               links({
-                openLink: (inner) => void store().openLink(inner, path),
+                openLink: (inner) => void followLink(inner, path),
                 openTag: (tag) => store().search(`tag:${tag}`),
                 isKnown: (target) => isKnownTarget(store().notes, target),
                 notes: () => store().notes,
               }),
               axisTheme,
-              keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
+              // Ctrl+/ is the command menu (a remappable app command), not "toggle comment".
+              keymap.of([
+                ...defaultKeymap.filter((k) => k.key !== "Mod-/"),
+                ...historyKeymap,
+                ...searchKeymap,
+                indentWithTab,
+              ]),
               EditorView.contentAttributes.of({ "aria-label": `Note ${titleOf(path)}` }),
               EditorView.updateListener.of((u) => {
                 if (u.docChanged) syncProps(u.state);
@@ -310,11 +334,13 @@ export function Editor({ path }: EditorProps) {
 
   // Follow changes to the quick-command settings.
   const quickSettings = useConfig((s) => s.config.quickCommands);
+  const dailyNotes = useConfig((s) => s.config.dailyNotes);
+  const templatesFolder = useConfig((s) => s.config.templatesFolder);
   useEffect(() => {
     view.current?.dispatch({
       effects: quickCompartment.current.reconfigure(quickCommandConfig.of(quickConfig())),
     });
-  }, [quickSettings]);
+  }, [quickSettings, dailyNotes, templatesFolder]);
 
   // Follow the spellcheck settings (on/off, personal dictionary).
   const spellOn = useConfig((s) => s.config.spellcheck.enabled);

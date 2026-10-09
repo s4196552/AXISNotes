@@ -129,6 +129,10 @@ pub fn parse(text: &str) -> ParsedNote {
         if let Some(task) = super::tasks::parse_task_line(line, line_no) {
             note.tasks.push(task);
         }
+        // Inline `key:: value` properties (Dataview style). Frontmatter wins on a clash.
+        if let Some((key, value)) = inline_property(line) {
+            note.props.entry(key).or_insert(Value::String(value));
+        }
         scan_inline(line, line_start, &mut note.links, &mut tags);
     }
 
@@ -151,6 +155,52 @@ pub fn parse(text: &str) -> ParsedNote {
         .filter(|t| !t.is_empty() && seen.insert(t.clone()))
         .collect();
     note
+}
+
+/// `key:: value` on its own line (optionally a list item or task), Dataview style. The key
+/// starts with a letter and holds letters, digits, spaces, `_` or `-` (at most 40 chars).
+fn inline_property(line: &str) -> Option<(String, String)> {
+    let t = strip_list_marker(line.trim_start());
+    let at = t.find("::")?;
+    let key = t[..at].trim();
+    let first = key.chars().next()?;
+    if !first.is_alphabetic()
+        || key.chars().count() > 40
+        || !key
+            .chars()
+            .all(|c| c.is_alphanumeric() || matches!(c, ' ' | '_' | '-'))
+    {
+        return None;
+    }
+    let value = t[at + 2..].trim();
+    // `key::value` without a space is allowed; `a::b::c` keeps the rest as the value.
+    Some((key.to_string(), value.to_string()))
+}
+
+/// A list item's text: without its marker (`-`, `*`, `+`, `1.` or `1)` and spacing) and an
+/// optional task checkbox (`[ ]`, `[x]`, `[X]`). Other lines are returned unchanged.
+/// Mirrors `INLINE_PROP_RE` in `src/lib/markdown.ts` and the `::` trigger.
+fn strip_list_marker(t: &str) -> &str {
+    let digits = t.chars().take_while(|c| c.is_ascii_digit()).count();
+    let rest = if matches!(t.chars().next(), Some('-' | '*' | '+')) {
+        &t[1..]
+    } else if digits > 0 && matches!(t[digits..].chars().next(), Some('.' | ')')) {
+        &t[digits + 1..]
+    } else {
+        return t;
+    };
+    if !rest.starts_with([' ', '\t']) {
+        return t;
+    }
+    let rest = rest.trim_start();
+    for check in ["[ ]", "[x]", "[X]"] {
+        if let Some(after) = rest.strip_prefix(check) {
+            if after.starts_with([' ', '\t']) {
+                return after.trim_start();
+            }
+        }
+    }
+    rest
 }
 
 /// Strings from a YAML scalar, list, or comma/space separated string.
@@ -415,6 +465,47 @@ mod tests {
         assert_eq!(n.tags, vec!["research", "work/alpha", "school"]);
         assert_eq!(n.aliases, vec!["PA"]);
         assert!(n.body.starts_with("# Project Alpha"));
+    }
+
+    #[test]
+    fn inline_properties_index_like_frontmatter() {
+        let n = parse(
+            "---
+status: draft
+---
+status:: done
+Due date:: 2026-10-07
+- owner:: Ada
+- [ ] review:: soon
+```
+code:: no
+```
+https://x.y and a::b in prose
+::empty
+9lives:: no
+",
+        );
+        assert_eq!(n.props["status"], "draft", "frontmatter wins");
+        assert_eq!(n.props["Due date"], "2026-10-07");
+        assert_eq!(n.props["owner"], "Ada");
+        assert_eq!(n.props["review"], "soon");
+        assert!(!n.props.contains_key("code"), "not inside code fences");
+        assert!(!n.props.contains_key("https"));
+        assert!(!n.props.contains_key("9lives"));
+        assert_eq!(n.props.len(), 4);
+    }
+
+    #[test]
+    fn inline_properties_in_every_list_and_task_form() {
+        let n = parse(
+            "* [ ] a:: 1\n+ [x] b:: 2\n1. c:: 3\n2) [X] d:: 4\n*e:: no marker space\n- [ ]f:: no box space\n",
+        );
+        for (k, v) in [("a", "1"), ("b", "2"), ("c", "3"), ("d", "4")] {
+            assert_eq!(n.props[k], v, "{k}");
+        }
+        assert!(!n.props.contains_key("*e"));
+        assert!(!n.props.contains_key("[ ]f"));
+        assert_eq!(n.props.len(), 4);
     }
 
     #[test]

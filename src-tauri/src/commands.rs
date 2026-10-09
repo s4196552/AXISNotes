@@ -312,6 +312,11 @@ pub fn list_tags(state: State<AppState>) -> AppResult<Vec<TagCount>> {
 }
 
 #[tauri::command]
+pub fn list_property_keys(state: State<AppState>) -> AppResult<Vec<crate::index::PropertyKey>> {
+    state.with_index(|idx| idx.property_keys())
+}
+
+#[tauri::command]
 pub fn list_tasks(state: State<AppState>) -> AppResult<Vec<TaskRef>> {
     state.with_index(|idx| idx.tasks())
 }

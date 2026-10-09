@@ -144,6 +144,46 @@ export function aliasesOf(props: Props): string[] {
   return [...propStrings(props.aliases), ...propStrings(props.alias)];
 }
 
+/** An optional list marker (`-`, `*`, `+`, `1.`, `1)`) and task checkbox before `key::`. */
+export const LIST_PREFIX = String.raw`(?:(?:[-*+]|\d+[.)])[ \t]+(?:\[[ xX]\][ \t]+)?)?`;
+/** Whether `key` can be written as an inline `key:: value` (same rule as the indexer). */
+export function isInlinePropertyKey(key: string): boolean {
+  return /^\p{L}[\p{L}\p{N} _-]{0,39}$/u.test(key) && key.trim() === key;
+}
+
+const INLINE_PROP_RE = new RegExp(
+  String.raw`^[ \t]*${LIST_PREFIX}(\p{L}[\p{L}\p{N} _-]{0,39}?)[ \t]*::(.*)$`,
+  "u",
+);
+
+/**
+ * Inline `key:: value` properties (Dataview style), outside code fences. Mirrors the
+ * indexer (`inline_property` in `src-tauri/src/index/parse.rs`).
+ */
+export function inlineProperties(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  // The open fence, if any. Like the indexer, it closes only on a line of just the same
+  // character, at least as many (so ``` inside a ```` example doesn't end it).
+  let fence: string | null = null;
+  for (const line of text.slice(splitFrontmatter(text).length).split(/\r?\n/)) {
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+    if (marker) {
+      if (!fence) fence = marker;
+      else if (
+        marker.charAt(0) === fence.charAt(0) &&
+        marker.length >= fence.length &&
+        line.trim() === marker
+      )
+        fence = null;
+      continue;
+    }
+    if (fence) continue;
+    const m = INLINE_PROP_RE.exec(line);
+    if (m && !(m[1]!.trim() in out)) out[m[1]!.trim()] = m[2]!.trim();
+  }
+  return out;
+}
+
 /** Basename without `.md`. */
 export function noteName(path: string): string {
   const base = path.slice(path.lastIndexOf("/") + 1);

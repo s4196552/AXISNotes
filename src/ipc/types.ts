@@ -93,6 +93,13 @@ export interface TagCount {
   count: number;
 }
 
+/** A property name used in the vault (frontmatter or inline `key:: value`). */
+export interface PropertyKey {
+  key: string;
+  /** Notes that use it. */
+  count: number;
+}
+
 export interface LinkRef {
   /** 1-based line in the source note. */
   line: number;
@@ -391,6 +398,8 @@ export interface Backend {
   /** Full-text search; see the query language in `src-tauri/src/index/search.rs`. */
   search(query: string, limit?: number): Promise<SearchHit[]>;
   listTags(): Promise<TagCount[]>;
+  /** Property names across the vault (frontmatter and inline `key::`), most used first. */
+  listPropertyKeys(): Promise<PropertyKey[]>;
   listNotes(): Promise<NoteRef[]>;
   /** Resolve a wikilink target written in note `from` to a note path, or null. */
   resolveLink(target: string, from: string): Promise<string | null>;

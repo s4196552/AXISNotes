@@ -6,6 +6,7 @@ import {
   maskCode,
   noteName,
   splitFrontmatter,
+  inlineProperties,
 } from "../lib/markdown";
 import { compareTasks, findTasks } from "../lib/tasks";
 import { createMemoryAi } from "./memoryAi";
@@ -146,21 +147,24 @@ export function createMemoryBackend(
       .map(([path, n]) => ({ path, text: n.content }));
 
   const resolve = (target: string, from: string): string | null => {
-    let t = target.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+    const raw = target.trim().replace(/\\/g, "/");
+    // A leading `/` is a vault-absolute path: only that exact note.
+    const absolute = raw.startsWith("/");
+    let t = raw.replace(/^\/+/, "");
     if (t.toLowerCase().endsWith(".md")) t = t.slice(0, -3);
     if (!t) return from;
     const name = noteName(t).toLowerCase();
     let candidates = notes()
       .map((n) => n.path)
       .filter((p) => noteName(p).toLowerCase() === name);
-    if (t.includes("/")) {
+    if (absolute || t.includes("/")) {
       const want = t.toLowerCase();
       candidates = candidates.filter((p) => {
         const q = p.slice(0, -3).toLowerCase();
-        return q === want || q.endsWith("/" + want);
+        return q === want || (!absolute && q.endsWith("/" + want));
       });
     }
-    if (candidates.length === 0 && !t.includes("/")) {
+    if (candidates.length === 0 && !absolute && !t.includes("/")) {
       candidates = notes()
         .filter((n) =>
           aliasesOf(splitFrontmatter(n.text).props).some(
@@ -228,8 +232,10 @@ export function createMemoryBackend(
             break;
           case "prop": {
             const [k = "", want] = v.split("=");
-            const key = Object.keys(fm.props).find((x) => x.toLowerCase() === k);
-            const val = key === undefined ? undefined : fm.props[key];
+            // Inline `key:: value` properties too, like the indexer (frontmatter wins).
+            const props = { ...inlineProperties(n.text), ...fm.props };
+            const key = Object.keys(props).find((x) => x.toLowerCase() === k);
+            const val = key === undefined ? undefined : props[key];
             match =
               key !== undefined &&
               (want === undefined || [val].flat().some((x) => String(x).toLowerCase() === want));
@@ -417,8 +423,15 @@ export function createMemoryBackend(
         const source = inMoved ? dst + site.source.slice(src.length) : site.source;
         if (resolve(site.link.target, source) === site.newPath) continue;
         const full = site.newPath.slice(0, -3);
-        let target = site.link.target.includes("/") ? full : noteName(site.newPath);
+        // A vault-absolute `/path` stays absolute; otherwise the name, then the path, then
+        // `/path` as the one form that can't resolve to another note.
+        let target = site.link.target.trim().startsWith("/")
+          ? `/${full}`
+          : site.link.target.includes("/")
+            ? full
+            : noteName(site.newPath);
         if (resolve(target, source) !== site.newPath) target = full;
+        if (resolve(target, source) !== site.newPath) target = `/${full}`;
         const raw = site.text.slice(site.link.from, site.link.to);
         const list = bySource.get(source) ?? [];
         list.push({
@@ -480,6 +493,20 @@ export function createMemoryBackend(
       return [...counts.entries()]
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([tag, count]) => ({ tag, count }));
+    },
+    async listPropertyKeys() {
+      requireVault();
+      const counts = new Map<string, number>();
+      for (const n of notes()) {
+        const keys = new Set([
+          ...Object.keys(splitFrontmatter(n.text).props),
+          ...Object.keys(inlineProperties(n.text)),
+        ]);
+        for (const k of keys) counts.set(k, (counts.get(k) ?? 0) + 1);
+      }
+      return [...counts.entries()]
+        .sort(([a, x], [b, y]) => y - x || a.localeCompare(b))
+        .map(([key, count]) => ({ key, count }));
     },
     async listNotes() {
       requireVault();

@@ -1,5 +1,11 @@
-import type { Completion, CompletionContext, CompletionResult } from "@codemirror/autocomplete";
-import { Facet } from "@codemirror/state";
+import {
+  type Completion,
+  type CompletionContext,
+  type CompletionResult,
+  completionStatus,
+  startCompletion,
+} from "@codemirror/autocomplete";
+import { Facet, StateEffect, StateField } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import type { CustomQuickCommand } from "../../app/config";
 import { formatDate } from "../../lib/dates";
@@ -7,30 +13,81 @@ import { splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { PAGE_STYLE_PROP, type PageStyle } from "../templates/templates";
 import { minimalChange } from "./targets";
 
-// `/` commands and `:` emoji, with configurable triggers.
+// The command menu (Ctrl+/, or an optional typed trigger) and `:` emoji, with
+// configurable triggers. The other typed menus (`@@`, `((`, `::`, `{{`) are in triggers.ts.
 
 export interface QuickCommandConfig {
+  /** Typed trigger for the command menu; "" = only Ctrl+/ opens it. */
   slashTrigger: string;
   emojiTrigger: string;
+  mentionTrigger: string;
+  blockTrigger: string;
+  propertyTrigger: string;
+  templateTrigger: string;
   disabled: string[];
   custom: CustomQuickCommand[];
+  /** Daily note file-name format and folder, for `@@today` links. */
+  dailyFormat: string;
+  dailyFolder: string;
+  /** Folder of user templates: `{{` inserts variables there, values elsewhere. */
+  templatesFolder: string;
   /** Opens the template picker (host UI). */
   insertTemplate(): void;
   /** Runs an app command by id (host UI), e.g. "handwriting". */
   runCommand(id: string): void;
 }
 
+export const DEFAULT_QUICK_CONFIG: QuickCommandConfig = {
+  slashTrigger: "",
+  emojiTrigger: ":",
+  mentionTrigger: "@@",
+  blockTrigger: "((",
+  propertyTrigger: "::",
+  templateTrigger: "{{",
+  disabled: [],
+  custom: [],
+  dailyFormat: "YYYY-MM-DD",
+  dailyFolder: "Daily",
+  templatesFolder: "Templates",
+  insertTemplate: () => {},
+  runCommand: () => {},
+};
+
 export const quickCommandConfig = Facet.define<QuickCommandConfig, QuickCommandConfig>({
-  combine: (v) =>
-    v[0] ?? {
-      slashTrigger: "/",
-      emojiTrigger: ":",
-      disabled: [],
-      custom: [],
-      insertTemplate: () => {},
-      runCommand: () => {},
-    },
+  combine: (v) => v[0] ?? DEFAULT_QUICK_CONFIG,
 });
+
+// ---- Opening the command menu with a key (Ctrl+/) ----
+
+const setMenuAnchor = StateEffect.define<number | null>();
+
+/**
+ * Where the key-opened command menu started, while it's open. What's typed after it
+ * filters the menu, like typing after a `/` trigger. Cleared when the menu closes, the
+ * cursor leaves the line, or a command runs.
+ */
+export const commandMenuAnchor = StateField.define<number | null>({
+  create: () => null,
+  update(anchor, tr) {
+    for (const e of tr.effects) if (e.is(setMenuAnchor)) return e.value;
+    if (anchor === null) return null;
+    const at = tr.changes.mapPos(anchor, -1);
+    const head = tr.state.selection.main.head;
+    const doc = tr.state.doc;
+    if (head < at || doc.lineAt(head).number !== doc.lineAt(at).number) return null;
+    if (completionStatus(tr.startState) !== null && completionStatus(tr.state) === null) {
+      return null;
+    }
+    return at;
+  },
+});
+
+/** Open the command menu at the cursor (bound to Ctrl+/ by the `command-menu` command). */
+export function openCommandMenu(view: EditorView) {
+  view.focus();
+  view.dispatch({ effects: setMenuAnchor.of(view.state.selection.main.head) });
+  startCompletion(view);
+}
 
 interface SlashCommand {
   id: string;
@@ -170,29 +227,47 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: "style-plain", label: "Page style: Plain", run: setPageStyle("plain") },
 ];
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export function slashCompletions(context: CompletionContext): CompletionResult | null {
-  const cfg = context.state.facet(quickCommandConfig);
+/** Where the command menu's text starts: at the Ctrl+/ anchor, or after a typed trigger. */
+function menuStart(context: CompletionContext, cfg: QuickCommandConfig) {
+  const anchor = context.state.field(commandMenuAnchor, false) ?? null;
+  if (anchor !== null && context.pos >= anchor) {
+    const typed = context.state.sliceDoc(anchor, context.pos);
+    if (/^[\w ]{0,24}$/.test(typed)) return { start: anchor, typedFrom: anchor };
+  }
   if (!cfg.slashTrigger) return null;
   const m = context.matchBefore(new RegExp(`(^|\\s)${escapeRe(cfg.slashTrigger)}[\\w ]{0,24}$`));
   if (!m) return null;
   const start = m.from + (/^\s/.test(m.text) ? 1 : 0);
-  const typedFrom = start + cfg.slashTrigger.length;
+  return { start, typedFrom: start + cfg.slashTrigger.length };
+}
+
+export function slashCompletions(context: CompletionContext): CompletionResult | null {
+  const cfg = context.state.facet(quickCommandConfig);
+  const at = menuStart(context, cfg);
+  if (!at) return null;
+  const { start, typedFrom } = at;
+  // Once a command runs the menu is done, so typing afterwards doesn't reopen it.
+  const done = (view: EditorView) => view.dispatch({ effects: setMenuAnchor.of(null) });
   const options: Completion[] = [
     ...SLASH_COMMANDS.filter((c) => !cfg.disabled.includes(c.id)).map((c) => ({
       label: c.label,
       detail: c.detail,
       type: "keyword",
-      apply: (view: EditorView, _c: Completion, _f: number, to: number) =>
-        c.run(view, start, to, cfg),
+      apply: (view: EditorView, _c: Completion, _f: number, to: number) => {
+        done(view);
+        c.run(view, start, to, cfg);
+      },
     })),
     ...cfg.custom.map((c) => ({
       label: c.label,
       detail: "custom",
       type: "keyword",
-      apply: (view: EditorView, _c: Completion, _f: number, to: number) =>
-        insert(view, start, to, c.insert.replace("{{cursor}}", "|")),
+      apply: (view: EditorView, _c: Completion, _f: number, to: number) => {
+        done(view);
+        insert(view, start, to, c.insert.replace("{{cursor}}", "|"));
+      },
     })),
   ];
   return { from: typedFrom, options, validFor: /^[\w ]*$/ };

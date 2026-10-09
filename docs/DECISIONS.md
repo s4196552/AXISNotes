@@ -31,6 +31,49 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Per device:** which panels show is kept in local storage (`axisnotes.layout`), like zoom. It's about the screen you're on, not the vault.
 - **Hidden left panel stays mounted** so the file tree and search keep their state. **The hidden right panel is unmounted** so its live graph does no work while it isn't visible.
 - **Choosing a left-side view** (Files, Search, Tags, or Ctrl+Shift+F) shows the left panel again, so the result is never invisible.
+## 2026-10-07: `[[/path]]` links are vault-absolute (T-065)
+
+A wikilink target that starts with `/` names one exact note path from the vault root (`[[/Biology]]` is `Biology.md`, never `School/Biology.md`), with no name, suffix or alias matching. Without it, a root note can't be linked from a folder that has a note with the same name, because same-folder notes win.
+
+- All three resolvers follow the rule: Rust `Index::resolve`, the graph `Resolver`, and the memory backend.
+- `@@` and `((` write the shortest target that can't resolve elsewhere: the name; else the path; else `/path`.
+- Obsidian also reads vault paths, so these links stay portable.
+- Rename rewriting (Rust and memory) keeps a `/path` link absolute. When the new name and path would both resolve elsewhere, it falls back to `/path`.
+- `@@` date links use `/Daily/…` only when another note could also match them, such as an archived copy.
+
+## 2026-10-07: Command symbols: Ctrl+/, @@, ((, ::, :, $$, {{ (T-065)
+
+The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq, Tana and Slack use.
+
+- **Command menu: `Ctrl+/`** opens it at the cursor; typing after it filters it, as typing after `/` did.
+  - It's an app command (`command-menu`), so it's remappable and listed in the palette. Outside a note it opens the palette.
+  - CodeMirror's own `Mod-/` (toggle comment) is removed, so a remapped shortcut can't fall through to it.
+  - A typed trigger is optional and **off by default**. Vaults that saved the old default `/` are moved to "" once on load (`migrateTriggers`, `quickCommands.triggerVersion: 2`). A trigger the user chose themselves (e.g. `;`) is kept.
+- **`@@` dates and notes:**
+  - Dates (today, tomorrow, yesterday, next weekday, in a week or two, or a typed `YYYY-MM-DD`) insert a link to that day's daily note, `[[2026-10-07]]`, using the daily-note format.
+  - On a task line they insert the Tasks-format due date `📅 2026-10-07` instead.
+  - Note names insert `[[Note]]`.
+  - `@@` (not `@`) so email addresses and @-handles never open it.
+- **`((` blocks across the vault:**
+  - It searches the index for notes, then their paragraphs and list items (all words must match), and inserts the Obsidian-compatible `[[Note#^id]]`.
+  - A block without an id gets one: in this note within the same edit; in another note with a fresh read and a conflict-checked write, as `[[Note#^` already did.
+  - The block being typed in is never offered.
+- **`::` inline properties:**
+  - It works at the start of a line or list item and suggests keys already used in the vault (new Rust command `list_property_keys`, most used first). It inserts `key:: `.
+  - The indexer now reads Dataview-style `key:: value` lines into a note's properties (frontmatter wins on a clash; code fences are skipped), so `prop:status=done` finds them too. `SCHEMA_VERSION` 3 makes existing indexes rebuild once. The index stays rebuildable from the files, and notes are not rewritten.
+- **`:` emoji:** unchanged.
+- **`$$` math:**
+  - `$$…$$` renders with KaTeX when the cursor is elsewhere. It's display math on its own line(s) and inline math inside a sentence; code is skipped, and `\$$` is literal.
+  - Typing the second `$` adds the closing `$$`.
+  - KaTeX and its fonts are a lazy chunk (≈259 kB JS + 29 kB CSS), loaded on first use.
+  - The dependency is pinned to the same version Mermaid already brings (0.16.x), so there's one copy.
+- **`{{` template variables:** inside the templates folder it inserts the variable (`{{date}}`, `{{title}}`, `{{cursor}}`, `{{prompt:…}}`). In an ordinary note it inserts the value (today's date, the title) straight away.
+- **All triggers are remappable** in Settings → Commands, and an empty field turns one off. Everything they write is plain Markdown that Obsidian and other editors read.
+- **Menus are themed:** autocomplete popups now use the theme variables. They were CodeMirror's light default, which was unreadable in dark mode.
+
+| Package | Version | License | Purpose                                               |
+| ------- | ------- | ------- | ----------------------------------------------------- |
+| katex   | 0.16.47 | MIT     | `$$` math rendering (lazy chunk, shared with Mermaid) |
 
 ## 2026-09-28: Zoom, text size, fonts and editor width (T-040)
 

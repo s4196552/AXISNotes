@@ -422,3 +422,57 @@ fn sync_skips_link_loops_reports_progress_and_can_stop() {
         .unwrap();
     assert_eq!(idx2.list_notes().unwrap().len(), 0);
 }
+
+#[test]
+fn property_keys_count_frontmatter_and_inline_and_search_inline() {
+    let (_d, _v, idx) = vault_with(&[
+        ("a.md", "---\nstatus: draft\npriority: 2\n---\nowner:: Ada"),
+        ("b.md", "status:: done\n- owner:: Lin"),
+        ("c.md", "no properties here"),
+    ]);
+    let keys: Vec<(String, usize)> = idx
+        .property_keys()
+        .unwrap()
+        .into_iter()
+        .map(|k| (k.key, k.count))
+        .collect();
+    assert_eq!(
+        keys,
+        vec![
+            ("owner".into(), 2),
+            ("status".into(), 2),
+            ("priority".into(), 1)
+        ]
+    );
+    let hits: Vec<String> = idx
+        .search("prop:status=done", 10)
+        .unwrap()
+        .into_iter()
+        .map(|h| h.path)
+        .collect();
+    assert_eq!(hits, vec!["b.md".to_string()]);
+}
+
+#[test]
+fn leading_slash_resolves_only_the_exact_vault_path() {
+    let (_d, _v, idx) = vault_with(&[
+        ("Biology.md", "root"),
+        ("School/Biology.md", "school"),
+        ("School/Plan.md", "[[/Biology]] and [[Biology]]"),
+        ("X/School/Biology.md", "deeper"),
+    ]);
+    let r = |t: &str| idx.resolve(t, "School/Plan.md").unwrap();
+    assert_eq!(r("Biology").as_deref(), Some("School/Biology.md"));
+    assert_eq!(r("/Biology").as_deref(), Some("Biology.md"));
+    assert_eq!(r("/School/Biology").as_deref(), Some("School/Biology.md"));
+    assert_eq!(
+        r("/X/School/Biology.md").as_deref(),
+        Some("X/School/Biology.md")
+    );
+    assert_eq!(r("/Missing"), None);
+    let g = idx.graph().unwrap();
+    assert!(g
+        .edges
+        .iter()
+        .any(|e| e.source == "School/Plan.md" && e.target == "Biology.md"));
+}

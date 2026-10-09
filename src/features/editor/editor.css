@@ -459,3 +459,23 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* $$ math $$, rendered by KaTeX (src/features/editor/math.ts). */
+.cm-math {
+  cursor: pointer;
+  border-radius: 4px;
+}
+.cm-math:hover {
+  background: var(--bg-hover);
+}
+.cm-math-display {
+  display: block;
+  margin: 6px 0;
+  padding: 4px 0;
+  overflow-x: auto;
+  text-align: center;
+}
+.cm-math-error {
+  color: var(--danger, #d1242f);
+  font-family: var(--font-mono, monospace);
+}
