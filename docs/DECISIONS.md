@@ -27,6 +27,7 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - The tiles are native radio buttons: arrow keys and screen readers work.
 - **The graph follows theme changes.** `applyAppearance` fires `axisnotes:theme-changed`; `onThemeChange` also covers the OS switching light/dark. The graph rebuilds on either, because it reads colours once. Before, switching light/dark left the graph's old colours.
 - **The OS dark-mode fallback only applies to Match system and user themes** (`:root:not([data-theme])`), so it can't leak into a named theme.
+
 ## 2026-10-07: Updates from a folder (T-066)
 
 - **The user chose:** check on launch and ask before installing, with updates coming from a local folder for now (not GitHub Releases).
@@ -50,12 +51,14 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 | Package (Rust) | Version | License           | Purpose                                                 |
 | -------------- | ------- | ----------------- | ------------------------------------------------------- |
 | semver         | 1.0     | MIT OR Apache-2.0 | Comparing versions (already in the build through Tauri) |
+
 ## 2026-10-02: Hide/show side panels (T-064)
 
 - **A button at the top right of the main area** hides both side panels, and brings them back. The same toggle is the command "Hide/show side panels" (`Ctrl+\`), and there are separate commands for the left and the right panel.
 - **Per device:** which panels show is kept in local storage (`axisnotes.layout`), like zoom. It's about the screen you're on, not the vault.
 - **Hidden left panel stays mounted** so the file tree and search keep their state. **The hidden right panel is unmounted** so its live graph does no work while it isn't visible.
 - **Choosing a left-side view** (Files, Search, Tags, or Ctrl+Shift+F) shows the left panel again, so the result is never invisible.
+
 ## 2026-10-07: `[[/path]]` links are vault-absolute (T-065)
 
 A wikilink target that starts with `/` names one exact note path from the vault root (`[[/Biology]]` is `Biology.md`, never `School/Biology.md`), with no name, suffix or alias matching. Without it, a root note can't be linked from a folder that has a note with the same name, because same-folder notes win.
