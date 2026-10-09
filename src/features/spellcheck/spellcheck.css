@@ -11,15 +11,15 @@
   min-width: 180px;
   padding: 4px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
   font-size: 13px;
 }
 .cm-spell-menu button {
   padding: 5px 10px;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--fg);
   text-align: left;

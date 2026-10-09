@@ -40,10 +40,25 @@ export function topFolder(path: string): string {
   return i === -1 ? "" : path.slice(0, i);
 }
 
-/** A stable, readable color per folder (root notes use the accent). */
+/**
+ * A stable, readable color per folder (root notes use the accent), as hex: sigma only
+ * parses hex and rgb(), and draws anything else (like hsl()) black.
+ */
 export function folderColor(folder: string, accent: string): string {
   if (!folder) return accent;
-  return `hsl(${hash(folder) % 360}, 55%, 55%)`;
+  return hslToHex(hash(folder) % 360, 0.55, 0.55);
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const a = s * Math.min(l, 1 - l);
+  const channel = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const v = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(v * 255)
+      .toString(16)
+      .padStart(2, "0");
+  };
+  return `#${channel(0)}${channel(8)}${channel(4)}`;
 }
 
 function matches(node: GraphNode, query: string): boolean {

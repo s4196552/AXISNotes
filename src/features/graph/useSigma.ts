@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { onThemeChange } from "../../app/appearance";
 import type Graph from "graphology";
 import type { NodeAttrs } from "./graphModel";
 import { loadGraphLibs } from "./graphLibs";
@@ -140,6 +141,16 @@ async function mountSigma(
     layout?.kill();
     renderer.kill();
   };
+}
+
+/**
+ * A number that changes whenever the theme does. Graph colors are read from the theme
+ * when a graph is built and when sigma mounts, so callers rebuild the graph on it.
+ */
+export function useThemeVersion(): number {
+  const [version, setVersion] = useState(0);
+  useEffect(() => onThemeChange(() => setVersion((v) => v + 1)), []);
+  return version;
 }
 
 export function useSigma(

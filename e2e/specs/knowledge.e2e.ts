@@ -148,7 +148,7 @@ describe("Phase 1: knowledge features on a real vault", () => {
 
   it("switches the theme from settings and saves it to .axisnotes/config.json", async () => {
     await $('button[aria-label="Settings"]').click();
-    await $('select[aria-label="Theme"]').selectByAttribute("value", "dark");
+    await $('label[data-theme-id="dark"]').click();
     await until(
       async () => (await browser.execute(() => document.documentElement.dataset.theme)) === "dark",
       "theme not applied",

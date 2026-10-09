@@ -10,7 +10,8 @@ body,
 }
 
 body {
-  background: var(--bg);
+  background: var(--app-backdrop);
+  background-attachment: fixed;
   color: var(--fg);
   font-family: var(--font-ui);
   font-size: var(--font-size);
@@ -22,7 +23,7 @@ button {
   gap: 6px;
   padding: 6px 12px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg);
   color: var(--fg);
   font: inherit;
@@ -44,7 +45,7 @@ button:disabled {
 input {
   padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg);
   color: var(--fg);
   font: inherit;

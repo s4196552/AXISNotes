@@ -2,6 +2,25 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-09: Five more built-in themes, and theme tiles (T-067)
+
+- **Darker, Minimal, Glass, High contrast and Retro** join Light, Dark and Match system:
+  - **Darker:** near-black surfaces for OLED screens, with a soft violet accent.
+  - **Minimal:** warm white and monochrome ink, with hairline dividers and quietly underlined links.
+  - **Glass:** frosted, translucent floating panels over a soft wallpaper, like macOS. It follows the OS light/dark setting.
+  - **High contrast:** black, white and yellow. Links are underlined and focus rings are strong. Body and muted text meet WCAG AAA.
+  - **Retro:** cream paper, ink lines, hard offset shadows, monospace UI and serif note text, and a pinstriped title bar.
+- **Themes stay CSS variables.**
+  - New tokens cover what themes needed beyond colours: `--bg-elevated`, `--app-backdrop`, `--link`, `--heading`, `--scrim`, `--scrollbar`, `--radius-sm/-/md/lg` and `--shadow-pop/-modal`. Their defaults reproduce the old look, and feature CSS now uses them instead of fixed radii and shadows.
+  - A few structural touches (floating glass panes, retro buttons) are scoped to their own `data-theme`.
+  - User themes can override the new tokens too.
+  - Fonts are system fonts only: no new dependencies or bundled font files.
+- **Settings → Appearance → Theme is a grid of tiles.**
+  - Each tile is a miniature of the app drawn with its own theme's tokens (`[data-theme-preview]`), so it looks right whatever theme is active.
+  - The tiles are native radio buttons: arrow keys and screen readers work.
+- **The graph follows theme changes.** `applyAppearance` fires `axisnotes:theme-changed`; `onThemeChange` also covers the OS switching light/dark. The graph rebuilds on either, because it reads colours once. Before, switching light/dark left the graph's old colours.
+- **The OS dark-mode fallback only applies to Match system and user themes** (`:root:not([data-theme])`), so it can't leak into a named theme.
+
 ## 2026-09-28: Zoom, text size, fonts and editor width (T-040)
 
 - **Zoom for the whole app:**

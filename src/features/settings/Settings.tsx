@@ -9,6 +9,7 @@ import { SLASH_COMMANDS } from "../editor/quickCommands";
 import { AiSettingsPanel } from "../ai/AiSettings";
 import { ClipperSettings } from "../clipper/ClipperSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
+import { ThemePicker } from "./ThemePicker";
 import { About } from "./About";
 import "./settings.css";
 
@@ -147,25 +148,11 @@ function Appearance({ config, set }: SectionProps) {
     set((c) => ({ ...c, appearance: { ...c.appearance, ...patch } }));
   return (
     <>
-      <Field
-        label="Theme"
-        hint="Custom themes are CSS files in .axisnotes/themes that override the color variables."
-      >
-        <select
-          aria-label="Theme"
-          value={config.theme}
-          onChange={(e) => set((c) => ({ ...c, theme: e.target.value }))}
-        >
-          <option value="system">Match system</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-          {themes.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <ThemePicker
+        value={config.theme}
+        custom={themes}
+        onChange={(theme) => set((c) => ({ ...c, theme }))}
+      />
       <Field
         label="Zoom"
         hint="Everything gets bigger or smaller. Also Ctrl + = / Ctrl + − / Ctrl + 0, or Ctrl + mouse wheel."

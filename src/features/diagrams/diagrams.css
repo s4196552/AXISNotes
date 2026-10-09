@@ -4,7 +4,7 @@
   margin: 6px 0;
   padding: 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--fg-muted);
   font-size: 13px;
   cursor: pointer;
@@ -50,7 +50,7 @@
 .dg-row select {
   padding: 4px 6px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg);
   color: var(--fg);
 }
@@ -61,7 +61,7 @@
   max-height: 44vh;
   padding: 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: auto;
 }
 .dg-preview svg {
@@ -73,7 +73,7 @@
   min-height: 90px;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-mono, ui-monospace, monospace);
