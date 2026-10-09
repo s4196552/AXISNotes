@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BUILTIN_THEMES, type BuiltinTheme, THEME_INFO } from "../../app/appearance";
+import { BUILTIN_THEMES, type BuiltinTheme, THEME_INFO, themeCssName } from "../../app/appearance";
 import "./themePicker.css";
 
 // The theme choice as a grid of tiles. Each tile is a miniature of the app drawn with
@@ -9,7 +9,7 @@ import "./themePicker.css";
 /** A tiny app: sidebar with a selected row, a note with a title, text and a tag. */
 function Miniature({ theme }: { theme: Exclude<BuiltinTheme, "system"> }) {
   return (
-    <span className="tp" data-theme-preview={theme} aria-hidden="true">
+    <span className="tp" data-theme-preview={themeCssName(theme)} aria-hidden="true">
       <span className="tp-shell">
         <span className="tp-side">
           <span className="tp-line tp-w60" />
@@ -47,8 +47,14 @@ export function ThemePicker(p: {
   custom: string[];
   onChange(theme: string): void;
 }) {
-  const tile = (value: string, label: string, note: string, preview: ReactNode) => (
-    <label key={value} className="theme-tile" data-theme-id={value}>
+  const tile = (
+    kind: "builtin" | "custom",
+    value: string,
+    label: string,
+    note: string,
+    preview: ReactNode,
+  ) => (
+    <label key={`${kind}:${value}`} className="theme-tile" data-theme-id={value}>
       <input
         type="radio"
         name="axis-theme"
@@ -56,12 +62,12 @@ export function ThemePicker(p: {
         checked={p.value === value}
         onChange={() => p.onChange(value)}
         aria-label={label}
-        aria-describedby={`theme-note-${value}`}
+        aria-describedby={`theme-note-${kind}-${value}`}
       />
       {preview}
       <span className="theme-tile-text">
         <span className="theme-tile-name">{label}</span>
-        <span className="theme-tile-note muted" id={`theme-note-${value}`}>
+        <span className="theme-tile-note muted" id={`theme-note-${kind}-${value}`}>
           {note}
         </span>
       </span>
@@ -79,10 +85,11 @@ export function ThemePicker(p: {
       </div>
       <div className="theme-grid" role="radiogroup" aria-labelledby="theme-label">
         {BUILTIN_THEMES.map((t) =>
-          tile(t, THEME_INFO[t].label, THEME_INFO[t].note, <Preview theme={t} />),
+          tile("builtin", t, THEME_INFO[t].label, THEME_INFO[t].note, <Preview theme={t} />),
         )}
         {p.custom.map((t) =>
           tile(
+            "custom",
             t,
             t,
             "Custom theme",

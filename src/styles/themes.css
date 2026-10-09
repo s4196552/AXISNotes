@@ -134,23 +134,43 @@
 }
 :root[data-theme="glass"] .sidebar,
 :root[data-theme="glass"] .content {
+  --glass-fill: var(--bg-sidebar);
   border: 1px solid var(--glass-edge);
   border-radius: var(--radius-lg);
-  background: var(--bg-sidebar);
-  backdrop-filter: var(--glass-blur);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
 :root[data-theme="glass"] .content {
-  background: var(--bg);
+  --glass-fill: var(--bg);
+}
+:root[data-theme="glass"] .modal {
+  --glass-fill: var(--bg-elevated);
+}
+/* The frosting is a layer *behind* each pane and dialog, never a filter on the pane
+   itself: `backdrop-filter` would make the pane the containing block of its fixed-position
+   menus (file tree, handwriting fixes), shifting and clipping them. No `isolation` either:
+   a stacking context per pane would let the next pane paint over a menu. The panes are
+   transparent, so the layer at z-index -1 shows through. */
+:root[data-theme="glass"] :is(.sidebar, .content, .modal) {
+  position: relative;
+  background: transparent;
+}
+:root[data-theme="glass"] :is(.sidebar, .content, .modal)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  pointer-events: none;
 }
 :root[data-theme="glass"] .statusbar {
   border: none;
   background: transparent;
 }
-:root[data-theme="glass"] .modal,
-:root[data-theme="glass"] .context-menu,
-:root[data-theme="glass"] .cm-spell-menu {
+/* Menus are fixed themselves and hold no fixed children, so they can be filtered. */
+:root[data-theme="glass"] :is(.filetree-menu, .hw-menu, .cm-spell-menu) {
   backdrop-filter: var(--glass-blur);
 }
 :root[data-theme="glass"] .modal-backdrop {

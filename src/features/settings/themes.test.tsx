@@ -20,7 +20,10 @@ vi.mock("../../ipc", async (orig) => {
 });
 
 beforeEach(async () => {
-  h.b = createMemoryBackend({ ".axisnotes/themes/Nord.css": ":root { --bg: #2e3440; }" });
+  h.b = createMemoryBackend({
+    ".axisnotes/themes/Nord.css": ":root { --bg: #2e3440; }",
+    ".axisnotes/themes/retro.css": ":root { --bg: #123456; }",
+  });
   await h.b.openVault("/v");
   useConfig.setState({ config: structuredClone(DEFAULT_CONFIG) });
   delete document.documentElement.dataset.theme;
@@ -28,10 +31,12 @@ beforeEach(async () => {
 
 describe("built-in themes", () => {
   it("set data-theme for every built-in except Match system; a user theme loads its CSS", async () => {
-    for (const theme of ["darker", "minimal", "glass", "contrast", "retro", "dark"]) {
-      await applyAppearance({ theme, snippets: [] });
-      expect(document.documentElement.dataset.theme).toBe(theme);
+    for (const name of ["darker", "minimal", "glass", "contrast", "retro"]) {
+      await applyAppearance({ theme: `axis:${name}`, snippets: [] });
+      expect(document.documentElement.dataset.theme).toBe(name);
     }
+    await applyAppearance({ theme: "dark", snippets: [] });
+    expect(document.documentElement.dataset.theme).toBe("dark");
     await applyAppearance({ theme: "system", snippets: [] });
     expect(document.documentElement.dataset.theme).toBeUndefined();
     await applyAppearance({ theme: "Nord", snippets: [] });
@@ -39,22 +44,45 @@ describe("built-in themes", () => {
     expect(document.getElementById("axis-user-theme")?.textContent).toContain("#2e3440");
   });
 
+  it("never take over a user theme that has the same name (saved before they existed)", async () => {
+    await applyAppearance({ theme: "retro", snippets: [] });
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+    expect(document.getElementById("axis-user-theme")?.textContent).toContain("#123456");
+    await applyAppearance({ theme: "axis:retro", snippets: [] });
+    expect(document.documentElement.dataset.theme).toBe("retro");
+    expect(document.getElementById("axis-user-theme")?.textContent).toBe("");
+  });
+
+  it("keep Glass's blur off panes and dialogs, so their fixed menus aren't moved or clipped", () => {
+    // `backdrop-filter` makes an element the containing block of fixed-position children.
+    const css = readFileSync("src/styles/themes.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      // Nor a stacking context per pane, which would let the next pane cover a menu.
+      if (/\.(sidebar|content|modal)(?!-)/.test(rule[1]!))
+        expect(rule[2]).not.toMatch(/isolation:/);
+      if (!/backdrop-filter:\s*var\(--glass-blur\)/.test(rule[2]!)) continue;
+      for (const sel of rule[1]!.split(/,(?![^(]*\))/)) {
+        if (/\.(sidebar|content|modal)(?!-)/.test(sel)) expect(sel.trim()).toMatch(/::before$/);
+      }
+    }
+  });
+
   it("know whether they're light or dark (toggle theme, canvas, diagrams)", () => {
-    expect(effectiveMode("darker")).toBe("dark");
-    expect(effectiveMode("contrast")).toBe("dark");
-    expect(effectiveMode("minimal")).toBe("light");
-    expect(effectiveMode("retro")).toBe("light");
+    expect(effectiveMode("axis:darker")).toBe("dark");
+    expect(effectiveMode("axis:contrast")).toBe("dark");
+    expect(effectiveMode("axis:minimal")).toBe("light");
+    expect(effectiveMode("axis:retro")).toBe("light");
     // Glass follows the OS, like Match system (jsdom reports light).
-    expect(effectiveMode("glass")).toBe(effectiveMode("system"));
+    expect(effectiveMode("axis:glass")).toBe(effectiveMode("system"));
   });
 
   it("tell listeners when the theme changes, until they unsubscribe", async () => {
     const listener = vi.fn();
     const stop = onThemeChange(listener);
-    await applyAppearance({ theme: "retro", snippets: [] });
+    await applyAppearance({ theme: "axis:retro", snippets: [] });
     expect(listener).toHaveBeenCalledTimes(1);
     stop();
-    await applyAppearance({ theme: "glass", snippets: [] });
+    await applyAppearance({ theme: "axis:glass", snippets: [] });
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
@@ -92,7 +120,7 @@ describe("Settings → Appearance → Theme", () => {
     fireEvent.click(within(group).getByRole("radio", { name: "Glass" }));
     await waitFor(async () =>
       expect(JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).theme).toBe(
-        "glass",
+        "axis:glass",
       ),
     );
     expect(within(group).getByRole("radio", { name: "Glass" })).toBeChecked();

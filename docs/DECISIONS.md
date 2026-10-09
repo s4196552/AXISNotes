@@ -10,6 +10,13 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - **Glass:** frosted, translucent floating panels over a soft wallpaper, like macOS. It follows the OS light/dark setting.
   - **High contrast:** black, white and yellow. Links are underlined and focus rings are strong. Body and muted text meet WCAG AAA.
   - **Retro:** cream paper, ink lines, hard offset shadows, monospace UI and serif note text, and a pinstriped title bar.
+- **The new themes' saved ids are `axis:darker`, `axis:minimal`, `axis:glass`, `axis:contrast` and `axis:retro`.**
+  - A user theme's id is its file name, and a colon can't be in a Windows file name. So a vault that already has its own `retro.css` keeps loading it.
+  - CSS keeps short names (`data-theme="retro"`, via `themeCssName`).
+  - Light, Dark and Match system keep their old ids.
+- **Glass frosts a `::before` layer behind each pane and dialog**, never the pane itself:
+  - `backdrop-filter` on the pane would make it the containing block of fixed-position menus (file tree, handwriting fixes), shifting and clipping them.
+  - It uses no `isolation` either, because a stacking context per pane lets the next pane paint over a menu.
 - **Themes stay CSS variables.**
   - New tokens cover what themes needed beyond colours: `--bg-elevated`, `--app-backdrop`, `--link`, `--heading`, `--scrim`, `--scrollbar`, `--radius-sm/-/md/lg` and `--shadow-pop/-modal`. Their defaults reproduce the old look, and feature CSS now uses them instead of fixed radii and shadows.
   - A few structural touches (floating glass panes, retro buttons) are scoped to their own `data-theme`.
