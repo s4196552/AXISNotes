@@ -102,6 +102,9 @@ describe("graph model", () => {
     );
     expect(g.getNodeAttribute("A.md", "color")).toBe("blue");
     expect(g.getNodeAttribute("Dir/B.md", "color")).toBe(folderColor("Dir", "blue"));
+    // Hex, which sigma can draw (it renders hsl() black).
+    expect(folderColor("Dir", "blue")).toMatch(/^#[0-9a-f]{6}$/);
+    expect(folderColor("", "blue")).toBe("blue");
     expect(topFolder("Dir/B.md")).toBe("Dir");
     const again = buildGraph(DATA, opts);
     expect(again.getNodeAttribute("A.md", "x")).toBe(g.getNodeAttribute("A.md", "x"));

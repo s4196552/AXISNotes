@@ -37,7 +37,7 @@
   align-items: center;
   gap: 8px;
   padding: 5px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius);
 }
 .tasks-group li:hover {
   background: var(--bg-hover);

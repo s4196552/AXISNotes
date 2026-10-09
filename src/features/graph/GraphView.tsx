@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { backend, type GraphData } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { buildGraph } from "./graphModel";
-import { useSigma } from "./useSigma";
+import { useSigma, useThemeVersion } from "./useSigma";
 import "./graph.css";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -43,6 +43,7 @@ export function GraphView() {
   const [showOrphans, setShowOrphans] = useState(true);
   const [showUnresolved, setShowUnresolved] = useState(false);
   const container = useRef<HTMLDivElement>(null);
+  const themeVersion = useThemeVersion();
 
   const graph = useMemo(
     () =>
@@ -53,7 +54,8 @@ export function GraphView() {
             { accent: cssVar("--accent", "#4f5bd5"), muted: cssVar("--fg-muted", "#8d9199") },
           )
         : null,
-    [data, query, showOrphans, showUnresolved],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- themeVersion: re-read colors
+    [data, query, showOrphans, showUnresolved, themeVersion],
   );
   useSigma(
     container,
@@ -114,6 +116,7 @@ export function LocalGraph() {
   const activePath = useAppStore((s) => s.activePath);
   const [depth, setDepth] = useState(1);
   const container = useRef<HTMLDivElement>(null);
+  const themeVersion = useThemeVersion();
   const graph = useMemo(
     () =>
       data && activePath
@@ -123,7 +126,8 @@ export function LocalGraph() {
             { accent: cssVar("--accent", "#4f5bd5"), muted: cssVar("--fg-muted", "#8d9199") },
           )
         : null,
-    [data, activePath, depth],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- themeVersion: re-read colors
+    [data, activePath, depth, themeVersion],
   );
   useSigma(container, graph, openNode, activePath);
 

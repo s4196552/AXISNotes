@@ -26,7 +26,7 @@
   margin: 8px 0;
   padding: 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 .ai-provider-head {
   display: flex;
@@ -52,7 +52,7 @@
 }
 .ai-badge {
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--bg-active);
   color: var(--accent);
   font-size: 11px;
@@ -126,7 +126,7 @@
 .ai-rules select {
   padding: 5px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg);
   color: var(--fg);
 }
@@ -212,7 +212,7 @@
   resize: vertical;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg);
   color: var(--fg);
   font: inherit;
@@ -233,7 +233,7 @@
   margin-left: auto;
   padding: 3px 6px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg);
   color: var(--fg);
 }
@@ -251,7 +251,7 @@
 }
 .ask-ai-answer {
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-sidebar);
   line-height: 1.5;
   white-space: pre-wrap;

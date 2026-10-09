@@ -4,7 +4,50 @@ import type { AxisConfig, EditorWidth } from "./config";
 // Applies the theme and CSS snippets from the vault config to the document.
 // Built-in modes set `data-theme`; user themes and snippets are injected <style> tags.
 
-export const BUILTIN_THEMES = ["system", "light", "dark"] as const;
+/**
+ * Theme ids saved in the config. A user theme's id is its file name in .axisnotes/themes,
+ * so the newer built-ins are `axis:`-prefixed (a colon can't be in a Windows file name):
+ * a vault that already has its own `retro.css` keeps getting it.
+ */
+export const BUILTIN_THEMES = [
+  "system",
+  "light",
+  "dark",
+  "axis:darker",
+  "axis:minimal",
+  "axis:glass",
+  "axis:contrast",
+  "axis:retro",
+] as const;
+export type BuiltinTheme = (typeof BUILTIN_THEMES)[number];
+
+/** Names, one-line descriptions and light/dark mode of the built-in themes (Settings). */
+export const THEME_INFO: Record<
+  BuiltinTheme,
+  { label: string; note: string; mode: "light" | "dark" | "system" }
+> = {
+  system: { label: "Match system", note: "Light or Dark, following the OS", mode: "system" },
+  light: { label: "Light", note: "The classic AXISNotes look", mode: "light" },
+  dark: { label: "Dark", note: "Easy on the eyes at night", mode: "dark" },
+  "axis:darker": { label: "Darker", note: "Near-black, for OLED screens", mode: "dark" },
+  "axis:minimal": { label: "Minimal", note: "Monochrome ink, no distractions", mode: "light" },
+  "axis:glass": { label: "Glass", note: "Frosted panels; follows light/dark", mode: "system" },
+  "axis:contrast": {
+    label: "High contrast",
+    note: "Black, white and yellow; strong edges",
+    mode: "dark",
+  },
+  "axis:retro": { label: "Retro", note: "Cream paper, ink lines, typewriter type", mode: "light" },
+};
+
+export function isBuiltinTheme(theme: string): theme is BuiltinTheme {
+  return (BUILTIN_THEMES as readonly string[]).includes(theme);
+}
+
+/** The `data-theme` / `data-theme-preview` value the CSS uses for a built-in theme. */
+export function themeCssName(theme: BuiltinTheme): string {
+  return theme.replace(/^axis:/, "");
+}
 const THEME_STYLE_ID = "axis-user-theme";
 const SNIPPET_ATTR = "data-axis-snippet";
 
@@ -27,10 +70,28 @@ async function readCss(dir: "themes" | "snippets", name: string): Promise<string
   }
 }
 
+const THEME_CHANGED = "axisnotes:theme-changed";
+
+/**
+ * Call `listener` after the theme changes: a new theme or snippets applied, or the OS
+ * switching light/dark. For views that read theme colors once (the graph). Returns an
+ * unsubscribe function.
+ */
+export function onThemeChange(listener: () => void): () => void {
+  const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+  window.addEventListener(THEME_CHANGED, listener);
+  media?.addEventListener?.("change", listener);
+  return () => {
+    window.removeEventListener(THEME_CHANGED, listener);
+    media?.removeEventListener?.("change", listener);
+  };
+}
+
 export async function applyAppearance(config: Pick<AxisConfig, "theme" | "snippets">) {
   const root = document.documentElement;
-  const builtin = (BUILTIN_THEMES as readonly string[]).includes(config.theme);
-  if (config.theme === "light" || config.theme === "dark") root.dataset.theme = config.theme;
+  const { theme } = config;
+  const builtin = isBuiltinTheme(theme);
+  if (builtin && theme !== "system") root.dataset.theme = themeCssName(theme);
   else delete root.dataset.theme;
 
   const themeCss = builtin ? "" : await readCss("themes", config.theme);
@@ -52,6 +113,7 @@ export async function applyAppearance(config: Pick<AxisConfig, "theme" | "snippe
     }
     el.textContent = css;
   }
+  window.dispatchEvent(new Event(THEME_CHANGED));
 }
 
 export const NOTE_FONT_SIZES = { min: 11, max: 32 };
@@ -86,6 +148,7 @@ export function applyTypography(a: AxisConfig["appearance"]) {
 
 /** The effective light/dark mode, for "toggle theme". */
 export function effectiveMode(theme: string): "light" | "dark" {
-  if (theme === "light" || theme === "dark") return theme;
+  const mode = isBuiltinTheme(theme) ? THEME_INFO[theme].mode : "system";
+  if (mode !== "system") return mode;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }

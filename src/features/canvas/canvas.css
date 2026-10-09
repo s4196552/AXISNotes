@@ -33,7 +33,7 @@
   height: 100%;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-ui);

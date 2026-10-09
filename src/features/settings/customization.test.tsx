@@ -138,11 +138,8 @@ describe("settings", () => {
     act(() => useUi.getState().open({ kind: "settings" }));
     const dialog = await screen.findByRole("dialog", { name: "Settings" });
 
-    const theme = within(dialog).getByRole("combobox", { name: "Theme" });
-    await waitFor(() =>
-      expect(within(theme).getByRole("option", { name: "Nord" })).toBeInTheDocument(),
-    );
-    fireEvent.change(theme, { target: { value: "Nord" } });
+    const theme = within(dialog).getByRole("radiogroup", { name: "Theme" });
+    fireEvent.click(await within(theme).findByRole("radio", { name: "Nord" }));
     fireEvent.click(await within(dialog).findByRole("checkbox", { name: "wide" }));
     await waitFor(() => expect(savedConfig()).toMatchObject({ theme: "Nord", snippets: ["wide"] }));
 

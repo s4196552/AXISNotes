@@ -59,11 +59,11 @@ const editorTheme = EditorView.theme({
 });
 
 const highlight = HighlightStyle.define([
-  { tag: t.heading, fontWeight: "700" },
+  { tag: t.heading, fontWeight: "700", color: "var(--heading)" },
   { tag: t.strong, fontWeight: "700" },
   { tag: t.emphasis, fontStyle: "italic" },
   { tag: t.strikethrough, textDecoration: "line-through" },
-  { tag: [t.link, t.url], color: "var(--accent)" },
+  { tag: [t.link, t.url], color: "var(--link)" },
   { tag: [t.processingInstruction, t.meta, t.contentSeparator], color: "var(--fg-muted)" },
   { tag: t.monospace, fontFamily: "var(--font-mono)" },
   // Code inside fenced blocks

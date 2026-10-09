@@ -33,7 +33,7 @@
   display: block;
   height: 10px;
   min-width: 2px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--accent);
 }
 .time-ms {
@@ -96,7 +96,7 @@
   display: inline-flex;
   padding: 3px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--fg-muted);
   opacity: 0;
