@@ -5,6 +5,7 @@
    Darker         near-black OLED surfaces, soft violet accent
    Minimal        warm white, monochrome ink, hairlines only
    Glass          frosted, translucent floating panels over a soft wallpaper (light + dark)
+   Translucent    the window itself is see-through, with an opacity setting (light + dark)
    High contrast  black, white and yellow; strong edges and focus rings (WCAG AAA text)
    Retro          cream paper, ink lines, hard offset shadows, typewriter type */
 
@@ -195,6 +196,64 @@
 }
 :root[data-theme="glass"] .filetree-row.active * {
   color: inherit;
+}
+
+/* ---------------------------------------------------------------- Translucent */
+/* The window itself is see-through: the desktop shows behind it, blurred by Windows
+   (acrylic) unless turned off. `--tl-alpha` is the opacity from Settings → Appearance
+   (1 where the window can't be see-through). Only the backdrop carries it; panes are
+   faint tints over it, so nested surfaces don't stack up into opaque patches. Menus and
+   dialogs stay nearly solid, for reading. */
+:root[data-theme="translucent"],
+[data-theme-preview="translucent"] {
+  color-scheme: light;
+  --app-backdrop: rgba(240, 242, 247, var(--tl-alpha, 0.8));
+  --bg: rgba(255, 255, 255, 0.34);
+  --bg-sidebar: rgba(255, 255, 255, 0.1);
+  --bg-elevated: rgba(248, 249, 252, 0.97);
+  --bg-hover: rgba(0, 0, 0, 0.06);
+  --bg-active: rgba(68, 82, 208, 0.16);
+  --fg: #14161b;
+  --fg-muted: #545962;
+  --border: rgba(0, 0, 0, 0.1);
+  --accent: #4452d0;
+  --accent-fg: #ffffff;
+  --danger: #c4302b;
+  --code-bg: rgba(0, 0, 0, 0.05);
+  --selection: rgba(68, 82, 208, 0.26);
+  --scrim: rgba(0, 0, 0, 0.16);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="translucent"],
+  [data-theme-preview="translucent"] {
+    color-scheme: dark;
+    --app-backdrop: rgba(20, 21, 26, var(--tl-alpha, 0.8));
+    --bg: rgba(255, 255, 255, 0.045);
+    --bg-sidebar: rgba(0, 0, 0, 0.16);
+    --bg-elevated: rgba(33, 34, 40, 0.97);
+    --bg-hover: rgba(255, 255, 255, 0.07);
+    --bg-active: rgba(143, 152, 255, 0.22);
+    --fg: #f1f2f5;
+    --fg-muted: #a7abb4;
+    --border: rgba(255, 255, 255, 0.1);
+    --accent: #8f98ff;
+    --accent-fg: #11121a;
+    --danger: #ff6b66;
+    --code-bg: rgba(255, 255, 255, 0.06);
+    --selection: rgba(143, 152, 255, 0.3);
+    --scrim: rgba(0, 0, 0, 0.3);
+  }
+}
+/* No solid page behind the app (app.css paints one until a theme loads). */
+:root[data-theme="translucent"] {
+  background: transparent;
+}
+/* One tint for the whole main area, header included; the note and graph sit on it. */
+:root[data-theme="translucent"] .content {
+  background: var(--bg);
+}
+:root[data-theme="translucent"] .content :is(.cm-editor, .graph-canvas) {
+  background: transparent;
 }
 
 /* ---------------------------------------------------------------- High contrast */

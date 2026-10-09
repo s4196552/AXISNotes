@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { backend } from "../../ipc";
 import { type AxisConfig, type EditorWidth, useConfig } from "../../app/config";
-import { EDITOR_WIDTHS, fontStack, NOTE_FONT_SIZES } from "../../app/appearance";
+import {
+  blurUnavailable,
+  EDITOR_WIDTHS,
+  fontStack,
+  NOTE_FONT_SIZES,
+  WINDOW_OPACITY,
+} from "../../app/appearance";
 import { useZoom, ZOOM_STEPS, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { formatDate } from "../../lib/dates";
 import { SLASH_COMMANDS } from "../editor/quickCommands";
@@ -115,6 +121,57 @@ interface SectionProps {
   set(fn: (c: AxisConfig) => AxisConfig): void;
 }
 
+/** The Translucent theme's settings: window opacity, and blur behind it. */
+function Translucency(p: {
+  a: AxisConfig["appearance"];
+  setA(patch: Partial<AxisConfig["appearance"]>): void;
+}) {
+  const can = backend.canBeTranslucent();
+  const noBlur = can && blurUnavailable();
+  return (
+    <>
+      <Field
+        label="Window opacity"
+        hint={
+          can
+            ? "How much of your desktop shows through. Menus and dialogs stay solid."
+            : "See-through windows need Windows for now; here Translucent stays solid."
+        }
+      >
+        <span className="range-control">
+          <input
+            type="range"
+            aria-label="Window opacity"
+            min={WINDOW_OPACITY.min}
+            max={WINDOW_OPACITY.max}
+            step={WINDOW_OPACITY.step}
+            value={p.a.windowOpacity}
+            disabled={!can}
+            onChange={(e) => p.setA({ windowOpacity: Number(e.target.value) })}
+          />
+          <span className="muted">{p.a.windowOpacity}%</span>
+        </span>
+      </Field>
+      <Field
+        label="Blur behind the window"
+        hint={
+          noBlur
+            ? "Needs Windows' transparency effects (Settings → Personalization → Colors). Until then the desktop shows through unblurred."
+            : "Frosted, so text stays easy to read."
+        }
+      >
+        <input
+          type="checkbox"
+          aria-label="Blur behind the window"
+          checked={p.a.windowBlur && !noBlur}
+          disabled={!can || noBlur}
+          onChange={(e) => p.setA({ windowBlur: e.target.checked })}
+        />
+      </Field>
+    </>
+  );
+}
+
 /** A font picker: the default, then every installed family, each shown in its own font. */
 function FontSelect(p: {
   label: string;
@@ -159,6 +216,7 @@ function Appearance({ config, set }: SectionProps) {
         custom={themes}
         onChange={(theme) => set((c) => ({ ...c, theme }))}
       />
+      {config.theme === "axis:translucent" && <Translucency a={a} setA={setA} />}
       <Field
         label="Zoom"
         hint="Everything gets bigger or smaller. Also Ctrl + = / Ctrl + − / Ctrl + 0, or Ctrl + mouse wheel."

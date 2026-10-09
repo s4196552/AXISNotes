@@ -2,6 +2,18 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-09: Translucent theme with an opacity setting (T-069)
+
+- **Translucent (`axis:translucent`) makes the window itself see-through**, so the desktop shows behind the app. It follows the OS light/dark setting.
+  - **Window opacity** (20–100%, default 80%) and **Blur behind the window** (default on) appear in Settings → Appearance while it's the theme. They're saved as `appearance.windowOpacity` and `appearance.windowBlur` in `.axisnotes/config.json`; older configs get the defaults.
+  - The blur is Windows acrylic (`setEffects`), like Windows Terminal's acrylic. At 100% the window is solid and nothing is blurred.
+- **The main window is created transparent** (`transparent: true` in `tauri.conf.json`). This is needed because WebView2 can't become see-through after the window exists.
+  - Every other theme paints an opaque page, so they look the same as before.
+  - `app.css` paints a solid light or dark page under the app until a theme takes over, so the page is never see-through by accident. It is not an inline `<style>` in `index.html`: Tauri hashes inline styles into the CSP, which disables `'unsafe-inline'` and blocks the styles CodeMirror injects (trailing spaces then vanish while typing).
+  - The capability adds `core:window:allow-set-effects` (clearing effects uses it too).
+- **Only the backdrop carries the opacity** (`--tl-alpha`, set on the document). Panes are faint tints over it, so nested surfaces (an editor inside a pane, buttons on a panel) don't stack up into opaque patches. Menus and dialogs stay nearly solid, for reading. Tokens stay plain `rgba()`, which the graph's colour parser can read.
+- **Windows only for now.** macOS would need Tauri's private API, which isn't allowed in the App Store, and Linux depends on the compositor. Elsewhere the theme stays solid, and its settings are disabled with an explanation.
+
 ## 2026-10-09: Five more built-in themes, and theme tiles (T-067)
 
 - **Darker, Minimal, Glass, High contrast and Retro** join Light, Dark and Match system:

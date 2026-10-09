@@ -179,3 +179,11 @@
 [data-theme-preview="contrast"] .tp-active {
   outline: 1px solid var(--accent);
 }
+/* Translucent: a desktop wallpaper shows through the miniature at the chosen opacity. */
+.tp[data-theme-preview="translucent"] {
+  background:
+    linear-gradient(var(--app-backdrop), var(--app-backdrop)),
+    radial-gradient(circle at 18% 22%, #6f8dff 0%, transparent 52%),
+    radial-gradient(circle at 88% 85%, #ff86c2 0%, transparent 50%),
+    linear-gradient(135deg, #3a4fa8, #9a5bc4);
+}

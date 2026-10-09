@@ -3,7 +3,12 @@ import { Maximize2, Minimize2 } from "lucide-react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
-import { applyAppearance, applyTypography } from "./app/appearance";
+import {
+  applyAppearance,
+  applyTranslucency,
+  applyTypography,
+  onBlurAvailabilityChange,
+} from "./app/appearance";
 import { installZoom } from "./app/zoom";
 import { openDailyNote } from "./features/commands/actions";
 import { Modals } from "./features/commands/Modals";
@@ -98,6 +103,12 @@ export default function App() {
 
   const typography = useConfig((s) => s.config.appearance);
   useEffect(() => applyTypography(typography), [typography]);
+  const { windowOpacity, windowBlur } = typography;
+  useEffect(() => {
+    const apply = () => void applyTranslucency(theme, { windowOpacity, windowBlur });
+    apply();
+    return onBlurAvailabilityChange(apply);
+  }, [theme, windowOpacity, windowBlur]);
 
   // Zoom applies to the welcome screen too, so it doesn't wait for a vault.
   useEffect(() => installZoom(), []);

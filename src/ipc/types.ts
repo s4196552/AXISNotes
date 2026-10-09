@@ -392,6 +392,10 @@ export interface Backend {
   onIndexProgress(cb: (p: IndexProgress) => void): Promise<() => void>;
   /** Zoom the whole app (1 = 100%). */
   setZoom(factor: number): Promise<void>;
+  /** Whether the window can be see-through (Translucent theme). Windows only, for now. */
+  canBeTranslucent(): boolean;
+  /** Blur the desktop behind the see-through window (acrylic), or stop blurring it. */
+  setWindowBlur(on: boolean): Promise<void>;
   /** Font families installed on this computer, sorted. */
   listFonts(): Promise<string[]>;
 

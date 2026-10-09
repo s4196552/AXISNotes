@@ -9,6 +9,19 @@ body,
   margin: 0;
 }
 
+/* The window is transparent (for the Translucent theme), so the page is painted solid
+   until a theme takes over; Translucent clears it. Not an inline <style> in index.html:
+   Tauri hashes those into the CSP, which turns off 'unsafe-inline' and blocks the styles
+   CodeMirror injects. */
+html {
+  background: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  html {
+    background: #1c1d21;
+  }
+}
+
 body {
   background: var(--app-backdrop);
   background-attachment: fixed;

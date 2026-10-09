@@ -16,6 +16,7 @@ export const BUILTIN_THEMES = [
   "axis:darker",
   "axis:minimal",
   "axis:glass",
+  "axis:translucent",
   "axis:contrast",
   "axis:retro",
 ] as const;
@@ -32,6 +33,11 @@ export const THEME_INFO: Record<
   "axis:darker": { label: "Darker", note: "Near-black, for OLED screens", mode: "dark" },
   "axis:minimal": { label: "Minimal", note: "Monochrome ink, no distractions", mode: "light" },
   "axis:glass": { label: "Glass", note: "Frosted panels; follows light/dark", mode: "system" },
+  "axis:translucent": {
+    label: "Translucent",
+    note: "See your desktop through it; opacity is yours",
+    mode: "system",
+  },
   "axis:contrast": {
     label: "High contrast",
     note: "Black, white and yellow; strong edges",
@@ -132,7 +138,9 @@ export function fontStack(family: string, fallback: string): string {
 }
 
 /** Note text size, fonts and editor width, as CSS variables on the document. */
-export function applyTypography(a: AxisConfig["appearance"]) {
+export function applyTypography(
+  a: Pick<AxisConfig["appearance"], "noteFontSize" | "noteFont" | "uiFont" | "editorWidth">,
+) {
   const style = document.documentElement.style;
   const size = Math.min(
     NOTE_FONT_SIZES.max,
@@ -144,6 +152,56 @@ export function applyTypography(a: AxisConfig["appearance"]) {
   else style.removeProperty("--font-ui");
   if (a.noteFont) style.setProperty("--font-note", fontStack(a.noteFont, "var(--font-ui)"));
   else style.removeProperty("--font-note");
+}
+
+export const WINDOW_OPACITY = { min: 20, max: 100, step: 5 };
+const NO_TRANSPARENCY = "(prefers-reduced-transparency: reduce)";
+
+/**
+ * True when Windows' "Transparency effects" are off: Windows then paints acrylic as a
+ * solid grey, so the blur is skipped (the desktop still shows through, unblurred).
+ */
+export function blurUnavailable(): boolean {
+  return window.matchMedia?.(NO_TRANSPARENCY).matches ?? false;
+}
+
+/** Call `listener` when Windows' transparency effects are turned on or off. */
+export function onBlurAvailabilityChange(listener: () => void): () => void {
+  const media = window.matchMedia?.(NO_TRANSPARENCY);
+  media?.addEventListener?.("change", listener);
+  return () => media?.removeEventListener?.("change", listener);
+}
+
+// What the window was last told, to skip repeat calls. Windows start unblurred, so nothing
+// is sent until Translucent wants the blur.
+let blurOn: boolean | null = false;
+
+/**
+ * The Translucent theme's see-through window: `--tl-alpha` is the opacity its backdrop
+ * uses, and the desktop behind is blurred if asked. Elsewhere, or where the window can't
+ * be see-through, the opacity is 1 and nothing is blurred. No blur either while Windows'
+ * transparency effects are off (see `blurUnavailable`).
+ */
+export async function applyTranslucency(
+  theme: string,
+  a: Pick<AxisConfig["appearance"], "windowOpacity" | "windowBlur">,
+) {
+  const on = theme === "axis:translucent" && backend.canBeTranslucent();
+  const pct = Math.min(
+    WINDOW_OPACITY.max,
+    Math.max(WINDOW_OPACITY.min, Math.round(a.windowOpacity) || WINDOW_OPACITY.max),
+  );
+  const alpha = on ? pct / 100 : 1;
+  document.documentElement.style.setProperty("--tl-alpha", String(alpha));
+  const blur = on && a.windowBlur && alpha < 1 && !blurUnavailable();
+  if (blur === blurOn) return;
+  blurOn = blur;
+  try {
+    await backend.setWindowBlur(blur);
+  } catch (e) {
+    blurOn = null;
+    console.warn("window blur failed", e);
+  }
 }
 
 /** The effective light/dark mode, for "toggle theme". */

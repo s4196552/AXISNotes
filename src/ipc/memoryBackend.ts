@@ -468,6 +468,9 @@ export function createMemoryBackend(
     async setZoom(factor) {
       document.documentElement.style.setProperty("zoom", String(factor));
     },
+    // A browser page can't show the desktop behind it.
+    canBeTranslucent: () => false,
+    async setWindowBlur() {},
     listFonts: async () => [
       "Arial",
       "Cascadia Code",

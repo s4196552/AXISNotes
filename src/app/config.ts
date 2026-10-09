@@ -33,6 +33,10 @@ export interface AxisConfig {
     noteFont: string;
     uiFont: string;
     editorWidth: EditorWidth;
+    /** Translucent theme: how opaque the window is (percent), and whether the desktop
+     *  behind it is blurred. */
+    windowOpacity: number;
+    windowBlur: boolean;
   };
   folderIcons: Record<string, FolderIcon>;
   dailyNotes: {
@@ -72,7 +76,14 @@ export const DEFAULT_CONFIG: AxisConfig = {
   ai: { folders: {} },
   theme: "system",
   snippets: [],
-  appearance: { noteFontSize: 15, noteFont: "", uiFont: "", editorWidth: "medium" },
+  appearance: {
+    noteFontSize: 15,
+    noteFont: "",
+    uiFont: "",
+    editorWidth: "medium",
+    windowOpacity: 80,
+    windowBlur: true,
+  },
   folderIcons: {},
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   templatesFolder: "Templates",

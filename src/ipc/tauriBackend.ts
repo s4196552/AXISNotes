@@ -1,6 +1,7 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
+import { Effect, getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AiRunResult, Backend, Clipped, IndexProgress, VaultChange, VaultInfo } from "./types";
 
@@ -90,6 +91,13 @@ export function createTauriBackend(): Backend {
       return listen<{ changes: VaultChange[] }>(VAULT_CHANGED_EVENT, (e) => cb(e.payload.changes));
     },
     setZoom: (factor) => getCurrentWebview().setZoom(factor),
+    // The window is created transparent (tauri.conf.json); WebView2 shows what's behind.
+    // macOS would need the private API, and Linux depends on the compositor.
+    canBeTranslucent: () => /Windows/.test(navigator.userAgent),
+    setWindowBlur: (on) =>
+      on
+        ? getCurrentWindow().setEffects({ effects: [Effect.Acrylic] })
+        : getCurrentWindow().clearEffects(),
     listFonts: () => invoke("list_fonts"),
     async onIndexProgress(cb) {
       return listen<IndexProgress>(INDEX_PROGRESS_EVENT, (e) => cb(e.payload));

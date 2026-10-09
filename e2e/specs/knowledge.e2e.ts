@@ -194,6 +194,49 @@ describe("Phase 1: knowledge features on a real vault", () => {
     await browser.keys(Key.Escape);
     await snapshot("04-app-dark");
   });
+
+  it("makes the window see-through with the Translucent theme, at the chosen opacity", async () => {
+    // The window must accept the blur (a missing permission only logs a warning).
+    await browser.execute(() => {
+      const w = window as unknown as { warnings: string[] };
+      w.warnings = [];
+      const warn = console.warn.bind(console);
+      console.warn = (...args: unknown[]) => {
+        w.warnings.push(String(args[0]));
+        warn(...args);
+      };
+    });
+    await $('button[aria-label="Settings"]').click();
+    await $('label[data-theme-id="axis:translucent"]').click();
+    const slider = $('input[aria-label="Window opacity"]');
+    await slider.waitForExist();
+    await browser.execute(() => {
+      const input = document.querySelector<HTMLInputElement>('input[aria-label="Window opacity"]')!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "50");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await until(
+      () => read(".axisnotes/config.json").includes('"windowOpacity": 50'),
+      "opacity not saved",
+    );
+    // See-through on Windows; solid where the window can't be (Linux, for now).
+    const alpha = process.platform === "win32" ? "0.5" : "1";
+    await until(
+      async () =>
+        (await browser.execute(() =>
+          document.documentElement.style.getPropertyValue("--tl-alpha"),
+        )) === alpha,
+      "opacity not applied",
+    );
+    expect(
+      await browser.execute(() => getComputedStyle(document.documentElement).backgroundColor),
+    ).toBe("rgba(0, 0, 0, 0)");
+    expect(
+      await browser.execute(() => (window as unknown as { warnings: string[] }).warnings),
+    ).toEqual([]);
+    await browser.keys(Key.Escape);
+    await snapshot("05-app-translucent");
+  });
 });
 
 async function openNoteFromResults(results: ReturnType<typeof $>) {
