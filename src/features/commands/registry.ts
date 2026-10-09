@@ -18,6 +18,7 @@ import { effectiveShortcut, formatHotkey, matches, type Shortcut } from "./hotke
 import { useEditorPrefs } from "../editor/prefs";
 import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { useUpdates } from "../updates/updates";
+import { toggleLeftPanel, toggleRightPanel, toggleSidePanels } from "../../app/layout";
 
 export interface Command {
   id: string;
@@ -196,6 +197,14 @@ registerCommands([
     ignoreIn: OWN_ZOOM,
     run: zoomReset,
   },
+  {
+    id: "toggle-side-panels",
+    label: "Hide/show side panels",
+    shortcut: { key: "\\", mod: true },
+    run: toggleSidePanels,
+  },
+  { id: "toggle-left-panel", label: "Hide/show left panel", run: toggleLeftPanel },
+  { id: "toggle-right-panel", label: "Hide/show right panel", run: toggleRightPanel },
   {
     id: "toggle-theme",
     label: "Toggle light/dark theme",

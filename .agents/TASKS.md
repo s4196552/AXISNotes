@@ -51,6 +51,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-040 | 6     | Zoom, note text size, fonts, editor width (Settings → Appearance) | claude | merged | agent/claude/T-040 | `src/app/zoom.ts`, `src/app/appearance.ts`, settings |
 | T-041 | 6     | Zoom keys on the welcome screen too | claude | merged | agent/claude/T-041 | `src/app/zoom.ts` |
 | T-066 | 6     | Updates from a folder: check on launch, banner, Settings → Updates, publish script | claude | in-review | agent/claude/T-066 | `src-tauri/src/updates*.rs`, `src/features/updates/**`, `scripts/publish-update.ps1`, version |
+| T-064 | 6     | Hide/show side panels from the main area (button, `Ctrl+\`, per-device) | claude | approved | agent/claude/T-064 | `src/app/layout.ts`, `src/App.tsx`, `src/app/store.ts`, `src/features/commands/registry.ts`, `src/styles/app.css`, `src/features/graph/useSigma.ts` (resize) |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

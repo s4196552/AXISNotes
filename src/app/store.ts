@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { backend, isBackendError, type NoteRef, type VaultEntry, type VaultInfo } from "../ipc";
 import { parseWikilinkInner } from "../lib/markdown";
 import { markNewVault, rememberVault } from "./recentVaults";
+import { showLeftPanel } from "./layout";
 
 /** Where to put the cursor after opening a note. */
 export interface OpenTarget {
@@ -164,12 +165,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  // Both bring the left panel back if it was hidden, so the result is visible.
   search(query) {
     set({ leftPanel: "search", searchQuery: query });
+    showLeftPanel();
   },
 
   setLeftPanel(panel) {
     set({ leftPanel: panel });
+    showLeftPanel();
   },
 
   setMainView(view) {
