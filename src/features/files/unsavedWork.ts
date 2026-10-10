@@ -38,7 +38,9 @@ const closing = new Set<Promise<void>>();
 const unrecovered = new Set<Unrecovered>();
 let preserving = false;
 
-const currentVault = () => useAppStore.getState().vault?.root ?? null;
+/** The open vault's root. Documents note it when they load: by the time one closes, the
+ *  app may already have switched to another vault. */
+export const currentVault = () => useAppStore.getState().vault?.root ?? null;
 const describe = (e: unknown) => (isBackendError(e) ? e.message : String(e));
 
 /** Register an open document; returns the function that unregisters it. A flush that
@@ -85,14 +87,20 @@ async function recover(u: Unrecovered): Promise<string | null> {
  * it; `write` must reject when `content` didn't reach the disk. Then the changes are kept
  * in a new "(unsaved …)" file next to the original instead of being lost, and the user is
  * told. If even that fails, `saveAll` tries again and reports them until it works.
+ * `vault` is the one the document was loaded from: nothing is written while another
+ * vault is open.
  */
 export function trackClosingWrite(
   path: string,
   content: string,
+  vault: string | null,
   write: () => Promise<unknown>,
 ): void {
-  const u: Unrecovered = { vault: currentVault(), path, content };
-  const op = write().then(
+  const u: Unrecovered = { vault, path, content };
+  const op = (async () => {
+    if (vault !== currentVault()) throw new Error("another vault is open now");
+    await write();
+  })().then(
     () => {},
     async (e: unknown) => {
       const kept = await recover(u);

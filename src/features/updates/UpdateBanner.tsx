@@ -19,7 +19,12 @@ export function UpdateBanner() {
           </span>
         )}
       </div>
-      <button disabled={installing} onClick={() => void install()}>
+      <button
+        disabled={installing}
+        // Keep focus where it is until install() has started protecting edits (T-073).
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => void install()}
+      >
         Install and restart
       </button>
       <button aria-label="Later" title="Later" disabled={installing} onClick={dismiss}>

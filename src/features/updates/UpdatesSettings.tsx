@@ -77,7 +77,12 @@ export function UpdatesSettings() {
           {checking ? "Checking…" : "Check for updates"}
         </button>
         {available && (
-          <button disabled={installing} onClick={() => void install()}>
+          <button
+            disabled={installing}
+            // Keep focus where it is until install() has started protecting edits (T-073).
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => void install()}
+          >
             Install {available.version} and restart
           </button>
         )}

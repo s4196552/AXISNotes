@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { backend, isBackendError, type VaultChange } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import {
+  currentVault,
   registerDocument,
   SAVE_ATTEMPTS,
   trackClosingWrite,
@@ -154,6 +155,7 @@ export function useFileDocument(
   // Initial load; flush unsaved changes on unmount.
   useEffect(() => {
     let cancelled = false;
+    const vault = currentVault();
     backend.readFile(path).then(
       (file) => {
         if (cancelled) return;
@@ -174,7 +176,7 @@ export function useFileDocument(
       if (dirty.current && !paused.current && enabledRef.current) {
         // If the write fails, the changes are kept in an "(unsaved …)" file instead.
         const content = serializeRef.current();
-        trackClosingWrite(path, content, async () => {
+        trackClosingWrite(path, content, vault, async () => {
           while (saving.current) await saving.current; // it may have saved this already
           if (dirty.current) await backend.writeFile(path, content, mtime.current);
         });

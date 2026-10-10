@@ -9,6 +9,7 @@ import { embedRange, ensureBlockId, listBlocks, listHeadings } from "../../lib/b
 import { noteName, parseWikilinkInner } from "../../lib/markdown";
 import { isImagePath, parseImageEmbed, resolveAttachment } from "../../lib/attachments";
 import {
+  currentVault,
   preservingEdits,
   registerDocument,
   SAVE_ATTEMPTS,
@@ -58,6 +59,8 @@ class EmbedController {
   private saving: Promise<void> | null = null;
   private unlisten: (() => void) | null = null;
   private destroyed = false;
+  /** The vault this embed was loaded from. */
+  private readonly vault = currentVault();
   /** Why the last save didn't write the edit, if it didn't. */
   private problem: "conflict" | "failed" | null = null;
   /** Lets installing an update save this embed first (T-073). A changed source block is
@@ -220,7 +223,7 @@ class EmbedController {
       const next = this.view!.state.doc.toString();
       // Rejects unless the edit reached the disk; then the block is kept in an
       // "(unsaved …)" file next to the source note instead.
-      trackClosingWrite(path, next, async () => {
+      trackClosingWrite(path, next, this.vault, async () => {
         while (this.saving) await this.saving;
         if (next === this.loaded) return;
         const r = await writeBlock(path, this.inner, this.loaded, next);

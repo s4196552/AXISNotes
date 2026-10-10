@@ -187,6 +187,28 @@ describe("installing an update", () => {
     expect(Object.keys(h.b.files()).filter((p) => p.includes("unsaved"))).toEqual([]);
   });
 
+  it("never writes a closing note into a vault opened since it was loaded", async () => {
+    useAppStore.setState({ vault: { root: "A" } as never });
+    const { view, unmount } = await openNote();
+    type(view, " from A");
+    // Opening another vault switches the backend first; the editor unmounts after.
+    useAppStore.setState({ vault: { root: "B" } as never });
+    unmount();
+    expect(await act(() => saveAll())).toEqual([{ path: "School/Biology.md", reason: "failed" }]);
+    expect(h.b.files()["School/Biology.md"]).toBe("# Biology");
+    expect(Object.keys(h.b.files()).filter((p) => p.includes("unsaved"))).toEqual([]);
+    // Back in vault A, the changes are kept in a recovery file.
+    useAppStore.setState({ vault: { root: "A" } as never });
+    expect(await act(() => saveAll())).toEqual([]);
+    expect(Object.values(h.b.files())).toContain("# Biology from A");
+  });
+
+  it("pressing the install button doesn't move focus before install starts", async () => {
+    await openNote();
+    // A prevented mousedown leaves focus (and an embed's edit) alone until the click.
+    expect(fireEvent.mouseDown(installButton())).toBe(false);
+  });
+
   it("saves a grid or canvas waiting for autosave", async () => {
     let content = "{}";
     const { result } = renderHook(() => useFileDocument("Budget.axgrid", () => content));
@@ -220,7 +242,7 @@ describe("saveAll", () => {
 
   it("keeps a closed document's changes in a new file when its final write fails", async () => {
     inVault("A");
-    trackClosingWrite("School/Biology.md", "# Biology\n\nlast words", fail);
+    trackClosingWrite("School/Biology.md", "# Biology\n\nlast words", "A", fail);
     expect(await saveAll()).toEqual([]);
     const [path, content] = recovered()[0]!;
     expect(path).toMatch(/^School\/Biology \(unsaved .+\)\.md$/);
@@ -231,8 +253,8 @@ describe("saveAll", () => {
 
   it("keeps each failed write on its own, even for the same file", async () => {
     inVault("A");
-    trackClosingWrite("Tasks.md", "block A", fail);
-    trackClosingWrite("Tasks.md", "block B", fail);
+    trackClosingWrite("Tasks.md", "block A", "A", fail);
+    trackClosingWrite("Tasks.md", "block B", "A", fail);
     expect(await saveAll()).toEqual([]);
     expect(
       recovered()
@@ -245,7 +267,7 @@ describe("saveAll", () => {
     inVault("A");
     const create = h.b.createFile;
     h.b.createFile = fail as never;
-    trackClosingWrite("School/Biology.md", "last words", fail);
+    trackClosingWrite("School/Biology.md", "last words", "A", fail);
     expect(await saveAll()).toEqual([{ path: "School/Biology.md", reason: "failed" }]);
     expect(await saveAll()).toEqual([{ path: "School/Biology.md", reason: "failed" }]);
     h.b.createFile = create;
@@ -257,7 +279,7 @@ describe("saveAll", () => {
     inVault("A");
     const create = h.b.createFile;
     h.b.createFile = fail as never;
-    trackClosingWrite("School/Biology.md", "last words", fail);
+    trackClosingWrite("School/Biology.md", "last words", "A", fail);
     await Promise.resolve();
     h.b.createFile = create;
     inVault("B");

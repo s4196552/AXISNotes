@@ -15,6 +15,7 @@ import { type Props, splitFrontmatter, withFrontmatter } from "../../lib/markdow
 import { useUi } from "../commands/ui";
 import { PAGE_STYLE_PROP, PAGE_STYLES } from "../templates/templates";
 import {
+  currentVault,
   registerDocument,
   SAVE_ATTEMPTS,
   trackClosingWrite,
@@ -228,6 +229,7 @@ export function Editor({ path }: EditorProps) {
   useEffect(() => {
     let cancelled = false;
     let created: EditorView | null = null;
+    const vault = currentVault();
 
     backend
       .readFile(path)
@@ -320,7 +322,7 @@ export function Editor({ path }: EditorProps) {
       clearTimer();
       if (created && dirty.current && !paused.current) {
         const content = created.state.doc.toString();
-        trackClosingWrite(path, content, async () => {
+        trackClosingWrite(path, content, vault, async () => {
           while (saving.current) await saving.current; // it may have saved this already
           if (dirty.current) await backend.writeFile(path, content, mtime.current);
         });

@@ -7,7 +7,7 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **"Install and restart" (banner and Settings → Updates) saves every open document before it starts the installer**, because the installer closes the app at once (`app.exit(0)`) and an edit still inside the autosave delay would be lost.
   - Notes, grids, canvases and editable embeds register a `flush` with `src/features/files/unsavedWork.ts`. `saveAll()` calls them all, waits for the writes (including the final write of a document that just closed) and returns what is still not on disk. A flush that throws counts as unsaved.
   - **A closed document's failed final write goes into a recovery file.** A document that closes (e.g. switching notes) writes its last changes once, after any save already under way. If that write fails, the changes are written to a new file next to the original, `Name (unsaved 2026-10-10 14-03-22).md`, and the user is told.
-    - The recovery file is only ever created, never overwritten, and only in the vault the changes came from.
+    - Each document notes the vault it was loaded from. Its final write and any recovery file happen only while that vault is open: opening another vault switches the backend before the old editor unmounts. The recovery file is only ever created, never overwritten.
     - If it can't be created either, `saveAll` tries again and reports the file until it works, so installing is refused meanwhile.
     - This replaced retrying the original write, which could lose content (a later save "settled" it), raise false failures, or recreate a renamed or deleted file. A new, clearly named file has none of those problems. It follows the build prompt's `Note (conflict YYYY-MM-DD).md` convention.
   - While installing (`preserveEdits`), an embed whose source block changed keeps its edit and reports a conflict. It does not reload over the edit as its ordinary autosave does. This also applies to a save already under way when Install was clicked.
@@ -15,6 +15,8 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - Saves wait until no write is in flight, then re-check that the document still needs saving. Before, two saves queued behind one write both wrote, and the second's mtime check raised a false conflict.
 - **If anything can't be saved, nothing is installed.** That covers an unresolved "changed on disk" conflict, a note moved or deleted elsewhere, or a failed write. The banner names each file and why ("Unsaved changes in “School/Biology” (changed on disk)"), so the user can resolve it and try again. Saving never forces past a conflict: the user decides which version wins.
 - **The window is made `inert` while it saves and installs**, so no new edit can start after the save. It is restored if installing is refused or fails.
+  - The global shortcut listener ignores every key while the window is inert, because shortcuts like Ctrl+Shift+B would otherwise still change a note.
+  - The install buttons prevent `mousedown`, so pressing one doesn't blur an embed (which could reload over its edit) before `install()` has turned on `preserveEdits`.
 - **Frontend only.** The Rust `updates_install` command is unchanged; the guard runs before it is called.
 
 ## 2026-10-09: Translucent theme with an opacity setting (T-069)

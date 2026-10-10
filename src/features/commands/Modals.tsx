@@ -25,6 +25,13 @@ const GettingStarted = lazyNamed(() => import("../vault/GettingStarted"), "Getti
 function useShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // The window is frozen while an update installs (T-073): no command may change a
+      // document after everything was saved.
+      if (document.body.hasAttribute("inert")) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       if (useUi.getState().modal) return;
       const cmd = commandForEvent(e);
       if (!cmd) return;
