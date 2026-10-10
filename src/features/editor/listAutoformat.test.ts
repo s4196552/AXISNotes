@@ -150,7 +150,7 @@ describe("lists start as you type", () => {
     expect(view.state.doc.toString()).toBe("x\n-  ");
   });
 
-  it("does nothing in code, frontmatter or math", () => {
+  it("does nothing in code, frontmatter, raw HTML, comments or math", () => {
     const docs = [
       "```\n|\n```",
       "---\ntags: a\n|\n---\nbody",
@@ -158,9 +158,12 @@ describe("lists start as you type", () => {
       "`|`",
       "    code\n    |", // a blank line in indented code, before it holds any text
       "para\n\n    |", // four spaces of indent after a blank line start indented code
+      "<pre>\n|\n</pre>",
+      "<div>\n|\n</div>", // the blank line joins the HTML block once it holds text
+      "<!--\n|\n-->",
     ];
     for (const doc of docs) {
-      for (const typed of ["-x", "1x", "3."]) {
+      for (const typed of ["-x", "1x", "3.", "1 + 2"]) {
         const view = editor(doc);
         const before = view.state.doc.toString();
         const at = view.state.selection.main.head;
@@ -219,6 +222,9 @@ describe("bullets in live preview", () => {
   it("show for a bullet just started under a paragraph", () => {
     expect(bullets("intro\n- ", 8)).toEqual([6]);
     expect(bullets("```\n- \n```", 6)).toEqual([]);
+    // A line of a multi-line inline code span is code, whatever it starts with.
+    expect(bullets("`a\n+ \nb`", 5)).toEqual([]);
+    expect(bullets("<div>\n- \n</div>", 8)).toEqual([]);
   });
 
   it("never turn a minus sign in an equation into a bullet while it's edited", () => {

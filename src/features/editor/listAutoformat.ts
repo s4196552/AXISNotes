@@ -1,7 +1,7 @@
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { type EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
-import { inCode, insideMath } from "./math";
+import { insideMath } from "./math";
 
 // Lists start as you type, without the space Markdown needs:
 //   `-` at the start of a line            → `- `   (a bullet, shown at once)
@@ -13,7 +13,7 @@ import { inCode, insideMath } from "./math";
 //   a digit (or `,` `:` `/` `)` `-`) after an auto `1. ` gives plain `10`, `1:30`, `1/2`…,
 //   and a digit after an auto `3. ` gives `3.5`;
 //   Backspace right after puts back just the character that was typed.
-// Never in code, frontmatter or math, and only for a single plain cursor.
+// Never in code, frontmatter, raw HTML, comments or math, and only for one plain cursor.
 
 interface Auto {
   /** Where the typed character went, and the cursor after the formatting. */
@@ -34,33 +34,41 @@ const autoField = StateField.define<Auto | null>({
   },
 });
 
-const CODE = /^(InlineCode|FencedCode|CodeBlock|CodeText|Frontmatter|FrontmatterContent)$/;
+/** Syntax nodes whose text is kept as written: code, frontmatter, raw HTML, comments. */
+export const VERBATIM =
+  /^(InlineCode|FencedCode|CodeBlock|CodeText|Frontmatter|FrontmatterContent|HTMLBlock|CommentBlock|ProcessingInstructionBlock)$/;
 
-/** Text that isn't Markdown prose: code, frontmatter or `$$` math. */
-function verbatim(state: EditorState, pos: number): boolean {
-  // The character before only counts on the same line: the newline ending a frontmatter
-  // or fence belongs to it, but the line after is prose (and where notes open).
-  const lineStart = state.doc.lineAt(pos).from;
-  return (
-    inCode(state, pos) || (pos > lineStart && inCode(state, pos - 1)) || insideMath(state, pos)
-  );
-}
-
-/**
- * Whether `insert` at `pos` would be code once typed: a blank line only joins an
- * indented code block when text arrives (`    code` then `    |`), and four spaces of
- * indent after a blank line start one.
- */
-function becomesCode(state: EditorState, pos: number, insert: string): boolean {
-  const next = state.update({ changes: { from: pos, insert } }).state;
-  const tree = ensureSyntaxTree(next, pos + insert.length, 50) ?? syntaxTree(next);
+function inVerbatim(state: EditorState, pos: number, upTo = pos): boolean {
+  const tree = ensureSyntaxTree(state, upTo, 50) ?? syntaxTree(state);
   for (
     let n: ReturnType<typeof tree.resolveInner> | null = tree.resolveInner(pos, 1);
     n;
     n = n.parent
   )
-    if (CODE.test(n.name)) return true;
+    if (VERBATIM.test(n.name)) return true;
   return false;
+}
+
+/** Text that isn't Markdown prose: code, frontmatter, raw HTML, comments or `$$` math. */
+function verbatim(state: EditorState, pos: number): boolean {
+  // The character before only counts on the same line: the newline ending a frontmatter
+  // or fence belongs to it, but the line after is prose (and where notes open).
+  const lineStart = state.doc.lineAt(pos).from;
+  return (
+    inVerbatim(state, pos) ||
+    (pos > lineStart && inVerbatim(state, pos - 1)) ||
+    insideMath(state, pos)
+  );
+}
+
+/**
+ * Whether `insert` at `pos` would be verbatim once typed: a blank line only joins an
+ * indented code block (`    code` then `    |`) or an HTML block (`<div>` then `|`) when
+ * text arrives, and four spaces of indent after a blank line start a code block.
+ */
+function becomesVerbatim(state: EditorState, pos: number, insert: string): boolean {
+  const next = state.update({ changes: { from: pos, insert } }).state;
+  return inVerbatim(next, pos, pos + insert.length);
 }
 
 function replace(view: EditorView, from: number, to: number, insert: string, auto: Auto | null) {
@@ -107,7 +115,7 @@ const typing = EditorView.inputHandler.of((view, from, to, text) => {
   else if (text === "1" && /^\s*$/.test(before) && after === "") insert = "1. ";
   else if (text === "." && /^\s*\d{1,9}$/.test(before) && after === "") insert = ". ";
   else return false;
-  if (verbatim(state, from) || becomesCode(state, from, insert)) return false;
+  if (verbatim(state, from) || becomesVerbatim(state, from, insert)) return false;
   return replace(view, from, from, insert, { from, pos: from + insert.length, typed: text });
 });
 

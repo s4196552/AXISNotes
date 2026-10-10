@@ -9,6 +9,7 @@ import {
   WidgetType,
 } from "@codemirror/view";
 import { mathRanges } from "./math";
+import { VERBATIM } from "./listAutoformat";
 
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
@@ -221,10 +222,7 @@ export function buildDecorations(
       continue;
     let plain = true;
     for (let node: SyntaxNode | null = tree.resolveInner(at, 1); node; node = node.parent) {
-      if (
-        /^(ListMark|FencedCode|CodeBlock|HTMLBlock|Frontmatter|FrontmatterContent)$/.test(node.name)
-      )
-        plain = false;
+      if (node.name === "ListMark" || VERBATIM.test(node.name)) plain = false;
     }
     if (plain) out.push(bullet.range(at, at + 1));
   }
