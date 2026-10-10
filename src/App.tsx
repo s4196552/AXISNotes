@@ -7,7 +7,7 @@ import {
   applyAppearance,
   applyTranslucency,
   applyTypography,
-  onBlurAvailabilityChange,
+  onTransparencyEffectsChange,
 } from "./app/appearance";
 import { installZoom } from "./app/zoom";
 import { openDailyNote } from "./features/commands/actions";
@@ -103,12 +103,12 @@ export default function App() {
 
   const typography = useConfig((s) => s.config.appearance);
   useEffect(() => applyTypography(typography), [typography]);
-  const { windowOpacity, windowBlur } = typography;
+  const { windowOpacity, windowEffect } = typography;
   useEffect(() => {
-    const apply = () => void applyTranslucency(theme, { windowOpacity, windowBlur });
+    const apply = () => void applyTranslucency(theme, { windowOpacity, windowEffect });
     apply();
-    return onBlurAvailabilityChange(apply);
-  }, [theme, windowOpacity, windowBlur]);
+    return onTransparencyEffectsChange(apply);
+  }, [theme, windowOpacity, windowEffect]);
 
   // Zoom applies to the welcome screen too, so it doesn't wait for a vault.
   useEffect(() => installZoom(), []);

@@ -394,8 +394,8 @@ export interface Backend {
   setZoom(factor: number): Promise<void>;
   /** Whether the window can be see-through (Translucent theme). Windows only, for now. */
   canBeTranslucent(): boolean;
-  /** Blur the desktop behind the see-through window (acrylic), or stop blurring it. */
-  setWindowBlur(on: boolean): Promise<void>;
+  /** What Windows draws behind the see-through window; `null` for nothing (clear). */
+  setWindowEffect(effect: OsWindowEffect | null): Promise<void>;
   /** Font families installed on this computer, sorted. */
   listFonts(): Promise<string[]>;
 
@@ -464,3 +464,6 @@ export interface Backend {
   /** Copy a folder (e.g. an Obsidian vault) into `target` in the open vault. */
   importObsidian(source: string, target: string): Promise<ImportReport>;
 }
+
+/** Window materials Windows can draw behind a see-through window (Tauri's names). */
+export type OsWindowEffect = "blur" | "acrylic" | "mica" | "tabbed";

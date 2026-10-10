@@ -1,5 +1,5 @@
-import { backend } from "../ipc";
-import type { AxisConfig, EditorWidth } from "./config";
+import { backend, type OsWindowEffect } from "../ipc";
+import type { AxisConfig, EditorWidth, WindowEffect } from "./config";
 
 // Applies the theme and CSS snippets from the vault config to the document.
 // Built-in modes set `data-theme`; user themes and snippets are injected <style> tags.
@@ -158,33 +158,74 @@ export const WINDOW_OPACITY = { min: 20, max: 100, step: 5 };
 const NO_TRANSPARENCY = "(prefers-reduced-transparency: reduce)";
 
 /**
- * True when Windows' "Transparency effects" are off: Windows then paints acrylic as a
- * solid grey, so the blur is skipped (the desktop still shows through, unblurred).
+ * What Windows can draw behind the see-through window, from most to least see-through.
+ * Everything but Clear is a Windows material (`os`), and needs Windows' "Transparency
+ * effects": with them off, Windows paints each one as a solid fill.
  */
-export function blurUnavailable(): boolean {
+export const WINDOW_EFFECTS: readonly {
+  id: WindowEffect;
+  label: string;
+  note: string;
+  os: OsWindowEffect | null;
+}[] = [
+  { id: "clear", label: "Clear", note: "Your desktop shows through as it is.", os: null },
+  {
+    id: "blur",
+    label: "Blur",
+    note: "A soft blur of what's behind. On newer Windows 11 it can lag while the window moves.",
+    os: "blur",
+  },
+  {
+    id: "frosted",
+    label: "Frosted",
+    note: "Blurred and lightly grained, like frosted glass (Windows acrylic).",
+    os: "acrylic",
+  },
+  {
+    id: "mica",
+    label: "Mica",
+    note: "Only a soft tint of your wallpaper, like Windows 11's own apps. Windows 11 only.",
+    os: "mica",
+  },
+  {
+    id: "micaAlt",
+    label: "Mica Alt",
+    note: "A deeper wallpaper tint, as in Windows 11's tabbed apps. Windows 11 only.",
+    os: "tabbed",
+  },
+];
+
+/** The effect saved in the config; anything unknown gets the default, Frosted. */
+export function windowEffectInfo(id: string) {
+  return WINDOW_EFFECTS.find((e) => e.id === id) ?? WINDOW_EFFECTS[2]!;
+}
+
+/** True when Windows' "Transparency effects" are off: only Clear shows the desktop then. */
+export function transparencyEffectsOff(): boolean {
   return window.matchMedia?.(NO_TRANSPARENCY).matches ?? false;
 }
 
 /** Call `listener` when Windows' transparency effects are turned on or off. */
-export function onBlurAvailabilityChange(listener: () => void): () => void {
+export function onTransparencyEffectsChange(listener: () => void): () => void {
   const media = window.matchMedia?.(NO_TRANSPARENCY);
   media?.addEventListener?.("change", listener);
   return () => media?.removeEventListener?.("change", listener);
 }
 
-// What the window was last told, to skip repeat calls. Windows start unblurred, so nothing
-// is sent until Translucent wants the blur.
-let blurOn: boolean | null = false;
+// What the window was last told, to skip repeat calls. Windows start with no effect, so
+// nothing is sent until Translucent wants one. `undefined`: unknown (a call failed).
+let sentEffect: OsWindowEffect | null | undefined = null;
 
 /**
  * The Translucent theme's see-through window: `--tl-alpha` is the opacity its backdrop
- * uses, and the desktop behind is blurred if asked. Elsewhere, or where the window can't
- * be see-through, the opacity is 1 and nothing is blurred. No blur either while Windows'
- * transparency effects are off (see `blurUnavailable`).
+ * uses, and Windows draws the chosen effect behind it. Elsewhere, or where the window
+ * can't be see-through, the opacity is 1 and there's no effect. An effect is also left
+ * off while Windows' transparency effects are, since it'd be a solid fill: the window
+ * looks Clear until they're turned on.
  */
 export async function applyTranslucency(
   theme: string,
-  a: Pick<AxisConfig["appearance"], "windowOpacity" | "windowBlur">,
+  a: Pick<AxisConfig["appearance"], "windowOpacity" | "windowEffect">,
 ) {
   const on = theme === "axis:translucent" && backend.canBeTranslucent();
   const pct = Math.min(
@@ -193,14 +234,15 @@ export async function applyTranslucency(
   );
   const alpha = on ? pct / 100 : 1;
   document.documentElement.style.setProperty("--tl-alpha", String(alpha));
-  const blur = on && a.windowBlur && alpha < 1 && !blurUnavailable();
-  if (blur === blurOn) return;
-  blurOn = blur;
+  const effect =
+    on && alpha < 1 && !transparencyEffectsOff() ? windowEffectInfo(a.windowEffect).os : null;
+  if (effect === sentEffect) return;
+  sentEffect = effect;
   try {
-    await backend.setWindowBlur(blur);
+    await backend.setWindowEffect(effect);
   } catch (e) {
-    blurOn = null;
-    console.warn("window blur failed", e);
+    sentEffect = undefined;
+    console.warn("window effect failed", e);
   }
 }
 

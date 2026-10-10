@@ -94,9 +94,9 @@ export function createTauriBackend(): Backend {
     // The window is created transparent (tauri.conf.json); WebView2 shows what's behind.
     // macOS would need the private API, and Linux depends on the compositor.
     canBeTranslucent: () => /Windows/.test(navigator.userAgent),
-    setWindowBlur: (on) =>
-      on
-        ? getCurrentWindow().setEffects({ effects: [Effect.Acrylic] })
+    setWindowEffect: (effect) =>
+      effect
+        ? getCurrentWindow().setEffects({ effects: [effect as Effect] })
         : getCurrentWindow().clearEffects(),
     listFonts: () => invoke("list_fonts"),
     async onIndexProgress(cb) {

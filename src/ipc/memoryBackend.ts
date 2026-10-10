@@ -470,7 +470,7 @@ export function createMemoryBackend(
     },
     // A browser page can't show the desktop behind it.
     canBeTranslucent: () => false,
-    async setWindowBlur() {},
+    async setWindowEffect() {},
     listFonts: async () => [
       "Arial",
       "Cascadia Code",
