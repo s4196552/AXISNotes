@@ -196,7 +196,10 @@ describe("lists start as you type", () => {
 
 describe("bullets in live preview", () => {
   const bullets = (doc: string, cursor: number) => {
-    let state = EditorState.create({ doc, extensions: [markdown({ base: markdownLanguage })] });
+    let state = EditorState.create({
+      doc,
+      extensions: [markdown({ base: markdownLanguage }), math],
+    });
     state = state.update({ selection: EditorSelection.cursor(cursor) }).state;
     const found: number[] = [];
     buildDecorations(state).between(0, doc.length, (from, _to, deco) => {
@@ -216,5 +219,11 @@ describe("bullets in live preview", () => {
   it("show for a bullet just started under a paragraph", () => {
     expect(bullets("intro\n- ", 8)).toEqual([6]);
     expect(bullets("```\n- \n```", 6)).toEqual([]);
+  });
+
+  it("never turn a minus sign in an equation into a bullet while it's edited", () => {
+    const doc = "$$\n- x\n- y\n$$\n- item";
+    expect(bullets(doc, 6)).toEqual([14]); // cursor after `x`: only the real item
+    expect(bullets("$$\n- \n$$", 5)).toEqual([]);
   });
 });

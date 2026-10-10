@@ -8,6 +8,7 @@ import {
   type ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
+import { mathRanges } from "./math";
 
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
@@ -126,6 +127,9 @@ export function buildDecorations(
   /** A selection on `from..to` (inclusive): a list marker shows raw only then. */
   const touched = (from: number, to: number) =>
     focused && state.selection.ranges.some((r) => r.from <= to && r.to >= from);
+  // A `-` in an equation is a minus sign, shown as typed while the equation is edited.
+  const maths = mathRanges(state);
+  const inMath = (pos: number) => maths.some((m) => pos > m.from && pos < m.to);
 
   for (const { from, to } of ranges) {
     tree.iterate({
@@ -179,7 +183,8 @@ export function buildDecorations(
             break;
           case "ListMark":
             if (node.parent?.parent?.name === "BulletList" && !hasTask(node.parent)) {
-              if (!touched(node.from, node.to)) out.push(bullet.range(node.from, node.to));
+              if (!touched(node.from, node.to) && !inMath(node.from))
+                out.push(bullet.range(node.from, node.to));
             }
             break;
           case "Task":
@@ -212,7 +217,8 @@ export function buildDecorations(
     const m = /^(\s*)[-*+] $/.exec(l.text);
     if (!m) continue;
     const at = l.from + m[1]!.length;
-    if (!ranges.some((r) => at >= r.from && at <= r.to) || touched(at, at + 1)) continue;
+    if (!ranges.some((r) => at >= r.from && at <= r.to) || touched(at, at + 1) || inMath(at))
+      continue;
     let plain = true;
     for (let node: SyntaxNode | null = tree.resolveInner(at, 1); node; node = node.parent) {
       if (

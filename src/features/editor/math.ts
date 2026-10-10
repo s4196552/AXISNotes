@@ -181,6 +181,11 @@ const mathField = StateField.define<MathState>({
   provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
 });
 
+/** The document's `$$…$$` spans, as last scanned (none without the math extension). */
+export function mathRanges(state: EditorState): readonly { from: number; to: number }[] {
+  return state.field(mathField, false)?.spans ?? [];
+}
+
 /**
  * Whether `pos` is inside `$$…$$` math: an odd number of `$$` before it, outside code
  * (masked the same way as for rendering).
