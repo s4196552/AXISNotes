@@ -322,7 +322,7 @@ export function Editor({ path }: EditorProps) {
       if (created && dirty.current && !paused.current) {
         const content = created.state.doc.toString();
         const expected = mtime.current;
-        trackClosingWrite(path, () => backend.writeFile(path, content, expected)).catch(
+        trackClosingWrite(path, "file", () => backend.writeFile(path, content, expected)).catch(
           (e: unknown) =>
             useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
         );

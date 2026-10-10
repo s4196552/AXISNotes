@@ -8,7 +8,12 @@ import { useAppStore } from "../../app/store";
 import { embedRange, ensureBlockId, listBlocks, listHeadings } from "../../lib/blocks";
 import { noteName, parseWikilinkInner } from "../../lib/markdown";
 import { isImagePath, parseImageEmbed, resolveAttachment } from "../../lib/attachments";
-import { registerDocument, SAVE_ATTEMPTS, trackClosingWrite } from "../files/unsavedWork";
+import {
+  preservingEdits,
+  registerDocument,
+  SAVE_ATTEMPTS,
+  trackClosingWrite,
+} from "../files/unsavedWork";
 import { linkHost } from "./links";
 import { livePreview } from "./livePreview";
 import { axisTheme } from "./theme";
@@ -180,7 +185,7 @@ class EmbedController {
         const r = await writeBlock(path, this.inner, this.loaded, next);
         if (!r.ok) {
           this.problem = "conflict";
-          if (keepOnConflict) {
+          if (keepOnConflict || preservingEdits()) {
             this.setStatus("changed in the source — not saved");
             return;
           }
@@ -215,7 +220,7 @@ class EmbedController {
       const next = this.view!.state.doc.toString();
       // Rejects unless the edit reached the disk, so installing waits for it and is
       // refused (naming the note) if it couldn't be written.
-      void trackClosingWrite(path, async () => {
+      void trackClosingWrite(path, "part", async () => {
         while (this.saving) await this.saving;
         if (next === this.loaded) return;
         const r = await writeBlock(path, this.inner, this.loaded, next);

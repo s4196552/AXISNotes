@@ -176,7 +176,7 @@ export function useFileDocument(
       if (dirty.current && !paused.current && enabledRef.current) {
         const content = serializeRef.current();
         const expected = mtime.current;
-        trackClosingWrite(path, () => backend.writeFile(path, content, expected)).catch(
+        trackClosingWrite(path, "file", () => backend.writeFile(path, content, expected)).catch(
           (e: unknown) =>
             useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
         );

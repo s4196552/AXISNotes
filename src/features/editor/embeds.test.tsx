@@ -8,8 +8,8 @@ import { useAppStore } from "../../app/store";
 import { copyBlockLink } from "../commands/actions";
 import { setActiveEditor } from "./activeEditor";
 import { Editor } from "./Editor";
-import { anchorCompletions, EMBED_SAVE_DELAY_MS, notePath } from "./embeds";
-import { resetUnsavedWork, saveAll } from "../files/unsavedWork";
+import { anchorCompletions, EMBED_SAVE_DELAY_MS, embedControllerFor, notePath } from "./embeds";
+import { preserveEdits, resetUnsavedWork, saveAll } from "../files/unsavedWork";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -89,6 +89,23 @@ describe("embeds", () => {
     expect(nested.state.doc.toString()).toBe("X- buy milk ^b1\n  - 2%");
     expect(h.b.files()["Tasks.md"]).toContain("buy bread ^b1");
     expect(screen.getByText("changed in the source — not saved")).toBeInTheDocument();
+  });
+
+  it("keeps the edit when a save already under way finds the block changed while installing", async () => {
+    await openNote();
+    await waitFor(() => expect(screen.getByLabelText("Embedded Tasks#^b1")).toBeInTheDocument());
+    const nested = embeddedView("Tasks#^b1");
+    await h.b.writeFile("Tasks.md", TASKS.replace("buy milk", "buy bread"));
+    act(() => nested.dispatch({ changes: { from: 0, insert: "X" } }));
+    // Install turns this on, then blurs the embed, which starts its ordinary save.
+    preserveEdits(true);
+    const root = screen.getByLabelText("Embedded Tasks#^b1").closest(".cm-embed") as HTMLElement;
+    const blurSave = embedControllerFor(root)!.save();
+    const result = await act(() => saveAll());
+    await blurSave;
+    expect(result).toEqual([{ path: "Tasks.md", reason: "conflict" }]);
+    expect(nested.state.doc.toString()).toContain("X- buy milk");
+    preserveEdits(false);
   });
 
   it("reports a closed embed's edit that couldn't be written back", async () => {

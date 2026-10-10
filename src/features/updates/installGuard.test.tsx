@@ -184,28 +184,60 @@ describe("installing an update", () => {
 });
 
 describe("saveAll", () => {
-  it("keeps a failed final write, tries it again, and reports it once per file", async () => {
-    let diskWorks = false;
-    const write = vi.fn(async () => {
-      if (!diskWorks) throw new Error("disk full");
+  const failing = (state: { works: boolean }) =>
+    vi.fn(async () => {
+      if (!state.works) throw new Error("disk full");
     });
-    await trackClosingWrite("a.md", write).catch(() => {});
-    void trackClosingWrite("a.md", write).catch(() => {});
-    void trackClosingWrite("b.md", async () => {});
+  const inVault = (root: string | null) =>
+    useAppStore.setState({ vault: root === null ? null : ({ root } as never) });
+
+  it("keeps a failed final write, tries it again, and reports it once per file", async () => {
+    inVault("A");
+    const disk = { works: false };
+    const write = failing(disk);
+    await trackClosingWrite("a.md", "file", write).catch(() => {});
+    await trackClosingWrite("b.md", "file", async () => {});
     // Failed before installing started: still reported, and every attempt is refused.
     expect(await saveAll()).toEqual([{ path: "a.md", reason: "failed" }]);
     expect(await saveAll()).toEqual([{ path: "a.md", reason: "failed" }]);
     // Once a retry gets through, it's settled.
-    diskWorks = true;
+    disk.works = true;
     expect(await saveAll()).toEqual([]);
-    expect(write).toHaveBeenCalledTimes(5);
+    expect(write).toHaveBeenCalledTimes(4);
   });
 
-  it("forgets a failed final write once the file is saved another way", async () => {
-    await trackClosingWrite("a.md", async () => {
-      throw new Error("conflict");
-    }).catch(() => {});
+  it("tracks each failed write to a file on its own", async () => {
+    inVault("A");
+    const blockA = { works: false };
+    const blockB = { works: false };
+    await trackClosingWrite("Tasks.md", "part", failing(blockA)).catch(() => {});
+    await trackClosingWrite("Tasks.md", "part", failing(blockB)).catch(() => {});
+    blockB.works = true;
+    // B getting through doesn't settle A, and a whole-file save doesn't settle a block.
+    markSaved("Tasks.md");
+    expect(await saveAll()).toEqual([{ path: "Tasks.md", reason: "failed" }]);
+    blockA.works = true;
+    expect(await saveAll()).toEqual([]);
+  });
+
+  it("forgets a failed whole-file write once that file is saved again", async () => {
+    inVault("A");
+    await trackClosingWrite("a.md", "file", failing({ works: false })).catch(() => {});
     markSaved("a.md"); // e.g. the note was reopened and saved
+    expect(await saveAll()).toEqual([]);
+  });
+
+  it("never retries a write in another vault", async () => {
+    inVault("A");
+    const disk = { works: false };
+    const write = failing(disk);
+    await trackClosingWrite("a.md", "file", write).catch(() => {});
+    inVault("B");
+    disk.works = true;
+    markSaved("a.md"); // B's a.md is a different file
+    expect(await saveAll()).toEqual([{ path: "a.md", reason: "failed" }]);
+    expect(write).toHaveBeenCalledTimes(1);
+    inVault("A");
     expect(await saveAll()).toEqual([]);
   });
 

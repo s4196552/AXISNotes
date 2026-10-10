@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { type AvailableUpdate, backend, isBackendError } from "../../ipc";
-import { describeUnsaved, saveAll } from "../files/unsavedWork";
+import { describeUnsaved, preserveEdits, saveAll } from "../files/unsavedWork";
 
 // Updates from a folder (T-066): what the last check found, and installing it.
 
@@ -9,6 +9,7 @@ const message = (e: unknown) => (isBackendError(e) ? e.message : String(e));
 /** While installing, nothing in the window can be focused or edited (T-073): every edit
  *  made before this point gets saved, and none can start after it. */
 function freezeEditing(on: boolean) {
+  preserveEdits(on); // first: blurring starts saves, which must not reload over edits
   document.body.toggleAttribute("inert", on);
   if (on && document.activeElement instanceof HTMLElement) document.activeElement.blur();
 }
