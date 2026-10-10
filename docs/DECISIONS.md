@@ -2,6 +2,19 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-10: Lists start as you type `-` or `1` (T-071)
+
+- **Typing `-` at the start of a line inserts `- `**, so the line is a bullet straight away; no space is needed. Before existing text, it turns that line into a bullet. **Typing `1` on an empty line inserts `1. `**, and typing `.` after a number at a line's start inserts `. `.
+- **The next keystroke can take it back, so ordinary text still comes out as typed:**
+  - A space, or the `.` of `1.`, is absorbed, since the formatting already added it. That way `- `, `1. ` and `1.` habits don't leave double spaces.
+  - `-` after an auto `- ` gives `--`, so `---` still makes a rule or frontmatter.
+  - A digit, or `,` `:` `/` `)` `-`, after an auto `1. ` gives plain text (`10`, `2026`, `1:30`, `1/2`, `1,000`). A digit after an auto `1.` or `3. ` gives a decimal (`1.5`, `3.5`).
+  - Backspace right after the formatting leaves only the character that was typed.
+  - The state is forgotten as soon as the cursor moves or anything else changes.
+- **Never in code, frontmatter or `$$` math**, never with several cursors, and never during IME composition, so Chinese, Japanese and Korean input methods are untouched. Only `1` starts a numbered list on its own; other numbers at a line's start are usually text.
+- **Live preview shows the bullet on the line being edited too.** The raw `-` appears only while the cursor is on the dash itself. Before, the bullet only rendered once the cursor left the line. A bullet just started under a paragraph (`- ` with nothing after it) is paragraph text to the Markdown parser, so it gets a bullet while it's typed as well.
+- Enter continuing a list, and Enter on an empty item ending it, come from CodeMirror's Markdown keymap, which was already active.
+
 ## 2026-10-09: Translucent theme with an opacity setting (T-069)
 
 - **Translucent (`axis:translucent`) makes the window itself see-through**, so the desktop shows behind the app. It follows the OS light/dark setting.
