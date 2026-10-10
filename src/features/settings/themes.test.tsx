@@ -143,6 +143,30 @@ describe("Translucent", () => {
     expect(fx).toHaveBeenLastCalledWith(null);
   });
 
+  it("sends effect changes one at a time, in order, however fast they come", async () => {
+    h.b.canBeTranslucent = () => true;
+    await applyTranslucency("axis:glass", look); // start from no effect
+    const log: string[] = [];
+    vi.spyOn(h.b, "setWindowEffect").mockImplementation(async (fx) => {
+      log.push(`start ${fx}`);
+      await new Promise((r) => setTimeout(r, 5));
+      log.push(`end ${fx}`);
+    });
+    await Promise.all(
+      (["blur", "mica", "micaAlt"] as const).map((id) =>
+        applyTranslucency("axis:translucent", { ...look, windowEffect: id }),
+      ),
+    );
+    expect(log).toEqual([
+      "start blur",
+      "end blur",
+      "start mica",
+      "end mica",
+      "start tabbed",
+      "end tabbed",
+    ]);
+  });
+
   it("looks Clear while Windows' transparency effects are off, and says why", async () => {
     h.b.canBeTranslucent = () => true;
     const fx = vi.spyOn(h.b, "setWindowEffect");

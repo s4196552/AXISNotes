@@ -215,6 +215,7 @@ export function onTransparencyEffectsChange(listener: () => void): () => void {
 // What the window was last told, to skip repeat calls. Windows start with no effect, so
 // nothing is sent until Translucent wants one. `undefined`: unknown (a call failed).
 let sentEffect: OsWindowEffect | null | undefined = null;
+let effectQueue: Promise<void> = Promise.resolve();
 
 /**
  * The Translucent theme's see-through window: `--tl-alpha` is the opacity its backdrop
@@ -238,12 +239,17 @@ export async function applyTranslucency(
     on && alpha < 1 && !transparencyEffectsOff() ? windowEffectInfo(a.windowEffect).os : null;
   if (effect === sentEffect) return;
   sentEffect = effect;
-  try {
-    await backend.setWindowEffect(effect);
-  } catch (e) {
-    sentEffect = undefined;
-    console.warn("window effect failed", e);
-  }
+  // One change at a time, in order: a slider dragged across the stops sends several, and
+  // each clears the window before applying its own.
+  effectQueue = effectQueue.then(async () => {
+    try {
+      await backend.setWindowEffect(effect);
+    } catch (e) {
+      sentEffect = undefined;
+      console.warn("window effect failed", e);
+    }
+  });
+  await effectQueue;
 }
 
 /** The effective light/dark mode, for "toggle theme". */

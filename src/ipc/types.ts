@@ -394,7 +394,10 @@ export interface Backend {
   setZoom(factor: number): Promise<void>;
   /** Whether the window can be see-through (Translucent theme). Windows only, for now. */
   canBeTranslucent(): boolean;
-  /** What Windows draws behind the see-through window; `null` for nothing (clear). */
+  /**
+   * What Windows draws behind the see-through window; `null` for nothing (clear). Replaces
+   * any effect from before.
+   */
   setWindowEffect(effect: OsWindowEffect | null): Promise<void>;
   /** Font families installed on this computer, sorted. */
   listFonts(): Promise<string[]>;
