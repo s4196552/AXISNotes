@@ -151,13 +151,29 @@ describe("lists start as you type", () => {
   });
 
   it("does nothing in code, frontmatter or math", () => {
-    for (const doc of ["```\n|\n```", "---\ntags: a\n|\n---\nbody", "$$\n|\n$$", "`|`"]) {
-      const view = editor(doc);
-      const before = view.state.doc.toString();
-      const at = view.state.selection.main.head;
-      type(view, "-1");
-      expect(view.state.doc.toString(), doc).toBe(before.slice(0, at) + "-1" + before.slice(at));
+    const docs = [
+      "```\n|\n```",
+      "---\ntags: a\n|\n---\nbody",
+      "$$\n|\n$$",
+      "`|`",
+      "    code\n    |", // a blank line in indented code, before it holds any text
+      "para\n\n    |", // four spaces of indent after a blank line start indented code
+    ];
+    for (const doc of docs) {
+      for (const typed of ["-x", "1x", "3."]) {
+        const view = editor(doc);
+        const before = view.state.doc.toString();
+        const at = view.state.selection.main.head;
+        type(view, typed);
+        expect(view.state.doc.toString(), `${typed} in ${doc}`).toBe(
+          before.slice(0, at) + typed + before.slice(at),
+        );
+      }
     }
+    // Indented four spaces inside a list is a nested item, not code: still formatted.
+    const nested = editor("- a\n    |");
+    type(nested, "-b");
+    expect(nested.state.doc.toString()).toBe("- a\n    - b");
   });
 
   it("continues the list on Enter (Markdown's own keymap)", () => {

@@ -1,3 +1,4 @@
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { type EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { inCode, insideMath } from "./math";
@@ -33,9 +34,28 @@ const autoField = StateField.define<Auto | null>({
   },
 });
 
+const CODE = /^(InlineCode|FencedCode|CodeBlock|CodeText|Frontmatter|FrontmatterContent)$/;
+
 /** Text that isn't Markdown prose: code, frontmatter or `$$` math. */
 function verbatim(state: EditorState, pos: number): boolean {
   return inCode(state, pos) || inCode(state, Math.max(0, pos - 1)) || insideMath(state, pos);
+}
+
+/**
+ * Whether `insert` at `pos` would be code once typed: a blank line only joins an
+ * indented code block when text arrives (`    code` then `    |`), and four spaces of
+ * indent after a blank line start one.
+ */
+function becomesCode(state: EditorState, pos: number, insert: string): boolean {
+  const next = state.update({ changes: { from: pos, insert } }).state;
+  const tree = ensureSyntaxTree(next, pos + insert.length, 50) ?? syntaxTree(next);
+  for (
+    let n: ReturnType<typeof tree.resolveInner> | null = tree.resolveInner(pos, 1);
+    n;
+    n = n.parent
+  )
+    if (CODE.test(n.name)) return true;
+  return false;
 }
 
 function replace(view: EditorView, from: number, to: number, insert: string, auto: Auto | null) {
@@ -82,7 +102,7 @@ const typing = EditorView.inputHandler.of((view, from, to, text) => {
   else if (text === "1" && /^\s*$/.test(before) && after === "") insert = "1. ";
   else if (text === "." && /^\s*\d{1,9}$/.test(before) && after === "") insert = ". ";
   else return false;
-  if (verbatim(state, from)) return false;
+  if (verbatim(state, from) || becomesCode(state, from, insert)) return false;
   return replace(view, from, from, insert, { from, pos: from + insert.length, typed: text });
 });
 
