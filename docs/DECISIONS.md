@@ -17,7 +17,10 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **The window is made `inert` while it saves and installs**, so no new edit can start after the save. It is restored if installing is refused or fails.
   - The global shortcut listener ignores every key while the window is inert, because shortcuts like Ctrl+Shift+B would otherwise still change a note.
   - The install buttons prevent `mousedown`, so pressing one doesn't blur an embed (which could reload over its edit) before `install()` has turned on `preserveEdits`.
-- **Frontend only.** The Rust `updates_install` command is unchanged; the guard runs before it is called.
+- **`write_file` and `create_file` take an optional `vault_root`.** They refuse (`Io`) if it isn't the open vault. Closing writes and recovery files pass the vault their document was loaded from.
+  - A frontend check alone can't order against a vault switch: `open_vault` is async, so the backend can switch while the store still names the old vault.
+  - `updates_install` itself is unchanged; the guard runs before it is called.
+- **A grid change is handed to the save directly** (`markDirty(serialize)`), and install waits one macrotask after freezing. A cell committed by install's blur is otherwise still unrendered React state when the save runs, and the old sheet would be written.
 
 ## 2026-10-09: Translucent theme with an opacity setting (T-069)
 

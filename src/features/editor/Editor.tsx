@@ -324,7 +324,8 @@ export function Editor({ path }: EditorProps) {
         const content = created.state.doc.toString();
         trackClosingWrite(path, content, vault, async () => {
           while (saving.current) await saving.current; // it may have saved this already
-          if (dirty.current) await backend.writeFile(path, content, mtime.current);
+          if (dirty.current)
+            await backend.writeFile(path, content, mtime.current, vault ?? undefined);
         });
       }
       created?.destroy();

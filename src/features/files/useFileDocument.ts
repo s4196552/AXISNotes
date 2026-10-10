@@ -33,8 +33,12 @@ export interface FileDocument {
   text: string | null;
   /** Bumped each time `text` is (re)loaded from disk. */
   loadVersion: number;
-  /** Record that the document changed; it is saved after the debounce. */
-  markDirty(): void;
+  /**
+   * Record that the document changed; it is saved after the debounce. Pass `serialize`
+   * when the change is still React state that hasn't rendered: a save that runs right
+   * away (e.g. installing an update, T-073) then writes the change, not the last render.
+   */
+  markDirty(serialize?: () => string): void;
   /** Save now. `force` skips the on-disk change check ("Keep my version"). */
   save(force?: boolean): Promise<void>;
   /** Discard local changes and load the file from disk. */
@@ -133,13 +137,17 @@ export function useFileDocument(
 
   useEffect(() => registerDocument(() => path, flush), [path, flush]);
 
-  const markDirty = useCallback(() => {
-    edits.current++;
-    dirty.current = true;
-    setStatus("dirty");
-    clearTimer();
-    if (!paused.current) timer.current = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
-  }, [save]);
+  const markDirty = useCallback(
+    (serialize?: () => string) => {
+      if (serialize) serializeRef.current = serialize; // until the next render's
+      edits.current++;
+      dirty.current = true;
+      setStatus("dirty");
+      clearTimer();
+      if (!paused.current) timer.current = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
+    },
+    [save],
+  );
 
   const reload = useCallback(async () => {
     const file = await backend.readFile(path);
@@ -178,7 +186,8 @@ export function useFileDocument(
         const content = serializeRef.current();
         trackClosingWrite(path, content, vault, async () => {
           while (saving.current) await saving.current; // it may have saved this already
-          if (dirty.current) await backend.writeFile(path, content, mtime.current);
+          if (dirty.current)
+            await backend.writeFile(path, content, mtime.current, vault ?? undefined);
         });
       }
     };

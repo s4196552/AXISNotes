@@ -29,9 +29,9 @@ export function createTauriBackend(): Backend {
     currentVault: () => track(invoke<VaultInfo | null>("current_vault")),
     listTree: () => invoke("list_tree"),
     readFile: (path) => invoke("read_file", { path }),
-    writeFile: (path, content, expectedModifiedMs) =>
-      invoke("write_file", { path, content, expectedModifiedMs }),
-    createFile: (path, content) => invoke("create_file", { path, content }),
+    writeFile: (path, content, expectedModifiedMs, vaultRoot) =>
+      invoke("write_file", { path, content, expectedModifiedMs, vaultRoot }),
+    createFile: (path, content, vaultRoot) => invoke("create_file", { path, content, vaultRoot }),
     createDir: (path) => invoke("create_dir", { path }),
     renameEntry: (from, to) => invoke("rename_entry", { from, to }),
     trashEntry: (path) => invoke("trash_entry", { path }),

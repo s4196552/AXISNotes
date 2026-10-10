@@ -1,10 +1,12 @@
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { EditorView } from "@codemirror/view";
+import { useState } from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import type { AvailableUpdate } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { Editor } from "../editor/Editor";
+import { Grid } from "../grid/Grid";
 import { useFileDocument } from "../files/useFileDocument";
 import {
   recoveryPath,
@@ -41,6 +43,8 @@ beforeAll(() => {
 });
 
 let install: ReturnType<typeof vi.fn>;
+/** The memory backend's vault root (vault "A" in these tests; "B" is any other). */
+let ROOT: string;
 /** What each file held when the installer was started (the app closes right after). */
 let onDiskAtInstall: Record<string, string> | null;
 
@@ -50,6 +54,7 @@ beforeEach(() => {
     "School/Biology.md": "# Biology",
     "Budget.axgrid": "{}",
   });
+  ROOT = "/memory/Demo Vault";
   onDiskAtInstall = null;
   install = vi.fn(async () => {
     onDiskAtInstall = h.b.files();
@@ -173,7 +178,7 @@ describe("installing an update", () => {
   });
 
   it("closing a note while it saves writes the rest, without a false failure", async () => {
-    useAppStore.setState({ vault: { root: "A" } as never });
+    useAppStore.setState({ vault: { root: ROOT } as never });
     const { view, unmount } = await openNote();
     const write = h.b.writeFile;
     h.b.writeFile = (...args) => new Promise((r) => setTimeout(r, 30)).then(() => write(...args)); // a slow disk
@@ -188,7 +193,7 @@ describe("installing an update", () => {
   });
 
   it("never writes a closing note into a vault opened since it was loaded", async () => {
-    useAppStore.setState({ vault: { root: "A" } as never });
+    useAppStore.setState({ vault: { root: ROOT } as never });
     const { view, unmount } = await openNote();
     type(view, " from A");
     // Opening another vault switches the backend first; the editor unmounts after.
@@ -198,7 +203,7 @@ describe("installing an update", () => {
     expect(h.b.files()["School/Biology.md"]).toBe("# Biology");
     expect(Object.keys(h.b.files()).filter((p) => p.includes("unsaved"))).toEqual([]);
     // Back in vault A, the changes are kept in a recovery file.
-    useAppStore.setState({ vault: { root: "A" } as never });
+    useAppStore.setState({ vault: { root: ROOT } as never });
     expect(await act(() => saveAll())).toEqual([]);
     expect(Object.values(h.b.files())).toContain("# Biology from A");
   });
@@ -207,6 +212,68 @@ describe("installing an update", () => {
     await openNote();
     // A prevented mousedown leaves focus (and an embed's edit) alone until the click.
     expect(fireEvent.mouseDown(installButton())).toBe(false);
+  });
+
+  it("a closing write delayed by a save under way never lands in a vault opened meanwhile", async () => {
+    useAppStore.setState({ vault: { root: ROOT } as never });
+    const { view, unmount } = await openNote();
+    const write = h.b.writeFile;
+    h.b.writeFile = (...args) => new Promise((r) => setTimeout(r, 30)).then(() => write(...args)); // a slow disk
+    type(view, " one");
+    const saving = saveAll(); // its write is now in flight
+    type(view, " two");
+    unmount(); // its final write waits for that save
+    // Another vault opens before the save finishes: the backend switches first.
+    await h.b.openVault("/elsewhere/B");
+    useAppStore.setState({ vault: { root: "/elsewhere/B" } as never });
+    await act(() => saving);
+    expect(await act(() => saveAll())).toEqual([{ path: "School/Biology.md", reason: "failed" }]);
+    expect(h.b.files()["School/Biology.md"]).toBe("# Biology one");
+    // Back in the first vault, the rest is kept in a recovery file.
+    await h.b.openVault(ROOT);
+    useAppStore.setState({ vault: { root: ROOT } as never });
+    expect(await act(() => saveAll())).toEqual([]);
+    expect(Object.values(h.b.files())).toContain("# Biology one two");
+  });
+
+  it("saves the grid cell being edited when Install is clicked", async () => {
+    const GRID = JSON.stringify({ version: 1, rows: 5, cols: 3, cells: { B1: "x" } });
+    await h.b.writeFile("Budget.axgrid", GRID);
+    render(
+      <>
+        <Grid path="Budget.axgrid" />
+        <UpdateBanner />
+      </>,
+    );
+    const cell = () => document.querySelector('[data-addr="A1"]') as HTMLElement;
+    await waitFor(() => expect(document.querySelector('[data-addr="B1"]')).toHaveTextContent("x"));
+    fireEvent.mouseDown(cell());
+    fireEvent.keyDown(screen.getByRole("grid"), { key: "4" });
+    const input = screen.getByLabelText("Edit A1") as HTMLInputElement;
+    input.focus();
+    fireEvent.change(input, { target: { value: "42" } });
+    // Still editing: install's blur commits the cell, and that must be what gets saved.
+    fireEvent.click(installButton());
+    await waitFor(() => expect(install).toHaveBeenCalled());
+    const cells = (JSON.parse(onDiskAtInstall!["Budget.axgrid"]!) as { cells: object }).cells;
+    expect(cells).toEqual({ A1: "42", B1: "x" });
+  });
+
+  it("saves a change marked before React has rendered it", async () => {
+    const { result } = renderHook(() => {
+      const [text, setText] = useState("{}");
+      return { doc: useFileDocument("Budget.axgrid", () => text), setText };
+    });
+    await waitFor(() => expect(result.current.doc.status).toBe("saved"));
+    const next = '{"cells":{"A1":"7"}}';
+    // A change and an immediate save in the same tick, as when install's blur commits it.
+    const saved = await act(() => {
+      result.current.setText(next);
+      result.current.doc.markDirty(() => next);
+      return saveAll();
+    });
+    expect(saved).toEqual([]);
+    expect(h.b.files()["Budget.axgrid"]).toBe(next);
   });
 
   it("saves a grid or canvas waiting for autosave", async () => {
@@ -241,8 +308,8 @@ describe("saveAll", () => {
   });
 
   it("keeps a closed document's changes in a new file when its final write fails", async () => {
-    inVault("A");
-    trackClosingWrite("School/Biology.md", "# Biology\n\nlast words", "A", fail);
+    inVault(ROOT);
+    trackClosingWrite("School/Biology.md", "# Biology\n\nlast words", ROOT, fail);
     expect(await saveAll()).toEqual([]);
     const [path, content] = recovered()[0]!;
     expect(path).toMatch(/^School\/Biology \(unsaved .+\)\.md$/);
@@ -252,9 +319,9 @@ describe("saveAll", () => {
   });
 
   it("keeps each failed write on its own, even for the same file", async () => {
-    inVault("A");
-    trackClosingWrite("Tasks.md", "block A", "A", fail);
-    trackClosingWrite("Tasks.md", "block B", "A", fail);
+    inVault(ROOT);
+    trackClosingWrite("Tasks.md", "block A", ROOT, fail);
+    trackClosingWrite("Tasks.md", "block B", ROOT, fail);
     expect(await saveAll()).toEqual([]);
     expect(
       recovered()
@@ -264,10 +331,10 @@ describe("saveAll", () => {
   });
 
   it("refuses until the changes can be kept somewhere, trying again each time", async () => {
-    inVault("A");
+    inVault(ROOT);
     const create = h.b.createFile;
     h.b.createFile = fail as never;
-    trackClosingWrite("School/Biology.md", "last words", "A", fail);
+    trackClosingWrite("School/Biology.md", "last words", ROOT, fail);
     expect(await saveAll()).toEqual([{ path: "School/Biology.md", reason: "failed" }]);
     expect(await saveAll()).toEqual([{ path: "School/Biology.md", reason: "failed" }]);
     h.b.createFile = create;
@@ -276,16 +343,16 @@ describe("saveAll", () => {
   });
 
   it("never writes a closed document's changes into another vault", async () => {
-    inVault("A");
+    inVault(ROOT);
     const create = h.b.createFile;
     h.b.createFile = fail as never;
-    trackClosingWrite("School/Biology.md", "last words", "A", fail);
+    trackClosingWrite("School/Biology.md", "last words", ROOT, fail);
     await Promise.resolve();
     h.b.createFile = create;
     inVault("B");
     expect(await saveAll()).toEqual([{ path: "School/Biology.md", reason: "failed" }]);
     expect(recovered()).toHaveLength(0);
-    inVault("A");
+    inVault(ROOT);
     expect(await saveAll()).toEqual([]);
     expect(recovered()).toHaveLength(1);
   });

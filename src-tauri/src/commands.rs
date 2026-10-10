@@ -80,6 +80,14 @@ impl AppState {
         self.vault()
     }
 
+    /// The open vault, provided it is the one at `expected_root` (when given). A write
+    /// sent for one vault must never land in another that was opened meanwhile (T-073).
+    fn vault_at(&self, expected_root: Option<&str>) -> AppResult<Vault> {
+        let v = self.vault()?;
+        ensure_vault(&v, expected_root)?;
+        Ok(v)
+    }
+
     /// Mark a path as touched by the app so the watcher ignores its echo.
     fn touch(&self, vault: &Vault, rel: &str) -> AppResult<()> {
         self.self_writes.mark(&vault.resolve(rel)?);
@@ -221,8 +229,9 @@ pub fn write_file(
     path: String,
     content: String,
     expected_modified_ms: Option<u64>,
+    vault_root: Option<String>,
 ) -> AppResult<WriteResult> {
-    let v = state.vault()?;
+    let v = state.vault_at(vault_root.as_deref())?;
     state.touch(&v, &path)?;
     let res = v.write_file(&path, &content, expected_modified_ms)?;
     state
@@ -237,8 +246,9 @@ pub fn create_file(
     state: State<AppState>,
     path: String,
     content: Option<String>,
+    vault_root: Option<String>,
 ) -> AppResult<VaultEntry> {
-    let v = state.vault()?;
+    let v = state.vault_at(vault_root.as_deref())?;
     state.touch(&v, &path)?;
     let entry = v.create_file(&path, content.as_deref().unwrap_or(""))?;
     state.reindex(&v, change(ChangeKind::Created, &[&path]));
@@ -437,6 +447,33 @@ fn installed_fonts() -> Vec<String> {
     names.sort_by_key(|n| n.to_lowercase());
     names.dedup();
     names
+}
+
+/// Refuses unless `v` is the vault at `expected_root` (as `VaultInfo::root` reports it).
+fn ensure_vault(v: &Vault, expected_root: Option<&str>) -> AppResult<()> {
+    match expected_root {
+        Some(root) if v.info().root != root => Err(AppError::Io(format!(
+            "{root} is no longer the open vault, so nothing was written"
+        ))),
+        _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod vault_binding_tests {
+    use super::*;
+
+    #[test]
+    fn a_write_for_another_vault_is_refused() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        let va = Vault::open(a.path()).unwrap();
+        let vb = Vault::open(b.path()).unwrap();
+        assert!(ensure_vault(&va, None).is_ok());
+        assert!(ensure_vault(&va, Some(&va.info().root)).is_ok());
+        let err = ensure_vault(&va, Some(&vb.info().root)).unwrap_err();
+        assert!(matches!(err, AppError::Io(m) if m.contains("no longer the open vault")));
+    }
 }
 
 #[cfg(test)]

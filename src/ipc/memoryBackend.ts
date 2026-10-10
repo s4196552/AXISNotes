@@ -113,8 +113,11 @@ export function createMemoryBackend(
     put(normalize(path), { kind: "file", content, modifiedMs: tick() });
   }
 
-  const requireVault = () => {
+  const requireVault = (expectedRoot?: string) => {
     if (!vault) fail("NoVault", "no vault is open");
+    if (expectedRoot !== undefined && vault.root !== expectedRoot) {
+      fail("Io", `${expectedRoot} is no longer the open vault, so nothing was written`);
+    }
   };
   const entry = (path: string, recurse = true): VaultEntry => {
     const node = nodes.get(path);
@@ -366,8 +369,8 @@ export function createMemoryBackend(
       if (!n || n.kind !== "file") fail("NotFound", path);
       return { content: n.content, modifiedMs: n.modifiedMs };
     },
-    async writeFile(path, content, expectedModifiedMs) {
-      requireVault();
+    async writeFile(path, content, expectedModifiedMs, vaultRoot) {
+      requireVault(vaultRoot);
       const p = normalize(path);
       if (p === "") fail("OutsideVault", path);
       const n = nodes.get(p);
@@ -378,8 +381,8 @@ export function createMemoryBackend(
       put(p, { kind: "file", content, modifiedMs });
       return { modifiedMs };
     },
-    async createFile(path, content = "") {
-      requireVault();
+    async createFile(path, content = "", vaultRoot) {
+      requireVault(vaultRoot);
       const p = normalize(path);
       if (p === "") fail("OutsideVault", path);
       validateName(baseName(p));

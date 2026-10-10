@@ -72,7 +72,7 @@ async function recover(u: Unrecovered): Promise<string | null> {
   for (let n = 1; n <= 5; n++) {
     const target = recoveryPath(u.path, now, n);
     try {
-      await backend.createFile(target, u.content);
+      await backend.createFile(target, u.content, u.vault ?? undefined);
       useAppStore.getState().bumpIndex();
       return target;
     } catch (e) {

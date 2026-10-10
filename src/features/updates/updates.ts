@@ -57,6 +57,9 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
     try {
       // Installing closes the app: save every open document first, and don't install
       // while any change can't be saved (e.g. a note with an unresolved conflict).
+      // Let edits committed by that blur (a grid cell, a canvas text) reach their
+      // documents first: some arrive through React or Excalidraw a moment later.
+      await new Promise((r) => setTimeout(r, 0));
       const unsaved = await saveAll();
       if (unsaved.length > 0) {
         freezeEditing(false);

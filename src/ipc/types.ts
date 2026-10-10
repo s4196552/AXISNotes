@@ -374,9 +374,18 @@ export interface Backend {
   currentVault(): Promise<VaultInfo | null>;
   listTree(): Promise<VaultEntry>;
   readFile(path: string): Promise<FileContent>;
-  /** Rejects with code "Conflict" if the file changed on disk since `expectedModifiedMs`. */
-  writeFile(path: string, content: string, expectedModifiedMs?: number): Promise<WriteResult>;
-  createFile(path: string, content?: string): Promise<VaultEntry>;
+  /**
+   * Rejects with code "Conflict" if the file changed on disk since `expectedModifiedMs`.
+   * With `vaultRoot`, writes only if that vault is still the open one (else "Io").
+   */
+  writeFile(
+    path: string,
+    content: string,
+    expectedModifiedMs?: number,
+    vaultRoot?: string,
+  ): Promise<WriteResult>;
+  /** Rejects with "AlreadyExists" rather than overwrite. `vaultRoot` as for `writeFile`. */
+  createFile(path: string, content?: string, vaultRoot?: string): Promise<VaultEntry>;
   createDir(path: string): Promise<VaultEntry>;
   /**
    * Rename or move. Rejects with "AlreadyExists" if `to` exists. Wikilinks to moved notes

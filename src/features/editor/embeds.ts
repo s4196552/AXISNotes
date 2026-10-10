@@ -38,7 +38,14 @@ type WriteBack = { ok: true } | { ok: false; current: string | null };
 
 /** Write `next` over the embedded block in `path` if the block on disk is still `loaded`.
  *  Otherwise nothing is written and `current` is the block on disk (null if it's gone). */
-async function writeBlock(path: string, inner: string, loaded: string, next: string) {
+async function writeBlock(
+  path: string,
+  inner: string,
+  loaded: string,
+  next: string,
+  /** Write only while this vault is open (a closing embed's write, T-073). */
+  vaultRoot?: string,
+) {
   const link = parseWikilinkInner(inner);
   const file = await backend.readFile(path);
   const range = embedRange(file.content, link);
@@ -46,7 +53,7 @@ async function writeBlock(path: string, inner: string, loaded: string, next: str
     return { ok: false, current: range && file.content.slice(range.from, range.to) } as WriteBack;
   }
   const text = file.content.slice(0, range.from) + next + file.content.slice(range.to);
-  await backend.writeFile(path, text, file.modifiedMs);
+  await backend.writeFile(path, text, file.modifiedMs, vaultRoot);
   useAppStore.getState().bumpIndex();
   return { ok: true } as WriteBack;
 }
@@ -226,7 +233,7 @@ class EmbedController {
       trackClosingWrite(path, next, this.vault, async () => {
         while (this.saving) await this.saving;
         if (next === this.loaded) return;
-        const r = await writeBlock(path, this.inner, this.loaded, next);
+        const r = await writeBlock(path, this.inner, this.loaded, next, this.vault ?? undefined);
         if (!r.ok) throw new Error(`the embedded block in ${path} changed`);
         this.loaded = next;
       });
