@@ -170,6 +170,15 @@ describe("lists start as you type", () => {
         );
       }
     }
+    // Right after the frontmatter (where a note opens) or a fence is prose again.
+    for (const [doc, want] of [
+      ["---\ntags: a\n---\n|", "---\ntags: a\n---\n- milk"],
+      ["```\ncode\n```\n|", "```\ncode\n```\n- milk"],
+    ]) {
+      const view = editor(doc);
+      type(view, "-milk");
+      expect(view.state.doc.toString(), doc).toBe(want);
+    }
     // Indented four spaces inside a list is a nested item, not code: still formatted.
     const nested = editor("- a\n    |");
     type(nested, "-b");

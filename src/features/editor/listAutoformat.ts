@@ -38,7 +38,12 @@ const CODE = /^(InlineCode|FencedCode|CodeBlock|CodeText|Frontmatter|Frontmatter
 
 /** Text that isn't Markdown prose: code, frontmatter or `$$` math. */
 function verbatim(state: EditorState, pos: number): boolean {
-  return inCode(state, pos) || inCode(state, Math.max(0, pos - 1)) || insideMath(state, pos);
+  // The character before only counts on the same line: the newline ending a frontmatter
+  // or fence belongs to it, but the line after is prose (and where notes open).
+  const lineStart = state.doc.lineAt(pos).from;
+  return (
+    inCode(state, pos) || (pos > lineStart && inCode(state, pos - 1)) || insideMath(state, pos)
+  );
 }
 
 /**
