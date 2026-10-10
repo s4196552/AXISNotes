@@ -28,6 +28,23 @@ const fromSource = Annotation.define<boolean>();
 
 const describe = (e: unknown) => (isBackendError(e) ? e.message : String(e));
 
+type WriteBack = { ok: true } | { ok: false; current: string | null };
+
+/** Write `next` over the embedded block in `path` if the block on disk is still `loaded`.
+ *  Otherwise nothing is written and `current` is the block on disk (null if it's gone). */
+async function writeBlock(path: string, inner: string, loaded: string, next: string) {
+  const link = parseWikilinkInner(inner);
+  const file = await backend.readFile(path);
+  const range = embedRange(file.content, link);
+  if (!range || file.content.slice(range.from, range.to) !== loaded) {
+    return { ok: false, current: range && file.content.slice(range.from, range.to) } as WriteBack;
+  }
+  const text = file.content.slice(0, range.from) + next + file.content.slice(range.to);
+  await backend.writeFile(path, text, file.modifiedMs);
+  useAppStore.getState().bumpIndex();
+  return { ok: true } as WriteBack;
+}
+
 class EmbedController {
   private view: EditorView | null = null;
   private path: string | null = null;
@@ -36,11 +53,21 @@ class EmbedController {
   private saving: Promise<void> | null = null;
   private unlisten: (() => void) | null = null;
   private destroyed = false;
-  /** Lets installing an update save this embed first (T-073). */
-  private readonly unregister = registerDocument(async () => {
-    for (let i = 0; i < SAVE_ATTEMPTS && this.dirty; i++) await this.save();
-    return this.dirty && this.path ? { path: this.path, reason: "failed" } : null;
-  });
+  /** Why the last save didn't write the edit, if it didn't. */
+  private problem: "conflict" | "failed" | null = null;
+  /** Lets installing an update save this embed first (T-073). A changed source block is
+   *  reported, never reloaded over the edit. */
+  private readonly unregister = registerDocument(
+    () => this.path ?? this.from,
+    async () => {
+      this.problem = null;
+      for (let i = 0; i < SAVE_ATTEMPTS && this.dirty && this.problem !== "conflict"; i++) {
+        await this.save(true);
+      }
+      if (!this.dirty || !this.path) return null;
+      return { path: this.path, reason: this.problem ?? "failed" };
+    },
+  );
 
   constructor(
     private readonly body: HTMLElement,
@@ -139,29 +166,33 @@ class EmbedController {
     return this.view !== null && this.view.state.doc.toString() !== this.loaded;
   }
 
-  async save(): Promise<void> {
+  /** `keepOnConflict`: if the source block changed, keep the edit (and report it)
+   *  instead of reloading the block over it. */
+  async save(keepOnConflict = false): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
-    if (this.saving) await this.saving;
+    while (this.saving) await this.saving; // one write at a time
     if (!this.view || !this.path || !this.dirty) return;
     const next = this.view.state.doc.toString();
-    const link = parseWikilinkInner(this.inner);
     const path = this.path;
     const op = (async () => {
       try {
-        const file = await backend.readFile(path);
-        const range = embedRange(file.content, link);
-        if (!range || file.content.slice(range.from, range.to) !== this.loaded) {
+        const r = await writeBlock(path, this.inner, this.loaded, next);
+        if (!r.ok) {
+          this.problem = "conflict";
+          if (keepOnConflict) {
+            this.setStatus("changed in the source — not saved");
+            return;
+          }
           this.setStatus("changed in the source — reloaded");
-          if (range) this.show(file.content.slice(range.from, range.to));
+          if (r.current !== null && !this.destroyed) this.show(r.current);
           return;
         }
-        const text = file.content.slice(0, range.from) + next + file.content.slice(range.to);
-        await backend.writeFile(path, text, file.modifiedMs);
+        this.problem = null;
         this.loaded = next;
         this.setStatus(this.dirty ? "unsaved" : "saved");
-        useAppStore.getState().bumpIndex();
       } catch (e) {
+        this.problem = "failed";
         this.setStatus(`save failed: ${describe(e)}`);
       }
     })();
@@ -179,7 +210,19 @@ class EmbedController {
   destroy() {
     this.destroyed = true;
     this.unregister();
-    if (this.dirty && this.path) trackClosingWrite(this.path, this.save());
+    if (this.dirty && this.path) {
+      const path = this.path;
+      const next = this.view!.state.doc.toString();
+      // Rejects unless the edit reached the disk, so installing waits for it and is
+      // refused (naming the note) if it couldn't be written.
+      void trackClosingWrite(path, async () => {
+        while (this.saving) await this.saving;
+        if (next === this.loaded) return;
+        const r = await writeBlock(path, this.inner, this.loaded, next);
+        if (!r.ok) throw new Error(`the embedded block in ${path} changed`);
+        this.loaded = next;
+      }).catch(() => {});
+    }
     this.unlisten?.();
     this.view?.destroy();
     this.view = null;

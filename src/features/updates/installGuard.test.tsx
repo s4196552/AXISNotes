@@ -6,7 +6,13 @@ import type { AvailableUpdate } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { Editor } from "../editor/Editor";
 import { useFileDocument } from "../files/useFileDocument";
-import { resetUnsavedWork, saveAll, trackClosingWrite } from "../files/unsavedWork";
+import {
+  markSaved,
+  registerDocument,
+  resetUnsavedWork,
+  saveAll,
+  trackClosingWrite,
+} from "../files/unsavedWork";
 import { UpdateBanner } from "./UpdateBanner";
 import { useUpdates } from "./updates";
 
@@ -178,12 +184,38 @@ describe("installing an update", () => {
 });
 
 describe("saveAll", () => {
-  it("reports a failed final write once per file", async () => {
-    trackClosingWrite("a.md", Promise.reject(new Error("gone")));
-    trackClosingWrite("a.md", Promise.reject(new Error("gone")));
-    trackClosingWrite("b.md", Promise.resolve());
+  it("keeps a failed final write, tries it again, and reports it once per file", async () => {
+    let diskWorks = false;
+    const write = vi.fn(async () => {
+      if (!diskWorks) throw new Error("disk full");
+    });
+    await trackClosingWrite("a.md", write).catch(() => {});
+    void trackClosingWrite("a.md", write).catch(() => {});
+    void trackClosingWrite("b.md", async () => {});
+    // Failed before installing started: still reported, and every attempt is refused.
     expect(await saveAll()).toEqual([{ path: "a.md", reason: "failed" }]);
-    // Settled writes are forgotten.
+    expect(await saveAll()).toEqual([{ path: "a.md", reason: "failed" }]);
+    // Once a retry gets through, it's settled.
+    diskWorks = true;
     expect(await saveAll()).toEqual([]);
+    expect(write).toHaveBeenCalledTimes(5);
+  });
+
+  it("forgets a failed final write once the file is saved another way", async () => {
+    await trackClosingWrite("a.md", async () => {
+      throw new Error("conflict");
+    }).catch(() => {});
+    markSaved("a.md"); // e.g. the note was reopened and saved
+    expect(await saveAll()).toEqual([]);
+  });
+
+  it("counts a flush that throws as unsaved", async () => {
+    registerDocument(
+      () => "Budget.axgrid",
+      async () => {
+        throw new Error("couldn't serialize");
+      },
+    );
+    expect(await saveAll()).toEqual([{ path: "Budget.axgrid", reason: "failed" }]);
   });
 });

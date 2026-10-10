@@ -15,6 +15,7 @@ import { type Props, splitFrontmatter, withFrontmatter } from "../../lib/markdow
 import { useUi } from "../commands/ui";
 import { PAGE_STYLE_PROP, PAGE_STYLES } from "../templates/templates";
 import {
+  markSaved,
   registerDocument,
   SAVE_ATTEMPTS,
   trackClosingWrite,
@@ -168,6 +169,7 @@ export function Editor({ path }: EditorProps) {
         try {
           const res = await backend.writeFile(path, content, force ? undefined : mtime.current);
           mtime.current = res.modifiedMs;
+          markSaved(path);
           useAppStore.getState().bumpIndex(); // tags/links may have changed
           if (v.state.doc.toString() === content) {
             dirty.current = false;
@@ -199,7 +201,7 @@ export function Editor({ path }: EditorProps) {
     return dirty.current ? { path, reason: bannerRef.current ?? "failed" } : null;
   }, [path, save]);
 
-  useEffect(() => registerDocument(flush), [flush]);
+  useEffect(() => registerDocument(() => path, flush), [path, flush]);
 
   const scheduleSave = useCallback(() => {
     clearTimer();
@@ -318,10 +320,11 @@ export function Editor({ path }: EditorProps) {
       // Flush unsaved edits on unmount (fire-and-forget; the view is going away).
       clearTimer();
       if (created && dirty.current && !paused.current) {
-        const write = backend.writeFile(path, created.state.doc.toString(), mtime.current);
-        trackClosingWrite(path, write);
-        write.catch((e: unknown) =>
-          useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
+        const content = created.state.doc.toString();
+        const expected = mtime.current;
+        trackClosingWrite(path, () => backend.writeFile(path, content, expected)).catch(
+          (e: unknown) =>
+            useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
         );
       }
       created?.destroy();

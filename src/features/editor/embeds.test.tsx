@@ -9,7 +9,7 @@ import { copyBlockLink } from "../commands/actions";
 import { setActiveEditor } from "./activeEditor";
 import { Editor } from "./Editor";
 import { anchorCompletions, EMBED_SAVE_DELAY_MS, notePath } from "./embeds";
-import { saveAll } from "../files/unsavedWork";
+import { resetUnsavedWork, saveAll } from "../files/unsavedWork";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -31,6 +31,7 @@ beforeAll(() => {
 const TASKS = "# Tasks\n\n- a\n- buy milk ^b1\n  - 2%\n- c\n";
 
 beforeEach(async () => {
+  resetUnsavedWork();
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   h.b = createMemoryBackend({
     "Note.md": "Intro\n\n![[Tasks#^b1]]\n\n![[Tasks#^zz]]\n",
@@ -75,6 +76,30 @@ describe("embeds", () => {
     act(() => nested.dispatch({ changes: { from: "- buy milk".length, insert: " oat" } }));
     expect(await act(() => saveAll())).toEqual([]);
     expect(h.b.files()["Tasks.md"]).toContain("- buy milk oat ^b1");
+  });
+
+  it("keeps an edit and reports it when the source block changed before everything is saved", async () => {
+    await openNote();
+    await waitFor(() => expect(screen.getByLabelText("Embedded Tasks#^b1")).toBeInTheDocument());
+    const nested = embeddedView("Tasks#^b1");
+    await h.b.writeFile("Tasks.md", TASKS.replace("buy milk", "buy bread"));
+    act(() => nested.dispatch({ changes: { from: 0, insert: "X" } }));
+    expect(await act(() => saveAll())).toEqual([{ path: "Tasks.md", reason: "conflict" }]);
+    // Neither version is lost.
+    expect(nested.state.doc.toString()).toBe("X- buy milk ^b1\n  - 2%");
+    expect(h.b.files()["Tasks.md"]).toContain("buy bread ^b1");
+    expect(screen.getByText("changed in the source — not saved")).toBeInTheDocument();
+  });
+
+  it("reports a closed embed's edit that couldn't be written back", async () => {
+    const { unmount } = await openNote();
+    await waitFor(() => expect(screen.getByLabelText("Embedded Tasks#^b1")).toBeInTheDocument());
+    const nested = embeddedView("Tasks#^b1");
+    await h.b.writeFile("Tasks.md", TASKS.replace("buy milk", "buy bread"));
+    act(() => nested.dispatch({ changes: { from: 0, insert: "X" } }));
+    unmount();
+    expect(await act(() => saveAll())).toEqual([{ path: "Tasks.md", reason: "failed" }]);
+    expect(h.b.files()["Tasks.md"]).toContain("buy bread ^b1");
   });
 
   it("reloads instead of overwriting when the source block changed elsewhere", async () => {

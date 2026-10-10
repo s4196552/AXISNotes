@@ -5,7 +5,9 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 ## 2026-10-10: Installing an update saves everything first (T-073)
 
 - **"Install and restart" (banner and Settings → Updates) saves every open document before it starts the installer**, because the installer closes the app at once (`app.exit(0)`) and an edit still inside the autosave delay would be lost.
-  - Notes, grids, canvases and editable embeds register a `flush` with `src/features/files/unsavedWork.ts`. `saveAll()` calls them all, waits for the writes (including the final write of a document that just closed) and returns what is still not on disk.
+  - Notes, grids, canvases and editable embeds register a `flush` with `src/features/files/unsavedWork.ts`. `saveAll()` calls them all, waits for the writes (including the final write of a document that just closed) and returns what is still not on disk. A flush that throws counts as unsaved.
+  - A closing write that fails is kept and retried by every later `saveAll`. It stays reported until a retry succeeds or that file is saved completely again, so a failure is never forgotten between clicks.
+  - An embed whose source block changed keeps its edit and reports a conflict during the flush. It does not reload over the edit as its ordinary autosave does.
   - A document that keeps changing while it saves is saved again, up to three times.
   - Saves wait until no write is in flight, then re-check that the document still needs saving. Before, two saves queued behind one write both wrote, and the second's mtime check raised a false conflict.
 - **If anything can't be saved, nothing is installed.** That covers an unresolved "changed on disk" conflict, a note moved or deleted elsewhere, or a failed write. The banner names each file and why ("Unsaved changes in “School/Biology” (changed on disk)"), so the user can resolve it and try again. Saving never forces past a conflict: the user decides which version wins.
