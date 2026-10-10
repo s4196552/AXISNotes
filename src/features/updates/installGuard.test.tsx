@@ -7,7 +7,7 @@ import { useAppStore } from "../../app/store";
 import { Editor } from "../editor/Editor";
 import { useFileDocument } from "../files/useFileDocument";
 import {
-  markSaved,
+  recoveryPath,
   registerDocument,
   resetUnsavedWork,
   saveAll,
@@ -172,6 +172,21 @@ describe("installing an update", () => {
     expect(h.b.files()["School/Biology.md"]).toBe("# Biology one two");
   });
 
+  it("closing a note while it saves writes the rest, without a false failure", async () => {
+    useAppStore.setState({ vault: { root: "A" } as never });
+    const { view, unmount } = await openNote();
+    const write = h.b.writeFile;
+    h.b.writeFile = (...args) => new Promise((r) => setTimeout(r, 30)).then(() => write(...args)); // a slow disk
+    type(view, " one");
+    const saving = saveAll(); // its write is now in flight
+    type(view, " two");
+    unmount();
+    await act(() => saving);
+    expect(await act(() => saveAll())).toEqual([]);
+    expect(h.b.files()["School/Biology.md"]).toBe("# Biology one two");
+    expect(Object.keys(h.b.files()).filter((p) => p.includes("unsaved"))).toEqual([]);
+  });
+
   it("saves a grid or canvas waiting for autosave", async () => {
     let content = "{}";
     const { result } = renderHook(() => useFileDocument("Budget.axgrid", () => content));
@@ -184,61 +199,73 @@ describe("installing an update", () => {
 });
 
 describe("saveAll", () => {
-  const failing = (state: { works: boolean }) =>
-    vi.fn(async () => {
-      if (!state.works) throw new Error("disk full");
-    });
   const inVault = (root: string | null) =>
     useAppStore.setState({ vault: root === null ? null : ({ root } as never) });
+  const recovered = () =>
+    Object.entries(h.b.files()).filter(([path]) => path.includes("(unsaved "));
+  const fail = async () => {
+    throw { code: "Io", message: "disk full" };
+  };
 
-  it("keeps a failed final write, tries it again, and reports it once per file", async () => {
-    inVault("A");
-    const disk = { works: false };
-    const write = failing(disk);
-    await trackClosingWrite("a.md", "file", write).catch(() => {});
-    await trackClosingWrite("b.md", "file", async () => {});
-    // Failed before installing started: still reported, and every attempt is refused.
-    expect(await saveAll()).toEqual([{ path: "a.md", reason: "failed" }]);
-    expect(await saveAll()).toEqual([{ path: "a.md", reason: "failed" }]);
-    // Once a retry gets through, it's settled.
-    disk.works = true;
-    expect(await saveAll()).toEqual([]);
-    expect(write).toHaveBeenCalledTimes(4);
+  it("names recovery files after the original, with the time", () => {
+    const at = new Date(2026, 9, 10, 14, 3, 7);
+    expect(recoveryPath("School/Biology.md", at)).toBe(
+      "School/Biology (unsaved 2026-10-10 14-03-07).md",
+    );
+    expect(recoveryPath("Budget.axgrid", at, 2)).toBe(
+      "Budget (unsaved 2026-10-10 14-03-07 2).axgrid",
+    );
+    expect(recoveryPath("v1.0/README", at)).toBe("v1.0/README (unsaved 2026-10-10 14-03-07)");
   });
 
-  it("tracks each failed write to a file on its own", async () => {
+  it("keeps a closed document's changes in a new file when its final write fails", async () => {
     inVault("A");
-    const blockA = { works: false };
-    const blockB = { works: false };
-    await trackClosingWrite("Tasks.md", "part", failing(blockA)).catch(() => {});
-    await trackClosingWrite("Tasks.md", "part", failing(blockB)).catch(() => {});
-    blockB.works = true;
-    // B getting through doesn't settle A, and a whole-file save doesn't settle a block.
-    markSaved("Tasks.md");
-    expect(await saveAll()).toEqual([{ path: "Tasks.md", reason: "failed" }]);
-    blockA.works = true;
+    trackClosingWrite("School/Biology.md", "# Biology\n\nlast words", fail);
     expect(await saveAll()).toEqual([]);
+    const [path, content] = recovered()[0]!;
+    expect(path).toMatch(/^School\/Biology \(unsaved .+\)\.md$/);
+    expect(content).toBe("# Biology\n\nlast words");
+    expect(h.b.files()["School/Biology.md"]).toBe("# Biology"); // never overwritten
+    expect(useAppStore.getState().error).toContain("your last changes were saved as");
   });
 
-  it("forgets a failed whole-file write once that file is saved again", async () => {
+  it("keeps each failed write on its own, even for the same file", async () => {
     inVault("A");
-    await trackClosingWrite("a.md", "file", failing({ works: false })).catch(() => {});
-    markSaved("a.md"); // e.g. the note was reopened and saved
+    trackClosingWrite("Tasks.md", "block A", fail);
+    trackClosingWrite("Tasks.md", "block B", fail);
     expect(await saveAll()).toEqual([]);
+    expect(
+      recovered()
+        .map(([, c]) => c)
+        .sort(),
+    ).toEqual(["block A", "block B"]);
   });
 
-  it("never retries a write in another vault", async () => {
+  it("refuses until the changes can be kept somewhere, trying again each time", async () => {
     inVault("A");
-    const disk = { works: false };
-    const write = failing(disk);
-    await trackClosingWrite("a.md", "file", write).catch(() => {});
+    const create = h.b.createFile;
+    h.b.createFile = fail as never;
+    trackClosingWrite("School/Biology.md", "last words", fail);
+    expect(await saveAll()).toEqual([{ path: "School/Biology.md", reason: "failed" }]);
+    expect(await saveAll()).toEqual([{ path: "School/Biology.md", reason: "failed" }]);
+    h.b.createFile = create;
+    expect(await saveAll()).toEqual([]);
+    expect(recovered()).toHaveLength(1);
+  });
+
+  it("never writes a closed document's changes into another vault", async () => {
+    inVault("A");
+    const create = h.b.createFile;
+    h.b.createFile = fail as never;
+    trackClosingWrite("School/Biology.md", "last words", fail);
+    await Promise.resolve();
+    h.b.createFile = create;
     inVault("B");
-    disk.works = true;
-    markSaved("a.md"); // B's a.md is a different file
-    expect(await saveAll()).toEqual([{ path: "a.md", reason: "failed" }]);
-    expect(write).toHaveBeenCalledTimes(1);
+    expect(await saveAll()).toEqual([{ path: "School/Biology.md", reason: "failed" }]);
+    expect(recovered()).toHaveLength(0);
     inVault("A");
     expect(await saveAll()).toEqual([]);
+    expect(recovered()).toHaveLength(1);
   });
 
   it("counts a flush that throws as unsaved", async () => {

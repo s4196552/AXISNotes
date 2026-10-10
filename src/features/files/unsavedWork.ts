@@ -3,6 +3,7 @@
 // first and find out what could not be saved.
 
 import { useAppStore } from "../../app/store";
+import { backend, isBackendError } from "../../ipc";
 
 /** Why a document still has changes that aren't on disk. */
 export type UnsavedReason = "conflict" | "removed" | "failed";
@@ -22,25 +23,23 @@ interface Registered {
   path: () => string;
 }
 
-/** A closing write that didn't reach the disk, kept so it can be tried again. */
-interface FailedWrite {
-  /** The vault it belongs to: it is only ever retried while that vault is open. */
+/** Changes from a closed document whose final write failed. */
+interface Unrecovered {
+  /** The vault they belong to: they are only ever written while it is open. */
   vault: string | null;
   path: string;
-  /** `file`: the whole file's content (settled when that file is saved again);
-   *  `part`: e.g. one embedded block (settled only by its own write). */
-  kind: "file" | "part";
-  write: () => Promise<unknown>;
+  content: string;
 }
 
 const documents = new Set<Registered>();
 /** Final writes of documents that have closed, still in flight. */
 const closing = new Set<Promise<void>>();
-/** Final writes that failed, each tracked on its own (several can share a path). */
-const failed = new Set<FailedWrite>();
+/** Closed documents' changes that couldn't be written anywhere yet. */
+const unrecovered = new Set<Unrecovered>();
 let preserving = false;
 
 const currentVault = () => useAppStore.getState().vault?.root ?? null;
+const describe = (e: unknown) => (isBackendError(e) ? e.message : String(e));
 
 /** Register an open document; returns the function that unregisters it. A flush that
  *  throws counts as unsaved, so it never lets the app close. */
@@ -50,37 +49,68 @@ export function registerDocument(path: () => string, flush: Flush): () => void {
   return () => documents.delete(doc);
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** `School/Biology.md` → `School/Biology (unsaved 2026-10-10 14-03-22).md` */
+export function recoveryPath(path: string, now = new Date(), n = 1): string {
+  const slash = path.lastIndexOf("/");
+  const dot = path.lastIndexOf(".");
+  const [stem, ext] = dot > slash ? [path.slice(0, dot), path.slice(dot)] : [path, ""];
+  const stamp =
+    `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+    `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+  return `${stem} (unsaved ${stamp}${n > 1 ? ` ${n}` : ""})${ext}`;
+}
+
+/** Keep `u.content` in a new file next to `u.path`. Never overwrites, and never writes
+ *  into another vault. Returns the new file's path, or null if it couldn't be written. */
+async function recover(u: Unrecovered): Promise<string | null> {
+  if (u.vault !== currentVault()) return null;
+  const now = new Date();
+  for (let n = 1; n <= 5; n++) {
+    const target = recoveryPath(u.path, now, n);
+    try {
+      await backend.createFile(target, u.content);
+      useAppStore.getState().bumpIndex();
+      return target;
+    } catch (e) {
+      if (!(isBackendError(e) && e.code === "AlreadyExists")) return null;
+    }
+  }
+  return null;
+}
+
 /**
  * Run (and track) the final write of a document that is closing, so `saveAll` waits for
- * it. `write` must reject when the changes didn't reach the disk. A failed write is kept
- * and tried again by every `saveAll` (in the same vault) until it succeeds, or — for a
- * whole-file write — until that file is saved completely again.
+ * it; `write` must reject when `content` didn't reach the disk. Then the changes are kept
+ * in a new "(unsaved …)" file next to the original instead of being lost, and the user is
+ * told. If even that fails, `saveAll` tries again and reports them until it works.
  */
 export function trackClosingWrite(
   path: string,
-  kind: FailedWrite["kind"],
+  content: string,
   write: () => Promise<unknown>,
-): Promise<void> {
-  const vault = currentVault();
+): void {
+  const u: Unrecovered = { vault: currentVault(), path, content };
   const op = write().then(
     () => {},
-    (e: unknown) => {
-      failed.add({ vault, path, kind, write });
-      throw e;
+    async (e: unknown) => {
+      const kept = await recover(u);
+      const name = `“${displayName(path)}”`;
+      if (kept) {
+        useAppStore
+          .getState()
+          .setError(
+            `${name} couldn’t be saved (${describe(e)}), so your last changes were saved as “${displayName(kept)}”.`,
+          );
+      } else {
+        unrecovered.add(u);
+        useAppStore.getState().setError(`${name} couldn’t be saved: ${describe(e)}`);
+      }
     },
   );
-  const tracked = op.catch(() => {});
-  closing.add(tracked);
-  void tracked.finally(() => closing.delete(tracked));
-  return op;
-}
-
-/** A document saved all of `path` (in the open vault): failed whole-file writes to it
- *  are settled. */
-export function markSaved(path: string) {
-  const vault = currentVault();
-  for (const f of failed)
-    if (f.kind === "file" && f.path === path && f.vault === vault) failed.delete(f);
+  closing.add(op);
+  void op.finally(() => closing.delete(op));
 }
 
 /** While on (installing), a save that finds its source changed keeps the edit and
@@ -95,7 +125,7 @@ export const SAVE_ATTEMPTS = 3;
 
 /**
  * Save every open document now and wait for the writes, including those of documents
- * that closed (failed ones are tried again while their vault is open). Returns the
+ * that closed (changes not yet kept anywhere are tried again). Returns the
  * documents whose changes are still not on disk — an unresolved conflict, a moved/deleted
  * file, or a failed write — at most one per path.
  */
@@ -106,19 +136,10 @@ export async function saveAll(): Promise<UnsavedDocument[]> {
     ),
   );
   await Promise.all(closing);
-  const vault = currentVault();
-  for (const f of [...failed]) {
-    if (f.vault !== vault) continue; // never written into another vault
-    try {
-      await f.write();
-      failed.delete(f);
-    } catch {
-      // still unsaved; reported below
-    }
-  }
+  for (const u of [...unrecovered]) if (await recover(u)) unrecovered.delete(u);
   const byPath = new Map<string, UnsavedDocument>();
   for (const r of open) if (r && !byPath.has(r.path)) byPath.set(r.path, r);
-  for (const { path } of failed)
+  for (const { path } of unrecovered)
     if (!byPath.has(path)) byPath.set(path, { path, reason: "failed" });
   return [...byPath.values()];
 }
@@ -142,6 +163,6 @@ export function describeUnsaved(docs: UnsavedDocument[]): string {
 export function resetUnsavedWork() {
   documents.clear();
   closing.clear();
-  failed.clear();
+  unrecovered.clear();
   preserving = false;
 }

@@ -6,7 +6,10 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
 - **"Install and restart" (banner and Settings → Updates) saves every open document before it starts the installer**, because the installer closes the app at once (`app.exit(0)`) and an edit still inside the autosave delay would be lost.
   - Notes, grids, canvases and editable embeds register a `flush` with `src/features/files/unsavedWork.ts`. `saveAll()` calls them all, waits for the writes (including the final write of a document that just closed) and returns what is still not on disk. A flush that throws counts as unsaved.
-  - A closing write that fails is kept, tracked on its own and bound to its vault. Every later `saveAll` retries it, but only while that vault is open. It stays reported until a retry succeeds, or, for a whole-file write, until that file is saved completely again. So a failure is never forgotten between clicks and never written into another vault.
+  - **A closed document's failed final write goes into a recovery file.** A document that closes (e.g. switching notes) writes its last changes once, after any save already under way. If that write fails, the changes are written to a new file next to the original, `Name (unsaved 2026-10-10 14-03-22).md`, and the user is told.
+    - The recovery file is only ever created, never overwritten, and only in the vault the changes came from.
+    - If it can't be created either, `saveAll` tries again and reports the file until it works, so installing is refused meanwhile.
+    - This replaced retrying the original write, which could lose content (a later save "settled" it), raise false failures, or recreate a renamed or deleted file. A new, clearly named file has none of those problems. It follows the build prompt's `Note (conflict YYYY-MM-DD).md` convention.
   - While installing (`preserveEdits`), an embed whose source block changed keeps its edit and reports a conflict. It does not reload over the edit as its ordinary autosave does. This also applies to a save already under way when Install was clicked.
   - A document that keeps changing while it saves is saved again, up to three times.
   - Saves wait until no write is in flight, then re-check that the document still needs saving. Before, two saves queued behind one write both wrote, and the second's mtime check raised a false conflict.

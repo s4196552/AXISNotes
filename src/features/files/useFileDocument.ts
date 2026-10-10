@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { backend, isBackendError, type VaultChange } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import {
-  markSaved,
   registerDocument,
   SAVE_ATTEMPTS,
   trackClosingWrite,
@@ -99,7 +98,6 @@ export function useFileDocument(
         try {
           const res = await backend.writeFile(path, content, force ? undefined : mtime.current);
           mtime.current = res.modifiedMs;
-          markSaved(path);
           useAppStore.getState().bumpIndex();
           if (edits.current === editsAtStart) {
             dirty.current = false;
@@ -174,12 +172,12 @@ export function useFileDocument(
       cancelled = true;
       clearTimer();
       if (dirty.current && !paused.current && enabledRef.current) {
+        // If the write fails, the changes are kept in an "(unsaved …)" file instead.
         const content = serializeRef.current();
-        const expected = mtime.current;
-        trackClosingWrite(path, "file", () => backend.writeFile(path, content, expected)).catch(
-          (e: unknown) =>
-            useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
-        );
+        trackClosingWrite(path, content, async () => {
+          while (saving.current) await saving.current; // it may have saved this already
+          if (dirty.current) await backend.writeFile(path, content, mtime.current);
+        });
       }
     };
   }, [path]);

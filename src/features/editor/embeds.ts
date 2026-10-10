@@ -218,15 +218,15 @@ class EmbedController {
     if (this.dirty && this.path) {
       const path = this.path;
       const next = this.view!.state.doc.toString();
-      // Rejects unless the edit reached the disk, so installing waits for it and is
-      // refused (naming the note) if it couldn't be written.
-      void trackClosingWrite(path, "part", async () => {
+      // Rejects unless the edit reached the disk; then the block is kept in an
+      // "(unsaved …)" file next to the source note instead.
+      trackClosingWrite(path, next, async () => {
         while (this.saving) await this.saving;
         if (next === this.loaded) return;
         const r = await writeBlock(path, this.inner, this.loaded, next);
         if (!r.ok) throw new Error(`the embedded block in ${path} changed`);
         this.loaded = next;
-      }).catch(() => {});
+      });
     }
     this.unlisten?.();
     this.view?.destroy();

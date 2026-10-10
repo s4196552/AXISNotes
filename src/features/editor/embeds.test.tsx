@@ -108,15 +108,17 @@ describe("embeds", () => {
     preserveEdits(false);
   });
 
-  it("reports a closed embed's edit that couldn't be written back", async () => {
+  it("keeps a closed embed's edit in a new file when it can't be written back", async () => {
     const { unmount } = await openNote();
     await waitFor(() => expect(screen.getByLabelText("Embedded Tasks#^b1")).toBeInTheDocument());
     const nested = embeddedView("Tasks#^b1");
     await h.b.writeFile("Tasks.md", TASKS.replace("buy milk", "buy bread"));
     act(() => nested.dispatch({ changes: { from: 0, insert: "X" } }));
     unmount();
-    expect(await act(() => saveAll())).toEqual([{ path: "Tasks.md", reason: "failed" }]);
+    expect(await act(() => saveAll())).toEqual([]);
     expect(h.b.files()["Tasks.md"]).toContain("buy bread ^b1");
+    const kept = Object.entries(h.b.files()).filter(([p]) => p.startsWith("Tasks (unsaved "));
+    expect(kept.map(([, c]) => c)).toEqual(["X- buy milk ^b1\n  - 2%"]);
   });
 
   it("reloads instead of overwriting when the source block changed elsewhere", async () => {

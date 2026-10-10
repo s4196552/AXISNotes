@@ -15,7 +15,6 @@ import { type Props, splitFrontmatter, withFrontmatter } from "../../lib/markdow
 import { useUi } from "../commands/ui";
 import { PAGE_STYLE_PROP, PAGE_STYLES } from "../templates/templates";
 import {
-  markSaved,
   registerDocument,
   SAVE_ATTEMPTS,
   trackClosingWrite,
@@ -169,7 +168,6 @@ export function Editor({ path }: EditorProps) {
         try {
           const res = await backend.writeFile(path, content, force ? undefined : mtime.current);
           mtime.current = res.modifiedMs;
-          markSaved(path);
           useAppStore.getState().bumpIndex(); // tags/links may have changed
           if (v.state.doc.toString() === content) {
             dirty.current = false;
@@ -317,15 +315,15 @@ export function Editor({ path }: EditorProps) {
 
     return () => {
       cancelled = true;
-      // Flush unsaved edits on unmount (fire-and-forget; the view is going away).
+      // Flush unsaved edits on unmount (the view is going away). If the write fails, the
+      // changes are kept in an "(unsaved …)" file instead.
       clearTimer();
       if (created && dirty.current && !paused.current) {
         const content = created.state.doc.toString();
-        const expected = mtime.current;
-        trackClosingWrite(path, "file", () => backend.writeFile(path, content, expected)).catch(
-          (e: unknown) =>
-            useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
-        );
+        trackClosingWrite(path, content, async () => {
+          while (saving.current) await saving.current; // it may have saved this already
+          if (dirty.current) await backend.writeFile(path, content, mtime.current);
+        });
       }
       created?.destroy();
       view.current = null;
