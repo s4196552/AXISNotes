@@ -152,6 +152,20 @@ describe("installing an update", () => {
     expect(onDiskAtInstall?.["School/Biology.md"]).toBe("# Biology closing");
   });
 
+  it("doesn't report a false conflict when saves queue behind a write in flight", async () => {
+    const { view } = await openNote();
+    const write = h.b.writeFile;
+    h.b.writeFile = (...args) => new Promise((r) => setTimeout(r, 30)).then(() => write(...args)); // a slow disk
+    type(view, " one");
+    const first = saveAll(); // its write is now in flight
+    type(view, " two");
+    // e.g. the blur save and install's flush, both waiting for that write
+    const [a, b, c] = await act(() => Promise.all([first, saveAll(), saveAll()]));
+    expect([...a, ...b, ...c]).toEqual([]);
+    expect(screen.queryByText("This note changed on disk.")).toBeNull();
+    expect(h.b.files()["School/Biology.md"]).toBe("# Biology one two");
+  });
+
   it("saves a grid or canvas waiting for autosave", async () => {
     let content = "{}";
     const { result } = renderHook(() => useFileDocument("Budget.axgrid", () => content));

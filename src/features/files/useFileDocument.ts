@@ -87,7 +87,10 @@ export function useFileDocument(
       clearTimer();
       if (!enabledRef.current) return;
       if (!force && (!dirty.current || paused.current)) return;
-      if (saving.current) await saving.current; // one write at a time
+      // One write at a time. Several saves can be waiting (autosave, blur, install's
+      // flush); each waits for whichever write is current, then checks it's still needed.
+      while (saving.current) await saving.current;
+      if (!force && (!dirty.current || paused.current)) return;
       const content = serializeRef.current();
       const editsAtStart = edits.current;
       setStatus("saving");

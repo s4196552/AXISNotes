@@ -158,7 +158,10 @@ export function Editor({ path }: EditorProps) {
       clearTimer();
       const v = view.current;
       if (!v || (!force && (!dirty.current || paused.current))) return;
-      if (saving.current) await saving.current; // one write at a time
+      // One write at a time. Several saves can be waiting (autosave, blur, install's
+      // flush); each waits for whichever write is current, then checks it's still needed.
+      while (saving.current) await saving.current;
+      if (!force && (!dirty.current || paused.current)) return;
       const content = v.state.doc.toString();
       setStatus("saving");
       const op = (async () => {
