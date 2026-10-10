@@ -2,6 +2,15 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-10: Installing an update saves everything first (T-073)
+
+- **"Install and restart" (banner and Settings → Updates) saves every open document before it starts the installer**, because the installer closes the app at once (`app.exit(0)`) and an edit still inside the autosave delay would be lost.
+  - Notes, grids, canvases and editable embeds register a `flush` with `src/features/files/unsavedWork.ts`. `saveAll()` calls them all, waits for the writes (including the final write of a document that just closed) and returns what is still not on disk.
+  - A document that keeps changing while it saves is saved again, up to three times.
+- **If anything can't be saved, nothing is installed.** That covers an unresolved "changed on disk" conflict, a note moved or deleted elsewhere, or a failed write. The banner names each file and why ("Unsaved changes in “School/Biology” (changed on disk)"), so the user can resolve it and try again. Saving never forces past a conflict: the user decides which version wins.
+- **The window is made `inert` while it saves and installs**, so no new edit can start after the save. It is restored if installing is refused or fails.
+- **Frontend only.** The Rust `updates_install` command is unchanged; the guard runs before it is called.
+
 ## 2026-10-09: Translucent theme with an opacity setting (T-069)
 
 - **Translucent (`axis:translucent`) makes the window itself see-through**, so the desktop shows behind the app. It follows the OS light/dark setting.

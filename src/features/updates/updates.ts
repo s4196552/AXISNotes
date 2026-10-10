@@ -1,9 +1,17 @@
 import { create } from "zustand";
 import { type AvailableUpdate, backend, isBackendError } from "../../ipc";
+import { describeUnsaved, saveAll } from "../files/unsavedWork";
 
 // Updates from a folder (T-066): what the last check found, and installing it.
 
 const message = (e: unknown) => (isBackendError(e) ? e.message : String(e));
+
+/** While installing, nothing in the window can be focused or edited (T-073): every edit
+ *  made before this point gets saved, and none can start after it. */
+function freezeEditing(on: boolean) {
+  document.body.toggleAttribute("inert", on);
+  if (on && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+}
 
 interface UpdatesState {
   available: AvailableUpdate | null;
@@ -42,12 +50,27 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
   },
   async install() {
     const update = get().available;
-    if (!update) return;
+    if (!update || get().installing) return;
     set({ installing: true, error: null });
+    freezeEditing(true);
     try {
+      // Installing closes the app: save every open document first, and don't install
+      // while any change can't be saved (e.g. a note with an unresolved conflict).
+      const unsaved = await saveAll();
+      if (unsaved.length > 0) {
+        freezeEditing(false);
+        set({
+          installing: false,
+          error:
+            `Not installed, so no edits are lost. Unsaved changes in ${describeUnsaved(unsaved)}. ` +
+            `Resolve ${unsaved.length === 1 ? "it" : "them"}, then try again.`,
+        });
+        return;
+      }
       // On success the app closes while the installer runs, then reopens updated.
       await backend.updatesInstall(update.version);
     } catch (e) {
+      freezeEditing(false);
       set({ installing: false, error: message(e) });
     }
   },

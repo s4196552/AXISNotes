@@ -9,6 +9,7 @@ import { copyBlockLink } from "../commands/actions";
 import { setActiveEditor } from "./activeEditor";
 import { Editor } from "./Editor";
 import { anchorCompletions, EMBED_SAVE_DELAY_MS, notePath } from "./embeds";
+import { saveAll } from "../files/unsavedWork";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -65,6 +66,15 @@ describe("embeds", () => {
     );
     // The note containing the embed is untouched.
     expect(h.b.files()["Note.md"]).toBe("Intro\n\n![[Tasks#^b1]]\n\n![[Tasks#^zz]]\n");
+  });
+
+  it("saves an edit still waiting to save when everything is saved at once (T-073)", async () => {
+    await openNote();
+    await waitFor(() => expect(screen.getByLabelText("Embedded Tasks#^b1")).toBeInTheDocument());
+    const nested = embeddedView("Tasks#^b1");
+    act(() => nested.dispatch({ changes: { from: "- buy milk".length, insert: " oat" } }));
+    expect(await act(() => saveAll())).toEqual([]);
+    expect(h.b.files()["Tasks.md"]).toContain("- buy milk oat ^b1");
   });
 
   it("reloads instead of overwriting when the source block changed elsewhere", async () => {

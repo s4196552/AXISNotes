@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { backend, isBackendError, type VaultChange } from "../../ipc";
 import { useAppStore } from "../../app/store";
+import {
+  registerDocument,
+  SAVE_ATTEMPTS,
+  trackClosingWrite,
+  type UnsavedDocument,
+} from "./unsavedWork";
 
 // Load / autosave / conflict handling for a file-backed document (grids, canvases).
 // Mirrors the Markdown editor's rules: debounced autosave with mtime-checked writes,
@@ -52,6 +58,7 @@ export function useFileDocument(
   const mtime = useRef<number | undefined>(undefined);
   const dirty = useRef(false);
   const paused = useRef(false);
+  const bannerRef = useRef<Banner>(null);
   const saving = useRef<Promise<void> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const serializeRef = useRef(serialize);
@@ -66,6 +73,7 @@ export function useFileDocument(
 
   const setBanner = useCallback((b: Banner) => {
     paused.current = b !== null;
+    bannerRef.current = b;
     setBannerState(b);
   }, []);
 
@@ -111,6 +119,16 @@ export function useFileDocument(
     [path, setBanner],
   );
 
+  /** Save now, waiting for the write; reports changes that still aren't on disk. */
+  const flush = useCallback(async (): Promise<UnsavedDocument | null> => {
+    if (!enabledRef.current) return null; // never saved while the file can't be parsed
+    for (let i = 0; i < SAVE_ATTEMPTS && dirty.current && !paused.current; i++) await save();
+    if (saving.current) await saving.current;
+    return dirty.current ? { path, reason: bannerRef.current ?? "failed" } : null;
+  }, [path, save]);
+
+  useEffect(() => registerDocument(flush), [flush]);
+
   const markDirty = useCallback(() => {
     edits.current++;
     dirty.current = true;
@@ -151,11 +169,11 @@ export function useFileDocument(
       cancelled = true;
       clearTimer();
       if (dirty.current && !paused.current && enabledRef.current) {
-        void backend
-          .writeFile(path, serializeRef.current(), mtime.current)
-          .catch((e: unknown) =>
-            useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
-          );
+        const write = backend.writeFile(path, serializeRef.current(), mtime.current);
+        trackClosingWrite(path, write);
+        write.catch((e: unknown) =>
+          useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
+        );
       }
     };
   }, [path]);

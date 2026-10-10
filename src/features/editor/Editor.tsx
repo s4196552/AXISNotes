@@ -14,6 +14,12 @@ import { useConfig } from "../../app/config";
 import { type Props, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { useUi } from "../commands/ui";
 import { PAGE_STYLE_PROP, PAGE_STYLES } from "../templates/templates";
+import {
+  registerDocument,
+  SAVE_ATTEMPTS,
+  trackClosingWrite,
+  type UnsavedDocument,
+} from "../files/unsavedWork";
 import { setActiveEditor } from "./activeEditor";
 import { links, refreshLinks, wikilinkCompletions } from "./links";
 import { anchorCompletions, embeds } from "./embeds";
@@ -99,6 +105,7 @@ export function Editor({ path }: EditorProps) {
   const dirty = useRef(false);
   /** Autosave is paused while a conflict/removed banner is showing. */
   const paused = useRef(false);
+  const bannerRef = useRef<Banner>(null);
   const saving = useRef<Promise<void> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -133,6 +140,7 @@ export function Editor({ path }: EditorProps) {
 
   const setBanner = useCallback((b: Banner) => {
     paused.current = b !== null;
+    bannerRef.current = b;
     setBannerState(b);
   }, []);
 
@@ -180,6 +188,15 @@ export function Editor({ path }: EditorProps) {
     },
     [path, setBanner],
   );
+
+  /** Save now, waiting for the write; reports changes that still aren't on disk. */
+  const flush = useCallback(async (): Promise<UnsavedDocument | null> => {
+    for (let i = 0; i < SAVE_ATTEMPTS && dirty.current && !paused.current; i++) await save();
+    if (saving.current) await saving.current;
+    return dirty.current ? { path, reason: bannerRef.current ?? "failed" } : null;
+  }, [path, save]);
+
+  useEffect(() => registerDocument(flush), [flush]);
 
   const scheduleSave = useCallback(() => {
     clearTimer();
@@ -298,11 +315,11 @@ export function Editor({ path }: EditorProps) {
       // Flush unsaved edits on unmount (fire-and-forget; the view is going away).
       clearTimer();
       if (created && dirty.current && !paused.current) {
-        void backend
-          .writeFile(path, created.state.doc.toString(), mtime.current)
-          .catch((e: unknown) =>
-            useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
-          );
+        const write = backend.writeFile(path, created.state.doc.toString(), mtime.current);
+        trackClosingWrite(path, write);
+        write.catch((e: unknown) =>
+          useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
+        );
       }
       created?.destroy();
       view.current = null;

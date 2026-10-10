@@ -68,6 +68,46 @@ describe("Updates from a folder", () => {
     await expect(banner).not.toBeDisplayed();
   });
 
+  it("never installs over unsaved edits (T-073)", async () => {
+    const welcome = path.join(process.env.AXIS_E2E_VAULT!, "Welcome.md");
+    const onDisk = () => fs.readFileSync(welcome, "utf8");
+    await browser.refresh();
+    const banner = $('[role="region"][aria-label="Update available"]');
+    await banner.waitForDisplayed();
+    await $('[data-path="Welcome.md"]').click();
+    await browser.waitUntil(async () => (await $(".cm-content").getText()).includes("Hello"));
+
+    // An edit that collides with a change made in another program: a conflict banner.
+    await $(".cm-content").click();
+    await browser.keys([Key.Ctrl, Key.End]);
+    await browser.keys(" mine");
+    fs.writeFileSync(welcome, "# Welcome\n\ntheirs\n");
+    await expect($(".editor-banner")).toHaveText(expect.stringContaining("changed on disk"));
+
+    // Installing is refused, naming the note, and neither version is lost.
+    await banner.$("button=Install and restart").click();
+    await expect(banner.$('[role="alert"]')).toHaveText(
+      expect.stringContaining("Unsaved changes in “Welcome” (changed on disk)"),
+    );
+    expect(onDisk()).toBe("# Welcome\n\ntheirs\n");
+    await expect($(".cm-content")).toHaveText(expect.stringContaining("mine"));
+    fs.mkdirSync(QA_DIR, { recursive: true });
+    await browser.saveScreenshot(path.join(QA_DIR, "unsaved-conflict.png"));
+
+    // Resolved, installing goes ahead — an edit still in the autosave delay is saved first.
+    await $(".editor-banner").$("button=Keep my version").click();
+    await browser.waitUntil(() => onDisk().includes("mine"));
+    await $(".cm-content").click();
+    await browser.keys(" more");
+    await banner.$("button=Install and restart").click();
+    // This development build refuses at the installer step, after the guard has passed.
+    await expect(banner.$('[role="alert"]')).toHaveText(
+      expect.stringContaining("not a development build"),
+    );
+    expect(onDisk()).toContain("mine more");
+    await banner.$('button[aria-label="Later"]').click();
+  });
+
   it("stays quiet at launch when checking is turned off", async () => {
     await command("Open settings");
     await $("nav[aria-label='Settings sections']").$("button=Updates").click();

@@ -8,6 +8,7 @@ import { useAppStore } from "../../app/store";
 import { embedRange, ensureBlockId, listBlocks, listHeadings } from "../../lib/blocks";
 import { noteName, parseWikilinkInner } from "../../lib/markdown";
 import { isImagePath, parseImageEmbed, resolveAttachment } from "../../lib/attachments";
+import { registerDocument, SAVE_ATTEMPTS, trackClosingWrite } from "../files/unsavedWork";
 import { linkHost } from "./links";
 import { livePreview } from "./livePreview";
 import { axisTheme } from "./theme";
@@ -35,6 +36,11 @@ class EmbedController {
   private saving: Promise<void> | null = null;
   private unlisten: (() => void) | null = null;
   private destroyed = false;
+  /** Lets installing an update save this embed first (T-073). */
+  private readonly unregister = registerDocument(async () => {
+    for (let i = 0; i < SAVE_ATTEMPTS && this.dirty; i++) await this.save();
+    return this.dirty && this.path ? { path: this.path, reason: "failed" } : null;
+  });
 
   constructor(
     private readonly body: HTMLElement,
@@ -172,7 +178,8 @@ class EmbedController {
 
   destroy() {
     this.destroyed = true;
-    if (this.dirty) void this.save();
+    this.unregister();
+    if (this.dirty && this.path) trackClosingWrite(this.path, this.save());
     this.unlisten?.();
     this.view?.destroy();
     this.view = null;
