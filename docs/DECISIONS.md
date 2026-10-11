@@ -2,6 +2,15 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-12: Closing never loses an edit either (T-074)
+
+- **Closing the window saves every open document first**, the same way installing an update does (`src/features/files/beforeExit.ts`: freeze the window, wait a moment for blur-committed edits, `saveAll()`).
+  - The frontend listens for Tauri's close request, which keeps the window open (Tauri prevents the close while JS listens), and closes it with `destroy`. The capability adds `core:window:allow-destroy`.
+- **If anything can't be saved, the window stays open** and the status bar names the notes: "Not closed, so no edits are lost. Unsaved changes in “Welcome” (changed on disk). Resolve it, or close again to quit without saving it."
+  - Closing again within 15 s still saves everything it can, then quits without the rest. A failing disk or network folder must never trap the user in the app.
+- **A note closed while its "changed on disk" or "moved or deleted" banner shows keeps the editor's version in a recovery file** (`Name (unsaved …).md`, T-073's mechanism). Before, switching notes dropped it silently. The file on disk is not touched, and a moved or deleted note is not brought back.
+- **An embed whose source block changed keeps the edit and asks.** Its autosave no longer reloads the block over the edit. The embed header offers **Reload from source** or **Keep mine** (write this version over the changed block). If the block is gone, it offers **Discard my edit**. Until the user chooses, installing and closing name it as a conflict. This replaced T-073's `preserveEdits` switch.
+
 ## 2026-10-10: Installing an update saves everything first (T-073)
 
 - **"Install and restart" (banner and Settings → Updates) saves every open document before it starts the installer**, because the installer closes the app at once (`app.exit(0)`) and an edit still inside the autosave delay would be lost.

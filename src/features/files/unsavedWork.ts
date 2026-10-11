@@ -36,12 +36,11 @@ const documents = new Set<Registered>();
 const closing = new Set<Promise<void>>();
 /** Closed documents' changes that couldn't be written anywhere yet. */
 const unrecovered = new Set<Unrecovered>();
-let preserving = false;
 
 /** The open vault's root. Documents note it when they load: by the time one closes, the
  *  app may already have switched to another vault. */
 export const currentVault = () => useAppStore.getState().vault?.root ?? null;
-const describe = (e: unknown) => (isBackendError(e) ? e.message : String(e));
+const describe = (e: unknown) => (isBackendError(e) || e instanceof Error ? e.message : String(e));
 
 /** Register an open document; returns the function that unregisters it. A flush that
  *  throws counts as unsaved, so it never lets the app close. */
@@ -121,13 +120,6 @@ export function trackClosingWrite(
   void op.finally(() => closing.delete(op));
 }
 
-/** While on (installing), a save that finds its source changed keeps the edit and
- *  reports it instead of reloading over it — including saves already under way. */
-export function preserveEdits(on: boolean) {
-  preserving = on;
-}
-export const preservingEdits = () => preserving;
-
 /** How many times a document is saved again when it keeps changing while it saves. */
 export const SAVE_ATTEMPTS = 3;
 
@@ -172,5 +164,4 @@ export function resetUnsavedWork() {
   documents.clear();
   closing.clear();
   unrecovered.clear();
-  preserving = false;
 }

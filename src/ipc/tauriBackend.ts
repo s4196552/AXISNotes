@@ -98,6 +98,15 @@ export function createTauriBackend(): Backend {
       on
         ? getCurrentWindow().setEffects({ effects: [Effect.Acrylic] })
         : getCurrentWindow().clearEffects(),
+    async onCloseRequested(cb) {
+      // Registering any listener keeps the window open (Tauri prevents the close while
+      // JS listens); preventing here also stops the API from closing it after `cb`.
+      return getCurrentWindow().onCloseRequested((e) => {
+        e.preventDefault();
+        cb();
+      });
+    },
+    closeWindow: () => getCurrentWindow().destroy(),
     listFonts: () => invoke("list_fonts"),
     async onIndexProgress(cb) {
       return listen<IndexProgress>(INDEX_PROGRESS_EVENT, (e) => cb(e.payload));

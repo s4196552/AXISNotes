@@ -181,13 +181,21 @@ export function useFileDocument(
     return () => {
       cancelled = true;
       clearTimer();
-      if (dirty.current && !paused.current && enabledRef.current) {
+      if (dirty.current && enabledRef.current) {
         // If the write fails, the changes are kept in an "(unsaved …)" file instead.
         const content = serializeRef.current();
         trackClosingWrite(path, content, vault, async () => {
           while (saving.current) await saving.current; // it may have saved this already
-          if (dirty.current)
-            await backend.writeFile(path, content, mtime.current, vault ?? undefined);
+          if (!dirty.current) return;
+          // With the "changed on disk" or "moved or deleted" banner up, writing would
+          // overwrite the other version or bring the file back: keep these changes in a
+          // recovery file instead (T-074).
+          if (paused.current) {
+            throw new Error(
+              bannerRef.current === "removed" ? "it was moved or deleted" : "it changed on disk",
+            );
+          }
+          await backend.writeFile(path, content, mtime.current, vault ?? undefined);
         });
       }
     };

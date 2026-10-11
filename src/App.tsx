@@ -20,6 +20,7 @@ import { ImageView, UnsupportedView } from "./features/files/ImageView";
 import { useClipNotices } from "./features/clipper/useClipNotices";
 import { UpdateBanner } from "./features/updates/UpdateBanner";
 import { checkOnLaunch } from "./features/updates/updates";
+import { guardWindowClose } from "./features/files/closeGuard";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
@@ -115,6 +116,9 @@ export default function App() {
 
   // A newer version in the updates folder is offered by a banner (never installed unasked).
   useEffect(() => void checkOnLaunch(), []);
+
+  // Closing the window saves every open document first, and stays open if one can't be.
+  useEffect(() => guardWindowClose(), []);
 
   // Keep the tree in sync with edits made outside the app.
   useEffect(() => {

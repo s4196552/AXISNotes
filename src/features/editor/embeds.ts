@@ -10,7 +10,6 @@ import { noteName, parseWikilinkInner } from "../../lib/markdown";
 import { isImagePath, parseImageEmbed, resolveAttachment } from "../../lib/attachments";
 import {
   currentVault,
-  preservingEdits,
   registerDocument,
   SAVE_ATTEMPTS,
   trackClosingWrite,
@@ -58,6 +57,18 @@ async function writeBlock(
   return { ok: true } as WriteBack;
 }
 
+/** Write `next` over the embedded block as it is on disk now ("Keep mine"). Returns false
+ *  if the block is no longer in the source. */
+async function overwriteBlock(path: string, inner: string, next: string) {
+  const file = await backend.readFile(path);
+  const range = embedRange(file.content, parseWikilinkInner(inner));
+  if (!range) return false;
+  const text = file.content.slice(0, range.from) + next + file.content.slice(range.to);
+  await backend.writeFile(path, text, file.modifiedMs);
+  useAppStore.getState().bumpIndex();
+  return true;
+}
+
 class EmbedController {
   private view: EditorView | null = null;
   private path: string | null = null;
@@ -70,14 +81,13 @@ class EmbedController {
   private readonly vault = currentVault();
   /** Why the last save didn't write the edit, if it didn't. */
   private problem: "conflict" | "failed" | null = null;
-  /** Lets installing an update save this embed first (T-073). A changed source block is
-   *  reported, never reloaded over the edit. */
+  /** Lets installing an update or closing the window save this embed first (T-073). */
   private readonly unregister = registerDocument(
     () => this.path ?? this.from,
     async () => {
       this.problem = null;
       for (let i = 0; i < SAVE_ATTEMPTS && this.dirty && this.problem !== "conflict"; i++) {
-        await this.save(true);
+        await this.save();
       }
       if (!this.dirty || !this.path) return null;
       return { path: this.path, reason: this.problem ?? "failed" };
@@ -87,6 +97,8 @@ class EmbedController {
   constructor(
     private readonly body: HTMLElement,
     private readonly status: HTMLElement,
+    /** Where "Reload from source" / "Keep mine" appear when the source block changed. */
+    private readonly actions: HTMLElement,
     private readonly inner: string,
     private readonly from: string,
     private readonly outer: EditorView,
@@ -181,9 +193,9 @@ class EmbedController {
     return this.view !== null && this.view.state.doc.toString() !== this.loaded;
   }
 
-  /** `keepOnConflict`: if the source block changed, keep the edit (and report it)
-   *  instead of reloading the block over it. */
-  async save(keepOnConflict = false): Promise<void> {
+  /** If the source block changed meanwhile, the edit is kept and the user chooses
+   *  (T-074): reload the block, or keep this version. Nothing is overwritten unasked. */
+  async save(): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     while (this.saving) await this.saving; // one write at a time
@@ -195,16 +207,76 @@ class EmbedController {
         const r = await writeBlock(path, this.inner, this.loaded, next);
         if (!r.ok) {
           this.problem = "conflict";
-          if (keepOnConflict || preservingEdits()) {
-            this.setStatus("changed in the source — not saved");
-            return;
-          }
-          this.setStatus("changed in the source — reloaded");
-          if (r.current !== null && !this.destroyed) this.show(r.current);
+          this.showConflict(r.current !== null);
           return;
         }
         this.problem = null;
+        this.clearConflict();
         this.loaded = next;
+        this.setStatus(this.dirty ? "unsaved" : "saved");
+      } catch (e) {
+        this.problem = "failed";
+        this.setStatus(`save failed: ${describe(e)}`);
+      }
+    })();
+    this.saving = op;
+    await op;
+    this.saving = null;
+  }
+
+  private showConflict(blockExists: boolean) {
+    this.setStatus(
+      blockExists ? "changed in the source — not saved" : "no longer in the source — not saved",
+    );
+    const button = (label: string, run: () => Promise<void>) => {
+      const b = document.createElement("button");
+      b.className = "cm-embed-edit cm-embed-action";
+      b.textContent = label;
+      b.addEventListener("click", () => void run());
+      return b;
+    };
+    this.actions.replaceChildren(
+      ...(blockExists
+        ? [
+            button("Reload from source", () => this.reloadFromSource()),
+            button("Keep mine", () => this.keepMine()),
+          ]
+        : [button("Discard my edit", () => this.reloadFromSource())]),
+    );
+  }
+
+  private clearConflict() {
+    this.actions.replaceChildren();
+  }
+
+  /** Drop the edit and show the block as it is in the source now. */
+  async reloadFromSource(): Promise<void> {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    while (this.saving) await this.saving;
+    this.problem = null;
+    this.clearConflict();
+    this.view?.destroy();
+    this.view = null;
+    this.loaded = "";
+    this.body.textContent = "Loading…";
+    await this.load();
+  }
+
+  /** Write this version over the block as it is in the source now. */
+  async keepMine(): Promise<void> {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    while (this.saving) await this.saving;
+    if (!this.view || !this.path) return;
+    const next = this.view.state.doc.toString();
+    const path = this.path;
+    const op = (async () => {
+      try {
+        if (!(await overwriteBlock(path, this.inner, next))) return this.showConflict(false);
+        this.problem = null;
+        this.loaded = next;
+        this.clearConflict();
         this.setStatus(this.dirty ? "unsaved" : "saved");
       } catch (e) {
         this.problem = "failed";
@@ -287,13 +359,15 @@ class EmbedWidget extends WidgetType {
       view.dispatch({ selection: { anchor: view.state.doc.lineAt(pos).from } });
       view.focus();
     });
-    header.append(open, status, edit);
+    const actions = document.createElement("span");
+    actions.className = "cm-embed-actions";
+    header.append(open, status, actions, edit);
 
     const body = document.createElement("div");
     body.className = "cm-embed-body";
     body.textContent = "Loading…";
     root.append(header, body);
-    controllers.set(root, new EmbedController(body, status, this.inner, this.from, view));
+    controllers.set(root, new EmbedController(body, status, actions, this.inner, this.from, view));
     return root;
   }
   destroy(dom: HTMLElement) {

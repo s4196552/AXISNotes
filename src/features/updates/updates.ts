@@ -1,18 +1,10 @@
 import { create } from "zustand";
 import { type AvailableUpdate, backend, isBackendError } from "../../ipc";
-import { describeUnsaved, preserveEdits, saveAll } from "../files/unsavedWork";
+import { freezeEditing, saveBeforeExit, unsavedChanges } from "../files/beforeExit";
 
 // Updates from a folder (T-066): what the last check found, and installing it.
 
 const message = (e: unknown) => (isBackendError(e) ? e.message : String(e));
-
-/** While installing, nothing in the window can be focused or edited (T-073): every edit
- *  made before this point gets saved, and none can start after it. */
-function freezeEditing(on: boolean) {
-  preserveEdits(on); // first: blurring starts saves, which must not reload over edits
-  document.body.toggleAttribute("inert", on);
-  if (on && document.activeElement instanceof HTMLElement) document.activeElement.blur();
-}
 
 interface UpdatesState {
   available: AvailableUpdate | null;
@@ -53,21 +45,16 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
     const update = get().available;
     if (!update || get().installing) return;
     set({ installing: true, error: null });
-    freezeEditing(true);
     try {
-      // Installing closes the app: save every open document first, and don't install
-      // while any change can't be saved (e.g. a note with an unresolved conflict).
-      // Let edits committed by that blur (a grid cell, a canvas text) reach their
-      // documents first: some arrive through React or Excalidraw a moment later.
-      await new Promise((r) => setTimeout(r, 0));
-      const unsaved = await saveAll();
+      // Installing closes the app (T-073): freeze the window and save every open document
+      // first, and don't install while any change can't be saved (e.g. a note with an
+      // unresolved conflict).
+      const unsaved = await saveBeforeExit();
       if (unsaved.length > 0) {
-        freezeEditing(false);
+        const { sentence, them } = unsavedChanges(unsaved);
         set({
           installing: false,
-          error:
-            `Not installed, so no edits are lost. Unsaved changes in ${describeUnsaved(unsaved)}. ` +
-            `Resolve ${unsaved.length === 1 ? "it" : "them"}, then try again.`,
+          error: `Not installed, so no edits are lost. ${sentence} Resolve ${them}, then try again.`,
         });
         return;
       }

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { CompletionContext } from "@codemirror/autocomplete";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
@@ -9,7 +9,7 @@ import { copyBlockLink } from "../commands/actions";
 import { setActiveEditor } from "./activeEditor";
 import { Editor } from "./Editor";
 import { anchorCompletions, EMBED_SAVE_DELAY_MS, embedControllerFor, notePath } from "./embeds";
-import { preserveEdits, resetUnsavedWork, saveAll } from "../files/unsavedWork";
+import { resetUnsavedWork, saveAll } from "../files/unsavedWork";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -91,21 +91,18 @@ describe("embeds", () => {
     expect(screen.getByText("changed in the source — not saved")).toBeInTheDocument();
   });
 
-  it("keeps the edit when a save already under way finds the block changed while installing", async () => {
+  it("an ordinary save keeps the edit when the source block changed (T-074)", async () => {
     await openNote();
     await waitFor(() => expect(screen.getByLabelText("Embedded Tasks#^b1")).toBeInTheDocument());
     const nested = embeddedView("Tasks#^b1");
     await h.b.writeFile("Tasks.md", TASKS.replace("buy milk", "buy bread"));
     act(() => nested.dispatch({ changes: { from: 0, insert: "X" } }));
-    // Install turns this on, then blurs the embed, which starts its ordinary save.
-    preserveEdits(true);
+    // e.g. the blur save that clicking elsewhere (or Install) starts
     const root = screen.getByLabelText("Embedded Tasks#^b1").closest(".cm-embed") as HTMLElement;
-    const blurSave = embedControllerFor(root)!.save();
-    const result = await act(() => saveAll());
-    await blurSave;
-    expect(result).toEqual([{ path: "Tasks.md", reason: "conflict" }]);
-    expect(nested.state.doc.toString()).toContain("X- buy milk");
-    preserveEdits(false);
+    await act(() => embedControllerFor(root)!.save());
+    expect(nested.state.doc.toString()).toBe("X- buy milk ^b1\n  - 2%");
+    expect(h.b.files()["Tasks.md"]).toContain("buy bread ^b1");
+    expect(await act(() => saveAll())).toEqual([{ path: "Tasks.md", reason: "conflict" }]);
   });
 
   it("keeps a closed embed's edit in a new file when it can't be written back", async () => {
@@ -121,16 +118,53 @@ describe("embeds", () => {
     expect(kept.map(([, c]) => c)).toEqual(["X- buy milk ^b1\n  - 2%"]);
   });
 
-  it("reloads instead of overwriting when the source block changed elsewhere", async () => {
+  it("asks before overwriting or dropping an edit when the source block changed", async () => {
     await openNote();
     await waitFor(() => expect(screen.getByLabelText("Embedded Tasks#^b1")).toBeInTheDocument());
-    const nested = embeddedView("Tasks#^b1");
+    let nested = embeddedView("Tasks#^b1");
     await h.b.writeFile("Tasks.md", TASKS.replace("buy milk", "buy bread"));
     act(() => nested.dispatch({ changes: { from: 0, insert: "X" } }));
     await act(() => vi.advanceTimersByTimeAsync(EMBED_SAVE_DELAY_MS + 50));
-    await waitFor(() => expect(nested.state.doc.toString()).toBe("- buy bread ^b1\n  - 2%"));
+    expect(await screen.findByText("changed in the source — not saved")).toBeInTheDocument();
+    // Autosave kept the edit and wrote nothing.
+    expect(nested.state.doc.toString()).toBe("X- buy milk ^b1\n  - 2%");
     expect(h.b.files()["Tasks.md"]).toContain("buy bread ^b1");
-    expect(screen.getByText("changed in the source — reloaded")).toBeInTheDocument();
+
+    // "Keep mine" writes this version over the changed block.
+    fireEvent.click(screen.getByRole("button", { name: "Keep mine" }));
+    await waitFor(() =>
+      expect(h.b.files()["Tasks.md"]).toBe("# Tasks\n\n- a\nX- buy milk ^b1\n  - 2%\n- c\n"),
+    );
+    expect(screen.queryByRole("button", { name: "Keep mine" })).toBeNull();
+    expect(await act(() => saveAll())).toEqual([]);
+
+    // "Reload from source" drops the edit for the source's version.
+    await h.b.writeFile("Tasks.md", TASKS.replace("buy milk", "buy oats"));
+    nested = embeddedView("Tasks#^b1");
+    act(() => nested.dispatch({ changes: { from: 0, insert: "Y" } }));
+    await act(() => vi.advanceTimersByTimeAsync(EMBED_SAVE_DELAY_MS + 50));
+    fireEvent.click(await screen.findByRole("button", { name: "Reload from source" }));
+    await waitFor(() =>
+      expect(embeddedView("Tasks#^b1").state.doc.toString()).toBe("- buy oats ^b1\n  - 2%"),
+    );
+    expect(h.b.files()["Tasks.md"]).toContain("buy oats ^b1");
+    expect(await act(() => saveAll())).toEqual([]);
+  });
+
+  it("offers only to discard an edit whose block is gone from the source", async () => {
+    await openNote();
+    await waitFor(() => expect(screen.getByLabelText("Embedded Tasks#^b1")).toBeInTheDocument());
+    const nested = embeddedView("Tasks#^b1");
+    await h.b.writeFile("Tasks.md", "# Tasks\n\n- a\n");
+    act(() => nested.dispatch({ changes: { from: 0, insert: "X" } }));
+    await act(() => vi.advanceTimersByTimeAsync(EMBED_SAVE_DELAY_MS + 50));
+    expect(await screen.findByText("no longer in the source — not saved")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Keep mine" })).toBeNull();
+    expect(await act(() => saveAll())).toEqual([{ path: "Tasks.md", reason: "conflict" }]);
+    fireEvent.click(screen.getByRole("button", { name: "Discard my edit" }));
+    expect(await screen.findByText("Block ^b1 not found.")).toBeInTheDocument();
+    expect(await act(() => saveAll())).toEqual([]);
+    expect(h.b.files()["Tasks.md"]).toBe("# Tasks\n\n- a\n");
   });
 
   it("explains missing blocks and makes self-embeds read-only", async () => {

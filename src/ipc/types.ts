@@ -405,6 +405,14 @@ export interface Backend {
   canBeTranslucent(): boolean;
   /** Blur the desktop behind the see-through window (acrylic), or stop blurring it. */
   setWindowBlur(on: boolean): Promise<void>;
+  /**
+   * The user asked to close the window (close button, Alt+F4, …). While a listener is
+   * registered the window stays open; it closes only through `closeWindow`. Returns an
+   * unsubscribe function.
+   */
+  onCloseRequested(cb: () => void): Promise<() => void>;
+  /** Close the window (and so the app). */
+  closeWindow(): Promise<void>;
   /** Font families installed on this computer, sorted. */
   listFonts(): Promise<string[]>;
 

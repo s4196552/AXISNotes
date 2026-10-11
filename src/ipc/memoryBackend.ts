@@ -86,6 +86,10 @@ export interface MemoryBackend extends Backend {
   emitChanges(changes: VaultChange[]): void;
   /** Direct access for assertions in tests. */
   files(): Record<string, string>;
+  /** Simulate clicking the window's close button (fires onCloseRequested). */
+  requestClose(): void;
+  /** Whether closeWindow was called. */
+  windowClosed(): boolean;
 }
 
 export function createMemoryBackend(
@@ -94,6 +98,8 @@ export function createMemoryBackend(
 ): MemoryBackend {
   const nodes = new Map<string, Node>();
   const listeners = new Set<(c: VaultChange[]) => void>();
+  const closeListeners = new Set<() => void>();
+  let closed = false;
   let clock = 1_700_000_000_000;
   const tick = () => ++clock;
   let vault: VaultInfo | null = { root: `/memory/${vaultName}`, name: vaultName };
@@ -474,6 +480,18 @@ export function createMemoryBackend(
     // A browser page can't show the desktop behind it.
     canBeTranslucent: () => false,
     async setWindowBlur() {},
+    // A browser tab closes without asking the page; the desktop app asks first.
+    async onCloseRequested(cb) {
+      closeListeners.add(cb);
+      return () => closeListeners.delete(cb);
+    },
+    async closeWindow() {
+      closed = true;
+    },
+    requestClose() {
+      for (const cb of [...closeListeners]) cb();
+    },
+    windowClosed: () => closed,
     listFonts: async () => [
       "Arial",
       "Cascadia Code",

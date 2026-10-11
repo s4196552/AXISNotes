@@ -390,6 +390,15 @@
 .cm-embed-status {
   color: var(--fg-muted);
 }
+/* "Reload from source" / "Keep mine" when the source block changed (T-074). */
+.cm-embed-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+.cm-embed-edit.cm-embed-action {
+  margin-left: 0;
+  color: var(--accent);
+}
 .cm-embed-body {
   padding: 2px 4px;
 }

@@ -317,15 +317,23 @@ export function Editor({ path }: EditorProps) {
 
     return () => {
       cancelled = true;
-      // Flush unsaved edits on unmount (the view is going away). If the write fails, the
-      // changes are kept in an "(unsaved …)" file instead.
+      // Flush unsaved edits on unmount (the view is going away). If they can't be written,
+      // they are kept in an "(unsaved …)" file instead.
       clearTimer();
-      if (created && dirty.current && !paused.current) {
+      if (created && dirty.current) {
         const content = created.state.doc.toString();
         trackClosingWrite(path, content, vault, async () => {
           while (saving.current) await saving.current; // it may have saved this already
-          if (dirty.current)
-            await backend.writeFile(path, content, mtime.current, vault ?? undefined);
+          if (!dirty.current) return;
+          // With the "changed on disk" or "moved or deleted" banner up, writing would
+          // overwrite the other version or bring the file back: keep these changes in a
+          // recovery file instead (T-074).
+          if (paused.current) {
+            throw new Error(
+              bannerRef.current === "removed" ? "it was moved or deleted" : "it changed on disk",
+            );
+          }
+          await backend.writeFile(path, content, mtime.current, vault ?? undefined);
         });
       }
       created?.destroy();
