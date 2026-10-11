@@ -42,7 +42,7 @@ async function writeBlock(
   inner: string,
   loaded: string,
   next: string,
-  /** Write only while this vault is open (a closing embed's write, T-073). */
+  /** Write only while this vault (the embed's own) is still open (T-073). */
   vaultRoot?: string,
 ) {
   const link = parseWikilinkInner(inner);
@@ -59,12 +59,12 @@ async function writeBlock(
 
 /** Write `next` over the embedded block as it is on disk now ("Keep mine"). Returns false
  *  if the block is no longer in the source. */
-async function overwriteBlock(path: string, inner: string, next: string) {
+async function overwriteBlock(path: string, inner: string, next: string, vaultRoot?: string) {
   const file = await backend.readFile(path);
   const range = embedRange(file.content, parseWikilinkInner(inner));
   if (!range) return false;
   const text = file.content.slice(0, range.from) + next + file.content.slice(range.to);
-  await backend.writeFile(path, text, file.modifiedMs);
+  await backend.writeFile(path, text, file.modifiedMs, vaultRoot);
   useAppStore.getState().bumpIndex();
   return true;
 }
@@ -77,8 +77,11 @@ class EmbedController {
   private saving: Promise<void> | null = null;
   private unlisten: (() => void) | null = null;
   private destroyed = false;
-  /** The vault this embed was loaded from. */
+  /** The vault this embed was loaded from; its writes only land there. */
   private readonly vault = currentVault();
+  private readonly vaultRoot = this.vault ?? undefined;
+  /** Which conflict buttons are showing (true: the block exists), if any. */
+  private shownConflict: boolean | null = null;
   /** Why the last save didn't write the edit, if it didn't. */
   private problem: "conflict" | "failed" | null = null;
   /** Lets installing an update or closing the window save this embed first (T-073). */
@@ -204,7 +207,7 @@ class EmbedController {
     const path = this.path;
     const op = (async () => {
       try {
-        const r = await writeBlock(path, this.inner, this.loaded, next);
+        const r = await writeBlock(path, this.inner, this.loaded, next, this.vaultRoot);
         if (!r.ok) {
           this.problem = "conflict";
           this.showConflict(r.current !== null);
@@ -228,10 +231,16 @@ class EmbedController {
     this.setStatus(
       blockExists ? "changed in the source — not saved" : "no longer in the source — not saved",
     );
+    // Keep the same buttons while the choice is the same: a save started by pressing one
+    // (the embed's blur) must not swap it out from under the click, or drop focus.
+    if (this.shownConflict === blockExists) return;
+    this.shownConflict = blockExists;
     const button = (label: string, run: () => Promise<void>) => {
       const b = document.createElement("button");
       b.className = "cm-embed-edit cm-embed-action";
       b.textContent = label;
+      // Pressing it leaves focus in the embed, so no blur save starts first.
+      b.addEventListener("mousedown", (e) => e.preventDefault());
       b.addEventListener("click", () => void run());
       return b;
     };
@@ -246,6 +255,7 @@ class EmbedController {
   }
 
   private clearConflict() {
+    this.shownConflict = null;
     this.actions.replaceChildren();
   }
 
@@ -273,7 +283,9 @@ class EmbedController {
     const path = this.path;
     const op = (async () => {
       try {
-        if (!(await overwriteBlock(path, this.inner, next))) return this.showConflict(false);
+        if (!(await overwriteBlock(path, this.inner, next, this.vaultRoot))) {
+          return this.showConflict(false);
+        }
         this.problem = null;
         this.loaded = next;
         this.clearConflict();
@@ -305,7 +317,7 @@ class EmbedController {
       trackClosingWrite(path, next, this.vault, async () => {
         while (this.saving) await this.saving;
         if (next === this.loaded) return;
-        const r = await writeBlock(path, this.inner, this.loaded, next, this.vault ?? undefined);
+        const r = await writeBlock(path, this.inner, this.loaded, next, this.vaultRoot);
         if (!r.ok) throw new Error(`the embedded block in ${path} changed`);
         this.loaded = next;
       });

@@ -130,8 +130,18 @@ describe("embeds", () => {
     expect(nested.state.doc.toString()).toBe("X- buy milk ^b1\n  - 2%");
     expect(h.b.files()["Tasks.md"]).toContain("buy bread ^b1");
 
+    // Another save (e.g. the blur from pressing a button) keeps the same buttons, and
+    // pressing one doesn't take focus from the embed.
+    const keep = screen.getByRole("button", { name: "Keep mine" });
+    const root = screen.getByLabelText("Embedded Tasks#^b1").closest(".cm-embed") as HTMLElement;
+    act(() => nested.dispatch({ changes: { from: 1, insert: "!" } }));
+    await act(() => embedControllerFor(root)!.save());
+    expect(screen.getByRole("button", { name: "Keep mine" })).toBe(keep);
+    expect(fireEvent.mouseDown(keep)).toBe(false);
+    act(() => nested.dispatch({ changes: { from: 1, to: 2 } }));
+
     // "Keep mine" writes this version over the changed block.
-    fireEvent.click(screen.getByRole("button", { name: "Keep mine" }));
+    fireEvent.click(keep);
     await waitFor(() =>
       expect(h.b.files()["Tasks.md"]).toBe("# Tasks\n\n- a\nX- buy milk ^b1\n  - 2%\n- c\n"),
     );
@@ -149,6 +159,23 @@ describe("embeds", () => {
     );
     expect(h.b.files()["Tasks.md"]).toContain("buy oats ^b1");
     expect(await act(() => saveAll())).toEqual([]);
+  });
+
+  it('never writes "Keep mine" into a vault opened meanwhile', async () => {
+    useAppStore.setState({ vault: { root: "/memory/Demo Vault", name: "Demo Vault" } });
+    await openNote();
+    await waitFor(() => expect(screen.getByLabelText("Embedded Tasks#^b1")).toBeInTheDocument());
+    const nested = embeddedView("Tasks#^b1");
+    await h.b.writeFile("Tasks.md", TASKS.replace("buy milk", "buy bread"));
+    act(() => nested.dispatch({ changes: { from: 0, insert: "X" } }));
+    await act(() => vi.advanceTimersByTimeAsync(EMBED_SAVE_DELAY_MS + 50));
+    const keep = await screen.findByRole("button", { name: "Keep mine" });
+    await h.b.openVault("/elsewhere/B"); // same paths, another vault
+    fireEvent.click(keep);
+    await waitFor(() =>
+      expect(screen.getByText(/save failed: .*no longer the open vault/)).toBeTruthy(),
+    );
+    expect(h.b.files()["Tasks.md"]).toContain("buy bread ^b1");
   });
 
   it("offers only to discard an edit whose block is gone from the source", async () => {
