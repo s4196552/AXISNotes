@@ -28,6 +28,7 @@ export type Section =
   | "spelling"
   | "daily"
   | "templates"
+  | "files"
   | "commands"
   | "hotkeys"
   | "ai"
@@ -40,6 +41,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "spelling", label: "Spelling" },
   { id: "daily", label: "Daily notes" },
   { id: "templates", label: "Templates" },
+  { id: "files", label: "Files & links" },
   { id: "commands", label: "Quick commands" },
   { id: "hotkeys", label: "Keyboard shortcuts" },
   { id: "ai", label: "AI" },
@@ -84,6 +86,7 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
           {section === "appearance" && <Appearance config={config} set={set} />}
           {section === "spelling" && <Spelling config={config} set={set} />}
           {section === "daily" && <Daily config={config} set={set} />}
+          {section === "files" && <Files config={config} set={set} />}
           {section === "templates" && (
             <Field label="Templates folder" hint="Notes in this folder are offered as templates.">
               <input
@@ -356,6 +359,31 @@ function Spelling({ config, set }: SectionProps) {
             ))}
           </ul>
         )}
+      </Field>
+    </>
+  );
+}
+
+function Files({ config, set }: SectionProps) {
+  return (
+    <>
+      <p className="settings-note muted">
+        Paste a screenshot, drop images or videos from your computer onto a note, or use
+        &ldquo;Image, video or audio…&rdquo; in the command menu (Ctrl+/). Web images, videos and
+        YouTube or Vimeo links embed with <code>![](https://…)</code>.
+      </p>
+      <Field
+        label="Attachment folder"
+        hint="Where pasted and dropped files go. Empty: the vault's top folder. ./ : next to the note. ./name : a folder next to the note. Anything else: that folder."
+      >
+        <input
+          aria-label="Attachment folder"
+          placeholder="(vault top folder)"
+          defaultValue={config.attachments.folder}
+          onBlur={(e) =>
+            set((c) => ({ ...c, attachments: { ...c.attachments, folder: e.target.value.trim() } }))
+          }
+        />
       </Field>
     </>
   );

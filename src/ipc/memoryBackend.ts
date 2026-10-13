@@ -97,6 +97,7 @@ export function createMemoryBackend(
   vaultName = "Demo Vault",
 ): MemoryBackend {
   const nodes = new Map<string, Node>();
+  const blobUrls = new Map<string, string>();
   const listeners = new Set<(c: VaultChange[]) => void>();
   const closeListeners = new Set<() => void>();
   let closed = false;
@@ -318,7 +319,31 @@ export function createMemoryBackend(
     updatesCheck: async () => null,
     updatesInstall: async () => fail("Io", "Updates install in the desktop app."),
     onClipped: async () => () => {},
-    fileUrl: () => null,
+    // Pasted media lives in memory as blobs, shown through object URLs.
+    fileUrl: (path) => blobUrls.get(normalize(path)) ?? null,
+    async saveAttachment(dir, name, bytes, vaultRoot) {
+      requireVault(vaultRoot);
+      const folder = normalize(dir);
+      validateName(name);
+      const dot = name.lastIndexOf(".");
+      const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+      let path = "";
+      for (let n = 0; !path || nodes.has(path); n++) {
+        const file = n ? `${stem} ${n}${ext}` : name;
+        path = folder ? `${folder}/${file}` : file;
+      }
+      put(path, { kind: "file", content: "", modifiedMs: tick() });
+      try {
+        blobUrls.set(path, URL.createObjectURL(new Blob([bytes.slice()])));
+      } catch {
+        // No object URLs here (tests): saved, just not shown.
+      }
+      return path;
+    },
+    // The browser preview has no files dropped from outside, and no file picker.
+    importDropped: async () => [],
+    pickAttachments: async () => [],
+    onFilesDropped: async () => () => {},
     // The browser preview can't read folders on disk: importing adds a sample note.
     inspectImport: async (source) => ({ obsidian: true, name: baseName(source) || "Vault" }),
     async importObsidian(_source, target) {

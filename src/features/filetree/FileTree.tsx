@@ -10,6 +10,7 @@ import {
   FolderOpen,
   FolderPlus,
   HardDrive,
+  Film,
   Image,
   Lock,
   Shapes,
@@ -501,9 +502,11 @@ const TreeRow = memo(function TreeRow({
         ? Shapes
         : docKind(entry.name) === "image"
           ? Image
-          : openable
-            ? FileText
-            : File;
+          : docKind(entry.name) === "media"
+            ? Film
+            : openable
+              ? FileText
+              : File;
   const classes = [
     "filetree-row",
     selected && "selected",

@@ -24,6 +24,7 @@ import {
 import { setActiveEditor } from "./activeEditor";
 import { links, refreshLinks, wikilinkCompletions } from "./links";
 import { anchorCompletions, embeds } from "./embeds";
+import { mediaInput } from "./media";
 import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
 import { obsidianSyntax } from "./obsidianSyntax";
@@ -262,6 +263,7 @@ export function Editor({ path }: EditorProps) {
               }),
               commandMenuAnchor,
               embeds(path),
+              mediaInput,
               quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
               outlinerKeys,
               outlineCompartment.current.of(

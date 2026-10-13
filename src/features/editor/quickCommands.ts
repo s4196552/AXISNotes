@@ -12,6 +12,7 @@ import { formatDate } from "../../lib/dates";
 import { splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { PAGE_STYLE_PROP, type PageStyle } from "../templates/templates";
 import { minimalChange } from "./targets";
+import { pickAndEmbed } from "./media";
 
 // The command menu (Ctrl+/, or an optional typed trigger) and `:` emoji, with
 // configurable triggers. The other typed menus (`@@`, `((`, `::`, `{{`) are in triggers.ts.
@@ -154,6 +155,21 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: "callout", label: "Callout", run: (v, f, t) => insert(v, f, t, "> [!note]\n> |") },
   { id: "link", label: "Link to note", detail: "[[", run: (v, f, t) => insert(v, f, t, "[[|]]") },
   { id: "embed", label: "Embed note", detail: "![[", run: (v, f, t) => insert(v, f, t, "![[|]]") },
+  {
+    id: "media",
+    label: "Image, video or audio…",
+    detail: "from your computer",
+    run: (v, f, t) => {
+      v.dispatch({ changes: { from: f, to: t, insert: "" } });
+      void pickAndEmbed(v);
+    },
+  },
+  {
+    id: "web-embed",
+    label: "Embed from the web",
+    detail: "image, video, YouTube",
+    run: (v, f, t) => insert(v, f, t, "![](|)"),
+  },
   {
     id: "template",
     label: "Insert template…",

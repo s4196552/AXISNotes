@@ -366,6 +366,13 @@ export interface ImportReport {
   };
 }
 
+/** Where files from outside were dropped on the window (physical pixels). */
+export interface FilesDropped {
+  x: number;
+  y: number;
+  count: number;
+}
+
 export interface Backend {
   /** Show a native folder picker; resolves null if cancelled. */
   pickFolder(): Promise<string | null>;
@@ -466,8 +473,20 @@ export interface Backend {
   clipperOpenExtensionFolder(): Promise<string>;
   /** A clip was saved as a note. Returns an unsubscribe function. */
   onClipped(cb: (clip: Clipped) => void): Promise<() => void>;
-  /** A URL the webview can load a vault file from (images), or null if not possible. */
+  /** A URL the webview can load a vault file from (images, video), or null if not possible. */
   fileUrl(path: string): string | null;
+  /**
+   * Save pasted media as `dir/name` (or `name 1`, … if taken); returns its vault path.
+   * `vaultRoot` as for `writeFile`.
+   */
+  saveAttachment(dir: string, name: string, bytes: Uint8Array, vaultRoot?: string): Promise<string>;
+  /** Import the files just dropped onto the window from outside into `dir` (files already
+   *  in the vault are linked where they are). Returns their vault paths. */
+  importDropped(dir: string, vaultRoot?: string): Promise<string[]>;
+  /** Let the user pick images, video or audio and import them into `dir` ([] if cancelled). */
+  pickAttachments(dir: string, vaultRoot?: string): Promise<string[]>;
+  /** Files from outside were dropped on the window, at `x`, `y` in physical pixels. */
+  onFilesDropped(cb: (drop: FilesDropped) => void): Promise<() => void>;
 
   updatesSettings(): Promise<UpdateSettings>;
   /** An empty `folder` goes back to the default folder. */

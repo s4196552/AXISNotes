@@ -1,5 +1,6 @@
 mod ai;
 mod ai_commands;
+mod attachments;
 mod clipper;
 mod clipper_commands;
 mod commands;
@@ -11,7 +12,7 @@ mod updates;
 mod updates_commands;
 mod vault;
 
-use tauri::Manager;
+use tauri::{DragDropEvent, Emitter, Manager, WindowEvent};
 
 /// If set, this folder is opened as the vault on startup (the UI picks it up via
 /// `current_vault`). Used by the E2E tests, which can't drive the native folder picker.
@@ -24,6 +25,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(commands::AppState::default())
+        .manage(commands::DroppedFiles::default())
         .setup(|app| {
             ai_commands::manage(app.handle());
             clipper_commands::manage(app.handle());
@@ -35,6 +37,21 @@ pub fn run() {
             }
             Ok(())
         })
+        // Files dropped from outside: remember them (only these may be imported), then tell
+        // the page where they landed.
+        .on_window_event(|window, event| {
+            if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, position }) = event {
+                *window.state::<commands::DroppedFiles>().0.lock().unwrap() = paths.clone();
+                let _ = window.emit(
+                    commands::FILES_DROPPED_EVENT,
+                    commands::FilesDropped {
+                        x: position.x,
+                        y: position.y,
+                        count: paths.len(),
+                    },
+                );
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::open_vault,
             commands::create_vault,
@@ -45,6 +62,9 @@ pub fn run() {
             commands::write_file,
             commands::create_file,
             commands::create_dir,
+            commands::save_attachment,
+            commands::import_dropped,
+            commands::pick_attachments,
             commands::rename_entry,
             commands::trash_entry,
             commands::search,
