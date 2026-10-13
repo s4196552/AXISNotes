@@ -341,8 +341,8 @@ export function createMemoryBackend(
       return path;
     },
     // The browser preview has no files dropped from outside, and no file picker.
-    importDropped: async () => [],
-    pickAttachments: async () => [],
+    importDropped: async () => ({ paths: [], failed: [] }),
+    pickAttachments: async () => ({ paths: [], failed: [] }),
     onFilesDropped: async () => () => {},
     // The browser preview can't read folders on disk: importing adds a sample note.
     inspectImport: async (source) => ({ obsidian: true, name: baseName(source) || "Vault" }),

@@ -1,12 +1,12 @@
 import { EditorView } from "@codemirror/view";
-import { backend, isBackendError } from "../../ipc";
+import { backend, type Imported, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { attachmentDir, embedFor, mediaKind, pastedFileName } from "../../lib/attachments";
 import { isNotePath } from "../../lib/markdown";
 import { PATH_MIME } from "../../lib/fileKinds";
 import { editNote } from "../files/editNote";
-import { currentVault, trackClosingWrite, trackPending } from "../files/unsavedWork";
+import { currentVault, keepForRetry, trackClosingWrite, trackPending } from "../files/unsavedWork";
 import { getActiveEditor } from "./activeEditor";
 import { notePath } from "./embeds";
 import { linkTargetFor } from "./triggers";
@@ -113,21 +113,27 @@ async function embedSaved(t: Target, paths: string[]) {
 }
 
 /**
- * Run an import for `view`: `save` brings the files into `dir` of `vault` and returns
- * their vault paths. Closing the app or installing an update waits for it (see
- * `trackPending`), so its embeds always reach the note.
+ * Run an import for `view`: `save` brings the files into the target's folder, each on its
+ * own. Those that made it in are embedded even when others failed; the failures are
+ * reported. Closing the app or installing an update waits for it (see `trackPending`),
+ * so its embeds always reach the note.
  */
 function runImport(
   view: EditorView,
   failure: string,
-  save: (dir: string, vault: string | undefined) => Promise<string[]>,
+  save: (t: Target) => Promise<Imported>,
   at?: number,
 ): Promise<void> {
   const t = targetOf(view, at);
   return trackPending(
     (async () => {
       try {
-        await embedSaved(t, await save(t.dir, t.vault ?? undefined));
+        const { paths, failed } = await save(t);
+        await embedSaved(t, paths);
+        if (failed.length) {
+          const which = failed.map((f) => `${f.name} (${f.error})`).join(", ");
+          useAppStore.getState().setError(`${failure}: ${which}`);
+        }
       } catch (e) {
         useAppStore.getState().setError(`${failure}: ${describe(e)}`);
       }
@@ -135,24 +141,48 @@ function runImport(
   );
 }
 
-/** Save pasted files into the attachment folder and embed them at the cursor. */
+/**
+ * Save pasted files into the attachment folder and embed them at the cursor. Only the
+ * app has a pasted screenshot's bytes, so one that can't be saved is kept: it's tried
+ * again before the app closes or updates, which waits until it's saved (`keepForRetry`).
+ */
 export function pasteFiles(view: EditorView, files: File[], now = new Date()) {
-  return runImport(view, "Couldn't save the pasted file", async (dir, vault) => {
-    const saved: string[] = [];
-    for (const file of files) {
-      const name = pastedFileName(file, now);
-      if (!name) continue;
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      saved.push(await backend.saveAttachment(dir, name, bytes, vault));
-    }
-    return saved;
-  });
+  return runImport(
+    view,
+    "Couldn't save the pasted file (it's kept and tried again before AXISNotes closes)",
+    async (t) => {
+      const out: Imported = { paths: [], failed: [] };
+      for (const file of files) {
+        const name = pastedFileName(file, now);
+        if (!name) continue;
+        let bytes: Uint8Array;
+        try {
+          bytes = new Uint8Array(await file.arrayBuffer());
+        } catch (e) {
+          out.failed.push({ name, error: describe(e) }); // nothing could be read to keep
+          continue;
+        }
+        const save = () => backend.saveAttachment(t.dir, name, bytes, t.vault ?? undefined);
+        try {
+          out.paths.push(await save());
+        } catch (e) {
+          out.failed.push({ name, error: describe(e) });
+          keepForRetry([t.dir, name].filter(Boolean).join("/"), async () => {
+            if (t.vault !== currentVault()) return false; // only into its own vault
+            await embedSaved(t, [await save()]);
+            return true;
+          });
+        }
+      }
+      return out;
+    },
+  );
 }
 
 /** Pick images, video or audio from disk and embed them at the cursor. */
 export function pickAndEmbed(view: EditorView) {
-  return runImport(view, "Couldn't add the files", (dir, vault) =>
-    backend.pickAttachments(dir, vault),
+  return runImport(view, "Couldn't add", (t) =>
+    backend.pickAttachments(t.dir, t.vault ?? undefined),
   );
 }
 
@@ -230,8 +260,8 @@ export function installFileDrops(): () => void {
       const at = view.posAtCoords({ x: cx, y: cy }) ?? undefined;
       await runImport(
         view,
-        "Couldn't add the dropped files",
-        (dir, vault) => backend.importDropped(dir, vault),
+        "Couldn't add",
+        (t) => backend.importDropped(t.dir, t.vault ?? undefined),
         at,
       );
     })

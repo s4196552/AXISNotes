@@ -3,7 +3,7 @@
 //! Heavier commands are `async` so they run off the main (UI) thread.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -32,6 +32,20 @@ pub const FILES_DROPPED_EVENT: &str = "attachments://dropped";
 /// path it names itself.
 #[derive(Default)]
 pub struct DroppedFiles(pub Mutex<Vec<PathBuf>>);
+
+/// What an import of dropped or picked files did: the vault paths of those that made it in,
+/// and the ones that didn't, with why.
+#[derive(Default, Serialize)]
+pub struct Imported {
+    paths: Vec<String>,
+    failed: Vec<ImportFailure>,
+}
+
+#[derive(Serialize)]
+pub struct ImportFailure {
+    name: String,
+    error: String,
+}
 
 #[derive(Clone, Serialize)]
 pub struct FilesDropped {
@@ -122,28 +136,38 @@ impl AppState {
     }
 
     /// Bring files the user dropped or picked into the vault's `dir` (vault files are
-    /// linked where they are). Returns their vault paths; folders are skipped.
+    /// linked where they are; folders are skipped). Each file succeeds or fails on its
+    /// own: the ones that made it in are always reported, so they get embedded.
     fn import_files(
         &self,
         files: &[PathBuf],
         dir: &str,
         vault_root: Option<&str>,
-    ) -> AppResult<Vec<String>> {
+    ) -> AppResult<Imported> {
         let v = self.vault_at(vault_root)?;
-        let mut out = Vec::new();
+        let mut out = Imported::default();
         for src in files.iter().filter(|f| f.is_file()) {
-            if let Some(rel) = attachments::in_vault(&v, src) {
-                out.push(rel);
-                continue;
-            }
             let name = src.file_name().unwrap_or_default().to_string_lossy();
-            let rel = attachments::reserve(&v, dir, &name)?;
-            self.touch(&v, &rel)?;
-            attachments::fill(&v, &rel, |tmp| fs::copy(src, tmp).map(|_| ()))?;
-            self.reindex(&v, change(ChangeKind::Created, &[&rel]));
-            out.push(rel);
+            match self.import_file(&v, src, dir, &name) {
+                Ok(rel) => out.paths.push(rel),
+                Err(e) => out.failed.push(ImportFailure {
+                    name: name.into_owned(),
+                    error: e.to_string(),
+                }),
+            }
         }
         Ok(out)
+    }
+
+    fn import_file(&self, v: &Vault, src: &Path, dir: &str, name: &str) -> AppResult<String> {
+        if let Some(rel) = attachments::in_vault(v, src) {
+            return Ok(rel);
+        }
+        let rel = attachments::reserve(v, dir, name)?;
+        self.touch(v, &rel)?;
+        attachments::fill(v, &rel, |tmp| fs::copy(src, tmp).map(|_| ()))?;
+        self.reindex(v, change(ChangeKind::Created, &[&rel]));
+        Ok(rel)
     }
 
     /// Open `path` as the vault at startup (used by `AXIS_OPEN_VAULT`, e.g. in E2E tests).
@@ -334,7 +358,7 @@ pub async fn import_dropped(
     dropped: State<'_, DroppedFiles>,
     dir: String,
     vault_root: Option<String>,
-) -> AppResult<Vec<String>> {
+) -> AppResult<Imported> {
     let files = std::mem::take(&mut *dropped.0.lock().unwrap());
     state.import_files(&files, &dir, vault_root.as_deref())
 }
@@ -347,7 +371,7 @@ pub async fn pick_attachments(
     state: State<'_, AppState>,
     dir: String,
     vault_root: Option<String>,
-) -> AppResult<Vec<String>> {
+) -> AppResult<Imported> {
     use tauri_plugin_dialog::DialogExt;
     let picked = app
         .dialog()

@@ -48,6 +48,22 @@ export function trackPending<T>(op: Promise<T>): Promise<T> {
   return op;
 }
 
+/** Data only the app holds that couldn't be written (a pasted screenshot whose save
+ *  failed), with how to try again. */
+interface Retry {
+  /** Where it was meant to go, to name it while it's still unsaved. */
+  path: string;
+  /** Try again; true once it's on disk. */
+  retry: () => Promise<boolean>;
+}
+const retries = new Set<Retry>();
+
+/** Keep something that couldn't be saved: `saveAll` tries again, and until it works
+ *  reports `path` as unsaved, so closing or updating the app is held back. */
+export function keepForRetry(path: string, retry: () => Promise<boolean>) {
+  retries.add({ path, retry });
+}
+
 /** The open vault's root. Documents note it when they load: by the time one closes, the
  *  app may already have switched to another vault. */
 export const currentVault = () => useAppStore.getState().vault?.root ?? null;
@@ -144,6 +160,10 @@ export async function saveAll(): Promise<UnsavedDocument[]> {
   // Only when there is something to wait for: otherwise documents are flushed right away,
   // in this same turn (what they hold at the moment Install or close was clicked).
   while (pending.size) await Promise.all(pending);
+  // Before the documents: a retry may add to one (a pasted screenshot's embed).
+  for (const r of [...retries]) {
+    if (await r.retry().catch(() => false)) retries.delete(r);
+  }
   const open = await Promise.all(
     [...documents].map(({ flush, path }) =>
       flush().catch((): UnsavedDocument => ({ path: path(), reason: "failed" })),
@@ -153,7 +173,7 @@ export async function saveAll(): Promise<UnsavedDocument[]> {
   for (const u of [...unrecovered]) if (await recover(u)) unrecovered.delete(u);
   const byPath = new Map<string, UnsavedDocument>();
   for (const r of open) if (r && !byPath.has(r.path)) byPath.set(r.path, r);
-  for (const { path } of unrecovered)
+  for (const { path } of [...unrecovered, ...retries])
     if (!byPath.has(path)) byPath.set(path, { path, reason: "failed" });
   return [...byPath.values()];
 }
@@ -179,4 +199,5 @@ export function resetUnsavedWork() {
   closing.clear();
   unrecovered.clear();
   pending.clear();
+  retries.clear();
 }

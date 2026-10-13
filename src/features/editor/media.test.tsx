@@ -181,7 +181,9 @@ describe("adding media to a note", () => {
   it("offers 'Image, video or audio…' and 'Embed from the web' in the command menu", async () => {
     await setup({ "Bio.md": "" });
     const view = await open("Bio.md");
-    const pick = vi.spyOn(h.b, "pickAttachments").mockResolvedValue(["Attachments/a.webm"]);
+    const pick = vi
+      .spyOn(h.b, "pickAttachments")
+      .mockResolvedValue({ paths: ["Attachments/a.webm"], failed: [] });
     SLASH_COMMANDS.find((c) => c.id === "media")!.run(view, 0, 0, undefined as never);
     await waitFor(() => expect(text(view)).toBe("![[a.webm]]"));
     expect(pick).toHaveBeenCalledWith("Attachments", "/memory/Demo Vault");
@@ -189,6 +191,49 @@ describe("adding media to a note", () => {
     SLASH_COMMANDS.find((c) => c.id === "web-embed")!.run(view, 0, 0, undefined as never);
     expect(text(view)).toBe("![]()");
     expect(view.state.selection.main.head).toBe(4); // inside the ( )
+  });
+
+  it("embeds the files that made it in even when others in the batch failed", async () => {
+    await setup({ "Bio.md": "" });
+    const view = await open("Bio.md");
+    vi.spyOn(h.b, "pickAttachments").mockResolvedValue({
+      paths: ["Attachments/a.png", "Attachments/c.png"],
+      failed: [{ name: "b.png", error: "can't be read" }],
+    });
+    SLASH_COMMANDS.find((c) => c.id === "media")!.run(view, 0, 0, undefined as never);
+    await waitFor(() => expect(text(view)).toBe("![[a.png]]\n![[c.png]]"));
+    expect(useAppStore.getState().error).toBe("Couldn't add: b.png (can't be read)");
+  });
+
+  it("keeps a pasted screenshot that couldn't be saved, and saves it before closing", async () => {
+    await setup({ "Bio.md": "Cells:" });
+    const view = await open("Bio.md");
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    const save = vi.spyOn(h.b, "saveAttachment");
+    save.mockRejectedValue(new Error("disk full"));
+    const shot = {
+      name: "image.png",
+      type: "image/png",
+      arrayBuffer: async () => new ArrayBuffer(1),
+    } as File;
+    const paste = () =>
+      fireEvent.paste(view.contentDOM, {
+        clipboardData: { files: [shot], getData: () => "", types: ["Files"] },
+      });
+    paste();
+    await waitFor(() => expect(useAppStore.getState().error).toMatch(/disk full/));
+    expect(text(view)).toBe("Cells:");
+    // Still failing: closing is held back, and the screenshot is named.
+    const [unsaved] = await act(() => saveAll());
+    expect(unsaved).toMatchObject({ reason: "failed" });
+    expect(unsaved!.path).toMatch(/^Attachments\/Pasted image \d{14}\.png$/);
+    // The disk has room again: the next try saves it and embeds it, then closing goes ahead.
+    save.mockResolvedValue("Attachments/Pasted image 20261013211845.png");
+    expect(await act(() => saveAll())).toEqual([]);
+    expect(text(view)).toBe("Cells:\n![[Pasted image 20261013211845.png]]");
+    expect((await h.b.readFile("Bio.md")).content).toBe(
+      "Cells:\n![[Pasted image 20261013211845.png]]",
+    );
   });
 });
 

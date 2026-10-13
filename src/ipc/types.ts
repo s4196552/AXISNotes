@@ -367,6 +367,13 @@ export interface ImportReport {
 }
 
 /** Where files from outside were dropped on the window (physical pixels). */
+/** What importing dropped or picked files did: each file succeeds or fails on its own. */
+export interface Imported {
+  /** Vault paths of the files that made it in. */
+  paths: string[];
+  failed: { name: string; error: string }[];
+}
+
 export interface FilesDropped {
   x: number;
   y: number;
@@ -481,10 +488,11 @@ export interface Backend {
    */
   saveAttachment(dir: string, name: string, bytes: Uint8Array, vaultRoot?: string): Promise<string>;
   /** Import the files just dropped onto the window from outside into `dir` (files already
-   *  in the vault are linked where they are). Returns their vault paths. */
-  importDropped(dir: string, vaultRoot?: string): Promise<string[]>;
-  /** Let the user pick images, video or audio and import them into `dir` ([] if cancelled). */
-  pickAttachments(dir: string, vaultRoot?: string): Promise<string[]>;
+   *  in the vault are linked where they are). */
+  importDropped(dir: string, vaultRoot?: string): Promise<Imported>;
+  /** Let the user pick images, video or audio and import them into `dir` (nothing if
+   *  they cancel). */
+  pickAttachments(dir: string, vaultRoot?: string): Promise<Imported>;
   /** Files from outside were dropped on the window, at `x`, `y` in physical pixels. */
   onFilesDropped(cb: (drop: FilesDropped) => void): Promise<() => void>;
 
