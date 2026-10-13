@@ -5,7 +5,8 @@ import { useConfig } from "../../app/config";
 import { attachmentDir, embedFor, mediaKind, pastedFileName } from "../../lib/attachments";
 import { isNotePath } from "../../lib/markdown";
 import { PATH_MIME } from "../../lib/fileKinds";
-import { currentVault } from "../files/unsavedWork";
+import { editNote } from "../files/editNote";
+import { currentVault, trackPending } from "../files/unsavedWork";
 import { getActiveEditor } from "./activeEditor";
 import { notePath } from "./embeds";
 import { linkTargetFor } from "./triggers";
@@ -22,61 +23,124 @@ function folderFor(view: EditorView): string {
   return attachmentDir(useConfig.getState().config.attachments.folder, view.state.facet(notePath));
 }
 
+/** `lines` inserted into `text` at `pos`, each on a line of its own; and where the
+ *  cursor goes after them. */
+export function withLines(text: string, pos: number, lines: string[]) {
+  const lineFrom = text.lastIndexOf("\n", pos - 1) + 1;
+  const nl = text.indexOf("\n", pos);
+  const lineTo = nl === -1 ? text.length : nl;
+  const before = pos > lineFrom ? "\n" : "";
+  const after = pos < lineTo ? "\n" : "";
+  const insert = before + lines.join("\n") + after;
+  return {
+    text: text.slice(0, pos) + insert + text.slice(pos),
+    insert,
+    cursor: pos + insert.length - after.length,
+  };
+}
+
 /** Insert `lines` at `at` (else the cursor), each on a line of its own. */
 export function insertLines(view: EditorView, lines: string[], at?: number) {
   if (!lines.length) return;
   const pos = at ?? view.state.selection.main.head;
-  const line = view.state.doc.lineAt(pos);
-  const before = pos > line.from ? "\n" : "";
-  const after = pos < line.to ? "\n" : "";
-  const text = before + lines.join("\n") + after;
+  const { insert, cursor } = withLines(view.state.doc.toString(), pos, lines);
   view.dispatch({
-    changes: { from: pos, insert: text },
-    selection: { anchor: pos + text.length - after.length },
+    changes: { from: pos, insert },
+    selection: { anchor: cursor },
     userEvent: "input.paste",
   });
   view.focus();
 }
 
-/** Embed attachments just saved at `paths` (the file tree is refreshed first, so the
- *  embeds find them). */
-async function embedSaved(view: EditorView, paths: string[], at?: number) {
+/** The note an import is for, and where in it, as it was when the import started. */
+interface Target {
+  view: EditorView;
+  note: string;
+  vault: string | null;
+  dir: string;
+  at: number;
+  text: string;
+}
+
+function targetOf(view: EditorView, at?: number): Target {
+  return {
+    view,
+    note: view.state.facet(notePath),
+    vault: currentVault(),
+    dir: folderFor(view),
+    at: at ?? view.state.selection.main.head,
+    text: view.state.doc.toString(),
+  };
+}
+
+/**
+ * Embed attachments just saved at `paths` in the note the import was for. Usually its
+ * editor is still showing it; if the user moved on meanwhile, the note's file gets the
+ * embeds instead (where they were meant to go if it hasn't changed since, else at the
+ * end), so they're never lost.
+ */
+async function embedSaved(t: Target, paths: string[]) {
   if (!paths.length) return;
   await useAppStore.getState().refreshTree();
   const tree = useAppStore.getState().tree;
-  insertLines(
-    view,
-    paths.map((p) => embedFor(p, tree)),
-    at,
+  const lines = paths.map((p) => embedFor(p, tree));
+  const { view } = t;
+  if (view.dom.isConnected && view.state.facet(notePath) === t.note) {
+    insertLines(view, lines, view.state.doc.toString() === t.text ? t.at : undefined);
+    return;
+  }
+  if (t.vault !== currentVault()) {
+    useAppStore.getState().setError(`The files were added, but another vault is open now.`);
+    return;
+  }
+  await editNote(
+    t.note,
+    (text) => withLines(text, text === t.text ? t.at : text.length, lines).text,
+  );
+}
+
+/**
+ * Run an import for `view`: `save` brings the files into `dir` of `vault` and returns
+ * their vault paths. Closing the app or installing an update waits for it (see
+ * `trackPending`), so its embeds always reach the note.
+ */
+function runImport(
+  view: EditorView,
+  failure: string,
+  save: (dir: string, vault: string | undefined) => Promise<string[]>,
+  at?: number,
+): Promise<void> {
+  const t = targetOf(view, at);
+  return trackPending(
+    (async () => {
+      try {
+        await embedSaved(t, await save(t.dir, t.vault ?? undefined));
+      } catch (e) {
+        useAppStore.getState().setError(`${failure}: ${describe(e)}`);
+      }
+    })(),
   );
 }
 
 /** Save pasted files into the attachment folder and embed them at the cursor. */
-export async function pasteFiles(view: EditorView, files: File[], now = new Date()) {
-  const dir = folderFor(view);
-  const vault = currentVault() ?? undefined;
-  const saved: string[] = [];
-  try {
+export function pasteFiles(view: EditorView, files: File[], now = new Date()) {
+  return runImport(view, "Couldn't save the pasted file", async (dir, vault) => {
+    const saved: string[] = [];
     for (const file of files) {
       const name = pastedFileName(file, now);
       if (!name) continue;
       const bytes = new Uint8Array(await file.arrayBuffer());
       saved.push(await backend.saveAttachment(dir, name, bytes, vault));
     }
-  } catch (e) {
-    useAppStore.getState().setError(`Couldn't save the pasted file: ${describe(e)}`);
-  }
-  await embedSaved(view, saved);
+    return saved;
+  });
 }
 
 /** Pick images, video or audio from disk and embed them at the cursor. */
-export async function pickAndEmbed(view: EditorView) {
-  try {
-    const paths = await backend.pickAttachments(folderFor(view), currentVault() ?? undefined);
-    await embedSaved(view, paths);
-  } catch (e) {
-    useAppStore.getState().setError(`Couldn't add the files: ${describe(e)}`);
-  }
+export function pickAndEmbed(view: EditorView) {
+  return runImport(view, "Couldn't add the files", (dir, vault) =>
+    backend.pickAttachments(dir, vault),
+  );
 }
 
 /** Pasted media files to save, or [] to let the paste go ahead as usual. Text copied
@@ -151,12 +215,12 @@ export function installFileDrops(): () => void {
       const view = editorAt(cx, cy) ?? (content ? (getActiveEditor()?.view ?? null) : null);
       if (!view) return;
       const at = view.posAtCoords({ x: cx, y: cy }) ?? undefined;
-      try {
-        const paths = await backend.importDropped(folderFor(view), currentVault() ?? undefined);
-        await embedSaved(view, paths, at);
-      } catch (e) {
-        useAppStore.getState().setError(`Couldn't add the dropped files: ${describe(e)}`);
-      }
+      await runImport(
+        view,
+        "Couldn't add the dropped files",
+        (dir, vault) => backend.importDropped(dir, vault),
+        at,
+      );
     })
     .then((u) => (gone ? u() : (stop = u)));
   return () => {

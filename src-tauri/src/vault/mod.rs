@@ -146,7 +146,7 @@ pub(crate) fn modified_ms(meta: &fs::Metadata) -> u64 {
         .unwrap_or(0)
 }
 
-fn validate_name(name: &str) -> AppResult<()> {
+pub(crate) fn validate_name(name: &str) -> AppResult<()> {
     const BAD: &[char] = &['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
     let trimmed = name.trim();
     if trimmed.is_empty()

@@ -151,6 +151,17 @@ export function resolveRelative(target: string, from: string): string {
 }
 
 /**
+ * The vault file an embed's target means. An explicit `./` or `../` path means exactly
+ * that file (or nothing); a bare name or path is found like Obsidian does (see
+ * `resolveAttachment`).
+ */
+export function resolveMedia(target: string, from: string, tree: VaultEntry | null): string | null {
+  if (!/^\.\.?\//.test(target)) return resolveAttachment(target, from, tree);
+  const want = resolveRelative(target, from).toLowerCase();
+  return allFiles(tree).find((f) => f.toLowerCase() === want) ?? null;
+}
+
+/**
  * The vault folder new attachments for the note `from` go to, from the setting (Obsidian's
  * forms): "" or "/" the vault root, "./" the note's folder, "./name" a folder next to the
  * note, anything else that vault folder.
@@ -214,7 +225,9 @@ export function pastedFileName(file: { name: string; type: string }, now = new D
  */
 export function embedFor(path: string, tree: VaultEntry | null): string {
   const name = path.slice(path.lastIndexOf("/") + 1);
-  if (/[#|[\]^]/.test(path)) return `![](<${path}>)`;
+  // `%`, `<` and `>` are escaped so `parseMarkdownEmbed` reads the same path back.
+  if (/[#|[\]^]/.test(path))
+    return `![](<${path.replace(/[%<>]/g, (c) => encodeURIComponent(c))}>)`;
   const lower = name.toLowerCase();
   const clash = allFiles(tree).some(
     (f) => f !== path && f.slice(f.lastIndexOf("/") + 1).toLowerCase() === lower,

@@ -10,6 +10,7 @@ import {
   pastedFileName,
   pastedName,
   resolveAttachment,
+  resolveMedia,
   resolveRelative,
   videoPlayerUrl,
 } from "./attachments";
@@ -137,5 +138,19 @@ describe("media embeds (T-075)", () => {
     expect(embedFor("Attachments/new.png", tree)).toBe("![[new.png]]");
     expect(embedFor("Attachments/cat.png", tree)).toBe("![[Attachments/cat.png]]");
     expect(embedFor("Attachments/a#1.png", tree)).toBe("![](<Attachments/a#1.png>)");
+    // `%` (and `<`, `>`) are escaped, so the embed reads back as the same file.
+    const odd = "Attachments/a%20#1 <x>.png";
+    const md = embedFor(odd, tree);
+    expect(md).toBe("![](<Attachments/a%2520#1 %3Cx%3E.png>)");
+    expect(parseMarkdownEmbed(md)?.src).toBe(odd);
+  });
+
+  it("takes an explicit ./ or ../ path exactly, never a same-named file elsewhere", () => {
+    // cat.png is at the top and in School/: `../cat.png` from School/Bio.md is the top one.
+    expect(resolveMedia("../cat.png", "School/Bio.md", tree)).toBe("cat.png");
+    expect(resolveMedia("./cat.png", "School/Bio.md", tree)).toBe("School/cat.png");
+    expect(resolveMedia("../dog.png", "School/Bio.md", tree)).toBeNull();
+    // A bare name is still found like Obsidian does (the note's folder first).
+    expect(resolveMedia("cat.png", "School/Bio.md", tree)).toBe("School/cat.png");
   });
 });

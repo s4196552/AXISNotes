@@ -4,7 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
-import { resetUnsavedWork } from "../files/unsavedWork";
+import { resetUnsavedWork, saveAll } from "../files/unsavedWork";
 import { setActiveEditor } from "./activeEditor";
 import { Editor } from "./Editor";
 import { pastedMedia } from "./media";
@@ -189,6 +189,57 @@ describe("adding media to a note", () => {
     SLASH_COMMANDS.find((c) => c.id === "web-embed")!.run(view, 0, 0, undefined as never);
     expect(text(view)).toBe("![]()");
     expect(view.state.selection.main.head).toBe(4); // inside the ( )
+  });
+});
+
+describe("an import that takes a while (a big video)", () => {
+  const png = () =>
+    ({ name: "image.png", type: "image/png", arrayBuffer: async () => new ArrayBuffer(1) }) as File;
+  /** Make the next save finish only when the returned function is called. */
+  function slowSave() {
+    let finish!: () => void;
+    const done = new Promise<void>((r) => (finish = r));
+    vi.spyOn(h.b, "saveAttachment").mockImplementation(async () => {
+      await done;
+      return "Attachments/slow.png";
+    });
+    return finish;
+  }
+  const paste = (view: EditorView) =>
+    fireEvent.paste(view.contentDOM, {
+      clipboardData: { files: [png()], getData: () => "", types: ["Files"] },
+    });
+
+  it("still embeds in its note after you've switched to another one", async () => {
+    await setup({ "A.md": "Alpha", "B.md": "Beta" });
+    const finish = slowSave();
+    const first = render(<Editor path="A.md" />);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved"));
+    const view = EditorView.findFromDOM(document.querySelector(".cm-editor") as HTMLElement)!;
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    paste(view);
+    first.unmount(); // open B meanwhile
+    await open("B.md");
+    finish();
+    await waitFor(async () =>
+      expect((await h.b.readFile("A.md")).content).toBe("Alpha\n![[slow.png]]"),
+    );
+    expect((await h.b.readFile("B.md")).content).toBe("Beta");
+  });
+
+  it("is waited for before the app closes or updates, so the embed is saved", async () => {
+    await setup({ "A.md": "Alpha" });
+    const finish = slowSave();
+    const view = await open("A.md");
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    paste(view);
+    let saved = false;
+    const all = saveAll().then(() => (saved = true));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(saved).toBe(false); // still waiting for the import
+    finish();
+    await act(() => all);
+    expect((await h.b.readFile("A.md")).content).toBe("Alpha\n![[slow.png]]");
   });
 });
 

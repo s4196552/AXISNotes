@@ -2,10 +2,12 @@
 //! naming them and bringing files from outside into the vault.
 
 use std::fs;
+use std::io;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::error::{AppError, AppResult};
-use crate::vault::Vault;
+use crate::vault::{validate_name, Vault};
 
 /// The file types the picker offers (the ones notes show inline). Keep in step with
 /// `src/lib/attachments.ts`.
@@ -15,18 +17,19 @@ pub const MEDIA_EXTS: &[&str] = &[
     "mp3", "wav", "ogg", "oga", "m4a", "flac", "opus", // audio
 ];
 
-/// The vault path `dir/file_name`, or `dir/stem 1.ext`, `dir/stem 2.ext`… — the first
-/// that doesn't exist yet. `dir` is a vault folder ("" for the root).
-pub fn free_path(vault: &Vault, dir: &str, file_name: &str) -> AppResult<String> {
+/// Claim the vault path `dir/file_name`, or `dir/stem 1.ext`, `dir/stem 2.ext`… — the
+/// first free one, created empty in a single step (`create_new`), so two imports running
+/// at once never get the same file. `dir` is a vault folder ("" for the root). Fill it
+/// with `fill`.
+pub fn reserve(vault: &Vault, dir: &str, file_name: &str) -> AppResult<String> {
     let file_name = file_name.trim();
-    if file_name.is_empty() {
-        return Err(AppError::InvalidName(file_name.to_string()));
-    }
+    validate_name(file_name)?;
     let (stem, ext) = match file_name.rsplit_once('.') {
         Some((s, e)) if !s.is_empty() => (s, Some(e)),
         _ => (file_name, None),
     };
     let dir = dir.trim_matches('/');
+    fs::create_dir_all(vault.resolve(dir)?)?;
     for n in 0..10_000 {
         let name = match (n, ext) {
             (0, Some(e)) => format!("{stem}.{e}"),
@@ -39,33 +42,43 @@ pub fn free_path(vault: &Vault, dir: &str, file_name: &str) -> AppResult<String>
         } else {
             format!("{dir}/{name}")
         };
-        if !vault.resolve(&rel)?.exists() {
-            return Ok(rel);
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(vault.resolve(&rel)?)
+        {
+            Ok(_) => return Ok(rel),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e.into()),
         }
     }
     Err(AppError::AlreadyExists(format!("{dir}/{file_name}")))
+}
+
+/// Fill the file `reserve` claimed at `rel`: `write` puts the content in a temporary file
+/// of this call's own, which then replaces the empty reservation. If anything fails, both
+/// are removed, so no empty or half-written attachment is left behind.
+pub fn fill(vault: &Vault, rel: &str, write: impl FnOnce(&Path) -> io::Result<()>) -> AppResult<()> {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let abs = vault.resolve(rel)?;
+    let name = abs.file_name().unwrap_or_default().to_string_lossy();
+    let tmp = abs.with_file_name(format!(
+        ".{name}.{}-{}.axisnotes-tmp",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    if let Err(e) = write(&tmp).and_then(|()| fs::rename(&tmp, &abs)) {
+        let _ = fs::remove_file(&tmp);
+        let _ = fs::remove_file(&abs);
+        return Err(e.into());
+    }
+    Ok(())
 }
 
 /// The vault path of `file` if it is already inside the vault (so it's linked, not copied).
 pub fn in_vault(vault: &Vault, file: &Path) -> Option<String> {
     let abs = dunce::canonicalize(file).ok()?;
     vault.to_rel(&abs).filter(|rel| !rel.is_empty())
-}
-
-/// Copy `src` to the vault path `rel` (atomically: a hidden temporary file, then a rename).
-pub fn copy_into(vault: &Vault, src: &Path, rel: &str) -> AppResult<()> {
-    let abs = vault.resolve(rel)?;
-    if let Some(parent) = abs.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let name = abs.file_name().unwrap_or_default().to_string_lossy();
-    let tmp = abs.with_file_name(format!(".{name}.axisnotes-tmp"));
-    fs::copy(src, &tmp)?;
-    if let Err(e) = fs::rename(&tmp, &abs) {
-        let _ = fs::remove_file(&tmp);
-        return Err(e.into());
-    }
-    Ok(())
 }
 
 /// Decode `%XX` escapes (the page sends folder and file names in headers that way).
@@ -99,18 +112,45 @@ mod tests {
     }
 
     #[test]
-    fn free_names_count_up_like_obsidian() {
+    fn names_count_up_like_obsidian() {
         let (_d, v) = vault();
         let name = "Pasted image 20261013211845.png";
-        assert_eq!(free_path(&v, "", name).unwrap(), name);
-        v.write_bytes(name, b"x").unwrap();
-        assert_eq!(free_path(&v, "/", name).unwrap(), "Pasted image 20261013211845 1.png");
-        v.write_bytes("Media/clip.mp4", b"x").unwrap();
-        v.write_bytes("Media/clip 1.mp4", b"x").unwrap();
-        assert_eq!(free_path(&v, "Media/", "clip.mp4").unwrap(), "Media/clip 2.mp4");
-        assert_eq!(free_path(&v, "Media", "README").unwrap(), "Media/README");
-        assert!(free_path(&v, "../out", "a.png").is_err());
-        assert!(free_path(&v, "", "  ").is_err());
+        assert_eq!(reserve(&v, "", name).unwrap(), name);
+        assert_eq!(reserve(&v, "/", name).unwrap(), "Pasted image 20261013211845 1.png");
+        assert_eq!(reserve(&v, "Media/", "clip.mp4").unwrap(), "Media/clip.mp4");
+        assert_eq!(reserve(&v, "Media", "clip.mp4").unwrap(), "Media/clip 1.mp4");
+        assert_eq!(reserve(&v, "Media", "README").unwrap(), "Media/README");
+        assert!(reserve(&v, "../out", "a.png").is_err());
+        assert!(reserve(&v, "", "  ").is_err());
+        assert!(reserve(&v, "", "a:b.png").is_err());
+    }
+
+    #[test]
+    fn imports_at_the_same_time_never_share_a_file() {
+        let (_d, v) = vault();
+        let names: Vec<String> = std::thread::scope(|s| {
+            let handles: Vec<_> = (0..8)
+                .map(|i| {
+                    let v = &v;
+                    s.spawn(move || {
+                        let rel = reserve(v, "Media", "clip.mp4").unwrap();
+                        fill(v, &rel, |tmp| fs::write(tmp, format!("clip {i}"))).unwrap();
+                        rel
+                    })
+                })
+                .collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        let unique: std::collections::HashSet<_> = names.iter().collect();
+        assert_eq!(unique.len(), 8, "{names:?}");
+        // Each file holds what its own import wrote; no temporary files are left.
+        let mut contents: Vec<String> = names
+            .iter()
+            .map(|n| fs::read_to_string(v.resolve(n).unwrap()).unwrap())
+            .collect();
+        contents.sort();
+        assert_eq!(contents, (0..8).map(|i| format!("clip {i}")).collect::<Vec<_>>());
+        assert_eq!(fs::read_dir(v.resolve("Media").unwrap()).unwrap().count(), 8);
     }
 
     #[test]
@@ -120,16 +160,16 @@ mod tests {
         let src = outside.path().join("holiday.jpg");
         fs::write(&src, b"jpeg bytes").unwrap();
         assert_eq!(in_vault(&v, &src), None);
-        copy_into(&v, &src, "Attachments/holiday.jpg").unwrap();
+        let rel = reserve(&v, "Attachments", "holiday.jpg").unwrap();
+        fill(&v, &rel, |tmp| fs::copy(&src, tmp).map(|_| ())).unwrap();
         let copied = v.resolve("Attachments/holiday.jpg").unwrap();
         assert_eq!(fs::read(&copied).unwrap(), b"jpeg bytes");
-        assert_eq!(
-            in_vault(&v, &copied).as_deref(),
-            Some("Attachments/holiday.jpg")
-        );
-        // No temporary file is left behind.
-        let left: Vec<_> = fs::read_dir(copied.parent().unwrap()).unwrap().collect();
-        assert_eq!(left.len(), 1);
+        assert_eq!(in_vault(&v, &copied).as_deref(), Some("Attachments/holiday.jpg"));
+        // A failed copy leaves neither the reservation nor a temporary file behind.
+        let rel = reserve(&v, "Attachments", "gone.jpg").unwrap();
+        let missing = outside.path().join("gone.jpg");
+        assert!(fill(&v, &rel, |tmp| fs::copy(&missing, tmp).map(|_| ())).is_err());
+        assert_eq!(fs::read_dir(copied.parent().unwrap()).unwrap().count(), 1);
     }
 
     #[test]

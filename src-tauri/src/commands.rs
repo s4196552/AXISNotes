@@ -2,6 +2,7 @@
 //!
 //! Heavier commands are `async` so they run off the main (UI) thread.
 
+use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -136,9 +137,9 @@ impl AppState {
                 continue;
             }
             let name = src.file_name().unwrap_or_default().to_string_lossy();
-            let rel = attachments::free_path(&v, dir, &name)?;
+            let rel = attachments::reserve(&v, dir, &name)?;
             self.touch(&v, &rel)?;
-            attachments::copy_into(&v, src, &rel)?;
+            attachments::fill(&v, &rel, |tmp| fs::copy(src, tmp).map(|_| ()))?;
             self.reindex(&v, change(ChangeKind::Created, &[&rel]));
             out.push(rel);
         }
@@ -315,13 +316,13 @@ pub fn save_attachment(
             .map(attachments::percent_decode)
     };
     let v = state.vault_at(header("x-vault").as_deref())?;
-    let rel = attachments::free_path(
+    let rel = attachments::reserve(
         &v,
         &header("x-dir").unwrap_or_default(),
         &header("x-name").unwrap_or_default(),
     )?;
     state.touch(&v, &rel)?;
-    v.write_bytes(&rel, bytes)?;
+    attachments::fill(&v, &rel, |tmp| fs::write(tmp, bytes))?;
     state.reindex(&v, change(ChangeKind::Created, &[&rel]));
     Ok(rel)
 }

@@ -13,8 +13,7 @@ import {
   mediaKind,
   parseImageEmbed,
   parseMarkdownEmbed,
-  resolveAttachment,
-  resolveRelative,
+  resolveMedia,
   videoPlayerUrl,
 } from "../../lib/attachments";
 import {
@@ -448,13 +447,7 @@ class MediaWidget extends WidgetType {
     wrap.className = "cm-image-embed cm-media-embed";
     wrap.dataset.kind = this.shown;
     const web = isWebUrl(this.target);
-    const path = web
-      ? null
-      : resolveAttachment(
-          resolveRelative(this.target, this.from),
-          this.from,
-          useAppStore.getState().tree,
-        );
+    const path = web ? null : resolveMedia(this.target, this.from, useAppStore.getState().tree);
     const url = web ? this.target.trim() : path ? backend.fileUrl(path) : null;
     const name = this.label || this.target;
     const editLink = () => {
