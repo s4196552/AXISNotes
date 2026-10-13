@@ -6,7 +6,7 @@ import { attachmentDir, embedFor, mediaKind, pastedFileName } from "../../lib/at
 import { isNotePath } from "../../lib/markdown";
 import { PATH_MIME } from "../../lib/fileKinds";
 import { editNote } from "../files/editNote";
-import { currentVault, trackPending } from "../files/unsavedWork";
+import { currentVault, trackClosingWrite, trackPending } from "../files/unsavedWork";
 import { getActiveEditor } from "./activeEditor";
 import { notePath } from "./embeds";
 import { linkTargetFor } from "./triggers";
@@ -77,26 +77,39 @@ function targetOf(view: EditorView, at?: number): Target {
  * Embed attachments just saved at `paths` in the note the import was for. Usually its
  * editor is still showing it; if the user moved on meanwhile, the note's file gets the
  * embeds instead (where they were meant to go if it hasn't changed since, else at the
- * end), so they're never lost.
+ * end). That write is tracked like a closing document's (`trackClosingWrite`): if it
+ * fails, the note's new text is kept in an "(unsaved …)" file next to it, and if even
+ * that fails, closing or updating the app is held back and the note is reported.
  */
 async function embedSaved(t: Target, paths: string[]) {
   if (!paths.length) return;
   await useAppStore.getState().refreshTree();
   const tree = useAppStore.getState().tree;
   const lines = paths.map((p) => embedFor(p, tree));
+  const place = (text: string) => withLines(text, text === t.text ? t.at : text.length, lines);
   const { view } = t;
   if (view.dom.isConnected && view.state.facet(notePath) === t.note) {
     insertLines(view, lines, view.state.doc.toString() === t.text ? t.at : undefined);
     return;
   }
-  if (t.vault !== currentVault()) {
-    useAppStore.getState().setError(`The files were added, but another vault is open now.`);
+  // Open again in a new editor: the change goes through it (and its saving).
+  if (getActiveEditor()?.path === t.note && t.vault === currentVault()) {
+    await editNote(t.note, (text) => place(text).text);
     return;
   }
-  await editNote(
-    t.note,
-    (text) => withLines(text, text === t.text ? t.at : text.length, lines).text,
-  );
+  let next: string;
+  let write: () => Promise<unknown>;
+  try {
+    if (t.vault !== currentVault()) throw new Error("another vault is open now");
+    const file = await backend.readFile(t.note);
+    next = place(file.content).text;
+    write = () => backend.writeFile(t.note, next, file.modifiedMs, t.vault ?? undefined);
+  } catch (e) {
+    // Can't read the note (gone, or another vault): keep just the embeds.
+    next = lines.join("\n");
+    write = () => Promise.reject(e instanceof Error ? e : new Error(describe(e)));
+  }
+  trackClosingWrite(t.note, next, t.vault, write);
 }
 
 /**

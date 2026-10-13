@@ -33,7 +33,12 @@ export function resolveAttachment(
   tree: VaultEntry | null,
 ): string | null {
   const files = allFiles(tree);
-  const want = target.replace(/^\.?\//, "").toLowerCase();
+  if (target.startsWith("/")) {
+    // Vault-absolute, like `[[/path]]` links (T-065): exactly that file, nothing nearer.
+    const exact = target.replace(/^\/+/, "").toLowerCase();
+    return files.find((f) => f.toLowerCase() === exact) ?? null;
+  }
+  const want = target.replace(/^\.\//, "").toLowerCase();
   const dir = dirOf(from);
   const candidates = [dir ? `${dir}/${want}`.toLowerCase() : want, want];
   for (const c of candidates) {
@@ -227,10 +232,12 @@ export function embedFor(path: string, tree: VaultEntry | null): string {
   const name = path.slice(path.lastIndexOf("/") + 1);
   // `%`, `<` and `>` are escaped so `parseMarkdownEmbed` reads the same path back.
   if (/[#|[\]^]/.test(path))
-    return `![](<${path.replace(/[%<>]/g, (c) => encodeURIComponent(c))}>)`;
+    return `![](</${path.replace(/[%<>]/g, (c) => encodeURIComponent(c))}>)`;
   const lower = name.toLowerCase();
   const clash = allFiles(tree).some(
     (f) => f !== path && f.slice(f.lastIndexOf("/") + 1).toLowerCase() === lower,
   );
-  return `![[${clash ? path : name}]]`;
+  // A path alone could still find a nearer namesake (`School/Attachments/clip.mp4` from
+  // `School/`), so a clash gets the vault-absolute `/path`.
+  return `![[${clash ? `/${path}` : name}]]`;
 }

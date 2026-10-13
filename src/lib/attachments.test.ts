@@ -134,15 +134,30 @@ describe("media embeds (T-075)", () => {
     expect(pastedFileName({ name: "notes.txt", type: "text/plain" }, at)).toBeNull();
   });
 
-  it("embeds by name, by path when the name is taken elsewhere, and in Markdown when a wikilink can't hold it", () => {
+  it("embeds by name, by vault path when the name is taken elsewhere, and in Markdown when a wikilink can't hold it", () => {
     expect(embedFor("Attachments/new.png", tree)).toBe("![[new.png]]");
-    expect(embedFor("Attachments/cat.png", tree)).toBe("![[Attachments/cat.png]]");
-    expect(embedFor("Attachments/a#1.png", tree)).toBe("![](<Attachments/a#1.png>)");
+    expect(embedFor("Attachments/cat.png", tree)).toBe("![[/Attachments/cat.png]]");
+    expect(embedFor("Attachments/a#1.png", tree)).toBe("![](</Attachments/a#1.png>)");
     // `%` (and `<`, `>`) are escaped, so the embed reads back as the same file.
     const odd = "Attachments/a%20#1 <x>.png";
     const md = embedFor(odd, tree);
-    expect(md).toBe("![](<Attachments/a%2520#1 %3Cx%3E.png>)");
-    expect(parseMarkdownEmbed(md)?.src).toBe(odd);
+    expect(md).toBe("![](</Attachments/a%2520#1 %3Cx%3E.png>)");
+    expect(parseMarkdownEmbed(md)?.src).toBe(`/${odd}`);
+  });
+
+  it("finds the very file it embedded, even with a namesake nearer the note", () => {
+    const nested = d("", [
+      d("Attachments", [f("Attachments/clip.mp4")]),
+      d("School", [
+        f("School/Note.md"),
+        d("School/Attachments", [f("School/Attachments/clip.mp4")]),
+      ]),
+    ]);
+    for (const path of ["Attachments/clip.mp4", "School/Attachments/clip.mp4"]) {
+      const target = /!\[\[(.+)\]\]/.exec(embedFor(path, nested))![1]!;
+      expect(resolveMedia(target, "School/Note.md", nested)).toBe(path);
+    }
+    expect(resolveAttachment("/Attachments/missing.mp4", "School/Note.md", nested)).toBeNull();
   });
 
   it("takes an explicit ./ or ../ path exactly, never a same-named file elsewhere", () => {

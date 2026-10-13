@@ -146,7 +146,7 @@ describe("adding media to a note", () => {
       clipboardData: { files: [clip], getData: () => "", types: ["Files"] },
     });
     // Another clip.mp4 exists, so a bare ![[clip.mp4]] could mean either.
-    await waitFor(() => expect(text(view)).toBe("![[School/clip.mp4]]"));
+    await waitFor(() => expect(text(view)).toBe("![[/School/clip.mp4]]"));
   });
 
   it("leaves text copied from Excel or Word as text (it carries a picture of itself)", () => {
@@ -225,6 +225,40 @@ describe("an import that takes a while (a big video)", () => {
       expect((await h.b.readFile("A.md")).content).toBe("Alpha\n![[slow.png]]"),
     );
     expect((await h.b.readFile("B.md")).content).toBe("Beta");
+  });
+
+  it("keeps the embed in a recovery file if its note can't be written, else holds back closing", async () => {
+    await setup({ "A.md": "Alpha", "B.md": "Beta" });
+    const write = h.b.writeFile.bind(h.b);
+    const failA = vi
+      .spyOn(h.b, "writeFile")
+      .mockImplementation((path, ...rest) =>
+        path === "A.md" ? Promise.reject(new Error("disk full")) : write(path, ...rest),
+      );
+    // 1. The note can't be written, but a recovery file can.
+    let finish = slowSave();
+    let first = render(<Editor path="A.md" />);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved"));
+    let view = EditorView.findFromDOM(document.querySelector(".cm-editor") as HTMLElement)!;
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    paste(view);
+    first.unmount();
+    finish();
+    expect(await act(() => saveAll())).toEqual([]);
+    const kept = Object.entries(h.b.files()).find(([p]) => p.startsWith("A (unsaved "));
+    expect(kept?.[1]).toBe("Alpha\n![[slow.png]]");
+    expect(useAppStore.getState().error).toMatch(/“A” couldn’t be saved \(disk full\)/);
+    // 2. Not even a recovery file: closing is held back and the note is reported.
+    vi.spyOn(h.b, "createFile").mockRejectedValue(new Error("disk full"));
+    finish = slowSave();
+    first = render(<Editor path="A.md" />);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved"));
+    view = EditorView.findFromDOM(document.querySelector(".cm-editor") as HTMLElement)!;
+    paste(view);
+    first.unmount();
+    finish();
+    expect(await act(() => saveAll())).toEqual([{ path: "A.md", reason: "failed" }]);
+    failA.mockRestore();
   });
 
   it("is waited for before the app closes or updates, so the embed is saved", async () => {
