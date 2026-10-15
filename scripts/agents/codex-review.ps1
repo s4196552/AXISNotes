@@ -14,7 +14,7 @@ param(
     [Parameter(Mandatory)] [string] $TaskId,
     [Parameter(Mandatory)] [string] $Worktree,
     [string] $Base = "main",
-    [string] $Model = ""
+    [string] $Model = ""   # omit = invoke-codex.ps1's default; "" = Codex's own default
 )
 
 $ErrorActionPreference = "Stop"
@@ -42,11 +42,20 @@ severity (high/medium/low), the problem, and a concrete failure scenario.
 Then '## Tests' saying what you ran (if anything) and the result.
 "@
 
-$codexArgs = @("exec", "-C", $worktree, "-s", "read-only", "-o", $out)
-if ($Model) { $codexArgs += @("-m", $Model) }
+# Move the previous review aside (not delete: review files are untracked, and Claude writes
+# some of them), so a failed run can't leave a stale verdict behind but nothing is lost.
+$prev = Join-Path $logDir "$TaskId.review.prev.md"
+if (Test-Path $out) { Move-Item $out $prev -Force }
 
-& (Join-Path $PSScriptRoot "invoke-codex.ps1") -CodexArgs $codexArgs -Prompt $prompt `
+$codexArgs = @("exec", "-C", $worktree, "-s", "read-only", "-o", $out)
+
+# Only pass -Model through when given, so invoke-codex.ps1 keeps the shared default.
+$modelArg = @{}
+if ($PSBoundParameters.ContainsKey("Model")) { $modelArg.Model = $Model }
+
+& (Join-Path $PSScriptRoot "invoke-codex.ps1") -CodexArgs $codexArgs -Prompt $prompt @modelArg `
     -LogBase (Join-Path $logDir "$TaskId.review") | Out-Null
 $code = $LASTEXITCODE
 if (Test-Path $out) { Get-Content $out -Raw }
+elseif (Test-Path $prev) { Write-Warning "No new review was written; the previous one is at $prev" }
 exit $code
