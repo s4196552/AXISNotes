@@ -59,7 +59,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-074 | 6     | Never lose an edit on window close, switching away from a conflicted note, or an embed conflict | claude | approved  | agent/claude/T-074 | `src/features/files/{beforeExit,closeGuard,closeGuard.test,unsavedWork,useFileDocument}.ts*`, `src/features/editor/{Editor.tsx,embeds.ts,embeds.test.tsx,editor.css}`, `src/features/updates/updates.ts`, `src/App.tsx` (guard), `src/ipc/{types,tauriBackend,memoryBackend}.ts` (close), `src-tauri/capabilities/default.json` (`allow-destroy`), `e2e/specs/close.e2e.ts` |
 | T-076 | 6     | Sidebar icon on the hide-side-panels button | claude | approved  | agent/claude/T-076 | `src/App.tsx` (`SidePanelsButton`) |
 | T-077 | 6     | Separate left and right side-panel buttons with mirrored icons | claude | approved  | agent/claude/T-077 | `src/features/panels/{PanelToggle,Sidebars}.tsx`, `src/App.tsx`, `src/styles/app.css`, `src/app/layout.test.tsx` |
-| T-078 | 6     | New main logo: pearl three-point mark, app and extension icons | claude | in-review | agent/claude/T-078 | `src/assets/logo.svg`, `src-tauri/icons/*`, `src/app/Logo.tsx`, `src/styles/app.css`, `docs/DECISIONS.md` |
+| T-078 | 6     | New main logo: pearl three-point mark, app and extension icons | claude | approved  | agent/claude/T-078 | `src/assets/logo.svg`, `src-tauri/icons/*`, `src/app/Logo.tsx`, `src/styles/app.css`, `docs/DECISIONS.md` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
