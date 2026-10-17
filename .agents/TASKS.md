@@ -60,6 +60,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-076 | 6     | Sidebar icon on the hide-side-panels button | claude | approved  | agent/claude/T-076 | `src/App.tsx` (`SidePanelsButton`) |
 | T-077 | 6     | Separate left and right side-panel buttons with mirrored icons | claude | approved  | agent/claude/T-077 | `src/features/panels/{PanelToggle,Sidebars}.tsx`, `src/App.tsx`, `src/styles/app.css`, `src/app/layout.test.tsx` |
 | T-078 | 6     | New main logo: pearl three-point mark, app and extension icons | claude | approved  | agent/claude/T-078 | `src/assets/logo.svg`, `src-tauri/icons/*`, `src/app/Logo.tsx`, `src/styles/app.css`, `docs/DECISIONS.md` |
+| T-080 | 6     | ASCII-art backdrop on the welcome screen (theme colour, reduced motion, pauses when hidden) | claude | in-review | agent/claude/T-080 | `src/features/vault/{AsciiBackdrop.tsx,asciiField.ts,asciiBackdrop.css,asciiBackdrop.test.tsx,WelcomeScreen.tsx}` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
