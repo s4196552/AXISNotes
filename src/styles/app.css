@@ -245,10 +245,14 @@ input {
 .content .graph-toolbar {
   padding-right: 52px;
 }
-.content.left-hidden .graph-toolbar {
+/* Full-width headers (graph, grid, canvas) start at the left edge, so they always leave
+   room; the centred note and image headers only reach the button when the main area is
+   narrow. */
+.content.left-hidden .graph-toolbar,
+.content.left-hidden .grid-header,
+.content.left-hidden .canvas-header {
   padding-left: 52px;
 }
-/* The centred note header only reaches the left button when the main area is narrow. */
 .content {
   container-type: inline-size;
 }
