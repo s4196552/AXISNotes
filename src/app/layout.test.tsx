@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../ipc/memoryBackend";
 import { useAppStore } from "./store";
@@ -27,59 +27,67 @@ const nav = () => screen.queryByRole("complementary", { name: "Navigation" });
 const links = () => screen.queryByRole("complementary", { name: "Links" });
 
 describe("side panels", () => {
-  it("hides both side panels from the main area, and brings them back", async () => {
+  it("hides the right panel on its own, and brings it back", async () => {
     render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Hide right panel" }));
+    expect(links()).not.toBeInTheDocument(); // hidden from view and from screen readers
     expect(nav()).toBeInTheDocument();
-    expect(links()).toBeInTheDocument();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Hide side panels" }));
-    expect(nav()).not.toBeInTheDocument(); // hidden from view and from screen readers
-    expect(links()).not.toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("axisnotes.layout")!)).toEqual({
-      left: false,
+      left: true,
       right: false,
     });
 
-    const show = screen.getByRole("button", { name: "Show side panels" });
+    const show = screen.getByRole("button", { name: "Show right panel" });
+    expect(show).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(show);
+    expect(links()).toBeInTheDocument();
+  });
+
+  it("hides the left panel from its own header, and shows it again from the main area", () => {
+    render(<App />);
+    const hide = within(nav()!).getByRole("button", { name: "Hide left panel" });
+    expect(hide).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(hide);
+    expect(nav()).not.toBeInTheDocument();
+    expect(links()).toBeInTheDocument();
+
+    const show = screen.getByRole("button", { name: "Show left panel" });
     expect(show).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(show);
     expect(nav()).toBeInTheDocument();
-    expect(links()).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show left panel" })).not.toBeInTheDocument();
   });
 
-  it("toggles with Ctrl+\\, and brings the left panel back when a left view is opened", () => {
+  it("toggles both with Ctrl+\\, and brings the left panel back when a left view is opened", () => {
     render(<App />);
     act(() => commandForEvent(new KeyboardEvent("keydown", { key: "\\", ctrlKey: true }))!.run());
     expect(nav()).not.toBeInTheDocument();
+    expect(links()).not.toBeInTheDocument();
     act(() => useAppStore.getState().setLeftPanel("search"));
     expect(nav()).toBeInTheDocument();
     expect(links()).not.toBeInTheDocument();
-    // One side still showing: the button hides the rest.
-    fireEvent.click(screen.getByRole("button", { name: "Hide side panels" }));
-    expect(nav()).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show right panel" }));
+    expect(links()).toBeInTheDocument();
   });
 
-  it("shows the current shortcut, including after it's remapped", () => {
+  it("shows each side's shortcut once one is set, including after it's remapped", () => {
     render(<App />);
-    const button = screen.getByRole("button", { name: "Hide side panels" });
-    expect(button).toHaveAttribute("title", String.raw`Hide side panels (Ctrl+\)`);
+    const button = screen.getByRole("button", { name: "Hide right panel" });
+    expect(button).toHaveAttribute("title", "Hide right panel");
     act(() =>
       useConfig.setState({
-        config: { ...DEFAULT_CONFIG, hotkeys: { "toggle-side-panels": "Ctrl+Shift+H" } },
+        config: { ...DEFAULT_CONFIG, hotkeys: { "toggle-right-panel": "Ctrl+Shift+H" } },
       }),
     );
-    expect(button).toHaveAttribute("title", "Hide side panels (Ctrl+Shift+H)");
+    expect(button).toHaveAttribute("title", "Hide right panel (Ctrl+Shift+H)");
     act(() =>
-      useConfig.setState({ config: { ...DEFAULT_CONFIG, hotkeys: { "toggle-side-panels": "" } } }),
+      useConfig.setState({
+        config: { ...DEFAULT_CONFIG, hotkeys: { "toggle-left-panel": "Ctrl+Shift+L" } },
+      }),
     );
-    expect(button).toHaveAttribute("title", "Hide side panels");
-  });
-
-  it("hides one side on its own", () => {
-    render(<App />);
-    act(() => commandForEvent(new KeyboardEvent("keydown", { key: "\\", ctrlKey: true }))!.run());
-    act(() => useLayout.getState().setPanels({ right: true }));
-    expect(nav()).not.toBeInTheDocument();
-    expect(links()).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide left panel" })).toHaveAttribute(
+      "title",
+      "Hide left panel (Ctrl+Shift+L)",
+    );
   });
 });

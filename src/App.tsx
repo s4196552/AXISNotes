@@ -1,5 +1,4 @@
 import { Suspense, useEffect } from "react";
-import { PanelLeft } from "lucide-react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
@@ -24,9 +23,7 @@ import { guardWindowClose } from "./features/files/closeGuard";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
-import { toggleSidePanels, useLayout } from "./app/layout";
-import { formatHotkey } from "./features/commands/hotkeys";
-import { allCommands, shortcutOf } from "./features/commands/registry";
+import { useLayout } from "./app/layout";
 
 // Views other than the note editor load on first use (grids also need the formula
 // function library before they render).
@@ -41,6 +38,7 @@ const TimeReport = lazyNamed(() => import("./features/time/TimeReport"), "TimeRe
 import { RunningTimer } from "./features/time/TimerControls";
 import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
+import { PanelToggle } from "./features/panels/PanelToggle";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
@@ -168,8 +166,10 @@ export default function App() {
       <div className="sidebar-slot" hidden={!showLeft}>
         <LeftSidebar />
       </div>
-      <main className="content">
-        <SidePanelsButton hidden={!showLeft && !showRight} />
+      <main className={showLeft ? "content" : "content left-hidden"}>
+        {/* The left panel's own header holds its hide button; once hidden, it shows here. */}
+        {!showLeft && <PanelToggle side="left" className="side-panels-toggle left" />}
+        <PanelToggle side="right" className="side-panels-toggle" />
         <Suspense fallback={<div className="empty muted">Loading…</div>}>
           {mainView === "graph" ? (
             <GraphView />
@@ -212,26 +212,5 @@ export default function App() {
         )}
       </footer>
     </div>
-  );
-}
-
-/** Top right of the main area: hide both side panels for a focused view, or bring them back. */
-function SidePanelsButton({ hidden }: { hidden: boolean }) {
-  // Re-render when shortcuts are remapped in Settings, so the tooltip stays right.
-  useConfig((s) => s.config.hotkeys);
-  const cmd = allCommands().find((c) => c.id === "toggle-side-panels");
-  const key = cmd && shortcutOf(cmd);
-  const label = hidden ? "Show side panels" : "Hide side panels";
-  return (
-    <button
-      className="side-panels-toggle"
-      aria-label={label}
-      aria-pressed={hidden}
-      title={key ? `${label} (${formatHotkey(key)})` : label}
-      onClick={toggleSidePanels}
-    >
-      {/* One sidebar icon for both states; aria-pressed tints it while the panels are hidden. */}
-      <PanelLeft size={15} />
-    </button>
   );
 }
