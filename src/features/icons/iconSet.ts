@@ -101,6 +101,52 @@ export const ICON_COLORS = [
   "#8d8d8d",
 ];
 
+export const isLucide = (icon: string) => icon.startsWith("lucide:");
+
+let allIcons: Record<string, LucideIcon> | null = null;
+let loading: Promise<Record<string, LucideIcon>> | null = null;
+
+/** The full Lucide set, loaded once on first use. A failed load can be retried. */
+export function loadAllIcons(): Promise<Record<string, LucideIcon>> {
+  if (allIcons) return Promise.resolve(allIcons);
+  loading ??= import("./lucideAll").then(
+    (m) => (allIcons = m.icons as Record<string, LucideIcon>),
+    (e: unknown) => {
+      loading = null;
+      throw e;
+    },
+  );
+  return loading;
+}
+
+/** The full set if it has already loaded, else null. */
+export const loadedIcons = () => allIcons;
+
+/**
+ * The component for a stored `lucide:<Name>` value: a curated icon at once, any other
+ * Lucide icon once the full set has loaded (see `loadAllIcons`), else null.
+ */
 export function lucideFor(icon: string): LucideIcon | null {
-  return icon.startsWith("lucide:") ? (ICONS[icon.slice(7)] ?? null) : null;
+  if (!isLucide(icon)) return null;
+  const name = icon.slice(7);
+  return ICONS[name] ?? allIcons?.[name] ?? null;
+}
+
+/** `FlaskConical` → `flask conical`, for matching typed words against icon names. */
+export const iconWords = (name: string) =>
+  name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Za-z]{2,})(\d)/g, "$1 $2") // Grid2x2 → Grid 2x2, keeping "2x2" whole
+    .toLowerCase();
+
+/** Whether every typed word starts a word of the icon's name (`fla con` finds FlaskConical). */
+export function matchesIcon(name: string, query: string): boolean {
+  const q = query
+    .trim()
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter(Boolean);
+  if (q.length === 0) return true;
+  const words = iconWords(name).split(" ");
+  return q.every((t) => words.some((w) => w.startsWith(t)));
 }

@@ -34,12 +34,56 @@
 .icon-swatch[aria-checked="true"] {
   border-color: var(--fg);
 }
+.icon-colors {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.icon-custom-color {
+  position: relative;
+  cursor: pointer;
+  background: conic-gradient(#e5484d, #ffc53d, #30a46c, #0090ff, #6e56cf, #d6409f, #e5484d);
+}
+.icon-custom-color.chosen {
+  border-color: var(--fg);
+}
+.icon-custom-color input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.icon-custom-color:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.icon-scroll {
+  max-height: 320px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.icon-section {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  padding: 4px 2px 0;
+}
+.icon-note {
+  margin: 4px 2px;
+  color: var(--fg-muted);
+  font-size: 13px;
+}
+.icon-more {
+  align-self: center;
+  margin: 4px 0;
+}
 .icon-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
   gap: 4px;
-  max-height: 260px;
-  overflow: auto;
 }
 .icon-grid button {
   justify-content: center;
