@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
+import { onThemeChange } from "../../app/appearance";
 import { ASCII_RAMP, CELL, brightness, glyphFor } from "./asciiField";
 import "./asciiBackdrop.css";
 
 // Faint animated ASCII art behind the welcome screen. Decorative only: hidden from
 // screen readers, ignores the pointer, takes its colour from the theme's --fg, draws a
-// single still frame when the system asks for reduced motion, and pauses while the
-// window is hidden.
+// single still frame while the system asks for reduced motion (following changes to
+// that setting live), and pauses while the window is hidden.
 
 const FRAME_MS = 80; // ~12 fps is plenty for slow drift
 const ALPHA_LEVELS = 6; // glyphs are batched by opacity to limit fillStyle changes
@@ -18,7 +19,8 @@ export function AsciiBackdrop() {
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
 
-    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    let still = motion?.matches ?? false;
     let width = 0;
     let height = 0;
     let colour = "#888";
@@ -66,35 +68,44 @@ export function AsciiBackdrop() {
     }
 
     function tick() {
-      if (disposed) return;
+      if (disposed || still) return;
       if (!document.hidden) draw(performance.now() / 1000);
       timer = window.setTimeout(tick, FRAME_MS);
     }
 
-    const observer = new ResizeObserver(() => {
+    // Animate, or draw one still frame under reduced motion.
+    function start() {
+      window.clearTimeout(timer);
+      if (still) draw(0);
+      else tick();
+    }
+
+    // Size and colour: on resize, and on theme changes (the app's theme setting, or the
+    // system's light/dark switch under "Match system", which changes --fg via CSS only).
+    function refresh() {
       resize();
       if (still) draw(0);
-    });
+    }
+
+    function onMotionChange() {
+      still = motion?.matches ?? false;
+      start();
+    }
+
+    const observer = new ResizeObserver(refresh);
     observer.observe(canvas);
-    // The theme can change while the welcome screen is up (data-theme on <html>).
-    const themeWatch = new MutationObserver(() => {
-      resize();
-      if (still) draw(0);
-    });
-    themeWatch.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme", "style", "class"],
-    });
+    const stopThemeWatch = onThemeChange(refresh);
+    motion?.addEventListener?.("change", onMotionChange);
 
     resize();
-    if (still) draw(0);
-    else tick();
+    start();
 
     return () => {
       disposed = true;
       window.clearTimeout(timer);
       observer.disconnect();
-      themeWatch.disconnect();
+      stopThemeWatch();
+      motion?.removeEventListener?.("change", onMotionChange);
     };
   }, []);
 

@@ -32,12 +32,19 @@ describe("asciiField", () => {
 describe("AsciiBackdrop", () => {
   const fillText = vi.fn();
   let reduced = false;
+  let dark = false;
+  // matchMedia fakes: flip a preference, then call `fire` to notify listeners like the browser.
+  const listeners = new Map<string, Set<() => void>>();
+  const fire = (query: string) => listeners.get(query)?.forEach((l) => l());
+  let ctx: { fillStyle: string } & Record<string, unknown>;
 
   beforeEach(() => {
     vi.useFakeTimers();
     fillText.mockClear();
     reduced = false;
-    const ctx = {
+    dark = false;
+    listeners.clear();
+    ctx = {
       setTransform: vi.fn(),
       clearRect: vi.fn(),
       fillText,
@@ -60,7 +67,16 @@ describe("AsciiBackdrop", () => {
         disconnect() {}
       },
     );
-    vi.stubGlobal("matchMedia", (q: string) => ({ matches: reduced && q.includes("reduce") }));
+    vi.stubGlobal("matchMedia", (q: string) => ({
+      get matches() {
+        return q.includes("reduce") ? reduced : q.includes("dark") ? dark : false;
+      },
+      addEventListener: (_: string, l: () => void) => {
+        if (!listeners.has(q)) listeners.set(q, new Set());
+        listeners.get(q)!.add(l);
+      },
+      removeEventListener: (_: string, l: () => void) => listeners.get(q)?.delete(l),
+    }));
   });
 
   afterEach(() => {
@@ -93,6 +109,39 @@ describe("AsciiBackdrop", () => {
     expect(drawn).toBeGreaterThan(0);
     vi.advanceTimersByTime(1000);
     expect(fillText.mock.calls.length).toBe(drawn);
+  });
+
+  it("stops animating when reduced motion is turned on while shown, and resumes after", () => {
+    render(<AsciiBackdrop />);
+    reduced = true;
+    fire("(prefers-reduced-motion: reduce)");
+    const still = fillText.mock.calls.length;
+    vi.advanceTimersByTime(1000);
+    expect(fillText.mock.calls.length).toBe(still);
+
+    reduced = false;
+    fire("(prefers-reduced-motion: reduce)");
+    vi.advanceTimersByTime(500);
+    expect(fillText.mock.calls.length).toBeGreaterThan(still);
+  });
+
+  it("picks up the new colour when the system switches light/dark, without a resize", () => {
+    reduced = true; // still frame: only a theme refresh can redraw
+    document.documentElement.style.setProperty("--fg", "#111111");
+    render(<AsciiBackdrop />);
+    expect(ctx.fillStyle).toBe("#111111");
+
+    dark = true;
+    document.documentElement.style.setProperty("--fg", "#eeeeee");
+    fire("(prefers-color-scheme: dark)");
+    expect(ctx.fillStyle).toBe("#eeeeee");
+    document.documentElement.style.removeProperty("--fg");
+  });
+
+  it("removes its preference listeners when unmounted", () => {
+    const { unmount } = render(<AsciiBackdrop />);
+    unmount();
+    for (const set of listeners.values()) expect(set.size).toBe(0);
   });
 
   it("does nothing when the canvas has no 2D context", () => {
