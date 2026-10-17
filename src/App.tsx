@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from "react";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
@@ -230,7 +230,8 @@ function SidePanelsButton({ hidden }: { hidden: boolean }) {
       title={key ? `${label} (${formatHotkey(key)})` : label}
       onClick={toggleSidePanels}
     >
-      {hidden ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+      {/* One sidebar icon for both states; aria-pressed tints it while the panels are hidden. */}
+      <PanelLeft size={15} />
     </button>
   );
 }
