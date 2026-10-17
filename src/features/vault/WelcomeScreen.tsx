@@ -5,6 +5,7 @@ import { backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { forgetVault, recentVaults, reopenLast, setReopenLast } from "../../app/recentVaults";
 import { STARTER_NOTES } from "./starterNotes";
+import { AsciiBackdrop } from "./AsciiBackdrop";
 
 // First screen when no vault is open: recent vaults, open a folder (an Obsidian vault
 // works as is), or create a new vault, optionally with a few example notes.
@@ -32,6 +33,7 @@ export function WelcomeScreen() {
 
   return (
     <main className="welcome">
+      <AsciiBackdrop />
       <Logo size={72} className="welcome-logo" />
       <h1>AXISNotes</h1>
       <p className="muted">
