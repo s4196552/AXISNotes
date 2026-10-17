@@ -178,6 +178,28 @@ const SEEDS: Record<string, (dir: string) => void> = {
     );
     process.env.AXIS_E2E_OBSIDIAN = obsidian;
   },
+  covers(dir) {
+    const fixtures = path.join(root, "e2e", "fixtures");
+    write(
+      dir,
+      "Trips/Coast.md",
+      '---\nbanner: "[[Trips/attachments/coast.jpg]]"\nbanner_y: 0.2\n---\n# Coast\n\nWaves.\n',
+    );
+    fs.mkdirSync(path.join(dir, "Trips", "attachments"), { recursive: true });
+    fs.copyFileSync(
+      path.join(fixtures, "coast.jpg"),
+      path.join(dir, "Trips", "attachments", "coast.jpg"),
+    );
+    write(dir, "Plans.md", "# Plans\n\nNothing yet.\n");
+    fs.copyFileSync(path.join(fixtures, "sunset.png"), path.join(dir, "sunset.png"));
+    // Pictures outside the vault, to upload from.
+    const pictures = `${dir}-pictures`;
+    fs.mkdirSync(pictures);
+    fs.copyFileSync(path.join(fixtures, "sunset.png"), path.join(pictures, "Holiday photo.png"));
+    fs.copyFileSync(path.join(fixtures, "coast.jpg"), path.join(pictures, "coast.jpg"));
+    fs.writeFileSync(path.join(pictures, "notes.txt"), "not an image");
+    process.env.AXIS_E2E_PICTURES = pictures;
+  },
   perf(dir) {
     const words = [
       "cell",
@@ -263,12 +285,17 @@ export const config: WebdriverIO.Config = {
     if (config?.includes("axis-e2e-config-")) {
       setTimeout(() => fs.rmSync(config, { recursive: true, force: true, maxRetries: 5 }), 500);
     }
-    for (const dir of [process.env.AXIS_E2E_VAULT, process.env.AXIS_E2E_OBSIDIAN]) {
+    for (const dir of [
+      process.env.AXIS_E2E_VAULT,
+      process.env.AXIS_E2E_OBSIDIAN,
+      process.env.AXIS_E2E_PICTURES,
+    ]) {
       if (dir?.includes("axis-e2e-")) {
         // The app may still hold files open for a moment after the session ends.
         setTimeout(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 }), 500);
       }
     }
     delete process.env.AXIS_E2E_OBSIDIAN;
+    delete process.env.AXIS_E2E_PICTURES;
   },
 };
