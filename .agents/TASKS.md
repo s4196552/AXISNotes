@@ -64,6 +64,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-081 | 6     | Resizable side panels (drag, keys, double-click reset) with a quick sliding show/hide | claude | merged    | agent/claude/T-081 | `src/app/layout*`, `src/App.tsx`, `src/features/panels/{PanelResizer.tsx,presence.ts,Sidebars.tsx,panels.css}`, `src/styles/app.css` (shell, sidebar slots) |
 | T-082 | 6     | Every Lucide icon in the icon picker (lazy chunk, word search), any colour | claude | merged    | agent/claude/T-082 | `src/features/icons/**`, `src/features/filetree/FileTree.tsx` (icon fallback), `src/features/settings/customization.test.tsx` |
 | T-083 | 6     | Notion-style page icons and cover banners (Obsidian Banners format), image icons, image upload | claude | merged    | agent/claude/T-083 | `src/features/editor/{Editor,PageHeader,PropertiesPanel}*`, `src/features/editor/pageHeader.*`, `src/lib/cover*`, `src/lib/attachments.ts`, `src/features/icons/**`, `src/ipc/**`, `src-tauri/src/{commands,lib}.rs`, `src-tauri/src/vault/mod.rs` |
+| T-084 | 6     | Welcome-screen ASCII art from the user's three-cusp star design (letters in a soft star, warm-to-cool tint) | claude | approved  | agent/claude/T-084 | `src/features/vault/{AsciiBackdrop.tsx,asciiField.ts,asciiBackdrop.test.tsx}` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
