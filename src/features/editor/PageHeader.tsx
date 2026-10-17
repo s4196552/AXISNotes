@@ -149,6 +149,8 @@ function CoverBanner({
 
   const onPointerDown = (e: PointerEvent) => {
     if (moving === null || e.button !== 0) return;
+    // Save / Cancel sit on the cover: capturing their press would steal their click.
+    if ((e.target as Element).closest?.("button")) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture?.(e.pointerId);
     drag.current = { startY: e.clientY, fromY: moving };
@@ -208,7 +210,7 @@ function CoverBanner({
           src={url}
           alt=""
           draggable={false}
-          style={{ objectPosition: `center ${shownY * 100}%` }}
+          style={{ objectPosition: `center ${Math.round(shownY * 100)}%` }}
           onError={() => setFailed(url)}
         />
       )}

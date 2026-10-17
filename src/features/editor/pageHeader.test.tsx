@@ -89,7 +89,11 @@ describe("page cover", () => {
     fireEvent.keyDown(slider, { key: "ArrowDown" });
     fireEvent.keyDown(slider, { key: "ArrowDown" });
     expect(img.style.objectPosition).toBe("center 60%");
-    fireEvent.click(screen.getByRole("button", { name: "Save position" }));
+    // Pressing Save on the cover must not start a drag (that would capture the pointer
+    // and swallow the click).
+    const saveButton = screen.getByRole("button", { name: "Save position" });
+    expect(fireEvent.pointerDown(saveButton, { button: 0 })).toBe(true);
+    fireEvent.click(saveButton);
     expect(props()).toEqual({ banner: "[[img/sky.svg]]", banner_y: 0.6 });
 
     // Escape cancels a reposition without writing.
