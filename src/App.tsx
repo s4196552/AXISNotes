@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from "react";
+import { type CSSProperties, Suspense, useEffect } from "react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
@@ -39,6 +39,7 @@ import { RunningTimer } from "./features/time/TimerControls";
 import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
 import { PanelToggle } from "./features/panels/PanelToggle";
+import { usePresence } from "./features/panels/presence";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
@@ -50,6 +51,9 @@ export default function App() {
   const refreshTree = useAppStore((s) => s.refreshTree);
   const showLeft = useLayout((s) => s.left);
   const showRight = useLayout((s) => s.right);
+  const leftWidth = useLayout((s) => s.leftWidth);
+  const rightWidth = useLayout((s) => s.rightWidth);
+  const rightMounted = usePresence(showRight);
   useClipNotices();
 
   // Restore a vault the backend already has open (e.g. after a webview reload), or
@@ -156,14 +160,22 @@ export default function App() {
   return (
     <div
       className="shell"
-      style={{
-        gridTemplateColumns: [showLeft && "260px", "minmax(0, 1fr)", showRight && "280px"]
-          .filter(Boolean)
-          .join(" "),
-      }}
+      // A hidden panel's column is 0 px rather than removed, so it can slide (see .shell).
+      style={
+        {
+          gridTemplateColumns: `${showLeft ? leftWidth : 0}px minmax(0, 1fr) ${showRight ? rightWidth : 0}px`,
+          "--left-width": `${leftWidth}px`,
+          "--right-width": `${rightWidth}px`,
+        } as CSSProperties
+      }
     >
-      {/* Hidden rather than unmounted, so the file tree and search keep their state. */}
-      <div className="sidebar-slot" hidden={!showLeft}>
+      {/* Kept mounted while hidden, so the file tree and search keep their state. */}
+      <div
+        className="sidebar-slot left"
+        data-closed={showLeft ? undefined : ""}
+        aria-hidden={showLeft ? undefined : true}
+        inert={!showLeft}
+      >
         <LeftSidebar />
       </div>
       <main className={showLeft ? "content" : "content left-hidden"}>
@@ -192,8 +204,17 @@ export default function App() {
           )}
         </Suspense>
       </main>
-      {/* The right side (with its live graph) only runs while it's showing. */}
-      {showRight && <RightSidebar />}
+      {/* The right side (with its live graph) only runs while showing or sliding away. */}
+      {rightMounted && (
+        <div
+          className="sidebar-slot right"
+          data-closed={showRight ? undefined : ""}
+          aria-hidden={showRight ? undefined : true}
+          inert={!showRight}
+        >
+          <RightSidebar />
+        </div>
+      )}
       <Modals />
       <UpdateBanner />
       <footer className="statusbar">
