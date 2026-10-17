@@ -551,7 +551,10 @@ const TreeRow = memo(function TreeRow({
         {isDir && (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
       </span>
       {customIcon ? (
-        <EntryIcon icon={customIcon} />
+        <EntryIcon
+          icon={customIcon}
+          fallback={<Icon size={15} className="filetree-icon" aria-hidden />}
+        />
       ) : (
         <Icon size={15} className="filetree-icon" aria-hidden />
       )}

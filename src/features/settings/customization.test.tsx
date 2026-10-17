@@ -121,6 +121,47 @@ describe("folder icons", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
     await waitFor(() => expect(useConfig.getState().config.folderIcons.University).toBeUndefined());
   });
+
+  it("offers every Lucide icon, searched by word, in any colour", async () => {
+    render(
+      <>
+        <FileTree />
+        <Modals />
+      </>,
+    );
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: "School" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Change icon…" }));
+    const dialog = screen.getByRole("dialog", { name: "Icon for School" });
+    // The full set loads on demand; a few hundred render before "Show more".
+    const all = await within(dialog).findByRole("listbox", { name: "Choose an icon" });
+    expect(within(all).getAllByRole("option")).toHaveLength(240);
+    expect(within(dialog).getByRole("button", { name: /Show more/ })).toBeTruthy();
+
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Filter icons" }), {
+      target: { value: "rabb" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Custom color"), {
+      target: { value: "#123456" },
+    });
+    fireEvent.click(within(dialog).getByRole("option", { name: "Rabbit" }));
+    await waitFor(() =>
+      expect(savedConfig().folderIcons).toEqual({
+        School: { icon: "lucide:Rabbit", color: "#123456" },
+      }),
+    );
+    const row = screen.getByRole("treeitem", { name: "School" });
+    await waitFor(() => expect(row.querySelector("svg.custom-icon")).not.toBeNull());
+  });
+
+  it("falls back to the default icon for an unknown Lucide name", async () => {
+    useConfig.setState({
+      config: { ...DEFAULT_CONFIG, folderIcons: { School: { icon: "lucide:NoSuchIcon" } } },
+    });
+    render(<FileTree />);
+    const row = await screen.findByRole("treeitem", { name: "School" });
+    expect(row.querySelector(".custom-icon")).toBeNull();
+    expect(row.querySelector("svg.filetree-icon")).not.toBeNull();
+  });
 });
 
 describe("settings", () => {
