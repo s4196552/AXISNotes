@@ -178,6 +178,15 @@ input {
   grid-template-columns: 260px minmax(0, 1fr) 280px;
   grid-template-rows: 1fr 24px;
   height: 100%;
+  /* A side panel sliding out reaches past the window edge; clip it without scrolling. */
+  overflow: clip;
+  /* Side panels slide in and out, and glide to a new width (keyboard, double-click
+     reset). Quick, with a soft landing. Matches SLIDE_MS in panels/presence.ts. */
+  transition: grid-template-columns 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+/* A drag follows the pointer exactly. */
+:root.panel-resizing .shell {
+  transition: none;
 }
 .sidebar {
   grid-row: 1;
@@ -202,15 +211,41 @@ input {
   min-width: 0;
   min-height: 0;
 }
+/* The panel keeps its full width while its column animates, so it slides rather than
+   squashing: the left one is pinned to its column's right edge, the right one to the
+   left edge, and whatever is past the column is off-window. */
+.sidebar-slot.left {
+  grid-column: 1;
+  align-items: flex-end;
+}
+.sidebar-slot.right {
+  grid-column: 3;
+  align-items: flex-start;
+}
+.sidebar-slot.left > .sidebar {
+  width: var(--left-width, 260px);
+}
+.sidebar-slot.right > .sidebar {
+  width: var(--right-width, 280px);
+}
 .sidebar-slot > .sidebar {
   flex: 1;
 }
-.sidebar-slot[hidden] {
-  display: none;
+/* Hidden once the slide out has finished; shown at once when sliding in. */
+.sidebar-slot[data-closed] {
+  visibility: hidden;
+  transition: visibility 0s linear 180ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell,
+  .sidebar-slot[data-closed] {
+    transition: none;
+  }
 }
 .content {
   position: relative;
   grid-row: 1;
+  grid-column: 2;
   min-width: 0;
   min-height: 0;
   overflow: hidden;

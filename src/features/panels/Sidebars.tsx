@@ -17,6 +17,7 @@ import { type LeftPanel, useAppStore } from "../../app/store";
 import { Calendar } from "../daily/Calendar";
 import { FileTree } from "../filetree";
 import { BacklinksPanel } from "./BacklinksPanel";
+import { PanelResizer } from "./PanelResizer";
 import { PanelToggle } from "./PanelToggle";
 import { SearchPanel } from "./SearchPanel";
 import { TagsPanel } from "./TagsPanel";
@@ -90,6 +91,7 @@ export function LeftSidebar() {
         {panel === "search" && <SearchPanel />}
         {panel === "tags" && <TagsPanel />}
       </div>
+      <PanelResizer side="left" />
     </aside>
   );
 }
@@ -104,6 +106,7 @@ export function RightSidebar() {
       <div className="sidebar-body">
         <BacklinksPanel />
       </div>
+      <PanelResizer side="right" />
     </aside>
   );
 }
