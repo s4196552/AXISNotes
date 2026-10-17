@@ -212,8 +212,8 @@ input {
   overflow: hidden;
 }
 
-/* The hide/show side panels button, top right of the main area. Headers there leave
-   room for it. */
+/* The hide/show right panel button, top right of the main area, and (while the left panel
+   is hidden) the show left panel button, top left. Headers there leave room for them. */
 .side-panels-toggle {
   position: absolute;
   top: 8px;
@@ -237,9 +237,25 @@ input {
 .side-panels-toggle[aria-pressed="true"] {
   color: var(--accent);
 }
+.side-panels-toggle.left {
+  right: auto;
+  left: 10px;
+}
 .content .editor-header,
 .content .graph-toolbar {
   padding-right: 52px;
+}
+.content.left-hidden .graph-toolbar {
+  padding-left: 52px;
+}
+/* The centred note header only reaches the left button when the main area is narrow. */
+.content {
+  container-type: inline-size;
+}
+@container (max-width: 880px) {
+  .content.left-hidden .editor-header {
+    padding-left: 52px;
+  }
 }
 .empty {
   display: grid;
