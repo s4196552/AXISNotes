@@ -181,7 +181,8 @@ input {
   /* A side panel sliding out reaches past the window edge; clip it without scrolling. */
   overflow: clip;
   /* Side panels slide in and out, and glide to a new width (keyboard, double-click
-     reset). Quick, with a soft landing. Matches SLIDE_MS in panels/presence.ts. */
+     reset). Quick, with a soft landing. Matches SLIDE_MS in panels/presence.ts. It plays
+     even under reduced motion: the user asked for it with Windows animations off. */
   transition: grid-template-columns 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 /* A drag follows the pointer exactly. */
@@ -235,12 +236,6 @@ input {
 .sidebar-slot[data-closed] {
   visibility: hidden;
   transition: visibility 0s linear 180ms;
-}
-@media (prefers-reduced-motion: reduce) {
-  .shell,
-  .sidebar-slot[data-closed] {
-    transition: none;
-  }
 }
 .content {
   position: relative;
