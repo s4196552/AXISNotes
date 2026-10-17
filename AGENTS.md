@@ -59,16 +59,16 @@ The human-requested Notes module implementation and detailed design are on `agen
 - **Next:** lead adopts/rebriefs proposed T-043–T-059; S2 delivers Hub + Connect + Notes. Historical Notes phases 0–6 are distinct from suite phases S1–S6. Full local acceptance in S5: Biology project → notes/reference documents → linked deck → scheduled study → reopen every item through Hub.
 - Preserve uncommitted `DESIGN.md` and `design/` in the primary checkout. Do not treat them as disposable generated files. Do not modify sibling repositories without their own scoped task/worktree.
 
-The latest human-supplied working agreement below applies to new work. Older task-board/decision-log entries about dropping Codex or waiving cross-review describe historical work and do not override it. Each suite phase ends at a human checkpoint; permission to update documentation is not approval to begin the next phase.
+The latest human-supplied working agreement below applies to new work. **From 2026-10-17 Claude Code builds and verifies all work on its own: do not call Codex (or any other ChatGPT/OpenAI agent) to build or review unless the human explicitly asks.** This supersedes the 2026-09-30 cross-review requirement; Codex reviews recorded before that date remain valid history. Each suite phase ends at a human checkpoint; permission to update documentation is not approval to begin the next phase.
 
 ## Roles
 
-| Agent            | Role                                                                                                                           | Owns                                                                                            |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
-| **Claude Code**  | **Lead / orchestrator.** Plans each phase, splits it into tasks, assigns them, merges branches, and runs the phase checkpoint. | Architecture, Rust/Tauri core (file system, index, the `AiProvider` trait), `docs/DECISIONS.md` |
-| **OpenAI Codex** | **Builder + reviewer.** Builds the tasks assigned to it and reviews every Claude-authored change.                              | The tasks assigned to it in `.agents/TASKS.md`                                                  |
+| Agent            | Role                                                                                                          | Owns                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Claude Code**  | **Lead, builder and reviewer.** Plans, builds, verifies and merges every task, and runs the phase checkpoint. | Architecture, Rust/Tauri core (file system, index, the `AiProvider` trait), `docs/DECISIONS.md` |
+| **OpenAI Codex** | **Not used** unless the human explicitly asks for it.                                                         | Nothing, unless the human assigns it a task                                                     |
 
-**Cross-review rule:** code is never merged without a review from the _other_ agent. Claude reviews Codex's work and Codex reviews Claude's. Each model catches mistakes the other misses.
+**Verification rule:** code is merged only after Claude has verified it: the full checks pass, Claude has reviewed its own diff and recorded the verdict and test results in `reviews/T-###.md`, and user-visible changes have been checked in the running app or preview. (Cross-review by Codex applied from 2026-09-30 to 2026-10-17 and is no longer required.)
 
 ## Coordination files (`.agents/`)
 
@@ -109,7 +109,7 @@ Status moves through `todo → in-progress → in-review → changes-requested �
 
 - One task = one branch, `agent/<claude|codex>/T-###`, in its **own git worktree** (`git worktree add ../axis-T-012 -b agent/codex/T-012`), so the two agents never edit the same checkout.
 - **File ownership:** only edit files listed in your task's _Files_ column. If you need to change a file owned by another task, stop and write the request into your handoff note.
-- Only the lead merges into `main`, and only after an `approve` review and green CI.
+- Only the lead merges into `main` or a release branch, and only after an `approve` review and green checks (and green CI where the branch runs CI).
 - Commit messages start with `T-###:`.
 
 ## Shared engineering rules
