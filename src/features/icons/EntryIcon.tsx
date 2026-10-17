@@ -1,10 +1,12 @@
 import { createElement, type ReactNode, useEffect, useState } from "react";
 import type { FolderIcon } from "../../app/config";
-import { isLucide, loadAllIcons, lucideFor } from "./iconSet";
+import { backend } from "../../ipc";
+import { imageIconPath, isLucide, loadAllIcons, lucideFor } from "./iconSet";
 
 /**
- * Render a custom folder/note icon: a Lucide icon or an emoji, optionally colored.
- * `fallback` shows while a non-curated Lucide icon loads, or if its name is unknown.
+ * Render a custom folder/note icon: a Lucide icon, an image from the vault or an emoji,
+ * optionally colored. `fallback` shows while a non-curated Lucide icon loads, or if the
+ * icon can't be shown (an unknown Lucide name, a missing image).
  */
 export function EntryIcon({
   icon,
@@ -16,6 +18,8 @@ export function EntryIcon({
   fallback?: ReactNode;
 }) {
   const lucide = useLucide(icon.icon);
+  const image = imageIconPath(icon.icon);
+  if (image !== null) return <ImageIcon path={image} size={size} fallback={fallback} />;
   if (lucide) {
     // Looked up from the static icon tables, not created during render.
     return createElement(lucide, {
@@ -29,11 +33,32 @@ export function EntryIcon({
   return (
     <span
       className="filetree-icon custom-icon emoji-icon"
-      style={{ fontSize: size - 1, ...(icon.color ? { color: icon.color } : {}) }}
+      style={{
+        fontSize: size - 1,
+        ...(size > 15 ? { width: size, height: size } : {}),
+        ...(icon.color ? { color: icon.color } : {}),
+      }}
       aria-hidden
     >
       {icon.icon}
     </span>
+  );
+}
+
+function ImageIcon({ path, size, fallback }: { path: string; size: number; fallback: ReactNode }) {
+  const [failed, setFailed] = useState<string | null>(null);
+  const url = backend.fileUrl(path);
+  if (!url || failed === url) return fallback;
+  return (
+    <img
+      className="filetree-icon custom-icon image-icon"
+      src={url}
+      alt=""
+      width={size}
+      height={size}
+      draggable={false}
+      onError={() => setFailed(url)}
+    />
   );
 }
 

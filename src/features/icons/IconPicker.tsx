@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { type FolderIcon, useConfig } from "../../app/config";
 import { loadEmoji, searchEmoji } from "../editor/quickCommands";
-import { ICON_COLORS, ICONS, isLucide, loadAllIcons, loadedIcons, matchesIcon } from "./iconSet";
+import {
+  ICON_COLORS,
+  ICONS,
+  imageIcon,
+  imageIconPath,
+  isLucide,
+  loadAllIcons,
+  loadedIcons,
+  matchesIcon,
+} from "./iconSet";
+import { ImageChooser } from "./ImageChooser";
 import "./icons.css";
 
 /** Icons rendered per page of results, so typing stays quick with ~1,900 icons. */
@@ -13,8 +23,12 @@ type Load = "loading" | "ready" | "error";
 export function IconPicker({ path, onClose }: { path: string; onClose(): void }) {
   const current = useConfig((s) => s.config.folderIcons[path]);
   const update = useConfig((s) => s.update);
-  const [tab, setTab] = useState<"icons" | "emoji">(
-    current && !isLucide(current.icon) ? "emoji" : "icons",
+  const [tab, setTab] = useState<"icons" | "emoji" | "image">(
+    !current || isLucide(current.icon)
+      ? "icons"
+      : imageIconPath(current.icon) !== null
+        ? "image"
+        : "emoji",
   );
   const [color, setColor] = useState(current?.color ?? "");
   const [query, setQuery] = useState("");
@@ -104,10 +118,19 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
             <button role="tab" aria-selected={tab === "emoji"} onClick={() => setTab("emoji")}>
               Emoji
             </button>
+            <button role="tab" aria-selected={tab === "image"} onClick={() => setTab("image")}>
+              Image
+            </button>
           </div>
           <input
             aria-label="Filter icons"
-            placeholder={tab === "icons" ? "Search icons…" : "Search emoji…"}
+            placeholder={
+              tab === "icons"
+                ? "Search icons…"
+                : tab === "emoji"
+                  ? "Search emoji…"
+                  : "Search images…"
+            }
             autoFocus
             value={query}
             onChange={(e) => {
@@ -116,7 +139,7 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
             }}
           />
         </div>
-        <div className="icon-colors" role="radiogroup" aria-label="Color">
+        <div className="icon-colors" role="radiogroup" aria-label="Color" hidden={tab === "image"}>
           {ICON_COLORS.map((c) => (
             <button
               key={c || "none"}
@@ -183,6 +206,12 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
                 </>
               )}
             </>
+          ) : tab === "image" ? (
+            <ImageChooser
+              forPath={path}
+              query={query}
+              onPick={(p) => save({ icon: imageIcon(p) })}
+            />
           ) : (
             <div className="icon-grid" role="listbox" aria-label="Choose an emoji">
               {emoji.map((e) => (

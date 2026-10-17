@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Effect, getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AiRunResult, Backend, Clipped, IndexProgress, VaultChange, VaultInfo } from "./types";
+import { IMAGE_EXTENSIONS } from "../lib/attachments";
 
 export const VAULT_CHANGED_EVENT = "vault://changed";
 export const INDEX_PROGRESS_EVENT = "index://progress";
@@ -33,6 +34,14 @@ export function createTauriBackend(): Backend {
       invoke("write_file", { path, content, expectedModifiedMs, vaultRoot }),
     createFile: (path, content, vaultRoot) => invoke("create_file", { path, content, vaultRoot }),
     createDir: (path) => invoke("create_dir", { path }),
+    async pickImage() {
+      const picked = await open({
+        multiple: false,
+        filters: [{ name: "Images", extensions: [...IMAGE_EXTENSIONS] }],
+      });
+      return typeof picked === "string" ? picked : null;
+    },
+    importImage: (source, folder) => invoke("import_image", { source, folder }),
     renameEntry: (from, to) => invoke("rename_entry", { from, to }),
     trashEntry: (path) => invoke("trash_entry", { path }),
     search: (query, limit) => invoke("search", { query, limit }),

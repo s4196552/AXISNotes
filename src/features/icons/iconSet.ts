@@ -103,6 +103,12 @@ export const ICON_COLORS = [
 
 export const isLucide = (icon: string) => icon.startsWith("lucide:");
 
+/** Stored value for an image from the vault used as an icon. */
+export const imageIcon = (path: string) => `image:${path}`;
+/** The vault path of an `image:` icon, else null. */
+export const imageIconPath = (icon: string) =>
+  icon.startsWith("image:") && icon.length > 6 ? icon.slice(6) : null;
+
 let allIcons: Record<string, LucideIcon> | null = null;
 let loading: Promise<Record<string, LucideIcon>> | null = null;
 

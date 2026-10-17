@@ -45,6 +45,7 @@ pub fn run() {
             commands::write_file,
             commands::create_file,
             commands::create_dir,
+            commands::import_image,
             commands::rename_entry,
             commands::trash_entry,
             commands::search,
