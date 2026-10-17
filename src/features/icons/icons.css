@@ -106,5 +106,59 @@
   display: inline-flex;
   width: 15px;
   justify-content: center;
+  align-items: center;
   line-height: 1;
+}
+.image-icon {
+  flex: none;
+  object-fit: cover;
+  border-radius: 3px;
+}
+
+/* Choosing an image (icon picker's Image tab, cover picker's Images tab). */
+.image-chooser {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.image-upload {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+}
+.image-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 11px;
+  color: var(--fg-muted);
+  min-width: 0;
+}
+.image-grid button:hover,
+.image-grid button:focus-visible {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+.image-grid button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.image-thumb {
+  display: block;
+  width: 100%;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--bg-hover);
 }

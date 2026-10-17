@@ -255,6 +255,24 @@ pub fn create_file(
     Ok(entry)
 }
 
+/// Copy an image file chosen by the user into `folder` (created if needed) under a free
+/// name, for page covers and icons.
+#[tauri::command]
+pub fn import_image(
+    state: State<AppState>,
+    source: String,
+    folder: String,
+) -> AppResult<VaultEntry> {
+    let v = state.vault()?;
+    let source = PathBuf::from(source);
+    let name = crate::vault::image_file_name(&source)?;
+    let rel = v.free_path(&folder, &name)?;
+    state.touch(&v, &rel)?;
+    let entry = v.copy_image_in(&source, &rel)?;
+    state.reindex(&v, change(ChangeKind::Created, &[&rel]));
+    Ok(entry)
+}
+
 #[tauri::command]
 pub fn create_dir(state: State<AppState>, path: String) -> AppResult<VaultEntry> {
     let v = state.vault()?;

@@ -387,6 +387,13 @@ export interface Backend {
   /** Rejects with "AlreadyExists" rather than overwrite. `vaultRoot` as for `writeFile`. */
   createFile(path: string, content?: string, vaultRoot?: string): Promise<VaultEntry>;
   createDir(path: string): Promise<VaultEntry>;
+  /** Show a native picker for one image file; resolves null if cancelled. */
+  pickImage(): Promise<string | null>;
+  /**
+   * Copy the image at `source` (a path on disk) into the vault folder `folder` under a
+   * free name (`photo 1.png` if `photo.png` exists). Images only, up to 25 MB.
+   */
+  importImage(source: string, folder: string): Promise<VaultEntry>;
   /**
    * Rename or move. Rejects with "AlreadyExists" if `to` exists. Wikilinks to moved notes
    * are rewritten; rewritten notes are announced through `onVaultChanged` as "modified".

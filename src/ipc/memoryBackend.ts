@@ -9,6 +9,7 @@ import {
   inlineProperties,
 } from "../lib/markdown";
 import { compareTasks, findTasks } from "../lib/tasks";
+import { isImagePath } from "../lib/attachments";
 import { createMemoryAi } from "./memoryAi";
 import type {
   Backend,
@@ -318,7 +319,12 @@ export function createMemoryBackend(
     updatesCheck: async () => null,
     updatesInstall: async () => fail("Io", "Updates install in the desktop app."),
     onClipped: async () => () => {},
-    fileUrl: () => null,
+    // SVG files are text, so the browser preview can show them; other images need the app.
+    fileUrl(path) {
+      const n = nodes.get(normalize(path));
+      if (!n || n.kind !== "file" || !/\.svg$/i.test(path)) return null;
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(n.content)}`;
+    },
     // The browser preview can't read folders on disk: importing adds a sample note.
     inspectImport: async (source) => ({ obsidian: true, name: baseName(source) || "Vault" }),
     async importObsidian(_source, target) {
@@ -350,6 +356,26 @@ export function createMemoryBackend(
     },
     async pickFolder() {
       return "/memory";
+    },
+    // The browser preview has no files on disk to pick from.
+    pickImage: async () => null,
+    async importImage(source, folder) {
+      requireVault();
+      const name = baseName(source.replace(/\\/g, "/"));
+      if (!isImagePath(name)) fail("InvalidName", `${name} is not an image`);
+      const dir = normalize(folder);
+      const dot = name.lastIndexOf(".");
+      const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+      let p = dir ? `${dir}/${name}` : name;
+      for (let n = 1; nodes.has(p); n++) p = `${dir ? dir + "/" : ""}${stem} ${n}${ext}`;
+      for (
+        let d = dir;
+        d && !nodes.has(d);
+        d = d.includes("/") ? d.slice(0, d.lastIndexOf("/")) : ""
+      )
+        put(d, { kind: "dir", content: "", modifiedMs: tick() });
+      put(p, { kind: "file", content: "", modifiedMs: tick() });
+      return entry(p);
     },
     async openVault(path) {
       vault = { root: path, name: baseName(path) || path };

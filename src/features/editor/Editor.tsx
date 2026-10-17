@@ -28,6 +28,7 @@ import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
 import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { PageHeader } from "./PageHeader";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
@@ -136,7 +137,12 @@ export function Editor({ path }: EditorProps) {
     if (!v) return;
     const text = v.state.doc.toString();
     const change = minimalChange(text, withFrontmatter(text, next));
-    if (change.from !== change.to || change.insert) v.dispatch({ changes: change });
+    if (change.from === change.to && !change.insert) return;
+    // A cursor below the frontmatter stays below it, so the YAML stays folded behind its
+    // chip (a cursor at the very top would otherwise end up inside a new block).
+    const below = v.state.selection.main.from >= splitFrontmatter(text).length;
+    const changes = v.state.changes(change);
+    v.dispatch(below ? { changes, selection: v.state.selection.map(changes, 1) } : { changes });
   }, []);
 
   const setBanner = useCallback((b: Banner) => {
@@ -342,6 +348,16 @@ export function Editor({ path }: EditorProps) {
     };
   }, [path, save, scheduleSave, syncProps]);
 
+  // Once the note is scrolled, the page header shrinks so the cover doesn't take space.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const el = view.current?.scrollDOM;
+    if (!ready || !el) return;
+    const onScroll = () => setScrolled(el.scrollTop > 24);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [ready]);
+
   // Jump to a heading/block/line requested by the link that opened this note.
   const pendingTarget = useAppStore((s) => s.pendingTarget);
   useEffect(() => {
@@ -426,6 +442,8 @@ export function Editor({ path }: EditorProps) {
 
   return (
     <div className="editor">
+      {/* Shown while loading too, so the title doesn't jump when the note arrives. */}
+      <PageHeader path={path} props={props} onChange={changeProps} compact={scrolled} />
       <header className="editor-header">
         <h1 className="editor-title">{titleOf(path)}</h1>
         <button

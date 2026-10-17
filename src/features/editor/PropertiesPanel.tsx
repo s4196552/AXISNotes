@@ -2,6 +2,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { Plus, X } from "lucide-react";
 import type { Props } from "../../lib/markdown";
 import { computeProps } from "../../lib/computed";
+import { COVER_KEYS } from "../../lib/cover";
 import { functionsReady, onFunctionsLoaded } from "../../lib/formula/functions";
 import { displayValue } from "../../lib/formula/sheet";
 import { isErr, type Scalar } from "../../lib/formula/evaluate";
@@ -16,7 +17,8 @@ interface Props_ {
 }
 
 export function PropertiesPanel({ props, onChange }: Props_) {
-  const keys = Object.keys(props);
+  // The cover's keys are edited on the cover itself (PageHeader).
+  const keys = Object.keys(props).filter((k) => !COVER_KEYS.has(k));
   const [adding, setAdding] = useState(false);
   // Re-evaluate once the function library has loaded (it's loaded on first use).
   const ready = useSyncExternalStore(onFunctionsLoaded, functionsReady);
