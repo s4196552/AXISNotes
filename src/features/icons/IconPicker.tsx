@@ -66,7 +66,9 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
   // The full set minus the suggested ones (shown first), filtered by the query.
   const rest = useMemo(
     () =>
-      all ? Object.entries(all).filter(([name]) => !(name in ICONS) && matchesIcon(name, query)) : [],
+      all
+        ? Object.entries(all).filter(([name]) => !(name in ICONS) && matchesIcon(name, query))
+        : [],
     [all, query],
   );
   const shown = rest.slice(0, limit);
