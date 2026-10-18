@@ -6,13 +6,14 @@ import {
   completionStatus,
   startCompletion,
 } from "@codemirror/autocomplete";
-import { Facet, StateEffect, StateField } from "@codemirror/state";
+import { type EditorState, Facet, StateEffect, StateField } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import {
   AlignJustify,
   CalendarClock,
   CalendarDays,
   ChevronDown,
+  ChevronRight,
   ChevronsUp,
   ChevronUp,
   Clock,
@@ -27,6 +28,7 @@ import {
   LayoutTemplate,
   Link,
   List,
+  ListCollapse,
   ListOrdered,
   ListTodo,
   type LucideIcon,
@@ -37,6 +39,7 @@ import {
   SquareCode,
   Table,
   TextQuote,
+  Type,
   Workflow,
   Zap,
 } from "lucide-react";
@@ -123,15 +126,28 @@ export function openCommandMenu(view: EditorView) {
   startCompletion(view);
 }
 
+type CommandIcon = LucideIcon | readonly [LucideIcon, LucideIcon];
+
+/** Text before and after the cursor in a block: `[before, after]`. */
+type BlockText = readonly [string, string];
+
 interface SlashCommand {
   id: string;
   label: string;
-  icon: LucideIcon;
+  /** One icon, or a small one before a larger one (e.g. ▸ H1 for a toggle heading). */
+  icon: CommandIcon;
+  /** One line under the label saying what the command does. */
+  description: string;
   /** The Markdown that does the same thing, shown on the right (like Notion's `#`). */
   markdown?: string;
-  detail?: string;
-  /** Replace the typed `/query` (from..to) with something. */
-  run(view: EditorView, from: number, to: number, cfg: QuickCommandConfig): void;
+  /**
+   * A block type: the Markdown for a block holding `text`, split at the cursor. Block
+   * commands start a new line below one that already has text, and offer "Turn into" to
+   * change the current line instead (both like Notion).
+   */
+  block?: (text: string) => BlockText;
+  /** Replace the typed `/query` (from..to) with something. Block commands don't need one. */
+  run?(view: EditorView, from: number, to: number, cfg: QuickCommandConfig): void;
 }
 
 /** Insert `text` at from..to; `|` in text marks the cursor (else the end). */
@@ -144,22 +160,43 @@ function insert(view: EditorView, from: number, to: number, text: string) {
   });
 }
 
-/** Replace the typed command and make the current line start with `prefix`. */
-function linePrefix(prefix: string) {
-  return (view: EditorView, from: number, to: number) => {
-    const line = view.state.doc.lineAt(from);
-    const before = view.state.sliceDoc(line.from, from).trimEnd();
-    const after = view.state.sliceDoc(to, line.to).trimStart();
-    const rest = (before && after ? `${before} ${after}` : before + after).replace(
-      /^(#{1,6}\s|[-*+]\s(\[[ xX]\]\s)?|\d+\.\s|>\s)/,
-      "",
-    );
-    const text = prefix + rest.trimStart();
-    view.dispatch({
-      changes: { from: line.from, to: line.to, insert: text },
-      selection: { anchor: line.from + text.length },
-    });
-  };
+/** The Markdown that makes a line a block: heading, list item, task, quote, callout or toggle. */
+const BLOCK_PREFIX =
+  /^(>\s*\[![\w-]+(?:\|[^\]]*)?\][+-]?\s?|#{1,6}\s|[-*+]\s(\[[ xX]\]\s)?|\d+\.\s|>\s)/;
+
+/**
+ * The current line without the command typed into it (from..to): `kept` as written, and
+ * `text` with its block Markdown removed.
+ */
+function lineAround(state: EditorState, from: number, to: number) {
+  const line = state.doc.lineAt(from);
+  const raw = state.sliceDoc(line.from, from);
+  const after = state.sliceDoc(to, line.to).trim();
+  const join = (a: string) => (a && after ? `${a} ${after}` : a + after);
+  // The block Markdown is stripped before trimming, so a bare "- " counts as empty.
+  return { line, kept: join(raw.trimEnd()), text: join(raw.replace(BLOCK_PREFIX, "").trim()) };
+}
+
+/** Write a block over `from..to` with the cursor at the split. */
+function putBlock(view: EditorView, from: number, to: number, [head, tail]: BlockText) {
+  view.dispatch({
+    changes: { from, to, insert: head + tail },
+    selection: { anchor: from + head.length },
+  });
+}
+
+/** Turn into: the current line becomes the block, keeping its text. */
+function turnInto(view: EditorView, from: number, to: number, block: SlashCommand["block"] & {}) {
+  const { line, text } = lineAround(view.state, from, to);
+  putBlock(view, line.from, line.to, block(text));
+}
+
+/** A new block: on a new line below a line with text, else in place of the (empty) line. */
+function newBlock(view: EditorView, from: number, to: number, block: SlashCommand["block"] & {}) {
+  const { line, kept, text } = lineAround(view.state, from, to);
+  if (!text) return putBlock(view, line.from, line.to, block(""));
+  const [head, tail] = block("");
+  putBlock(view, line.from, line.to, [`${kept}\n${head}`, tail]);
 }
 
 function setPageStyle(style: PageStyle) {
@@ -173,31 +210,103 @@ function setPageStyle(style: PageStyle) {
   };
 }
 
+const prefixed =
+  (prefix: string) =>
+  (t: string): BlockText => [prefix + t, ""];
+
 export const SLASH_COMMANDS: SlashCommand[] = [
-  { id: "h1", label: "Heading 1", icon: Heading1, markdown: "#", run: linePrefix("# ") },
-  { id: "h2", label: "Heading 2", icon: Heading2, markdown: "##", run: linePrefix("## ") },
-  { id: "h3", label: "Heading 3", icon: Heading3, markdown: "###", run: linePrefix("### ") },
-  { id: "bullet", label: "Bulleted list", icon: List, markdown: "-", run: linePrefix("- ") },
+  {
+    id: "text",
+    label: "Text",
+    icon: Type,
+    description: "Plain paragraph text",
+    block: prefixed(""),
+  },
+  {
+    id: "h1",
+    label: "Heading 1",
+    icon: Heading1,
+    description: "Largest section heading",
+    markdown: "#",
+    block: prefixed("# "),
+  },
+  {
+    id: "h2",
+    label: "Heading 2",
+    icon: Heading2,
+    description: "Medium section heading",
+    markdown: "##",
+    block: prefixed("## "),
+  },
+  {
+    id: "h3",
+    label: "Heading 3",
+    icon: Heading3,
+    description: "Smallest section heading",
+    markdown: "###",
+    block: prefixed("### "),
+  },
+  {
+    id: "bullet",
+    label: "Bulleted list",
+    icon: List,
+    description: "A list with bullet points",
+    markdown: "-",
+    block: prefixed("- "),
+  },
   {
     id: "numbered",
     label: "Numbered list",
     icon: ListOrdered,
+    description: "A list numbered 1, 2, 3",
     markdown: "1.",
-    run: linePrefix("1. "),
+    block: prefixed("1. "),
   },
-  { id: "task", label: "Task", icon: ListTodo, markdown: "- [ ]", run: linePrefix("- [ ] ") },
-  { id: "quote", label: "Quote", icon: TextQuote, markdown: ">", run: linePrefix("> ") },
+  {
+    id: "task",
+    label: "Task",
+    icon: ListTodo,
+    description: "A checkbox you can tick off",
+    markdown: "- [ ]",
+    block: prefixed("- [ ] "),
+  },
+  {
+    id: "toggle",
+    label: "Toggle list",
+    icon: ListCollapse,
+    description: "Lines you can show or hide",
+    markdown: "> [!toggle]",
+    block: prefixed("> [!toggle]+ "),
+  },
+  {
+    id: "quote",
+    label: "Quote",
+    icon: TextQuote,
+    description: "Set text apart as a quote",
+    markdown: ">",
+    block: prefixed("> "),
+  },
+  {
+    id: "callout",
+    label: "Callout",
+    icon: Info,
+    description: "A highlighted box for a note or tip",
+    markdown: "> [!note]",
+    block: prefixed("> [!note]\n> "),
+  },
   {
     id: "code",
     label: "Code block",
     icon: SquareCode,
+    description: "A block of code",
     markdown: "```",
-    run: (v, f, t) => insert(v, f, t, "```\n|\n```"),
+    block: (t) => ["```\n" + t, "\n```"],
   },
   {
     id: "table",
     label: "Table",
     icon: Table,
+    description: "Rows and columns",
     markdown: "|",
     run: (v, f, t) => insert(v, f, t, "| Column | Column |\n| --- | --- |\n| | |"),
   },
@@ -205,20 +314,39 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "divider",
     label: "Divider",
     icon: SeparatorHorizontal,
+    description: "A line between sections",
     markdown: "---",
     run: (v, f, t) => insert(v, f, t, "---\n"),
   },
   {
-    id: "callout",
-    label: "Callout",
-    icon: Info,
-    markdown: "> [!note]",
-    run: (v, f, t) => insert(v, f, t, "> [!note]\n> |"),
+    id: "toggle-h1",
+    label: "Toggle heading 1",
+    icon: [ChevronRight, Heading1],
+    description: "Large heading that hides what's under it",
+    markdown: "> [!toggle|h1]",
+    block: prefixed("> [!toggle|h1]+ "),
+  },
+  {
+    id: "toggle-h2",
+    label: "Toggle heading 2",
+    icon: [ChevronRight, Heading2],
+    description: "Medium heading that hides what's under it",
+    markdown: "> [!toggle|h2]",
+    block: prefixed("> [!toggle|h2]+ "),
+  },
+  {
+    id: "toggle-h3",
+    label: "Toggle heading 3",
+    icon: [ChevronRight, Heading3],
+    description: "Small heading that hides what's under it",
+    markdown: "> [!toggle|h3]",
+    block: prefixed("> [!toggle|h3]+ "),
   },
   {
     id: "link",
     label: "Link to note",
     icon: Link,
+    description: "Link to another note",
     markdown: "[[",
     run: (v, f, t) => insert(v, f, t, "[[|]]"),
   },
@@ -226,6 +354,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "embed",
     label: "Embed note",
     icon: FileInput,
+    description: "Show another note or block here",
     markdown: "![[",
     run: (v, f, t) => insert(v, f, t, "![[|]]"),
   },
@@ -233,6 +362,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "template",
     label: "Insert template…",
     icon: LayoutTemplate,
+    description: "Fill in one of your templates",
     run: (v, f, t, cfg) => {
       v.dispatch({ changes: { from: f, to: t, insert: "" } });
       cfg.insertTemplate();
@@ -242,7 +372,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "diagram",
     label: "Diagram…",
     icon: Workflow,
-    detail: "AI or outline",
+    description: "Draw one with AI or from an outline",
     run: (v, f, t, cfg) => {
       v.dispatch({ changes: { from: f, to: t, insert: "" } });
       cfg.runCommand("diagram");
@@ -252,6 +382,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "mermaid",
     label: "Mermaid diagram (code)",
     icon: Network,
+    description: "Write a diagram as Mermaid code",
     markdown: "```mermaid",
     run: (v, f, t) => insert(v, f, t, "```mermaid\nflowchart TD\n  A[Start] --> B|\n```"),
   },
@@ -259,7 +390,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "handwriting",
     label: "Handwriting to text…",
     icon: PenLine,
-    detail: "pen",
+    description: "Write with a pen, then turn it into text",
     run: (v, f, t, cfg) => {
       v.dispatch({ changes: { from: f, to: t, insert: "" } });
       cfg.runCommand("handwriting");
@@ -269,14 +400,16 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "date",
     label: "Today's date",
     icon: CalendarDays,
-    detail: formatDate(new Date(), "YYYY-MM-DD"),
+    get description() {
+      return `Insert ${formatDate(new Date(), "YYYY-MM-DD")}`;
+    },
     run: (v, f, t) => insert(v, f, t, formatDate(new Date(), "YYYY-MM-DD")),
   },
   {
     id: "due",
     label: "Due date",
     icon: CalendarClock,
-    detail: "today",
+    description: "Make a task due today",
     markdown: "📅",
     run: (v, f, t) => insert(v, f, t, `📅 ${formatDate(new Date(), "YYYY-MM-DD")}`),
   },
@@ -284,6 +417,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "priority-high",
     label: "Priority: high",
     icon: ChevronsUp,
+    description: "Mark a task as high priority",
     markdown: "⏫",
     run: (v, f, t) => insert(v, f, t, "⏫"),
   },
@@ -291,6 +425,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "priority-medium",
     label: "Priority: medium",
     icon: ChevronUp,
+    description: "Mark a task as medium priority",
     markdown: "🔼",
     run: (v, f, t) => insert(v, f, t, "🔼"),
   },
@@ -298,6 +433,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "priority-low",
     label: "Priority: low",
     icon: ChevronDown,
+    description: "Mark a task as low priority",
     markdown: "🔽",
     run: (v, f, t) => insert(v, f, t, "🔽"),
   },
@@ -305,28 +441,44 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "time",
     label: "Current time",
     icon: Clock,
+    description: "Insert the time now",
     run: (v, f, t) => insert(v, f, t, formatDate(new Date(), "HH:mm")),
   },
   {
     id: "style-lined",
     label: "Page style: Lined",
     icon: AlignJustify,
+    description: "Ruled lines behind the note",
     run: setPageStyle("lined"),
   },
-  { id: "style-dotted", label: "Page style: Dotted", icon: Grip, run: setPageStyle("dotted") },
+  {
+    id: "style-dotted",
+    label: "Page style: Dotted",
+    icon: Grip,
+    description: "A dot grid behind the note",
+    run: setPageStyle("dotted"),
+  },
   {
     id: "style-grid",
     label: "Page style: Math grid",
     icon: Grid3x3,
+    description: "Graph paper behind the note",
     run: setPageStyle("math-grid"),
   },
   {
     id: "style-cornell",
     label: "Page style: Cornell",
     icon: PanelLeft,
+    description: "Cue column, notes and summary",
     run: setPageStyle("cornell"),
   },
-  { id: "style-plain", label: "Page style: Plain", icon: File, run: setPageStyle("plain") },
+  {
+    id: "style-plain",
+    label: "Page style: Plain",
+    icon: File,
+    description: "No background",
+    run: setPageStyle("plain"),
+  },
 ];
 
 /**
@@ -337,17 +489,22 @@ export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
   {
     name: "Basic blocks",
     ids: [
+      "text",
       "h1",
       "h2",
       "h3",
       "bullet",
       "numbered",
       "task",
+      "toggle",
       "quote",
+      "callout",
       "code",
       "table",
       "divider",
-      "callout",
+      "toggle-h1",
+      "toggle-h2",
+      "toggle-h3",
     ],
   },
   { name: "Links", ids: ["link", "embed"] },
@@ -363,6 +520,7 @@ export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
 ];
 const CUSTOM_GROUP = "Custom";
 const FILTERED: CompletionSection = { name: "Filtered results", rank: 0 };
+export const TURN_INTO = "Turn into";
 
 const placeOf = new Map(
   COMMAND_GROUPS.flatMap((g, rank) =>
@@ -370,9 +528,10 @@ const placeOf = new Map(
   ),
 );
 
-/** A command-menu option: carries its icon and Markdown hint for `commandMenuRender`. */
+/** A command-menu option: carries its icon, description and Markdown hint for `commandMenuRender`. */
 interface CommandCompletion extends Completion {
-  commandIcon: LucideIcon;
+  commandIcon: CommandIcon;
+  description: string;
   markdown?: string;
 }
 
@@ -380,7 +539,8 @@ const isCommand = (c: Completion): c is CommandCompletion => "commandIcon" in c;
 
 /**
  * Draws the command menu's icons (in place of CodeMirror's type glyph, hidden for the
- * `command` type) and the right-aligned Markdown hint. Pass to `autocompletion({ addToOptions })`.
+ * `command` type), the description under the label and the right-aligned Markdown hint.
+ * Pass to `autocompletion({ addToOptions })`.
  */
 export const commandMenuRender = [
   {
@@ -389,8 +549,21 @@ export const commandMenuRender = [
       if (!isCommand(c)) return null;
       const span = document.createElement("span");
       span.className = "cm-commandIcon";
-      span.append(lucideSvg(c.commandIcon));
+      if (Array.isArray(c.commandIcon)) {
+        const [small, main] = c.commandIcon as readonly [LucideIcon, LucideIcon];
+        span.append(lucideSvg(small, 10), lucideSvg(main));
+      } else span.append(lucideSvg(c.commandIcon as LucideIcon));
       return span;
+    },
+  },
+  {
+    position: 60,
+    render(c: Completion) {
+      if (!isCommand(c) || !c.description) return null;
+      const div = document.createElement("div");
+      div.className = "cm-commandDescription";
+      div.textContent = c.description;
+      return div;
     },
   },
   {
@@ -428,39 +601,54 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
   const { start, typedFrom } = at;
   // Once a command runs the menu is done, so typing afterwards doesn't reopen it.
   const done = (view: EditorView) => view.dispatch({ effects: setMenuAnchor.of(null) });
+  const option = (
+    c: Pick<SlashCommand, "label" | "icon" | "description" | "markdown">,
+    placed: Partial<Completion>,
+    run: (view: EditorView, to: number) => void,
+  ): CommandCompletion => ({
+    label: c.label,
+    description: c.description,
+    markdown: c.markdown,
+    commandIcon: c.icon,
+    type: "command",
+    ...placed,
+    apply: (view: EditorView, _c: Completion, _f: number, to: number) => {
+      done(view);
+      run(view, to);
+    },
+  });
   // Nothing typed: Notion-style sections in their set order. Typed: one ranked list. The
   // result is only reused while that stays true, so the layout switches as you type.
   const filtering = context.state.sliceDoc(typedFrom, context.pos).trim() !== "";
   const place = (section: CompletionSection, order: number) =>
     filtering ? { section: FILTERED } : { section, boost: -order };
   const custom: CompletionSection = { name: CUSTOM_GROUP, rank: COMMAND_GROUPS.length };
+  // Turn into: offered while filtering, when the line already has text to keep.
+  const turnable = filtering && lineAround(context.state, start, context.pos).text !== "";
+  const commands = SLASH_COMMANDS.filter((c) => !cfg.disabled.includes(c.id));
+  // Each Turn into follows its command with the same score; the sort keeps that order.
   const options: CommandCompletion[] = [
-    ...SLASH_COMMANDS.filter((c) => !cfg.disabled.includes(c.id)).map((c) => {
+    ...commands.flatMap((c) => {
       const at = placeOf.get(c.id) ?? { section: custom, order: 0 };
-      return {
-        label: c.label,
-        detail: c.detail,
-        markdown: c.markdown,
-        commandIcon: c.icon,
-        type: "command",
-        ...place(at.section, at.order),
-        apply: (view: EditorView, _c: Completion, _f: number, to: number) => {
-          done(view);
-          c.run(view, start, to, cfg);
-        },
-      };
+      const block = c.block;
+      const main = option(c, place(at.section, at.order), (view, to) =>
+        block ? newBlock(view, start, to, block) : c.run?.(view, start, to, cfg),
+      );
+      if (!turnable || !block) return [main];
+      const turn = option(
+        { ...c, description: "Change this line, keeping its text" },
+        { section: FILTERED, detail: TURN_INTO },
+        (view, to) => turnInto(view, start, to, block),
+      );
+      return [main, turn];
     }),
-    ...cfg.custom.map((c, i) => ({
-      label: c.label,
-      detail: "custom",
-      commandIcon: Zap,
-      type: "command",
-      ...place(custom, i),
-      apply: (view: EditorView, _c: Completion, _f: number, to: number) => {
-        done(view);
-        insert(view, start, to, c.insert.replace("{{cursor}}", "|"));
-      },
-    })),
+    ...cfg.custom.map((c, i) =>
+      option(
+        { label: c.label, icon: Zap, description: c.insert.replace("{{cursor}}", "").trim() },
+        place(custom, i),
+        (view, to) => insert(view, start, to, c.insert.replace("{{cursor}}", "|")),
+      ),
+    ),
   ];
   const validFor = (typed: string) => /^[\w ]*$/.test(typed) && (typed.trim() !== "") === filtering;
   return { from: typedFrom, options, validFor };

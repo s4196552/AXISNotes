@@ -56,19 +56,49 @@ const editorTheme = EditorView.theme({
     color: "var(--accent)",
   },
   ".cm-completionIcon": { opacity: "0.55", width: "1.1em", paddingRight: "0.5em" },
-  // Command menu: a Lucide icon instead of CodeMirror's glyph, Markdown hint on the right.
+  // Command menu, like Notion's: an icon tile instead of CodeMirror's glyph, the label with
+  // a description under it, and the Markdown hint on the right.
   ".cm-completionIcon-command": { display: "none" },
-  ".cm-tooltip.cm-tooltip-autocomplete > ul > li:has(> .cm-commandIcon)": {
-    display: "flex",
-    alignItems: "center",
+  ".cm-tooltip.cm-tooltip-autocomplete > ul:has(> li > .cm-commandIcon)": {
+    maxHeight: "min(26em, 45vh)",
+    minWidth: "320px",
   },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li:has(> .cm-commandIcon)": {
+    display: "grid",
+    gridTemplateColumns: "auto minmax(0, max-content) minmax(0, 1fr) auto",
+    gridTemplateAreas: '"icon label detail hint" "icon desc desc hint"',
+    columnGap: "10px",
+    alignItems: "center",
+    padding: "4px 10px",
+    lineHeight: "1.35",
+  },
+  "li:has(> .cm-commandIcon) > .cm-completionLabel": {
+    gridArea: "label",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  "li:has(> .cm-commandIcon) > .cm-completionDetail": { gridArea: "detail", marginLeft: "0" },
   ".cm-commandIcon": {
+    gridArea: "icon",
     display: "inline-flex",
-    flex: "none",
-    marginRight: "8px",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "30px",
+    height: "30px",
+    border: "1px solid var(--border)",
+    borderRadius: "6px",
+    backgroundColor: "var(--bg)",
     color: "var(--fg-muted)",
   },
   "li[aria-selected] > .cm-commandIcon": { color: "var(--fg)" },
+  ".cm-commandDescription": {
+    gridArea: "desc",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    fontSize: "12px",
+    color: "var(--fg-muted)",
+  },
   ".cm-tooltip.cm-tooltip-autocomplete > ul > completion-section": {
     padding: "8px 10px 3px",
     borderBottom: "none",
@@ -78,8 +108,8 @@ const editorTheme = EditorView.theme({
     fontWeight: "600",
   },
   ".cm-commandMarkdown": {
-    marginLeft: "auto",
-    paddingLeft: "1.5em",
+    gridArea: "hint",
+    paddingLeft: "1em",
     fontFamily: "var(--font-mono)",
     fontSize: "13px",
     color: "var(--fg-muted)",
