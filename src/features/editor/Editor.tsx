@@ -39,6 +39,7 @@ import { mermaidBlocks } from "../diagrams/mermaidBlocks";
 import "../diagrams/diagrams.css";
 import {
   commandMenuAnchor,
+  commandMenuRender,
   emojiCompletions,
   type QuickCommandConfig,
   quickCommandConfig,
@@ -285,6 +286,7 @@ export function Editor({ path }: EditorProps) {
                   propertyCompletions,
                   templateCompletions,
                 ],
+                addToOptions: commandMenuRender,
               }),
               commandMenuAnchor,
               embeds(path),

@@ -17,6 +17,7 @@ import { formatDate } from "../../lib/dates";
 import { inlineProperties } from "../../lib/markdown";
 import {
   commandMenuAnchor,
+  commandMenuRender,
   DEFAULT_QUICK_CONFIG,
   openCommandMenu,
   type QuickCommandConfig,
@@ -637,5 +638,38 @@ describe("$$ math", () => {
     view.dispatch({ selection: { anchor: 10 } });
     view.dispatch({ selection: { anchor: 12 } });
     expect(view.dom.querySelector(".cm-math")).toBe(before);
+  });
+});
+
+describe("command menu icons and Markdown hints", () => {
+  const render = (c: Completion) =>
+    commandMenuRender.map((r) => r.render(c)).filter((n): n is HTMLElement => n !== null);
+
+  it("gives every command an icon instead of the key glyph, and its Markdown on the right", () => {
+    const view = viewWith("");
+    openCommandMenu(view);
+    const r = slashCompletions(ctx(view))!;
+    for (const o of r.options) {
+      expect(o.type).toBe("command");
+      expect(render(o)[0]?.querySelector("svg")).not.toBeNull();
+    }
+    const hint = (label: string) =>
+      render(r.options.find((o) => o.label === label)!).find((n) => n.tagName === "KBD")
+        ?.textContent;
+    expect(hint("Heading 1")).toBe("#");
+    expect(hint("Heading 3")).toBe("###");
+    expect(hint("Bulleted list")).toBe("-");
+    expect(hint("Embed note")).toBe("![[");
+    expect(hint("Insert template…")).toBeUndefined();
+  });
+
+  it("gives custom commands an icon too, and leaves other menus alone", () => {
+    const view = viewWith("", {
+      cfg: { custom: [{ label: "Signature", insert: "— Me" }] },
+    });
+    openCommandMenu(view);
+    const custom = slashCompletions(ctx(view))!.options.find((o) => o.label === "Signature")!;
+    expect(render(custom)).toHaveLength(1);
+    expect(render({ label: "Biology", type: "text" })).toEqual([]);
   });
 });

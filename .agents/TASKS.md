@@ -68,6 +68,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-085 | 6     | Notes as tabs like Obsidian: tab bar, per-tab history, pins, new-tab clicks, shortcuts, saved per vault | claude | merged    | agent/claude/T-085 | `src/app/{store,tabs}*`, `src/features/tabs/**`, `src/App.tsx`, `src/styles/app.css` (content, toggles), `src/features/commands/{registry,Modals,Picker,actions}.ts*`, `src/features/filetree/FileTree.tsx`, `src/features/editor/{Editor.tsx,links.ts}`, `src/test/setup.ts`, `e2e/specs/tabs.e2e.ts` |
 | T-086 | 6     | Obsidian-style graph (live physics, drag, Filters/Groups/Display/Forces panel) and a Tree layout (links, backlinks or folders) | claude | merged    | agent/claude/T-086 | `src/features/graph/**`, `package.json`, `pnpm-lock.yaml`, `docs/DECISIONS.md` |
 | T-087 | 6     | Tab groups like Chrome: multi-select, coloured/named groups, collapse, drag groups, saved with tabs | claude | merged      | agent/claude/T-087 | `src/app/{store,tabs}*`, `src/features/tabs/**`, `src/features/commands/registry.ts`, `e2e/specs/tabs.e2e.ts` |
+| T-088 | 6     | Command menu: a Lucide icon per command (no key glyph) and its Markdown on the right, like Notion | claude | merged      | agent/claude/T-088 | `src/features/editor/{quickCommands,lucideSvg,theme,Editor,triggers.test}.ts*` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
