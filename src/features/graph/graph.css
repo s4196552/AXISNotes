@@ -6,7 +6,8 @@
 .graph-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 8px 14px;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
@@ -19,19 +20,301 @@
   align-items: center;
   gap: 4px;
 }
+.graph-toolbar select {
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
 .graph-count {
   font-size: 12px;
 }
-.graph-close {
+.graph-actions {
+  display: flex;
+  gap: 4px;
   margin-left: auto;
+}
+.graph-actions button {
+  padding: 5px;
   border: none;
   background: transparent;
+}
+.graph-actions button[aria-pressed="true"] {
+  background: var(--bg-active);
+}
+.graph-close {
+  border: none;
+  background: transparent;
+}
+
+/* Graph | Tree switch */
+.graph-modes {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+}
+.graph-modes button {
+  padding: 3px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.graph-modes button[aria-checked="true"] {
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.graph-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 .graph-canvas {
   flex: 1;
   min-height: 0;
   background: var(--bg);
 }
+
+/* Settings panel, floating over the graph like Obsidian's */
+.graph-settings {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 260px;
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+  padding: 6px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+  font-size: 12px;
+}
+.graph-settings > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0 6px;
+}
+.graph-settings > header button {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.graph-settings > header button[aria-label] {
+  border: none;
+  background: transparent;
+  padding: 3px;
+}
+.graph-settings details {
+  border-top: 1px solid var(--border);
+  padding: 6px 0;
+}
+.graph-settings summary {
+  cursor: pointer;
+  padding: 4px 0;
+  font-weight: 600;
+  color: var(--fg);
+}
+.graph-slider,
+.graph-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--fg-muted);
+}
+.graph-slider input[type="range"] {
+  width: 110px;
+  padding: 0;
+  border: none;
+  accent-color: var(--accent);
+}
+.graph-toggle input {
+  accent-color: var(--accent);
+}
+.graph-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 0;
+}
+.graph-group input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+.graph-group input[type="color"] {
+  width: 26px;
+  height: 24px;
+  padding: 1px;
+}
+.graph-group button {
+  padding: 3px;
+  border: none;
+  background: transparent;
+}
+.graph-new-group,
+.graph-reset {
+  margin-top: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.graph-reset {
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+/* Tree layout */
+.tree-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.graph-toolbar .tree-root {
+  width: 220px;
+}
+.tree-controls button {
+  padding: 5px;
+}
+.tree-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.tree-view:active {
+  cursor: grabbing;
+}
+.tree-empty {
+  display: grid;
+  place-items: center;
+  cursor: default;
+}
+.tree-view > .tree-empty {
+  position: absolute;
+  inset: 0;
+}
+.tree-svg {
+  display: block;
+}
+.tree-band-even {
+  fill: var(--bg);
+}
+.tree-band-odd {
+  fill: var(--bg-sidebar);
+}
+.tree-band rect {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.tree-band text {
+  fill: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tree-edge {
+  fill: none;
+  stroke: var(--fg-muted);
+  stroke-opacity: 0.7;
+  stroke-width: 1.25;
+}
+.tree-edge-lit {
+  stroke: var(--accent);
+  stroke-opacity: 1;
+  stroke-width: 2.25;
+}
+.tree-arrow {
+  fill: var(--fg-muted);
+}
+.tree-arrow-lit {
+  fill: var(--accent);
+}
+.tree-node {
+  cursor: pointer;
+  outline: none;
+}
+.tree-box {
+  fill: var(--bg-elevated);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.tree-node:hover .tree-box {
+  stroke: var(--fg-muted);
+}
+.tree-node:focus-visible .tree-box {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.tree-label {
+  fill: var(--fg);
+  font-size: 12.5px;
+}
+.tree-node-folder .tree-label {
+  font-weight: 600;
+}
+.tree-node-unresolved .tree-box {
+  stroke-dasharray: 4 3;
+}
+.tree-node-unresolved .tree-label {
+  fill: var(--fg-muted);
+  font-style: italic;
+}
+.tree-node-lit .tree-box {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+.tree-node-lit .tree-label,
+.tree-node-lit .tree-more {
+  fill: var(--accent-fg);
+}
+.tree-more {
+  fill: var(--fg-muted);
+  font-size: 11px;
+}
+.tree-toggle circle {
+  fill: var(--bg-sidebar);
+  stroke: var(--border);
+}
+.tree-toggle text {
+  fill: var(--fg-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.tree-toggle:hover circle {
+  stroke: var(--fg-muted);
+}
+.tree-zoom {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 4px;
+}
+.tree-zoom button {
+  min-width: 30px;
+  justify-content: center;
+  padding: 4px 8px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+}
+
 .local-graph {
   border-bottom: 1px solid var(--border);
 }
