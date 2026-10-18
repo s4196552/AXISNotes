@@ -40,7 +40,7 @@ The human approved a family of **independent, connected applications**, with loc
 
 ### Modularity and performance
 
-The human-requested Notes module implementation and detailed design are on `agent/codex/T-062` (`docs/SUITE_MODULES.md`), pending other-model review and lead merge. If absent in this checkout, read them with `git show agent/codex/T-062:docs/SUITE_MODULES.md`; do not assume the future suite apps already implement these lifetimes.
+The human-requested Notes module implementation and detailed design are on `agent/codex/T-062` (`docs/SUITE_MODULES.md`), not yet merged. Under the 2026-10-17 agreement it needs Claude's verification (see the verification rule under Roles), not another model's review, before the lead merges it. If absent in this checkout, read them with `git show agent/codex/T-062:docs/SUITE_MODULES.md`; do not assume the future suite apps already implement these lifetimes.
 
 - Keep each AXIS product independent and useful out of the box. Build main features as bundled modules behind explicit interfaces; expose optional tools through feature settings. Built-in modules, installable third-party extensions and standalone app adapters are different mechanisms. Third-party execution and a marketplace remain deferred.
 - Keep storage, durable identity, saving/recovery, permissions and each product's essential workflow in its dependable core. Deck owns scheduling/reviews; Calendar owns recurrence/time zones; source protection and provenance remain mandatory in Athena/ULAP. Modules request owner-supported mutations; they never write another app's database or bypass AI policy.
@@ -54,7 +54,7 @@ The human-requested Notes module implementation and detailed design are on `agen
 
 - **T-042 / S1:** architecture, research, contracts and tested reference helpers implemented; baseline commit `7502644`, with documentation follow-ups on the same branch. See [handoff](.agents/handoffs/T-042.md). Status is **in-review**, not merged or approved.
 - Lint and both TypeScript checks passed; 307 Vitest tests passed (37 contract vectors; full suite with four workers); Rust: 95 passed, 2 existing tests ignored. Repository-wide Prettier now passes after the human-approved formatting-only cleanup of `src-tauri/capabilities/default.json`; parsed permissions are identical. Claude code review approved cea4c08. Native Windows Tauri WDIO passed 53 tests in 8 specs. The CI-trigger follow-up at 51c6e0a is Claude-approved. Claude authored T-060, Codex cross-reviewed it, and the lead integrated the bounded watcher-test fix; full Rust now passes 96 tests with 2 existing ignored. Hosted run 36672935411 passes all three platform check jobs, but Linux native E2E has 17 passing and 36 failing tests across 8 specs. It is not green; see the T-042 handoff for the T-061 ownership request. Lead merge remains gated.
-- Claude login is now working and its genuine baseline cross-review is recorded in .agents/reviews/T-042.md. Claude authored T-043 design/briefs, corrected the review findings, and Codex approved the saved proposal. Draft PR #2 / agent/claude/T-043 contains docs/S2_FOUNDATION.md and briefs T-044–T-049. No S2 runtime work has begun. Claude now reports a session limit until 7:40 pm Sydney; authentication is working, but new lead/review/merge actions are unavailable. A self-review never substitutes for cross-review; check the latest reviewed commit and CI before merge.
+- Claude login is now working and its genuine baseline cross-review is recorded in .agents/reviews/T-042.md. Claude authored T-043 design/briefs, corrected the review findings, and Codex approved the saved proposal. Draft PR #2 / agent/claude/T-043 contains docs/S2_FOUNDATION.md and briefs T-044–T-049. No S2 runtime work has begun. Claude now reports a session limit until 7:40 pm Sydney; authentication is working, but new lead/review/merge actions are unavailable. At the time a self-review did not substitute for cross-review; since 2026-10-17 Claude's own verification is the merge gate (see Roles). Check the latest reviewed commit and CI before merge.
 - The TypeScript AI evaluator is a reference implementation, **not enforcement in the existing Notes Rust runtime**. Hub, Connect, Deck and Calendar runtime apps are not implemented. Real-Tauri integration/remote-tab tests and the full Biology workflow remain future acceptance work.
 - **Next:** lead adopts/rebriefs proposed T-043–T-059; S2 delivers Hub + Connect + Notes. Historical Notes phases 0–6 are distinct from suite phases S1–S6. Full local acceptance in S5: Biology project → notes/reference documents → linked deck → scheduled study → reopen every item through Hub.
 - Preserve uncommitted `DESIGN.md` and `design/` in the primary checkout. Do not treat them as disposable generated files. Do not modify sibling repositories without their own scoped task/worktree.
@@ -68,7 +68,7 @@ The latest human-supplied working agreement below applies to new work. **From 20
 | **Claude Code**  | **Lead, builder and reviewer.** Plans, builds, verifies and merges every task, and runs the phase checkpoint. | Architecture, Rust/Tauri core (file system, index, the `AiProvider` trait), `docs/DECISIONS.md` |
 | **OpenAI Codex** | **Not used** unless the human explicitly asks for it.                                                         | Nothing, unless the human assigns it a task                                                     |
 
-**Verification rule:** code is merged only after Claude has verified it: the full checks pass, Claude has reviewed its own diff and recorded the verdict and test results in `reviews/T-###.md`, and user-visible changes have been checked in the running app or preview. (Cross-review by Codex applied from 2026-09-30 to 2026-10-17 and is no longer required.)
+**Verification rule:** code is merged only after Claude has verified it: the full checks pass, Claude has reviewed its own diff and recorded the verdict and test results in `.agents/reviews/T-###.md`, and user-visible changes have been checked in the running app or preview. (Cross-review by Codex applied from 2026-09-30 to 2026-10-17 and is no longer required.)
 
 ## Coordination files (`.agents/`)
 
@@ -91,7 +91,7 @@ The latest human-supplied working agreement below applies to new work. **From 20
 
 Status moves through `todo → in-progress → in-review → changes-requested → approved → merged`.
 
-**Handoff note (`handoffs/T-###.md`)** contains:
+**Handoff note (`.agents/handoffs/T-###.md`)** contains:
 
 - what was built
 - the files that changed
@@ -99,7 +99,7 @@ Status moves through `todo → in-progress → in-review → changes-requested �
 - known gaps
 - any decision that needs the lead
 
-**Review note (`reviews/T-###.md`)** contains:
+**Review note (`.agents/reviews/T-###.md`)** contains:
 
 - a verdict (`approve` / `changes-requested`)
 - findings, most severe first, each with `file:line`
