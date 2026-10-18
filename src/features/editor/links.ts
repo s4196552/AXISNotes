@@ -18,8 +18,8 @@ import { parseWikilinkInner, splitFrontmatter } from "../../lib/markdown";
 // and `[[` autocomplete. Host callbacks come in through the `linkHost` facet.
 
 export interface LinkHost {
-  /** Follow a wikilink (inner text, e.g. `Note#Heading|alias`). */
-  openLink(inner: string): void;
+  /** Follow a wikilink (inner text, e.g. `Note#Heading|alias`), in a new tab if asked. */
+  openLink(inner: string, newTab?: boolean): void;
   /** Show notes with this tag. */
   openTag(tag: string): void;
   /** Whether a link target resolves to an existing note (for "unresolved" styling). */
@@ -152,12 +152,21 @@ const linkDecorations = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 );
 
-/** Click a rendered link/tag to follow it; on the line being edited, Ctrl/Cmd-click. */
+/**
+ * Click a rendered link/tag to follow it; on the line being edited, Ctrl/Cmd-click.
+ * Middle-click opens a link in a new tab.
+ */
 const clickHandler = EditorView.domEventHandlers({
   mousedown(e, view) {
-    if (e.button !== 0) return false;
+    if (e.button !== 0 && e.button !== 1) return false;
     const el = (e.target as HTMLElement).closest<HTMLElement>("[data-wikilink], [data-tag]");
     if (!el) return false;
+    if (e.button === 1) {
+      if (el.dataset.wikilink === undefined) return false;
+      e.preventDefault();
+      view.state.facet(linkHost).openLink(el.dataset.wikilink, true);
+      return true;
+    }
     const pos = view.posAtDOM(el);
     const lineActive =
       view.hasFocus && activeLineNumbers(view.state).has(view.state.doc.lineAt(pos).number);

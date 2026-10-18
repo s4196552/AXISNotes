@@ -1,5 +1,5 @@
 import { backend, isBackendError } from "../../ipc";
-import { type OpenTarget, useAppStore } from "../../app/store";
+import { type OpenOptions, type OpenTarget, useAppStore } from "../../app/store";
 import { type AxisConfig, useConfig } from "../../app/config";
 import { formatDate, parseDate } from "../../lib/dates";
 import {
@@ -288,7 +288,7 @@ export function dailyDateOf(
  * Follow a wikilink from note `from`. A daily note that doesn't exist yet is created in
  * the daily folder from the daily template (like the calendar does), not as an empty note.
  */
-export async function followLink(inner: string, from: string) {
+export async function followLink(inner: string, from: string, opts?: OpenOptions) {
   const { target, heading, block } = parseWikilinkInner(inner);
   const date = target ? dailyDateOf(target) : null;
   if (date) {
@@ -297,17 +297,17 @@ export async function followLink(inner: string, from: string) {
         const jump: OpenTarget = {};
         if (heading) jump.heading = heading;
         if (block) jump.block = block;
-        return await openDailyNote(date, jump);
+        return await openDailyNote(date, jump, opts);
       }
     } catch {
       // Fall through to a normal link.
     }
   }
-  return useAppStore.getState().openLink(inner, from);
+  return useAppStore.getState().openLink(inner, from, opts);
 }
 
 /** Open the daily note for `date`, creating it from the daily template if needed. */
-export async function openDailyNote(date = new Date(), target?: OpenTarget) {
+export async function openDailyNote(date = new Date(), target?: OpenTarget, opts?: OpenOptions) {
   const store = useAppStore.getState();
   const path = dailyNotePath(date);
   try {
@@ -330,10 +330,10 @@ export async function openDailyNote(date = new Date(), target?: OpenTarget) {
       await store.refreshTree();
       // A heading or block the link asked for wins over the template's cursor.
       const jump = target?.heading || target?.block ? target : undefined;
-      useAppStore.getState().openFile(path, jump ?? { line: lineOfOffset(text, cursor) });
+      useAppStore.getState().openFile(path, jump ?? { line: lineOfOffset(text, cursor) }, opts);
       return;
     }
-    store.openFile(path, target);
+    store.openFile(path, target, opts);
   } catch (e) {
     report(e);
   }

@@ -40,6 +40,9 @@ import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
 import { PanelToggle } from "./features/panels/PanelToggle";
 import { usePresence } from "./features/panels/presence";
+import { TabBar } from "./features/tabs/TabBar";
+import { TAB_PANEL_ID } from "./features/tabs/tabInfo";
+import { NewTab } from "./features/tabs/NewTab";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
@@ -182,27 +185,30 @@ export default function App() {
         {/* The left panel's own header holds its hide button; once hidden, it shows here. */}
         {!showLeft && <PanelToggle side="left" className="side-panels-toggle left" />}
         <PanelToggle side="right" className="side-panels-toggle" />
-        <Suspense fallback={<div className="empty muted">Loading…</div>}>
-          {mainView === "graph" ? (
-            <GraphView />
-          ) : mainView === "tasks" ? (
-            <TasksView />
-          ) : mainView === "time" ? (
-            <TimeReport />
-          ) : activePath && docKind(activePath) === "grid" ? (
-            <Grid key={activePath} path={activePath} />
-          ) : activePath && docKind(activePath) === "canvas" ? (
-            <Canvas key={activePath} path={activePath} />
-          ) : activePath && docKind(activePath) === "image" ? (
-            <ImageView key={activePath} path={activePath} />
-          ) : activePath && docKind(activePath) === "other" ? (
-            <UnsupportedView key={activePath} path={activePath} />
-          ) : activePath ? (
-            <Editor key={activePath} path={activePath} />
-          ) : (
-            <div className="empty muted">Select or create a note</div>
-          )}
-        </Suspense>
+        <TabBar />
+        <div className="tab-panel" id={TAB_PANEL_ID} role="tabpanel">
+          <Suspense fallback={<div className="empty muted">Loading…</div>}>
+            {mainView === "graph" ? (
+              <GraphView />
+            ) : mainView === "tasks" ? (
+              <TasksView />
+            ) : mainView === "time" ? (
+              <TimeReport />
+            ) : activePath && docKind(activePath) === "grid" ? (
+              <Grid key={activePath} path={activePath} />
+            ) : activePath && docKind(activePath) === "canvas" ? (
+              <Canvas key={activePath} path={activePath} />
+            ) : activePath && docKind(activePath) === "image" ? (
+              <ImageView key={activePath} path={activePath} />
+            ) : activePath && docKind(activePath) === "other" ? (
+              <UnsupportedView key={activePath} path={activePath} />
+            ) : activePath ? (
+              <Editor key={activePath} path={activePath} />
+            ) : (
+              <NewTab />
+            )}
+          </Suspense>
+        </div>
       </main>
       {/* The right side (with its live graph) only runs while showing or sliding away. */}
       {rightMounted && (
