@@ -61,7 +61,8 @@ function hslToHex(h: number, s: number, l: number): string {
   return `#${channel(0)}${channel(8)}${channel(4)}`;
 }
 
-function matches(node: GraphNode, query: string): boolean {
+/** Whether a note matches a filter or group query: text, `tag:x` or `path:x`. */
+export function matches(node: Pick<GraphNode, "id" | "name" | "tags">, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   if (q.startsWith("tag:")) {
@@ -139,4 +140,22 @@ export function buildGraph(
     }
   }
   return graph;
+}
+
+/**
+ * Colour overrides from colour groups, like Obsidian's: each note takes the colour of the
+ * first group whose query it matches. Empty queries match nothing.
+ */
+export function groupColors(
+  graph: Graph<NodeAttrs>,
+  groups: { query: string; color: string }[],
+): Map<string, string> {
+  const out = new Map<string, string>();
+  const active = groups.filter((g) => g.query.trim());
+  if (!active.length) return out;
+  graph.forEachNode((id, a) => {
+    const g = active.find((x) => matches({ id, name: a.label, tags: a.tags }, x.query));
+    if (g) out.set(id, g.color);
+  });
+  return out;
 }
