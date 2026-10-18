@@ -9,7 +9,7 @@ import {
   PenTool,
   Table,
 } from "lucide-react";
-import type { Loc } from "../../app/tabs";
+import type { Loc, TabGroup } from "../../app/tabs";
 import { docKind, hiddenExt } from "../../lib/fileKinds";
 
 /** The title a tab shows. */
@@ -45,3 +45,8 @@ export function kindIcon(loc: Loc): LucideIcon | null {
 
 /** Id of the panel the active tab shows (the main area). */
 export const TAB_PANEL_ID = "tab-panel";
+
+/** A group's name, or its colour for an unnamed group ("Blue group"). */
+export function groupLabel(group: TabGroup): string {
+  return group.name || `${group.color[0]!.toUpperCase()}${group.color.slice(1)} group`;
+}

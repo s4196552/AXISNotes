@@ -115,6 +115,117 @@ describe("tab bar", () => {
   });
 });
 
+describe("tab groups", () => {
+  const openThree = () => {
+    act(() => store().openFile("Alpha.md"));
+    act(() => store().openFile("Beta.md", undefined, { newTab: true }));
+    act(() => store().openFile("Sheet.axgrid", undefined, { newTab: true }));
+  };
+  const tab = (name: string) => screen.getByRole("tab", { name: new RegExp(name) });
+  /** The bar's items in order: tab titles, and chips as "[label]". */
+  const bar = () =>
+    Array.from(screen.getByRole("tablist", { name: "Open tabs" }).children).map((el) =>
+      el.getAttribute("role") === "tab" ? el.textContent : `[${el.getAttribute("aria-label")}]`,
+    );
+
+  it("selects tabs with Ctrl/Shift+click and groups them from the menu", async () => {
+    render(<TabBar />);
+    openThree(); // Sheet active
+    fireEvent.click(tab("Alpha"), { ctrlKey: true });
+    expect(tab("Alpha").className).toContain("selected");
+    expect(store().activePath).toBe("Sheet.axgrid"); // selecting doesn't open it
+
+    fireEvent.contextMenu(tab("Alpha"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add 2 tabs to new group" }));
+    expect(bar()).toEqual(["[Grey group, 2 tabs]", "Alpha", "Sheet", "Beta"]);
+
+    // The editor opens for the new group: name and colour it.
+    const editor = await screen.findByRole("dialog", { name: "Edit tab group" });
+    fireEvent.change(within(editor).getByRole("textbox", { name: "Group name" }), {
+      target: { value: "Work" },
+    });
+    fireEvent.click(within(editor).getByRole("radio", { name: "green" }));
+    expect(bar()[0]).toBe("[Work, 2 tabs]");
+    expect(store().tabs.groups[0]).toMatchObject({ name: "Work", color: "green" });
+    fireEvent.keyDown(within(editor).getByRole("textbox"), { key: "Enter" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    // Shift+click selects a range from the active tab.
+    fireEvent.click(tab("Beta"), { shiftKey: true });
+    expect(store().tabs.selected).toEqual([store().tabs.list[2]!.id]);
+    fireEvent.keyDown(tab("Beta"), { key: "Escape" });
+    expect(store().tabs.selected).toEqual([]);
+  });
+
+  it("collapses and expands a group by clicking its chip", () => {
+    render(<TabBar />);
+    openThree();
+    act(() => void store().groupTabs([store().tabs.list[1]!.id, store().tabs.list[2]!.id]));
+    const chip = screen.getByRole("button", { name: "Grey group, 2 tabs" });
+    expect(chip.querySelector(".tab-group-dot")).not.toBeNull(); // unnamed: a circle
+    expect(chip.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.click(chip);
+    expect(chip.getAttribute("aria-expanded")).toBe("false");
+    expect(bar()).toEqual(["Alpha", "[Grey group, 2 tabs]"]);
+    expect(store().activePath).toBe("Alpha.md"); // the active tab was hidden
+
+    fireEvent.click(chip);
+    expect(bar()).toEqual(["Alpha", "[Grey group, 2 tabs]", "Beta", "Sheet"]);
+  });
+
+  it("adds to and removes from groups, and ungroups or closes them from the editor", async () => {
+    render(<TabBar />);
+    openThree();
+    act(() => void store().groupTabs([store().tabs.list[0]!.id]));
+    fireEvent.contextMenu(tab("Sheet"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add to “Grey group”" }));
+    expect(bar()).toEqual(["[Grey group, 2 tabs]", "Alpha", "Sheet", "Beta"]);
+
+    fireEvent.contextMenu(tab("Alpha"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove from group" }));
+    expect(bar()).toEqual(["Alpha", "[Grey group, 1 tab]", "Sheet", "Beta"]);
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Grey group, 1 tab" }));
+    let editor = await screen.findByRole("dialog");
+    fireEvent.click(within(editor).getByRole("button", { name: "New tab in group" }));
+    expect(bar()).toEqual(["Alpha", "[Grey group, 2 tabs]", "Sheet", "New tab", "Beta"]);
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Grey group, 2 tabs" }));
+    editor = await screen.findByRole("dialog");
+    fireEvent.click(within(editor).getByRole("button", { name: "Ungroup" }));
+    expect(bar()).toEqual(["Alpha", "Sheet", "New tab", "Beta"]);
+
+    act(() => void store().groupTabs([store().tabs.list[1]!.id, store().tabs.list[2]!.id]));
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Grey group, 2 tabs" }));
+    editor = await screen.findByRole("dialog");
+    fireEvent.click(within(editor).getByRole("button", { name: "Close group" }));
+    expect(bar()).toEqual(["Alpha", "Beta"]);
+  });
+
+  it("drags a group by its chip, and drags tabs into and out of groups", () => {
+    render(<TabBar />);
+    openThree();
+    act(() => void store().groupTabs([store().tabs.list[2]!.id]));
+    expect(bar()).toEqual(["Alpha", "Beta", "[Grey group, 1 tab]", "Sheet"]);
+    // jsdom's drag events carry no position, so each drop lands on a tab's left half.
+    const drag = (from: Element, to: Element) => {
+      fireEvent.dragStart(from);
+      fireEvent.dragOver(to);
+      fireEvent.drop(to);
+      fireEvent.dragEnd(from);
+    };
+    drag(screen.getByRole("button", { name: "Grey group, 1 tab" }), tab("Alpha"));
+    expect(bar()).toEqual(["[Grey group, 1 tab]", "Sheet", "Alpha", "Beta"]);
+    // Next to a grouped tab: joins the group.
+    drag(tab("Beta"), tab("Sheet"));
+    expect(bar()).toEqual(["[Grey group, 2 tabs]", "Beta", "Sheet", "Alpha"]);
+    // Onto a group's chip: just before the group, out of it.
+    drag(tab("Beta"), screen.getByRole("button", { name: "Grey group, 2 tabs" }));
+    expect(bar()).toEqual(["Beta", "[Grey group, 1 tab]", "Sheet", "Alpha"]);
+  });
+});
+
 describe("tab shortcuts", () => {
   const key = (init: KeyboardEventInit) => fireEvent.keyDown(window, init);
 

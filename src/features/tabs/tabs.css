@@ -137,6 +137,163 @@
   color: var(--fg);
 }
 
+.tabbar.drop-end::after {
+  content: "";
+  flex: none;
+  align-self: center;
+  width: 2px;
+  height: 20px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.tab.selected:not(.active) {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--fg);
+}
+
+/* ---- Tab groups (Chrome style): colour, chip, editor ---- */
+[data-color="grey"] {
+  --group: #80868b;
+  --group-fg: #fff;
+}
+[data-color="blue"] {
+  --group: #4285f4;
+  --group-fg: #fff;
+}
+[data-color="red"] {
+  --group: #e8453c;
+  --group-fg: #fff;
+}
+[data-color="yellow"] {
+  --group: #f9bb2d;
+  --group-fg: #202124;
+}
+[data-color="green"] {
+  --group: #34a853;
+  --group-fg: #fff;
+}
+[data-color="pink"] {
+  --group: #e3449a;
+  --group-fg: #fff;
+}
+[data-color="purple"] {
+  --group: #a142f4;
+  --group-fg: #fff;
+}
+[data-color="cyan"] {
+  --group: #24c1e0;
+  --group-fg: #202124;
+}
+[data-color="orange"] {
+  --group: #fa903e;
+  --group-fg: #202124;
+}
+/* A grouped tab carries the group's colour along its bottom edge (the top, when active). */
+.tab.grouped {
+  box-shadow: inset 0 -2px 0 var(--group);
+}
+.tab.grouped.active {
+  box-shadow: inset 0 2px 0 var(--group);
+}
+.tab-group-chip {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  align-self: center;
+  height: 24px;
+  min-width: 24px;
+  max-width: 160px;
+  margin: 0 2px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12px;
+  cursor: default;
+}
+.tab-group-chip:hover {
+  background: var(--bg-hover);
+}
+.tab-group-chip.named {
+  background: var(--group);
+  color: var(--group-fg);
+  font-weight: 600;
+}
+.tab-group-chip.named:hover {
+  filter: brightness(1.08);
+}
+.tab-group-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.tab-group-dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--group);
+}
+.tab-group-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-group-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+.tab-group-chip.drop-before::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.tab-menu-sep {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border);
+}
+.filetree-menu .tab-menu-group {
+  gap: 8px;
+}
+.tab-group-editor {
+  width: 252px;
+  gap: 2px;
+}
+.tab-group-editor input {
+  margin: 2px 2px 6px;
+}
+.tab-group-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 4px 4px;
+}
+.filetree-menu .tab-group-swatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--group);
+}
+.filetree-menu .tab-group-swatch:hover {
+  background: var(--group);
+  filter: brightness(1.1);
+}
+.tab-group-swatch[aria-checked="true"] {
+  box-shadow:
+    0 0 0 2px var(--bg-elevated),
+    0 0 0 4px var(--group);
+}
+
 /* The main area under the tabs. */
 .tab-panel {
   position: relative;
