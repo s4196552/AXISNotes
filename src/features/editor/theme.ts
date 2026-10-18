@@ -56,6 +56,28 @@ const editorTheme = EditorView.theme({
     color: "var(--accent)",
   },
   ".cm-completionIcon": { opacity: "0.55", width: "1.1em", paddingRight: "0.5em" },
+  // Command menu: a Lucide icon instead of CodeMirror's glyph, Markdown hint on the right.
+  ".cm-completionIcon-command": { display: "none" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > li:has(> .cm-commandIcon)": {
+    display: "flex",
+    alignItems: "center",
+  },
+  ".cm-commandIcon": {
+    display: "inline-flex",
+    flex: "none",
+    marginRight: "8px",
+    color: "var(--fg-muted)",
+  },
+  "li[aria-selected] > .cm-commandIcon": { color: "var(--fg)" },
+  ".cm-commandMarkdown": {
+    marginLeft: "auto",
+    paddingLeft: "1.5em",
+    fontFamily: "var(--font-mono)",
+    fontSize: "13px",
+    color: "var(--fg-muted)",
+    background: "none",
+    border: "none",
+  },
 });
 
 const highlight = HighlightStyle.define([

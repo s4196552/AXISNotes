@@ -7,10 +7,43 @@ import {
 } from "@codemirror/autocomplete";
 import { Facet, StateEffect, StateField } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
+import {
+  AlignJustify,
+  CalendarClock,
+  CalendarDays,
+  ChevronDown,
+  ChevronsUp,
+  ChevronUp,
+  Clock,
+  File,
+  FileInput,
+  Grid3x3,
+  Grip,
+  Heading1,
+  Heading2,
+  Heading3,
+  Info,
+  LayoutTemplate,
+  Link,
+  List,
+  ListOrdered,
+  ListTodo,
+  type LucideIcon,
+  Network,
+  PanelLeft,
+  PenLine,
+  SeparatorHorizontal,
+  SquareCode,
+  Table,
+  TextQuote,
+  Workflow,
+  Zap,
+} from "lucide-react";
 import type { CustomQuickCommand } from "../../app/config";
 import { formatDate } from "../../lib/dates";
 import { splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { PAGE_STYLE_PROP, type PageStyle } from "../templates/templates";
+import { lucideSvg } from "./lucideSvg";
 import { minimalChange } from "./targets";
 
 // The command menu (Ctrl+/, or an optional typed trigger) and `:` emoji, with
@@ -92,6 +125,9 @@ export function openCommandMenu(view: EditorView) {
 interface SlashCommand {
   id: string;
   label: string;
+  icon: LucideIcon;
+  /** The Markdown that does the same thing, shown on the right (like Notion's `#`). */
+  markdown?: string;
   detail?: string;
   /** Replace the typed `/query` (from..to) with something. */
   run(view: EditorView, from: number, to: number, cfg: QuickCommandConfig): void;
@@ -137,26 +173,65 @@ function setPageStyle(style: PageStyle) {
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [
-  { id: "h1", label: "Heading 1", run: linePrefix("# ") },
-  { id: "h2", label: "Heading 2", run: linePrefix("## ") },
-  { id: "h3", label: "Heading 3", run: linePrefix("### ") },
-  { id: "bullet", label: "Bulleted list", run: linePrefix("- ") },
-  { id: "numbered", label: "Numbered list", run: linePrefix("1. ") },
-  { id: "task", label: "Task", detail: "- [ ]", run: linePrefix("- [ ] ") },
-  { id: "quote", label: "Quote", run: linePrefix("> ") },
-  { id: "code", label: "Code block", run: (v, f, t) => insert(v, f, t, "```\n|\n```") },
+  { id: "h1", label: "Heading 1", icon: Heading1, markdown: "#", run: linePrefix("# ") },
+  { id: "h2", label: "Heading 2", icon: Heading2, markdown: "##", run: linePrefix("## ") },
+  { id: "h3", label: "Heading 3", icon: Heading3, markdown: "###", run: linePrefix("### ") },
+  { id: "bullet", label: "Bulleted list", icon: List, markdown: "-", run: linePrefix("- ") },
+  {
+    id: "numbered",
+    label: "Numbered list",
+    icon: ListOrdered,
+    markdown: "1.",
+    run: linePrefix("1. "),
+  },
+  { id: "task", label: "Task", icon: ListTodo, markdown: "- [ ]", run: linePrefix("- [ ] ") },
+  { id: "quote", label: "Quote", icon: TextQuote, markdown: ">", run: linePrefix("> ") },
+  {
+    id: "code",
+    label: "Code block",
+    icon: SquareCode,
+    markdown: "```",
+    run: (v, f, t) => insert(v, f, t, "```\n|\n```"),
+  },
   {
     id: "table",
     label: "Table",
+    icon: Table,
+    markdown: "|",
     run: (v, f, t) => insert(v, f, t, "| Column | Column |\n| --- | --- |\n| | |"),
   },
-  { id: "divider", label: "Divider", run: (v, f, t) => insert(v, f, t, "---\n") },
-  { id: "callout", label: "Callout", run: (v, f, t) => insert(v, f, t, "> [!note]\n> |") },
-  { id: "link", label: "Link to note", detail: "[[", run: (v, f, t) => insert(v, f, t, "[[|]]") },
-  { id: "embed", label: "Embed note", detail: "![[", run: (v, f, t) => insert(v, f, t, "![[|]]") },
+  {
+    id: "divider",
+    label: "Divider",
+    icon: SeparatorHorizontal,
+    markdown: "---",
+    run: (v, f, t) => insert(v, f, t, "---\n"),
+  },
+  {
+    id: "callout",
+    label: "Callout",
+    icon: Info,
+    markdown: "> [!note]",
+    run: (v, f, t) => insert(v, f, t, "> [!note]\n> |"),
+  },
+  {
+    id: "link",
+    label: "Link to note",
+    icon: Link,
+    markdown: "[[",
+    run: (v, f, t) => insert(v, f, t, "[[|]]"),
+  },
+  {
+    id: "embed",
+    label: "Embed note",
+    icon: FileInput,
+    markdown: "![[",
+    run: (v, f, t) => insert(v, f, t, "![[|]]"),
+  },
   {
     id: "template",
     label: "Insert template…",
+    icon: LayoutTemplate,
     run: (v, f, t, cfg) => {
       v.dispatch({ changes: { from: f, to: t, insert: "" } });
       cfg.insertTemplate();
@@ -165,6 +240,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: "diagram",
     label: "Diagram…",
+    icon: Workflow,
     detail: "AI or outline",
     run: (v, f, t, cfg) => {
       v.dispatch({ changes: { from: f, to: t, insert: "" } });
@@ -174,11 +250,14 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: "mermaid",
     label: "Mermaid diagram (code)",
+    icon: Network,
+    markdown: "```mermaid",
     run: (v, f, t) => insert(v, f, t, "```mermaid\nflowchart TD\n  A[Start] --> B|\n```"),
   },
   {
     id: "handwriting",
     label: "Handwriting to text…",
+    icon: PenLine,
     detail: "pen",
     run: (v, f, t, cfg) => {
       v.dispatch({ changes: { from: f, to: t, insert: "" } });
@@ -188,43 +267,100 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: "date",
     label: "Today's date",
+    icon: CalendarDays,
     detail: formatDate(new Date(), "YYYY-MM-DD"),
     run: (v, f, t) => insert(v, f, t, formatDate(new Date(), "YYYY-MM-DD")),
   },
   {
     id: "due",
     label: "Due date",
-    detail: "📅 today",
+    icon: CalendarClock,
+    detail: "today",
+    markdown: "📅",
     run: (v, f, t) => insert(v, f, t, `📅 ${formatDate(new Date(), "YYYY-MM-DD")}`),
   },
   {
     id: "priority-high",
     label: "Priority: high",
-    detail: "⏫",
+    icon: ChevronsUp,
+    markdown: "⏫",
     run: (v, f, t) => insert(v, f, t, "⏫"),
   },
   {
     id: "priority-medium",
     label: "Priority: medium",
-    detail: "🔼",
+    icon: ChevronUp,
+    markdown: "🔼",
     run: (v, f, t) => insert(v, f, t, "🔼"),
   },
   {
     id: "priority-low",
     label: "Priority: low",
-    detail: "🔽",
+    icon: ChevronDown,
+    markdown: "🔽",
     run: (v, f, t) => insert(v, f, t, "🔽"),
   },
   {
     id: "time",
     label: "Current time",
+    icon: Clock,
     run: (v, f, t) => insert(v, f, t, formatDate(new Date(), "HH:mm")),
   },
-  { id: "style-lined", label: "Page style: Lined", run: setPageStyle("lined") },
-  { id: "style-dotted", label: "Page style: Dotted", run: setPageStyle("dotted") },
-  { id: "style-grid", label: "Page style: Math grid", run: setPageStyle("math-grid") },
-  { id: "style-cornell", label: "Page style: Cornell", run: setPageStyle("cornell") },
-  { id: "style-plain", label: "Page style: Plain", run: setPageStyle("plain") },
+  {
+    id: "style-lined",
+    label: "Page style: Lined",
+    icon: AlignJustify,
+    run: setPageStyle("lined"),
+  },
+  { id: "style-dotted", label: "Page style: Dotted", icon: Grip, run: setPageStyle("dotted") },
+  {
+    id: "style-grid",
+    label: "Page style: Math grid",
+    icon: Grid3x3,
+    run: setPageStyle("math-grid"),
+  },
+  {
+    id: "style-cornell",
+    label: "Page style: Cornell",
+    icon: PanelLeft,
+    run: setPageStyle("cornell"),
+  },
+  { id: "style-plain", label: "Page style: Plain", icon: File, run: setPageStyle("plain") },
+];
+
+/** A command-menu option: carries its icon and Markdown hint for `commandMenuRender`. */
+interface CommandCompletion extends Completion {
+  commandIcon: LucideIcon;
+  markdown?: string;
+}
+
+const isCommand = (c: Completion): c is CommandCompletion => "commandIcon" in c;
+
+/**
+ * Draws the command menu's icons (in place of CodeMirror's type glyph, hidden for the
+ * `command` type) and the right-aligned Markdown hint. Pass to `autocompletion({ addToOptions })`.
+ */
+export const commandMenuRender = [
+  {
+    position: 20,
+    render(c: Completion) {
+      if (!isCommand(c)) return null;
+      const span = document.createElement("span");
+      span.className = "cm-commandIcon";
+      span.append(lucideSvg(c.commandIcon));
+      return span;
+    },
+  },
+  {
+    position: 90,
+    render(c: Completion) {
+      if (!isCommand(c) || !c.markdown) return null;
+      const kbd = document.createElement("kbd");
+      kbd.className = "cm-commandMarkdown";
+      kbd.textContent = c.markdown;
+      return kbd;
+    },
+  },
 ];
 
 export const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -250,11 +386,13 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
   const { start, typedFrom } = at;
   // Once a command runs the menu is done, so typing afterwards doesn't reopen it.
   const done = (view: EditorView) => view.dispatch({ effects: setMenuAnchor.of(null) });
-  const options: Completion[] = [
+  const options: CommandCompletion[] = [
     ...SLASH_COMMANDS.filter((c) => !cfg.disabled.includes(c.id)).map((c) => ({
       label: c.label,
       detail: c.detail,
-      type: "keyword",
+      markdown: c.markdown,
+      commandIcon: c.icon,
+      type: "command",
       apply: (view: EditorView, _c: Completion, _f: number, to: number) => {
         done(view);
         c.run(view, start, to, cfg);
@@ -263,7 +401,8 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
     ...cfg.custom.map((c) => ({
       label: c.label,
       detail: "custom",
-      type: "keyword",
+      commandIcon: Zap,
+      type: "command",
       apply: (view: EditorView, _c: Completion, _f: number, to: number) => {
         done(view);
         insert(view, start, to, c.insert.replace("{{cursor}}", "|"));
