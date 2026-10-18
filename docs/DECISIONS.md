@@ -2,6 +2,22 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-18: Obsidian-style graph physics and a tree layout (T-086)
+
+- **Live physics with d3-force instead of ForceAtlas2.** Obsidian's graph is a live simulation you can drag, with four sliders (centre, repel, link force, link distance); d3-force has exactly those forces, stops by itself when it cools (`alphaMin`), and pauses with `requestAnimationFrame` when the window is hidden. ForceAtlas2 has no link distance and no dragging story, so `graphology-layout-forceatlas2` is removed. Up to 120 ms of ticks run before the first frame so the graph doesn't open as a cloud; the rest animates. Graphs over 1,500 notes use a coarser Barnes–Hut (`theta` 1.2, `distanceMax` 600) and cool faster. The physics now runs on the main thread (ForceAtlas2 used a worker for big graphs); it only runs while the graph view is open and settling.
+- **Dragging** pins the node to the pointer and keeps the simulation warm (`alphaTarget` 0.3) so neighbours follow. Sigma rescales the whole graph to fit while it settles; the first drag, pan or zoom (or the simulation ending) freezes that frame (`setCustomBBox`), otherwise the dragged node would drift away from the pointer. **Animate** scatters the nodes and re-fits.
+- **Display and groups don't re-run the layout:** node size, link thickness, arrows, text fade and colour groups go through sigma's reducers and a refresh; force sliders reheat the existing simulation. Filter and theme changes rebuild the graph but reuse each note's last position, so nothing jumps.
+- **Colour groups** use the filter syntax (`text`, `tag:x`, `path:x`); the first matching group wins, like Obsidian.
+- **Tree layout** (Graph | Tree switch): a breadth-first spanning tree of a root note's links or backlinks, or the vault's folders, drawn as SVG (boxes and labels are easier to read and style than WebGL, and trees are capped at 1,500 notes). Each note appears once, at its shallowest level; further links to it are counted (`+n`), not drawn. Siblings are alphabetical because the Rust graph's edges are sorted, not in note order. Columns per level with headings, elbow connectors, the path to the hovered/focused (else open) note in the accent colour, collapsible subtrees, pan/zoom/fit, and ARIA tree keyboard navigation. Root: the chosen note, else the open note, else the most-linked note; right-click any node to re-root.
+- **Settings are per device** (`localStorage` key `axisnotes.graph`, sanitized on load). The local graph in the sidebar keeps the default look and forces.
+- Sigma now mounts with `allowInvalidContainer`, so a view opened while the window is minimized (zero size) draws once the resize observer sees room.
+
+| Package                           | Version | License | Purpose                                                 |
+| --------------------------------- | ------- | ------- | ------------------------------------------------------- |
+| d3-force                          | 3.0     | ISC     | Graph physics (already in the lockfile through Mermaid) |
+| @types/d3-force                   | 3.0     | MIT     | Types (dev)                                             |
+| ~~graphology-layout-forceatlas2~~ | —       | MIT     | Removed: replaced by d3-force                           |
+
 ## 2026-10-12: Closing never loses an edit either (T-074)
 
 - **Closing the window saves every open document first**, the same way installing an update does (`src/features/files/beforeExit.ts`: freeze the window, wait a moment for blur-committed edits, `saveAll()`).

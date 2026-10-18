@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import type { GraphData } from "../../ipc";
 import { useAppStore } from "../../app/store";
-import { buildGraph, folderColor, topFolder } from "./graphModel";
+import { buildGraph, folderColor, groupColors, topFolder } from "./graphModel";
 import { GraphView, LocalGraph } from "./GraphView";
 
 const h = vi.hoisted(() => ({
@@ -12,6 +12,8 @@ const h = vi.hoisted(() => ({
     graph: { order: number };
     handlers: Record<string, (e: { node: string }) => void>;
     resizes: number;
+    settings: Record<string, unknown>;
+    killed: boolean;
   }[],
   observers: [] as { cb: () => void; disconnected: boolean }[],
 }));
@@ -20,13 +22,18 @@ vi.mock("../../ipc", async (orig) => {
   const backend = new Proxy({}, { get: (_t, key) => h.b[key as keyof MemoryBackend] });
   return { ...mod, backend };
 });
-// WebGL isn't available in jsdom: stand in for sigma and the layout.
+// WebGL isn't available in jsdom: stand in for sigma (the physics is the real d3-force).
 vi.mock("./graphLibs", () => ({
   loadGraphLibs: async () => ({
     Sigma: class {
       handlers: Record<string, (e: { node: string }) => void> = {};
       resizes = 0;
-      constructor(public graph: { order: number }) {
+      killed = false;
+      constructor(
+        public graph: { order: number },
+        _el: HTMLElement,
+        public settings: Record<string, unknown>,
+      ) {
         h.sigmas.push(this);
       }
       on(event: string, fn: (e: { node: string }) => void) {
@@ -36,14 +43,24 @@ vi.mock("./graphLibs", () => ({
       resize() {
         this.resizes++;
       }
-      kill() {}
+      setSetting(key: string, value: unknown) {
+        this.settings[key] = value;
+      }
+      getBBox() {
+        return { x: [0, 1], y: [0, 1] };
+      }
+      setCustomBBox() {}
+      getCamera() {
+        return { setState() {} };
+      }
+      viewportToGraph(p: { x: number; y: number }) {
+        return p;
+      }
+      kill() {
+        this.killed = true;
+      }
     },
-    forceAtlas2: { inferSettings: () => ({}), assign: () => {} },
-    FA2Layout: class {
-      start() {}
-      stop() {}
-      kill() {}
-    },
+    d3: await vi.importActual<typeof import("d3-force")>("d3-force"),
   }),
 }));
 
@@ -109,11 +126,28 @@ describe("graph model", () => {
     const again = buildGraph(DATA, opts);
     expect(again.getNodeAttribute("A.md", "x")).toBe(g.getNodeAttribute("A.md", "x"));
   });
+
+  it("colours notes by the first colour group they match", () => {
+    const g = buildGraph(DATA, opts);
+    const colors = groupColors(g, [
+      { query: "", color: "#000000" },
+      { query: "path:dir/", color: "#111111" },
+      { query: "tag:work", color: "#222222" },
+      { query: "B", color: "#333333" },
+    ]);
+    expect(Object.fromEntries(colors)).toEqual({
+      "Dir/B.md": "#111111",
+      "Dir/C.md": "#111111",
+      "A.md": "#222222",
+    });
+    expect(groupColors(g, []).size).toBe(0);
+  });
 });
 
 describe("graph views", () => {
   beforeEach(async () => {
     h.sigmas.length = 0;
+    localStorage.clear();
     h.b = createMemoryBackend({
       "A.md": "[[B]] [[Missing]] #work",
       "Dir/B.md": "[[C]]",
@@ -127,7 +161,8 @@ describe("graph views", () => {
   it("renders the vault graph, filters it and opens notes on click", async () => {
     render(<GraphView />);
     expect(await screen.findByText("4 notes · 2 links")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Unresolved" }));
+    fireEvent.click(screen.getByRole("button", { name: "Graph settings" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Unresolved links" }));
     expect(screen.getByText("5 notes · 3 links")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("searchbox", { name: "Filter graph" }), {
       target: { value: "tag:work" },
@@ -141,7 +176,8 @@ describe("graph views", () => {
 
   it("creates the note for an unresolved node", async () => {
     render(<GraphView />);
-    fireEvent.click(await screen.findByRole("checkbox", { name: "Unresolved" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Graph settings" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Unresolved links" }));
     await waitFor(() => expect(h.sigmas.at(-1)?.graph.order).toBe(5));
     act(() => h.sigmas.at(-1)!.handlers.clickNode!({ node: "?Missing" }));
     await waitFor(() => expect(useAppStore.getState().activePath).toBe("Missing.md"));
@@ -185,6 +221,112 @@ describe("graph views", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("applies display settings and groups without re-creating the graph", async () => {
+    render(<GraphView />);
+    await waitFor(() => expect(h.sigmas.length).toBe(1));
+    const sigma = h.sigmas[0]!;
+    fireEvent.click(screen.getByRole("button", { name: "Graph settings" }));
+    fireEvent.change(screen.getByRole("slider", { name: "Text fade threshold" }), {
+      target: { value: "12" },
+    });
+    expect(sigma.settings.labelRenderedSizeThreshold).toBe(12);
+    fireEvent.click(screen.getByRole("switch", { name: "Arrows" }));
+    fireEvent.click(screen.getByRole("button", { name: /New group/ }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Group 1 query" }), {
+      target: { value: "tag:work" },
+    });
+    // Forces reheat the same simulation; Animate scatters it again. Neither remounts.
+    fireEvent.change(screen.getByRole("slider", { name: "Repel force" }), {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Animate" }));
+    expect(h.sigmas.length).toBe(1);
+
+    const reducer = sigma.settings.nodeReducer as (n: string, d: object) => { color: string };
+    const edgeReducer = sigma.settings.edgeReducer as (e: string, d: object) => { type: string };
+    expect(reducer("A.md", { color: "#999999", size: 5 }).color).toBe("#e5484d");
+    expect(reducer("Dir/B.md", { color: "#999999", size: 5 }).color).toBe("#999999");
+    expect(edgeReducer("e", { size: 1 }).type).toBe("arrow");
+    // Remembered on this device.
+    expect(JSON.parse(localStorage.getItem("axisnotes.graph")!)).toMatchObject({
+      groups: [{ query: "tag:work", color: "#e5484d" }],
+      display: { arrows: true, textFade: 12 },
+      forces: { repel: 3 },
+    });
+  });
+
+  it("draws a tree from the open note and switches its root", async () => {
+    const first = render(<GraphView />);
+    await waitFor(() => expect(h.sigmas.length).toBe(1));
+    fireEvent.click(screen.getByRole("radio", { name: /Tree/ }));
+    // Leaving the graph layout stops its renderer.
+    expect(h.sigmas[0]!.killed).toBe(true);
+    const tree = await screen.findByRole("tree", { name: "Note tree" });
+    const items = () =>
+      Array.from(tree.querySelectorAll("[role=treeitem]")).map(
+        (el) => `${el.getAttribute("aria-level")}:${el.getAttribute("aria-label")}`,
+      );
+    expect(items()).toEqual(["1:A", "2:B", "3:C"]);
+    expect(screen.getByRole("combobox", { name: "Tree root" })).toHaveValue("A.md");
+    expect(screen.getByText("3 notes")).toBeInTheDocument();
+
+    // Right-click makes a node the root; the open note is still highlighted when shown.
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: "B" }));
+    expect(items()).toEqual(["1:B", "2:C"]);
+    fireEvent.change(screen.getByRole("combobox", { name: "Tree follows" }), {
+      target: { value: "backlinks" },
+    });
+    expect(items()).toEqual(["1:B", "2:A"]);
+    expect(screen.getByRole("treeitem", { name: "A" })).toHaveAttribute("aria-current", "page");
+
+    // Collapse and expand with the keyboard; Enter opens the note.
+    const b = screen.getByRole("treeitem", { name: "B" });
+    fireEvent.keyDown(b, { key: "ArrowLeft" });
+    expect(items()).toEqual(["1:B"]);
+    expect(b).toHaveAttribute("aria-expanded", "false");
+    fireEvent.keyDown(b, { key: "ArrowRight" });
+    expect(items()).toEqual(["1:B", "2:A"]);
+    fireEvent.keyDown(b, { key: "Enter" });
+    expect(useAppStore.getState()).toMatchObject({ activePath: "Dir/B.md", mainView: "note" });
+    first.unmount();
+
+    // The root field: a typed name is picked on Enter, a suggestion (full path) at once.
+    const { unmount } = render(<GraphView />);
+    const field = await screen.findByRole("combobox", { name: "Tree root" });
+    fireEvent.change(field, { target: { value: "c" } });
+    expect(field).toHaveValue("c");
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(field).toHaveValue("Dir/C.md");
+    fireEvent.change(field, { target: { value: "Lonely.md" } });
+    expect(field).toHaveValue("Lonely.md");
+    expect(screen.getAllByRole("treeitem").map((el) => el.getAttribute("aria-label"))).toEqual([
+      "Lonely",
+    ]);
+    unmount();
+
+    // The layout is remembered.
+    render(<GraphView />);
+    expect(await screen.findByRole("tree", { name: "Note tree" })).toBeInTheDocument();
+  });
+
+  it("draws the vault's folders as a tree", async () => {
+    render(<GraphView />);
+    fireEvent.click(await screen.findByRole("radio", { name: /Tree/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Tree follows" }), {
+      target: { value: "folders" },
+    });
+    const tree = await screen.findByRole("tree", { name: "Note tree" });
+    expect(
+      Array.from(tree.querySelectorAll("[role=treeitem]")).map((el) =>
+        el.getAttribute("aria-label"),
+      ),
+    ).toEqual(["Vault", "Dir", "B", "C", "A", "Lonely"]);
+    expect(screen.queryByRole("combobox", { name: "Tree root" })).toBeNull();
+    // Clicking a note opens it.
+    fireEvent.click(screen.getByRole("treeitem", { name: "Lonely" }));
+    expect(useAppStore.getState().activePath).toBe("Lonely.md");
   });
 
   it("closes back to the note", async () => {
