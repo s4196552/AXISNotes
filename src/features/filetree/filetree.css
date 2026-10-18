@@ -91,10 +91,10 @@
   flex-direction: column;
   min-width: 170px;
   padding: 4px;
-  background: var(--bg);
+  background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
 }
 .filetree-menu button {
   justify-content: flex-start;

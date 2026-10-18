@@ -41,8 +41,10 @@ struct Resolver {
 
 impl Resolver {
     fn resolve(&self, target: &str, from: &str) -> Option<String> {
-        let t = target.trim().replace('\\', "/");
-        let t = strip_md(t.trim_start_matches('/'));
+        let raw = target.trim().replace('\\', "/");
+        // A leading `/` is a vault-absolute path: only that exact note.
+        let absolute = raw.starts_with('/');
+        let t = strip_md(raw.trim_start_matches('/'));
         if t.is_empty() {
             return None; // [[#Heading]] is a self link
         }
@@ -51,11 +53,11 @@ impl Resolver {
             .get(&note_name(t))
             .map(|v| v.iter().collect())
             .unwrap_or_default();
-        if t.contains('/') {
+        if absolute || t.contains('/') {
             let want = t.to_lowercase();
             candidates.retain(|p| {
                 let p = strip_md(p).to_lowercase();
-                p == want || p.ends_with(&format!("/{want}"))
+                p == want || (!absolute && p.ends_with(&format!("/{want}")))
             });
         } else if candidates.is_empty() {
             candidates = self

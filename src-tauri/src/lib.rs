@@ -7,6 +7,8 @@ mod error;
 mod import;
 mod index;
 mod migrate;
+mod updates;
+mod updates_commands;
 mod vault;
 
 use tauri::Manager;
@@ -43,10 +45,12 @@ pub fn run() {
             commands::write_file,
             commands::create_file,
             commands::create_dir,
+            commands::import_image,
             commands::rename_entry,
             commands::trash_entry,
             commands::search,
             commands::list_tags,
+            commands::list_property_keys,
             commands::list_notes,
             commands::resolve_link,
             commands::backlinks,
@@ -74,6 +78,10 @@ pub fn run() {
             clipper_commands::clipper_cancel_pairing,
             clipper_commands::clipper_revoke,
             clipper_commands::clipper_open_extension_folder,
+            updates_commands::updates_settings,
+            updates_commands::updates_save_settings,
+            updates_commands::updates_check,
+            updates_commands::updates_install,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AXISNotes");

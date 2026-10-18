@@ -17,6 +17,8 @@ import { type LeftPanel, useAppStore } from "../../app/store";
 import { Calendar } from "../daily/Calendar";
 import { FileTree } from "../filetree";
 import { BacklinksPanel } from "./BacklinksPanel";
+import { PanelResizer } from "./PanelResizer";
+import { PanelToggle } from "./PanelToggle";
 import { SearchPanel } from "./SearchPanel";
 import { TagsPanel } from "./TagsPanel";
 import "./panels.css";
@@ -35,6 +37,7 @@ export function LeftSidebar() {
     <aside className="sidebar" aria-label="Navigation">
       <header className="sidebar-header" title={vault?.root}>
         <span className="sidebar-vault">{vault?.name}</span>
+        <PanelToggle side="left" className="sidebar-settings" />
         <button
           className="sidebar-settings"
           aria-label="Settings"
@@ -88,6 +91,7 @@ export function LeftSidebar() {
         {panel === "search" && <SearchPanel />}
         {panel === "tags" && <TagsPanel />}
       </div>
+      <PanelResizer side="left" />
     </aside>
   );
 }
@@ -102,6 +106,7 @@ export function RightSidebar() {
       <div className="sidebar-body">
         <BacklinksPanel />
       </div>
+      <PanelResizer side="right" />
     </aside>
   );
 }

@@ -2,6 +2,171 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-19: Notion-style command menu: Turn into, toggles and descriptions (T-090)
+
+- **Toggles are Obsidian foldable callouts:** `> [!toggle|h1]- Title` with the inside on the `> ` lines below. `|h1`–`|h6` (callout metadata) makes a toggle heading; without it the toggle is a toggle list. `+` is open and `-` closed, so the open/closed state is saved in the note and Obsidian folds the same block. The user chose this over plain headings with folding (no distinct block, state not saved) and HTML `<details>` (HTML in notes, awkward to edit).
+- **Toggles are drawn in two parts:** a state field hides a closed toggle's inside (hiding across line breaks must come from a state field) and makes it atomic for the cursor; a view plugin draws the arrow, the heading size and the indent, showing the Markdown only on a focused title line like the rest of the live preview. Code fences are tracked while scanning rather than read from the syntax tree, which may not be parsed that far yet.
+- **New blocks and Turn into, like Notion:** a block command (text, headings, lists, task, toggles, quote, callout, code) starts a new line under a line that has text, and replaces an empty line. While a query is typed on a line with text, each block command is followed by its "Turn into", which changes the current line and keeps its text.
+- **Descriptions** sit under each command's label (an icon tile on the left, the Markdown hint on the right).
+
+## 2026-10-18: Obsidian-style graph physics and a tree layout (T-086)
+
+- **Live physics with d3-force instead of ForceAtlas2.** Obsidian's graph is a live simulation you can drag, with four sliders (centre, repel, link force, link distance); d3-force has exactly those forces, stops by itself when it cools (`alphaMin`), and pauses with `requestAnimationFrame` when the window is hidden. ForceAtlas2 has no link distance and no dragging story, so `graphology-layout-forceatlas2` is removed. Up to 120 ms of ticks run before the first frame so the graph doesn't open as a cloud; the rest animates. Graphs over 1,500 notes use a coarser Barnes–Hut (`theta` 1.2, `distanceMax` 600) and cool faster. The physics now runs on the main thread (ForceAtlas2 used a worker for big graphs); it only runs while the graph view is open and settling.
+- **Dragging** pins the node to the pointer and keeps the simulation warm (`alphaTarget` 0.3) so neighbours follow. Sigma rescales the whole graph to fit while it settles; the first drag, pan or zoom (or the simulation ending) freezes that frame (`setCustomBBox`), otherwise the dragged node would drift away from the pointer. **Animate** scatters the nodes and re-fits.
+- **Display and groups don't re-run the layout:** node size, link thickness, arrows, text fade and colour groups go through sigma's reducers and a refresh; force sliders reheat the existing simulation. Filter and theme changes rebuild the graph but reuse each note's last position, so nothing jumps.
+- **Colour groups** use the filter syntax (`text`, `tag:x`, `path:x`); the first matching group wins, like Obsidian.
+- **Tree layout** (Graph | Tree switch): a breadth-first spanning tree of a root note's links or backlinks, or the vault's folders, drawn as SVG (boxes and labels are easier to read and style than WebGL, and trees are capped at 1,500 notes). Each note appears once, at its shallowest level; further links to it are counted (`+n`), not drawn. Siblings are alphabetical because the Rust graph's edges are sorted, not in note order. Columns per level with headings, elbow connectors, the path to the hovered/focused (else open) note in the accent colour, collapsible subtrees, pan/zoom/fit, and ARIA tree keyboard navigation. Root: the chosen note, else the open note, else the most-linked note; right-click any node to re-root.
+- **Settings are per device** (`localStorage` key `axisnotes.graph`, sanitized on load). The local graph in the sidebar keeps the default look and forces.
+- Sigma now mounts with `allowInvalidContainer`, so a view opened while the window is minimized (zero size) draws once the resize observer sees room.
+
+| Package                           | Version | License | Purpose                                                 |
+| --------------------------------- | ------- | ------- | ------------------------------------------------------- |
+| d3-force                          | 3.0     | ISC     | Graph physics (already in the lockfile through Mermaid) |
+| @types/d3-force                   | 3.0     | MIT     | Types (dev)                                             |
+| ~~graphology-layout-forceatlas2~~ | —       | MIT     | Removed: replaced by d3-force                           |
+
+## 2026-10-12: Closing never loses an edit either (T-074)
+
+- **Closing the window saves every open document first**, the same way installing an update does (`src/features/files/beforeExit.ts`: freeze the window, wait a moment for blur-committed edits, `saveAll()`).
+  - The frontend listens for Tauri's close request, which keeps the window open (Tauri prevents the close while JS listens), and closes it with `destroy`. The capability adds `core:window:allow-destroy`.
+- **If anything can't be saved, the window stays open** and the status bar names the notes: "Not closed, so no edits are lost. Unsaved changes in “Welcome” (changed on disk). Resolve it, or close again to quit without saving it."
+  - Closing again within 15 s still saves everything it can, then quits without the rest. A failing disk or network folder must never trap the user in the app.
+- **A note closed while its "changed on disk" or "moved or deleted" banner shows keeps the editor's version in a recovery file** (`Name (unsaved …).md`, T-073's mechanism). Before, switching notes dropped it silently. The file on disk is not touched, and a moved or deleted note is not brought back.
+- **An embed whose source block changed keeps the edit and asks.** Its autosave no longer reloads the block over the edit. The embed header offers **Reload from source** or **Keep mine** (write this version over the changed block). If the block is gone, it offers **Discard my edit**. Until the user chooses, installing and closing name it as a conflict. This replaced T-073's `preserveEdits` switch.
+
+## 2026-10-10: Installing an update saves everything first (T-073)
+
+- **"Install and restart" (banner and Settings → Updates) saves every open document before it starts the installer**, because the installer closes the app at once (`app.exit(0)`) and an edit still inside the autosave delay would be lost.
+  - Notes, grids, canvases and editable embeds register a `flush` with `src/features/files/unsavedWork.ts`. `saveAll()` calls them all, waits for the writes (including the final write of a document that just closed) and returns what is still not on disk. A flush that throws counts as unsaved.
+  - **A closed document's failed final write goes into a recovery file.** A document that closes (e.g. switching notes) writes its last changes once, after any save already under way. If that write fails, the changes are written to a new file next to the original, `Name (unsaved 2026-10-10 14-03-22).md`, and the user is told.
+    - Each document notes the vault it was loaded from. Its final write and any recovery file happen only while that vault is open: opening another vault switches the backend before the old editor unmounts. The recovery file is only ever created, never overwritten.
+    - If it can't be created either, `saveAll` tries again and reports the file until it works, so installing is refused meanwhile.
+    - This replaced retrying the original write, which could lose content (a later save "settled" it), raise false failures, or recreate a renamed or deleted file. A new, clearly named file has none of those problems. It follows the build prompt's `Note (conflict YYYY-MM-DD).md` convention.
+  - While installing (`preserveEdits`), an embed whose source block changed keeps its edit and reports a conflict. It does not reload over the edit as its ordinary autosave does. This also applies to a save already under way when Install was clicked.
+  - A document that keeps changing while it saves is saved again, up to three times.
+  - Saves wait until no write is in flight, then re-check that the document still needs saving. Before, two saves queued behind one write both wrote, and the second's mtime check raised a false conflict.
+- **If anything can't be saved, nothing is installed.** That covers an unresolved "changed on disk" conflict, a note moved or deleted elsewhere, or a failed write. The banner names each file and why ("Unsaved changes in “School/Biology” (changed on disk)"), so the user can resolve it and try again. Saving never forces past a conflict: the user decides which version wins.
+- **The window is made `inert` while it saves and installs**, so no new edit can start after the save. It is restored if installing is refused or fails.
+  - The global shortcut listener ignores every key while the window is inert, because shortcuts like Ctrl+Shift+B would otherwise still change a note.
+  - The install buttons prevent `mousedown`, so pressing one doesn't blur an embed (which could reload over its edit) before `install()` has turned on `preserveEdits`.
+- **`write_file` and `create_file` take an optional `vault_root`.** They refuse (`Io`) if it isn't the open vault. Closing writes and recovery files pass the vault their document was loaded from.
+  - A frontend check alone can't order against a vault switch: `open_vault` is async, so the backend can switch while the store still names the old vault.
+  - `updates_install` itself is unchanged; the guard runs before it is called.
+- **A grid change is handed to the save directly** (`markDirty(serialize)`), and install waits one macrotask after freezing. A cell committed by install's blur is otherwise still unrendered React state when the save runs, and the old sheet would be written.
+
+## 2026-10-09: Translucent theme with an opacity setting (T-069)
+
+- **Translucent (`axis:translucent`) makes the window itself see-through**, so the desktop shows behind the app. It follows the OS light/dark setting.
+  - **Window opacity** (20–100%, default 80%) and **Blur behind the window** (default on) appear in Settings → Appearance while it's the theme. They're saved as `appearance.windowOpacity` and `appearance.windowBlur` in `.axisnotes/config.json`; older configs get the defaults.
+  - The blur is Windows acrylic (`setEffects`), like Windows Terminal's acrylic. At 100% the window is solid and nothing is blurred.
+- **The main window is created transparent** (`transparent: true` in `tauri.conf.json`). This is needed because WebView2 can't become see-through after the window exists.
+  - Every other theme paints an opaque page, so they look the same as before.
+  - `app.css` paints a solid light or dark page under the app until a theme takes over, so the page is never see-through by accident. It is not an inline `<style>` in `index.html`: Tauri hashes inline styles into the CSP, which disables `'unsafe-inline'` and blocks the styles CodeMirror injects (trailing spaces then vanish while typing).
+  - The capability adds `core:window:allow-set-effects` (clearing effects uses it too).
+- **Only the backdrop carries the opacity** (`--tl-alpha`, set on the document). Panes are faint tints over it, so nested surfaces (an editor inside a pane, buttons on a panel) don't stack up into opaque patches. Menus and dialogs stay nearly solid, for reading. Tokens stay plain `rgba()`, which the graph's colour parser can read.
+- **Windows only for now.** macOS would need Tauri's private API, which isn't allowed in the App Store, and Linux depends on the compositor. Elsewhere the theme stays solid, and its settings are disabled with an explanation.
+
+## 2026-10-09: Five more built-in themes, and theme tiles (T-067)
+
+- **Darker, Minimal, Glass, High contrast and Retro** join Light, Dark and Match system:
+  - **Darker:** near-black surfaces for OLED screens, with a soft violet accent.
+  - **Minimal:** warm white and monochrome ink, with hairline dividers and quietly underlined links.
+  - **Glass:** frosted, translucent floating panels over a soft wallpaper, like macOS. It follows the OS light/dark setting.
+  - **High contrast:** black, white and yellow. Links are underlined and focus rings are strong. Body and muted text meet WCAG AAA.
+  - **Retro:** cream paper, ink lines, hard offset shadows, monospace UI and serif note text, and a pinstriped title bar.
+- **The new themes' saved ids are `axis:darker`, `axis:minimal`, `axis:glass`, `axis:contrast` and `axis:retro`.**
+  - A user theme's id is its file name, and a colon can't be in a Windows file name. So a vault that already has its own `retro.css` keeps loading it.
+  - CSS keeps short names (`data-theme="retro"`, via `themeCssName`).
+  - Light, Dark and Match system keep their old ids.
+- **Glass frosts a `::before` layer behind each pane and dialog**, never the pane itself:
+  - `backdrop-filter` on the pane would make it the containing block of fixed-position menus (file tree, handwriting fixes), shifting and clipping them.
+  - It uses no `isolation` either, because a stacking context per pane lets the next pane paint over a menu.
+- **Themes stay CSS variables.**
+  - New tokens cover what themes needed beyond colours: `--bg-elevated`, `--app-backdrop`, `--link`, `--heading`, `--scrim`, `--scrollbar`, `--radius-sm/-/md/lg` and `--shadow-pop/-modal`. Their defaults reproduce the old look, and feature CSS now uses them instead of fixed radii and shadows.
+  - A few structural touches (floating glass panes, retro buttons) are scoped to their own `data-theme`.
+  - User themes can override the new tokens too.
+  - Fonts are system fonts only: no new dependencies or bundled font files.
+- **Settings → Appearance → Theme is a grid of tiles.**
+  - Each tile is a miniature of the app drawn with its own theme's tokens (`[data-theme-preview]`), so it looks right whatever theme is active.
+  - The tiles are native radio buttons: arrow keys and screen readers work.
+- **The graph follows theme changes.** `applyAppearance` fires `axisnotes:theme-changed`; `onThemeChange` also covers the OS switching light/dark. The graph rebuilds on either, because it reads colours once. Before, switching light/dark left the graph's old colours.
+- **The OS dark-mode fallback only applies to Match system and user themes** (`:root:not([data-theme])`), so it can't leak into a named theme.
+
+## 2026-10-07: Updates from a folder (T-066)
+
+- **The user chose:** check on launch and ask before installing, with updates coming from a local folder for now (not GitHub Releases).
+- **How it works:**
+  - `scripts/publish-update.ps1 -Version X.Y.Z [-Notes …] [-Folder …]` sets the version, builds the NSIS installer and copies it into the updates folder next to a `latest.json` (`version`, `notes`, `pubDate`, and per platform a `file` and its `sha256`).
+  - The default folder is `%USERPROFILE%\AXISNotes Updates`. Settings → Updates can point it anywhere, including a network share.
+  - On launch, AXISNotes reads `latest.json`. If the version is newer (semver), a banner offers **Install and restart**. Nothing installs without that click. "Check for updates" is also in the command palette and in Settings.
+  - Installing copies the installer to `%TEMP%\AXISNotes-update`, checks the copy's SHA-256 against the manifest and runs the copy with the NSIS flags `/P /UPDATE /R`: passive progress, update mode (shortcuts left as they are), relaunch when done. The app then quits so the installer can replace it.
+- **Safety:**
+  - The manifest's `file` must be a plain file name in the folder; paths are rejected.
+  - The installer is started with an argument array, never a shell string.
+  - The checksum is checked on the copy that runs, so a file changed after the check is never run.
+  - The checksum proves the installer is the one the manifest names, not who made it. Anyone who can write to the updates folder can publish an update, so it should only be writable by you. Signed updates (Tauri's minisign updater) come with hosted releases.
+  - Development builds refuse to install, so testing never overwrites the installed app.
+  - Settings live in `updates.json` in the app's settings folder (device-local). With `AXIS_CONFIG_DIR` set (E2E tests), the default updates folder moves there too.
+- **No network traffic:** AXISNotes only reads a folder. GitHub Releases with `tauri-plugin-updater` can be added later behind the same banner and settings.
+- **Windows only for now:** macOS and Linux show the update but refuse to install.
+- **The version now matters:** each published update needs a higher version. The script sets it in `package.json`, `tauri.conf.json` and `Cargo.toml`. This release is 0.2.0.
+- **The first updater build has to be installed by hand.** 0.1.0 has no updater, so 0.2.0 is installed once with its installer. Later versions arrive through the banner.
+
+| Package (Rust) | Version | License           | Purpose                                                 |
+| -------------- | ------- | ----------------- | ------------------------------------------------------- |
+| semver         | 1.0     | MIT OR Apache-2.0 | Comparing versions (already in the build through Tauri) |
+
+## 2026-10-02: Hide/show side panels (T-064)
+
+- **A button at the top right of the main area** hides both side panels, and brings them back. The same toggle is the command "Hide/show side panels" (`Ctrl+\`), and there are separate commands for the left and the right panel.
+- **Per device:** which panels show is kept in local storage (`axisnotes.layout`), like zoom. It's about the screen you're on, not the vault.
+- **Hidden left panel stays mounted** so the file tree and search keep their state. **The hidden right panel is unmounted** so its live graph does no work while it isn't visible.
+- **Choosing a left-side view** (Files, Search, Tags, or Ctrl+Shift+F) shows the left panel again, so the result is never invisible.
+
+## 2026-10-07: `[[/path]]` links are vault-absolute (T-065)
+
+A wikilink target that starts with `/` names one exact note path from the vault root (`[[/Biology]]` is `Biology.md`, never `School/Biology.md`), with no name, suffix or alias matching. Without it, a root note can't be linked from a folder that has a note with the same name, because same-folder notes win.
+
+- All three resolvers follow the rule: Rust `Index::resolve`, the graph `Resolver`, and the memory backend.
+- `@@` and `((` write the shortest target that can't resolve elsewhere: the name; else the path; else `/path`.
+- Obsidian also reads vault paths, so these links stay portable.
+- Rename rewriting (Rust and memory) keeps a `/path` link absolute. When the new name and path would both resolve elsewhere, it falls back to `/path`.
+- `@@` date links use `/Daily/…` only when another note could also match them, such as an archived copy.
+
+## 2026-10-07: Command symbols: Ctrl+/, @@, ((, ::, :, $$, {{ (T-065)
+
+The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq, Tana and Slack use.
+
+- **Command menu: `Ctrl+/`** opens it at the cursor; typing after it filters it, as typing after `/` did.
+  - It's an app command (`command-menu`), so it's remappable and listed in the palette. Outside a note it opens the palette.
+  - CodeMirror's own `Mod-/` (toggle comment) is removed, so a remapped shortcut can't fall through to it.
+  - A typed trigger is optional and **off by default**. Vaults that saved the old default `/` are moved to "" once on load (`migrateTriggers`, `quickCommands.triggerVersion: 2`). A trigger the user chose themselves (e.g. `;`) is kept.
+- **`@@` dates and notes:**
+  - Dates (today, tomorrow, yesterday, next weekday, in a week or two, or a typed `YYYY-MM-DD`) insert a link to that day's daily note, `[[2026-10-07]]`, using the daily-note format.
+  - On a task line they insert the Tasks-format due date `📅 2026-10-07` instead.
+  - Note names insert `[[Note]]`.
+  - `@@` (not `@`) so email addresses and @-handles never open it.
+- **`((` blocks across the vault:**
+  - It searches the index for notes, then their paragraphs and list items (all words must match), and inserts the Obsidian-compatible `[[Note#^id]]`.
+  - A block without an id gets one: in this note within the same edit; in another note with a fresh read and a conflict-checked write, as `[[Note#^` already did.
+  - The block being typed in is never offered.
+- **`::` inline properties:**
+  - It works at the start of a line or list item and suggests keys already used in the vault (new Rust command `list_property_keys`, most used first). It inserts `key:: `.
+  - The indexer now reads Dataview-style `key:: value` lines into a note's properties (frontmatter wins on a clash; code fences are skipped), so `prop:status=done` finds them too. `SCHEMA_VERSION` 3 makes existing indexes rebuild once. The index stays rebuildable from the files, and notes are not rewritten.
+- **`:` emoji:** unchanged.
+- **`$$` math:**
+  - `$$…$$` renders with KaTeX when the cursor is elsewhere. It's display math on its own line(s) and inline math inside a sentence; code is skipped, and `\$$` is literal.
+  - Typing the second `$` adds the closing `$$`.
+  - KaTeX and its fonts are a lazy chunk (≈259 kB JS + 29 kB CSS), loaded on first use.
+  - The dependency is pinned to the same version Mermaid already brings (0.16.x), so there's one copy.
+- **`{{` template variables:** inside the templates folder it inserts the variable (`{{date}}`, `{{title}}`, `{{cursor}}`, `{{prompt:…}}`). In an ordinary note it inserts the value (today's date, the title) straight away.
+- **All triggers are remappable** in Settings → Commands, and an empty field turns one off. Everything they write is plain Markdown that Obsidian and other editors read.
+- **Menus are themed:** autocomplete popups now use the theme variables. They were CodeMirror's light default, which was unreadable in dark mode.
+
+| Package | Version | License | Purpose                                               |
+| ------- | ------- | ------- | ----------------------------------------------------- |
+| katex   | 0.16.47 | MIT     | `$$` math rendering (lazy chunk, shared with Mermaid) |
+
 ## 2026-09-28: Zoom, text size, fonts and editor width (T-040)
 
 - **Zoom for the whole app:**
@@ -145,6 +310,7 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **The browser extension ships inside the app.** `pnpm build:extension` also writes a clean `dist-extension/` (no tests), and `tauri build` runs it first (`beforeBuildCommand`). The bundle includes it as the `extension/` resource. Settings → Web clipper → **Open extension folder** opens it in the file manager for "Load unpacked". Development builds fall back to the source `extension/` folder. `build.rs` creates an empty `dist-extension/` so plain `cargo` builds still work. Publishing to the Chrome Web Store or Firefox Add-ons would need developer accounts, so it's left for later.
 - **App icon**: a new AXIS mark (`src-tauri/icons/app-icon.svg`, generated with `tauri icon`) replaces the Tauri placeholder. It is also used for the extension. Version 0.1.0 is now the same in `package.json`, `Cargo.toml` and `tauri.conf.json`.
 - **The AXIS logo (T-037)** is the user's own design: three rounded strokes in red, blue and green that form a triangle. The master is `src/assets/logo.svg`, cleaned of its embedded content-credential metadata and white background square. The app uses it on the welcome screen, in Settings → About and as the window favicon. The desktop icons are generated from it with `pnpm tauri icon src/assets/logo.svg`, and the extension's icons follow via `pnpm build:extension`.
+- **New main logo (T-078)**: the user's pearl three-point mark (solid, white to cool grey gradient, transparent background) replaces the T-037 mark in `src/assets/logo.svg`, the desktop icons and the extension icons, with the same `tauri icon` pipeline. Being near-white, it gets a soft drop shadow in the app so it stays visible on light themes; on a light taskbar or Start menu the icon itself is faint.
 
 ### Phase 6 E2E and polish (T-036)
 
@@ -326,6 +492,10 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Templates:** built-ins plus notes in `Templates/`; variables `{{title}} {{date[:fmt]}} {{time[:fmt]}} {{prompt:Q}} {{cursor}}`; inserting merges the template's properties into the note. **Page styles** (`axis-style: lined | dotted | math-grid | cornell`) are CSS backgrounds on a 26 px line grid.
 - **Daily notes:** folder, moment-style file-name format, template and open-on-startup are configurable; the calendar marks days with notes.
 - **Customization:** theme = system / light / dark / a user theme (`.axis/themes/<name>.css`, overriding the CSS variables); CSS snippets from `.axis/snippets/`. Folder/note icons are a **curated Lucide set** (importing all icons would bloat the bundle) or any emoji, with colors; icon settings follow renames and are removed on trash.
+- **Every Lucide icon (T-082).** The icon picker offers the whole Lucide set (~1,900 icons) in any colour (swatches plus a custom colour input). The set loads on demand as its own chunk (`src/features/icons/lucideAll.ts`, about 594 kB, 157 kB gzipped) the first time the picker or a non-curated icon needs it; the curated icons stay in the main bundle, which did not grow (700.30 → 699.63 kB). No new dependency: lucide-react 1.48 exports the `icons` namespace. Stored values remain `lucide:<Name>`; a name Lucide doesn't know falls back to the default file or folder icon.
+- **Notion-style page icons and covers (T-083).** A note's page icon _is_ its custom icon in `.axisnotes/config.json` (`folderIcons`), so the file tree and the large icon above the title always match and follow renames. Icons can also be an image from the vault, stored as `image:<vault path>`. The cover lives in the note's frontmatter in the **Obsidian Banners plugin format** — `banner: "[[path/to/image.png]]"` (or a plain path) and `banner_y: 0–1` for the vertical focus — so covers survive moving between the two apps; AXISNotes adds `banner: gradient:<name>` (built-in gradients) and `banner: "#rrggbb"`. `banner` and `banner_y` are edited on the cover and hidden from the properties chip. Web (`http(s)`) covers are never fetched: the app stays offline and says so. Uploading copies one image into `attachments/` beside the note through a new Rust command (`import_image`: image extensions only, 25 MB cap, a free name, never overwrites, destination resolved inside the vault). Once the note is scrolled, the cover shrinks to a thin strip so it doesn't take editing space (the editor scrolls inside CodeMirror, so the header can't scroll away with the text). Known gaps: renaming an image doesn't update covers or image icons that point at it (they show "not found" / fall back), and the browser preview can only show SVG images.
+- **Tabs (T-085), Obsidian style.** The main area has a row of tabs; each holds a note (or the graph, tasks or time report) and its own back/forward history. The model is pure functions in `src/app/tabs.ts`; the store keeps `tabs` and mirrors the active tab into `activePath`/`mainView`, so the ~30 existing callers didn't change. Opening replaces the active tab's note (pushing history) unless the tab is pinned or a new tab is asked for: Ctrl/Cmd+click or middle-click in the file tree, middle-click on a link (Ctrl+click on the line being edited already means "follow"), Ctrl+Enter in the quick switcher. Views (graph, tasks, time report) replace the note _in the same tab_, and "back to note" returns to it — unlike Obsidian, which opens them in their own tabs. **Only the active tab's view is mounted**: switching tabs flushes unsaved edits and remounts the editor, as switching notes did before; the cursor and scroll come back (remembered per note for the session), but undo history doesn't. That keeps memory flat with many tabs. Tabs are saved **per vault and device** in local storage (paths, views, pins and the active tab, not history), and on reopen tabs whose file is gone are dropped. Shortcuts follow Obsidian where free: Ctrl+T, Ctrl+W (not on pinned tabs), Ctrl+Tab / Ctrl+Shift+Tab, Ctrl+1–8, Ctrl+9, Ctrl+Alt+← / →. "Reopen closed tab" has no default because Ctrl+Shift+T already opens Tasks. The side-panel buttons moved into the ends of the tab row, so note, graph, grid and canvas headers no longer pad for them.
+- **Tab groups (T-087), Chrome style.** Tabs can be selected (Ctrl/Cmd+click toggles, Shift+click takes the range from the active tab) and gathered into groups with a name and one of Chrome's nine colours. Selecting doesn't open a tab, so the active tab is always part of the selection, and a plain click clears it. A group's tabs always sit together: every change goes through one tidy step that drops empty groups and gathers each group's tabs at its first tab. A group shows as a chip before its tabs — a coloured circle until it's named, then the name on a coloured pill — and clicking it collapses or expands the group; right-click edits the name and colour. A collapsed group never holds the active tab: collapsing it moves to the nearest tab outside (or a new tab), and opening a hidden tab any other way expands it; Ctrl+Tab and Ctrl+1–8 count only visible tabs. New tabs opened from a grouped tab join its group. Dropping a tab next to a grouped tab puts it in that group; dropping a group lands it before or after another group, never inside. Groups are saved with the tabs (name, colour, collapsed).
 - **`.axis/config.json`** is merged over defaults (wrong-typed values ignored, unknown keys preserved) and saved on every settings change.
 - **E2E:** each spec gets a fresh vault seeded by its file name (`vault`, `knowledge`, `perf`). The perf spec generates 5,000 notes. Specs save QA screenshots to `.agents/qa/phase-N/` (gitignored).
 - **Measured in the real app (debug build, 5,000 notes):** searches 7–12 ms including IPC; quick-switcher filter ~96 ms including WebDriver typing; vault visible ~2.2 s after launch.

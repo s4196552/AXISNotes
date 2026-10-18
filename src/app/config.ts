@@ -33,6 +33,10 @@ export interface AxisConfig {
     noteFont: string;
     uiFont: string;
     editorWidth: EditorWidth;
+    /** Translucent theme: how opaque the window is (percent), and whether the desktop
+     *  behind it is blurred. */
+    windowOpacity: number;
+    windowBlur: boolean;
   };
   folderIcons: Record<string, FolderIcon>;
   dailyNotes: {
@@ -49,9 +53,20 @@ export interface AxisConfig {
   /** Remapped keyboard shortcuts by command id ("" = no shortcut). */
   hotkeys: Record<string, string>;
   quickCommands: {
+    /** Typed trigger for the command menu ("" = none; Ctrl+/ always opens it). */
     slashTrigger: string;
     emojiTrigger: string;
-    /** IDs of built-in `/` commands to hide. */
+    /** Dates and notes, e.g. `@@today`. */
+    mentionTrigger: string;
+    /** Search blocks across the vault and link one. */
+    blockTrigger: string;
+    /** Inline `key:: value` properties. */
+    propertyTrigger: string;
+    /** Template variables, e.g. `{{date}}`. */
+    templateTrigger: string;
+    /** 2 = the triggers chosen in T-065 (older vaults are migrated once on load). */
+    triggerVersion: number;
+    /** IDs of built-in commands to hide from the command menu. */
     disabled: string[];
     custom: CustomQuickCommand[];
   };
@@ -61,17 +76,47 @@ export const DEFAULT_CONFIG: AxisConfig = {
   ai: { folders: {} },
   theme: "system",
   snippets: [],
-  appearance: { noteFontSize: 15, noteFont: "", uiFont: "", editorWidth: "medium" },
+  appearance: {
+    noteFontSize: 15,
+    noteFont: "",
+    uiFont: "",
+    editorWidth: "medium",
+    windowOpacity: 80,
+    windowBlur: true,
+  },
   folderIcons: {},
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   templatesFolder: "Templates",
   spellcheck: { enabled: true, words: [] },
   hotkeys: {},
-  quickCommands: { slashTrigger: "/", emojiTrigger: ":", disabled: [], custom: [] },
+  quickCommands: {
+    slashTrigger: "",
+    emojiTrigger: ":",
+    mentionTrigger: "@@",
+    blockTrigger: "((",
+    propertyTrigger: "::",
+    templateTrigger: "{{",
+    triggerVersion: 2,
+    disabled: [],
+    custom: [],
+  },
 };
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * One-time move to the T-065 triggers: the command menu opens with Ctrl+/ instead of a
+ * typed `/`. A vault that still has the old default `/` saved gets "" (a trigger the user
+ * chose themselves, like `;`, is kept). Runs on the raw saved JSON, before merging.
+ */
+export function migrateTriggers(raw: unknown): unknown {
+  if (!isObject(raw) || !isObject(raw.quickCommands)) return raw;
+  const q = raw.quickCommands;
+  if (typeof q.triggerVersion === "number" && q.triggerVersion >= 2) return raw;
+  const slashTrigger = q.slashTrigger === "/" ? "" : q.slashTrigger;
+  return { ...raw, quickCommands: { ...q, slashTrigger, triggerVersion: 2 } };
 }
 
 /** Deep-merge `raw` over the defaults, ignoring values of the wrong type. */
@@ -105,7 +150,8 @@ export const useConfig = create<ConfigState>((set, get) => ({
   async load() {
     try {
       const file = await backend.readFile(CONFIG_PATH);
-      set({ config: mergeConfig(JSON.parse(file.content || "{}")), loaded: true });
+      const raw = migrateTriggers(JSON.parse(file.content || "{}"));
+      set({ config: mergeConfig(raw), loaded: true });
     } catch (e) {
       // Missing or invalid: fall back to defaults (written on first change).
       if (!(isBackendError(e) && e.code === "NotFound") && !(e instanceof SyntaxError)) {

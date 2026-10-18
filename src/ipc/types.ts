@@ -93,6 +93,13 @@ export interface TagCount {
   count: number;
 }
 
+/** A property name used in the vault (frontmatter or inline `key:: value`). */
+export interface PropertyKey {
+  key: string;
+  /** Notes that use it. */
+  count: number;
+}
+
 export interface LinkRef {
   /** 1-based line in the source note. */
   line: number;
@@ -317,6 +324,25 @@ export interface Clipped {
   title: string;
 }
 
+// ---- Updates from a folder (T-066); see src-tauri/src/updates.rs ----
+
+export interface UpdateSettings {
+  checkOnLaunch: boolean;
+  /** The updates folder in use: the chosen one, or the default. */
+  folder: string;
+  defaultFolder: string;
+  currentVersion: string;
+}
+
+/** A newer version found in the updates folder. */
+export interface AvailableUpdate {
+  version: string;
+  notes: string;
+  pubDate: string | null;
+  /** The installer's file name in the updates folder. */
+  file: string;
+}
+
 // ---- Import (Phase 6); see src-tauri/src/import ----
 
 export interface ImportPreview {
@@ -348,10 +374,26 @@ export interface Backend {
   currentVault(): Promise<VaultInfo | null>;
   listTree(): Promise<VaultEntry>;
   readFile(path: string): Promise<FileContent>;
-  /** Rejects with code "Conflict" if the file changed on disk since `expectedModifiedMs`. */
-  writeFile(path: string, content: string, expectedModifiedMs?: number): Promise<WriteResult>;
-  createFile(path: string, content?: string): Promise<VaultEntry>;
+  /**
+   * Rejects with code "Conflict" if the file changed on disk since `expectedModifiedMs`.
+   * With `vaultRoot`, writes only if that vault is still the open one (else "Io").
+   */
+  writeFile(
+    path: string,
+    content: string,
+    expectedModifiedMs?: number,
+    vaultRoot?: string,
+  ): Promise<WriteResult>;
+  /** Rejects with "AlreadyExists" rather than overwrite. `vaultRoot` as for `writeFile`. */
+  createFile(path: string, content?: string, vaultRoot?: string): Promise<VaultEntry>;
   createDir(path: string): Promise<VaultEntry>;
+  /** Show a native picker for one image file; resolves null if cancelled. */
+  pickImage(): Promise<string | null>;
+  /**
+   * Copy the image at `source` (a path on disk) into the vault folder `folder` under a
+   * free name (`photo 1.png` if `photo.png` exists). Images only, up to 25 MB.
+   */
+  importImage(source: string, folder: string): Promise<VaultEntry>;
   /**
    * Rename or move. Rejects with "AlreadyExists" if `to` exists. Wikilinks to moved notes
    * are rewritten; rewritten notes are announced through `onVaultChanged` as "modified".
@@ -366,12 +408,26 @@ export interface Backend {
   onIndexProgress(cb: (p: IndexProgress) => void): Promise<() => void>;
   /** Zoom the whole app (1 = 100%). */
   setZoom(factor: number): Promise<void>;
+  /** Whether the window can be see-through (Translucent theme). Windows only, for now. */
+  canBeTranslucent(): boolean;
+  /** Blur the desktop behind the see-through window (acrylic), or stop blurring it. */
+  setWindowBlur(on: boolean): Promise<void>;
+  /**
+   * The user asked to close the window (close button, Alt+F4, …). While a listener is
+   * registered the window stays open; it closes only through `closeWindow`. Returns an
+   * unsubscribe function.
+   */
+  onCloseRequested(cb: () => void): Promise<() => void>;
+  /** Close the window (and so the app). */
+  closeWindow(): Promise<void>;
   /** Font families installed on this computer, sorted. */
   listFonts(): Promise<string[]>;
 
   /** Full-text search; see the query language in `src-tauri/src/index/search.rs`. */
   search(query: string, limit?: number): Promise<SearchHit[]>;
   listTags(): Promise<TagCount[]>;
+  /** Property names across the vault (frontmatter and inline `key::`), most used first. */
+  listPropertyKeys(): Promise<PropertyKey[]>;
   listNotes(): Promise<NoteRef[]>;
   /** Resolve a wikilink target written in note `from` to a note path, or null. */
   resolveLink(target: string, from: string): Promise<string | null>;
@@ -419,6 +475,14 @@ export interface Backend {
   onClipped(cb: (clip: Clipped) => void): Promise<() => void>;
   /** A URL the webview can load a vault file from (images), or null if not possible. */
   fileUrl(path: string): string | null;
+
+  updatesSettings(): Promise<UpdateSettings>;
+  /** An empty `folder` goes back to the default folder. */
+  updatesSaveSettings(checkOnLaunch: boolean, folder: string): Promise<UpdateSettings>;
+  /** A newer version in the updates folder, or null. */
+  updatesCheck(): Promise<AvailableUpdate | null>;
+  /** Verifies and starts the installer, which closes the app, updates it and reopens it. */
+  updatesInstall(version: string): Promise<void>;
 
   inspectImport(source: string): Promise<ImportPreview>;
   /** Copy a folder (e.g. an Obsidian vault) into `target` in the open vault. */

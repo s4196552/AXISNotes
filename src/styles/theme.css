@@ -1,15 +1,39 @@
 /* Theme tokens. Components use these variables only — never raw colors.
-   User themes (Phase 1) override this same set of variables. */
-:root {
-  color-scheme: light dark;
+   User themes (CSS files in .axisnotes/themes) override this same set of variables.
+   `[data-theme-preview]` elements (the Settings theme tiles) get the same defaults, so a
+   tile shows its own theme rather than inheriting the one in use. */
+:root,
+[data-theme-preview] {
   --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
   --font-size: 14px;
   /* Note text: Settings → Appearance sets these on the document. */
   --font-note: var(--font-ui);
+
+  /* Surfaces and shape. Derived ones follow the colors unless a theme sets them. */
+  --bg-elevated: var(--bg); /* menus, popovers, dialogs */
+  --app-backdrop: var(--bg); /* behind everything (Glass paints a wallpaper here) */
+  --link: var(--accent);
+  --heading: var(--fg);
+  --scrim: rgb(0 0 0 / 0.25); /* behind dialogs */
+  --scrollbar: color-mix(in srgb, var(--fg-muted) 45%, transparent);
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --shadow-pop: 0 6px 20px rgb(0 0 0 / 0.18);
+  --shadow-modal: 0 16px 48px rgb(0 0 0 / 0.28);
+}
+
+:root {
+  color-scheme: light dark;
   --note-font-size: 15px;
   --editor-width: 760px;
+}
 
+/* Light (also the base for "Match system" and user themes). */
+:root,
+[data-theme-preview="light"] {
   --bg: #ffffff;
   --bg-sidebar: #f6f6f7;
   --bg-hover: #ececef;
@@ -23,9 +47,12 @@
   --code-bg: #f3f3f5;
   --selection: #c9d0ff;
 }
+[data-theme-preview="light"] {
+  color-scheme: light;
+}
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme]) {
     --bg: #1c1d21;
     --bg-sidebar: #16171a;
     --bg-hover: #26272c;
@@ -41,7 +68,9 @@
   }
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+[data-theme-preview="dark"] {
+  color-scheme: dark;
   --bg: #1c1d21;
   --bg-sidebar: #16171a;
   --bg-hover: #26272c;
@@ -54,4 +83,13 @@
   --danger: #ff6b66;
   --code-bg: #25262b;
   --selection: #3a4175;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Scrollbars in the theme's colors, thin. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
 }

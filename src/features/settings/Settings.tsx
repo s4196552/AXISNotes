@@ -1,14 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Plus, X } from "lucide-react";
 import { backend } from "../../ipc";
 import { type AxisConfig, type EditorWidth, useConfig } from "../../app/config";
-import { EDITOR_WIDTHS, fontStack, NOTE_FONT_SIZES } from "../../app/appearance";
+import {
+  blurUnavailable,
+  onBlurAvailabilityChange,
+  EDITOR_WIDTHS,
+  fontStack,
+  NOTE_FONT_SIZES,
+  WINDOW_OPACITY,
+} from "../../app/appearance";
 import { useZoom, ZOOM_STEPS, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { formatDate } from "../../lib/dates";
 import { SLASH_COMMANDS } from "../editor/quickCommands";
+import { allCommands, shortcutOf } from "../commands/registry";
+import { formatHotkey } from "../commands/hotkeys";
 import { AiSettingsPanel } from "../ai/AiSettings";
 import { ClipperSettings } from "../clipper/ClipperSettings";
+import { UpdatesSettings } from "../updates/UpdatesSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
+import { ThemePicker } from "./ThemePicker";
 import { About } from "./About";
 import "./settings.css";
 
@@ -21,6 +32,7 @@ export type Section =
   | "hotkeys"
   | "ai"
   | "clipper"
+  | "updates"
   | "about";
 
 const SECTIONS: { id: Section; label: string }[] = [
@@ -32,6 +44,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "hotkeys", label: "Keyboard shortcuts" },
   { id: "ai", label: "AI" },
   { id: "clipper", label: "Web clipper" },
+  { id: "updates", label: "Updates" },
   { id: "about", label: "About" },
 ];
 
@@ -83,6 +96,7 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
           {section === "commands" && <Commands config={config} set={set} />}
           {section === "ai" && <AiSettingsPanel />}
           {section === "clipper" && <ClipperSettings />}
+          {section === "updates" && <UpdatesSettings />}
           {section === "hotkeys" && <HotkeysSettings config={config} set={set} />}
           {section === "about" && <About />}
         </div>
@@ -106,6 +120,59 @@ function Field(p: { label: string; hint?: string; children: React.ReactNode }) {
 interface SectionProps {
   config: AxisConfig;
   set(fn: (c: AxisConfig) => AxisConfig): void;
+}
+
+/** The Translucent theme's settings: window opacity, and blur behind it. */
+function Translucency(p: {
+  a: AxisConfig["appearance"];
+  setA(patch: Partial<AxisConfig["appearance"]>): void;
+}) {
+  const can = backend.canBeTranslucent();
+  // Live: the hint tells the user to change a Windows setting while this is open.
+  const unavailable = useSyncExternalStore(onBlurAvailabilityChange, blurUnavailable);
+  const noBlur = can && unavailable;
+  return (
+    <>
+      <Field
+        label="Window opacity"
+        hint={
+          can
+            ? "How much of your desktop shows through. Menus and dialogs stay solid."
+            : "See-through windows need Windows for now; here Translucent stays solid."
+        }
+      >
+        <span className="range-control">
+          <input
+            type="range"
+            aria-label="Window opacity"
+            min={WINDOW_OPACITY.min}
+            max={WINDOW_OPACITY.max}
+            step={WINDOW_OPACITY.step}
+            value={p.a.windowOpacity}
+            disabled={!can}
+            onChange={(e) => p.setA({ windowOpacity: Number(e.target.value) })}
+          />
+          <span className="muted">{p.a.windowOpacity}%</span>
+        </span>
+      </Field>
+      <Field
+        label="Blur behind the window"
+        hint={
+          noBlur
+            ? "Needs Windows' transparency effects (Settings → Personalization → Colors). Until then the desktop shows through unblurred."
+            : "Frosted, so text stays easy to read."
+        }
+      >
+        <input
+          type="checkbox"
+          aria-label="Blur behind the window"
+          checked={p.a.windowBlur && !noBlur}
+          disabled={!can || noBlur}
+          onChange={(e) => p.setA({ windowBlur: e.target.checked })}
+        />
+      </Field>
+    </>
+  );
 }
 
 /** A font picker: the default, then every installed family, each shown in its own font. */
@@ -147,25 +214,12 @@ function Appearance({ config, set }: SectionProps) {
     set((c) => ({ ...c, appearance: { ...c.appearance, ...patch } }));
   return (
     <>
-      <Field
-        label="Theme"
-        hint="Custom themes are CSS files in .axisnotes/themes that override the color variables."
-      >
-        <select
-          aria-label="Theme"
-          value={config.theme}
-          onChange={(e) => set((c) => ({ ...c, theme: e.target.value }))}
-        >
-          <option value="system">Match system</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-          {themes.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <ThemePicker
+        value={config.theme}
+        custom={themes}
+        onChange={(theme) => set((c) => ({ ...c, theme }))}
+      />
+      {config.theme === "axis:translucent" && <Translucency a={a} setA={setA} />}
       <Field
         label="Zoom"
         hint="Everything gets bigger or smaller. Also Ctrl + = / Ctrl + − / Ctrl + 0, or Ctrl + mouse wheel."
@@ -356,17 +410,60 @@ function Commands({ config, set }: SectionProps) {
     set((c) => ({ ...c, quickCommands: { ...c.quickCommands, ...patch } }));
   const [label, setLabel] = useState("");
   const [text, setText] = useState("");
+  const menuCmd = allCommands().find((c) => c.id === "command-menu");
+  const menuShortcut = menuCmd && shortcutOf(menuCmd);
+  const commandMenuKey = menuShortcut ? formatHotkey(menuShortcut) : "";
   return (
     <>
-      <Field label="Command trigger" hint="Typed at the start of a line or after a space.">
+      <p className="muted settings-note">
+        {commandMenuKey
+          ? `${commandMenuKey} opens the command menu at the cursor (change it under Hotkeys).`
+          : "The command menu has no shortcut (set one under Hotkeys)."}{" "}
+        Typed triggers work at the start of a line or after a space. Leave one empty to turn it off.
+        Math is written between <code>$$</code> and <code>$$</code>.
+      </p>
+      <Field label="Command menu, typed" hint="Optional, e.g. / (off by default).">
         <input
           aria-label="Command trigger"
           maxLength={3}
+          placeholder="off"
           defaultValue={q.slashTrigger}
           onBlur={(e) => setQ({ slashTrigger: e.target.value })}
         />
       </Field>
-      <Field label="Emoji trigger" hint="Followed by at least two letters, e.g. :rocket">
+      <Field label="Dates and notes" hint="e.g. @@today, @@next friday, @@Biology">
+        <input
+          aria-label="Mention trigger"
+          maxLength={3}
+          defaultValue={q.mentionTrigger}
+          onBlur={(e) => setQ({ mentionTrigger: e.target.value })}
+        />
+      </Field>
+      <Field label="Link a block" hint="Search every note's paragraphs and list items.">
+        <input
+          aria-label="Block reference trigger"
+          maxLength={3}
+          defaultValue={q.blockTrigger}
+          onBlur={(e) => setQ({ blockTrigger: e.target.value })}
+        />
+      </Field>
+      <Field label="Inline property" hint="At the start of a line: becomes key:: value.">
+        <input
+          aria-label="Property trigger"
+          maxLength={3}
+          defaultValue={q.propertyTrigger}
+          onBlur={(e) => setQ({ propertyTrigger: e.target.value })}
+        />
+      </Field>
+      <Field label="Template variable" hint="{{date}} in templates; the value itself in notes.">
+        <input
+          aria-label="Template variable trigger"
+          maxLength={3}
+          defaultValue={q.templateTrigger}
+          onBlur={(e) => setQ({ templateTrigger: e.target.value })}
+        />
+      </Field>
+      <Field label="Emoji" hint="Followed by at least two letters, e.g. :rocket">
         <input
           aria-label="Emoji trigger"
           maxLength={3}

@@ -3,9 +3,30 @@ import type { VaultEntry } from "../ipc";
 // Attachments (images, PDFs, ...) referenced from notes as `![[photo.png]]`. Like
 // Obsidian, a bare file name matches anywhere in the vault, preferring the note's folder.
 
-const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i;
+/** Image types the app shows and can copy into the vault (matches the Rust side). */
+export const IMAGE_EXTENSIONS = [
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "bmp",
+  "avif",
+] as const;
+
+const IMAGE_EXT = new RegExp(`\\.(${IMAGE_EXTENSIONS.join("|")})$`, "i");
 
 export const isImagePath = (p: string) => IMAGE_EXT.test(p);
+
+/** Every image file in the vault, by path. */
+export const vaultImages = (tree: VaultEntry | null) => allFiles(tree).filter(isImagePath);
+
+/** The folder new attachments for `path` go into: `attachments` beside it. */
+export function attachmentFolderFor(path: string): string {
+  const dir = dirOf(path);
+  return dir ? `${dir}/attachments` : "attachments";
+}
 
 /** Split `photo.png|300` into the target and an optional width in pixels. */
 export function parseImageEmbed(inner: string): { target: string; width: number | null } {

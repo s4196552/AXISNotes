@@ -99,19 +99,52 @@ describe("Phase 1: knowledge features on a real vault", () => {
     expect(fs.existsSync(onDisk("Budget.md"))).toBe(true);
   });
 
-  it("runs / commands and [[ autocomplete in the editor", async () => {
+  // CodeMirror ignores Enter for ~75 ms after the popup opens (interactionDelay).
+  const accept = async () => {
+    await $(".cm-tooltip-autocomplete").waitForDisplayed();
+    await browser.pause(150);
+    await browser.keys(Key.Enter);
+  };
+
+  it("runs the Ctrl+/ command menu and [[ autocomplete in the editor", async () => {
     await $(".cm-content").click();
-    // CodeMirror ignores Enter for ~75 ms after the popup opens (interactionDelay).
-    const accept = async () => {
-      await $(".cm-tooltip-autocomplete").waitForDisplayed();
-      await browser.pause(150);
-      await browser.keys(Key.Enter);
-    };
-    await browser.keys("/h2");
+    // A typed `/` no longer opens the menu: it stays text.
+    await browser.keys(["a/b", Key.Backspace, Key.Backspace, Key.Backspace]);
+    await browser.keys([Key.Ctrl, "/"]);
+    await browser.keys(Key.Ctrl); // release
+    await browser.keys("h2");
     await accept();
     await browser.keys(["Costs", Key.Enter, "[[Cel"]);
     await accept();
     await untilEquals(() => read("Budget.md"), "## Costs\n[[Cells]]");
+  });
+
+  it("links properties, blocks, dates and math with ::, ((, @@ and $$", async () => {
+    await browser.keys([Key.End, Key.Enter, "::sta"]);
+    await accept(); // "status", from Project Alpha's frontmatter (via the Rust index)
+    await browser.keys(["done", Key.Enter, "((mitochondria"]);
+    await accept(); // the paragraph in Research/Cells.md, which gets an id on disk
+    await until(() => /\^[a-z0-9]{6}\n?$/.test(read("Research/Cells.md")), "block id written");
+    const id = /\^([a-z0-9]{6})/.exec(read("Research/Cells.md"))![1];
+    await browser.keys([Key.Enter, "Next @@tom"]);
+    await accept();
+    await browser.keys([Key.End, Key.Enter, "$$x^2"]); // the closing $$ is added
+    await browser.keys([Key.End, Key.Enter, "end"]);
+    const d = new Date();
+    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const ymd = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+    await untilEquals(
+      () => read("Budget.md"),
+      `## Costs\n[[Cells]]\nstatus:: done\n[[Cells#^${id}]]\nNext [[Daily/${ymd}|${ymd}]]\n$$x^2$$\nend`,
+    );
+    // KaTeX renders the math once the cursor has left it.
+    await $(".cm-math .katex").waitForDisplayed();
+    // The inline property is indexed: prop: search finds it.
+    await $('[role="tab"][aria-label="Search"]').click();
+    await $('input[aria-label="Search notes"]').setValue("prop:status=done");
+    await expect($('[aria-label="Search results"]')).toHaveText(expect.stringContaining("Budget"));
+    await snapshot("03-typed-triggers");
   });
 
   it("searches full text and by tag", async () => {
@@ -148,7 +181,7 @@ describe("Phase 1: knowledge features on a real vault", () => {
 
   it("switches the theme from settings and saves it to .axisnotes/config.json", async () => {
     await $('button[aria-label="Settings"]').click();
-    await $('select[aria-label="Theme"]').selectByAttribute("value", "dark");
+    await $('label[data-theme-id="dark"]').click();
     await until(
       async () => (await browser.execute(() => document.documentElement.dataset.theme)) === "dark",
       "theme not applied",
@@ -160,6 +193,49 @@ describe("Phase 1: knowledge features on a real vault", () => {
     await snapshot("03-settings-dark");
     await browser.keys(Key.Escape);
     await snapshot("04-app-dark");
+  });
+
+  it("makes the window see-through with the Translucent theme, at the chosen opacity", async () => {
+    // The window must accept the blur (a missing permission only logs a warning).
+    await browser.execute(() => {
+      const w = window as unknown as { warnings: string[] };
+      w.warnings = [];
+      const warn = console.warn.bind(console);
+      console.warn = (...args: unknown[]) => {
+        w.warnings.push(String(args[0]));
+        warn(...args);
+      };
+    });
+    await $('button[aria-label="Settings"]').click();
+    await $('label[data-theme-id="axis:translucent"]').click();
+    const slider = $('input[aria-label="Window opacity"]');
+    await slider.waitForExist();
+    await browser.execute(() => {
+      const input = document.querySelector<HTMLInputElement>('input[aria-label="Window opacity"]')!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "50");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await until(
+      () => read(".axisnotes/config.json").includes('"windowOpacity": 50'),
+      "opacity not saved",
+    );
+    // See-through on Windows; solid where the window can't be (Linux, for now).
+    const alpha = process.platform === "win32" ? "0.5" : "1";
+    await until(
+      async () =>
+        (await browser.execute(() =>
+          document.documentElement.style.getPropertyValue("--tl-alpha"),
+        )) === alpha,
+      "opacity not applied",
+    );
+    expect(
+      await browser.execute(() => getComputedStyle(document.documentElement).backgroundColor),
+    ).toBe("rgba(0, 0, 0, 0)");
+    expect(
+      await browser.execute(() => (window as unknown as { warnings: string[] }).warnings),
+    ).toEqual([]);
+    await browser.keys(Key.Escape);
+    await snapshot("05-app-translucent");
   });
 });
 

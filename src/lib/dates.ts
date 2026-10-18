@@ -44,7 +44,10 @@ export function formatDate(date: Date, format: string): string {
   );
 }
 
-/** Parse a date written with `format` (numeric tokens only); null if it doesn't match. */
+/**
+ * Parse a date written with `format` (year, month by number or name, and day; other
+ * tokens such as weekday names match anything); null if it doesn't match.
+ */
 export function parseDate(text: string, format: string): Date | null {
   const parts: string[] = [];
   const pattern = format.replace(/[.*+?^${}()|\\]/g, "\\$&").replace(TOKEN_RE, (m, literal) => {
@@ -52,6 +55,11 @@ export function parseDate(text: string, format: string): Date | null {
     if (m === "YYYY") {
       parts.push("Y");
       return "(\\d{4})";
+    }
+    if (m === "MMMM" || m === "MMM") {
+      parts.push(m);
+      const names = MONTHS.map((n) => (m === "MMM" ? n.slice(0, 3) : n));
+      return `(${names.join("|")})`;
     }
     if (m === "MM" || m === "DD") {
       parts.push(m[0]!);
@@ -63,14 +71,17 @@ export function parseDate(text: string, format: string): Date | null {
     }
     return "[^/]*?";
   });
-  const match = new RegExp(`^${pattern}$`).exec(text);
+  const match = new RegExp(`^${pattern}$`, "i").exec(text);
   if (!match) return null;
   let y = NaN;
   let mo = NaN;
   let d = NaN;
   parts.forEach((p, i) => {
-    const v = Number(match[i + 1]);
+    const raw = match[i + 1]!;
+    const v = Number(raw);
     if (p === "Y") y = v;
+    else if (p === "MMMM" || p === "MMM")
+      mo = MONTHS.findIndex((n) => n.slice(0, raw.length).toLowerCase() === raw.toLowerCase()) + 1;
     else if (p === "M") mo = v;
     else d = v;
   });

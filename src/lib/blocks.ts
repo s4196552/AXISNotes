@@ -19,11 +19,13 @@ const HEADING_RE = /^(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*$/;
 const BLOCK_ID_RE = /(?:^|[ \t])\^([A-Za-z0-9-]+)[ \t]*$/;
 const FENCE_RE = /^[ \t]*(```|~~~)/;
 
+/** Lines without their `\n` or `\r\n`, so ids are found (and added) before a CRLF too. */
 function lines(text: string): LineInfo[] {
   const out: LineInfo[] = [];
   let from = 0;
   for (const raw of text.split("\n")) {
-    out.push({ text: raw, from, to: from + raw.length });
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    out.push({ text: line, from, to: from + line.length });
     from += raw.length + 1;
   }
   return out;
@@ -156,10 +158,15 @@ export function ensureBlockId(
 export interface BlockChoice {
   /** First line of the block, without list markup or id. */
   label: string;
+  /** All of the block's own text, for searching: every line of a paragraph (a list
+   *  item's children are blocks of their own). */
+  text: string;
   /** Existing block id, if any. */
   id: string | null;
-  /** Offset inside the block (for `ensureBlockId`). */
+  /** Offset inside the block (for `ensureBlockId`): where it starts. */
   pos: number;
+  /** Where its own text ends (a list item's own line; a paragraph's last line). */
+  end: number;
 }
 
 /** Referenceable blocks (paragraphs and list items) of a note, for `[[Note#^` completion. */
@@ -183,7 +190,14 @@ export function listBlocks(text: string): BlockChoice[] {
       .replace(/^\[[ xX]\][ \t]*/, "")
       .replace(BLOCK_ID_RE, "")
       .trim();
-    if (label) out.push({ label, id, pos: ls[first]!.from });
+    const own = isList ? [first] : Array.from({ length: last - first + 1 }, (_, k) => first + k);
+    const body = own
+      .map((n) => ls[n]!.text.replace(LIST_RE, "").replace(/^\[[ xX]\][ \t]*/, ""))
+      .join(" ")
+      .replace(BLOCK_ID_RE, "")
+      .trim();
+    const end = ls[isList ? first : last]!.to;
+    if (label) out.push({ label, text: body, id, pos: ls[first]!.from, end });
     // List items: step into children (each is referenceable); paragraphs: skip to the end.
     i = isList ? first + 1 : last + 1;
   }

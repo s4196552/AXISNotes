@@ -1,8 +1,14 @@
 import { backend, isBackendError } from "../../ipc";
-import { useAppStore } from "../../app/store";
+import { type OpenOptions, type OpenTarget, useAppStore } from "../../app/store";
 import { type AxisConfig, useConfig } from "../../app/config";
-import { formatDate } from "../../lib/dates";
-import { isNotePath, noteName, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
+import { formatDate, parseDate } from "../../lib/dates";
+import {
+  isNotePath,
+  noteName,
+  parseWikilinkInner,
+  splitFrontmatter,
+  withFrontmatter,
+} from "../../lib/markdown";
 import { ensureBlockId } from "../../lib/blocks";
 import { CANVAS_EXT, GRID_EXT } from "../../lib/fileKinds";
 import { emptyCanvas, serializeCanvas } from "../../lib/canvas";
@@ -258,8 +264,50 @@ export function dailyNotePath(
   return join(folder.replace(/^\/+|\/+$/g, ""), `${formatDate(date, format)}.md`);
 }
 
+/**
+ * The date a link target names if it's a daily note: its last segments parse with the
+ * daily-note format (which may itself hold folders, e.g. `YYYY/MM/DD`), and any folder
+ * before them is the daily-note folder.
+ */
+export function dailyDateOf(
+  target: string,
+  cfg: AxisConfig["dailyNotes"] = useConfig.getState().config.dailyNotes,
+): Date | null {
+  // A vault-absolute `/…` target names its folder exactly (none = the vault root).
+  const absolute = target.trimStart().startsWith("/");
+  const parts = target.trim().replace(/^\/+/, "").replace(/\.md$/i, "").split("/");
+  const own = cfg.format.split("/").length;
+  if (parts.length < own) return null;
+  const folder = parts.slice(0, parts.length - own).join("/");
+  const daily = cfg.folder.replace(/^\/+|\/+$/g, "");
+  if ((folder || absolute) && folder !== daily) return null;
+  return parseDate(parts.slice(parts.length - own).join("/"), cfg.format);
+}
+
+/**
+ * Follow a wikilink from note `from`. A daily note that doesn't exist yet is created in
+ * the daily folder from the daily template (like the calendar does), not as an empty note.
+ */
+export async function followLink(inner: string, from: string, opts?: OpenOptions) {
+  const { target, heading, block } = parseWikilinkInner(inner);
+  const date = target ? dailyDateOf(target) : null;
+  if (date) {
+    try {
+      if (!(await backend.resolveLink(target, from))) {
+        const jump: OpenTarget = {};
+        if (heading) jump.heading = heading;
+        if (block) jump.block = block;
+        return await openDailyNote(date, jump, opts);
+      }
+    } catch {
+      // Fall through to a normal link.
+    }
+  }
+  return useAppStore.getState().openLink(inner, from, opts);
+}
+
 /** Open the daily note for `date`, creating it from the daily template if needed. */
-export async function openDailyNote(date = new Date()) {
+export async function openDailyNote(date = new Date(), target?: OpenTarget, opts?: OpenOptions) {
   const store = useAppStore.getState();
   const path = dailyNotePath(date);
   try {
@@ -280,10 +328,12 @@ export async function openDailyNote(date = new Date()) {
         if (!(isBackendError(e) && e.code === "AlreadyExists")) throw e;
       }
       await store.refreshTree();
-      useAppStore.getState().openFile(path, { line: lineOfOffset(text, cursor) });
+      // A heading or block the link asked for wins over the template's cursor.
+      const jump = target?.heading || target?.block ? target : undefined;
+      useAppStore.getState().openFile(path, jump ?? { line: lineOfOffset(text, cursor) }, opts);
       return;
     }
-    store.openFile(path);
+    store.openFile(path, target, opts);
   } catch (e) {
     report(e);
   }

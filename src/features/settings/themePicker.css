@@ -1,0 +1,189 @@
+/* Settings → Appearance → Theme: tiles with live miniatures (see ThemePicker.tsx). */
+.settings-field.settings-field-wide {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+.theme-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+}
+.theme-tile:hover {
+  background: var(--bg-hover);
+}
+/* The radio stays focusable and readable by screen readers, but the tile is the target. */
+.theme-tile input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.theme-tile:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.theme-tile:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.theme-tile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 2px 2px;
+}
+.theme-tile-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.theme-tile-note {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* ---- Miniature. Everything below uses the tile's own theme tokens. */
+.tp {
+  display: block;
+  height: 84px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--app-backdrop);
+  color: var(--fg);
+  font-family: var(--font-ui);
+}
+.tp-shell {
+  display: grid;
+  grid-template-columns: 34% 1fr;
+  height: 100%;
+}
+.tp-side,
+.tp-main {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 9px 8px;
+}
+.tp-side {
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+}
+.tp-main {
+  background: var(--bg);
+}
+.tp-line {
+  display: block;
+  height: 4px;
+  width: 100%;
+  border-radius: 2px;
+  background: var(--fg-muted);
+  opacity: 0.55;
+}
+.tp-title {
+  display: block;
+  width: 62%;
+  height: 7px;
+  margin-bottom: 2px;
+  border-radius: 2px;
+  background: var(--heading);
+}
+.tp-active {
+  align-self: stretch;
+  width: auto;
+  height: 9px;
+  margin: 0 -4px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-active);
+  opacity: 1;
+}
+.tp-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.tp-pill {
+  flex: none;
+  width: 22px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--accent);
+}
+.tp-w40 {
+  width: 40%;
+}
+.tp-w50 {
+  width: 50%;
+}
+.tp-w60 {
+  width: 60%;
+}
+.tp-w80 {
+  width: 80%;
+}
+.tp-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 84px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+.tp-split .tp {
+  height: 100%;
+  border-radius: 0;
+}
+.tp-split .tp + .tp {
+  border-left: none;
+}
+.tp-custom {
+  display: grid;
+  place-items: center;
+  background: var(--bg-sidebar);
+  color: var(--fg-muted);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+/* Per-theme character in the miniatures. */
+[data-theme-preview="glass"] .tp-shell {
+  gap: 4px;
+  padding: 4px;
+}
+[data-theme-preview="glass"] :is(.tp-side, .tp-main) {
+  border: 1px solid var(--glass-edge);
+  border-radius: 7px;
+  backdrop-filter: var(--glass-blur);
+}
+[data-theme-preview="glass"] .tp-active {
+  background: var(--accent);
+}
+[data-theme-preview="retro"] .tp-active {
+  outline: 1px solid var(--border);
+}
+[data-theme-preview="retro"] .tp-pill {
+  border-radius: 1px;
+  box-shadow: 1.5px 1.5px 0 var(--border);
+}
+[data-theme-preview="contrast"] .tp-line {
+  opacity: 1;
+}
+[data-theme-preview="contrast"] .tp-active {
+  outline: 1px solid var(--accent);
+}
+/* Translucent: a desktop wallpaper shows through the miniature at the chosen opacity. */
+.tp[data-theme-preview="translucent"] {
+  background:
+    linear-gradient(var(--app-backdrop), var(--app-backdrop)),
+    radial-gradient(circle at 18% 22%, #6f8dff 0%, transparent 52%),
+    radial-gradient(circle at 88% 85%, #ff86c2 0%, transparent 50%),
+    linear-gradient(135deg, #3a4fa8, #9a5bc4);
+}

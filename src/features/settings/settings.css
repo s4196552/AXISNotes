@@ -65,7 +65,7 @@
 .settings-control select {
   padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg);
   color: var(--fg);
 }
@@ -179,4 +179,9 @@
 }
 .range-control input[type="range"] {
   width: 200px;
+}
+.settings-note {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
 }

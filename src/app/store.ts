@@ -2,6 +2,9 @@ import { create } from "zustand";
 import { backend, isBackendError, type NoteRef, type VaultEntry, type VaultInfo } from "../ipc";
 import { parseWikilinkInner } from "../lib/markdown";
 import { markNewVault, rememberVault } from "./recentVaults";
+import { showLeftPanel } from "./layout";
+import * as T from "./tabs";
+import type { GroupColor, TabsState, View } from "./tabs";
 
 /** Where to put the cursor after opening a note. */
 export interface OpenTarget {
@@ -15,7 +18,13 @@ export interface OpenTarget {
 export type PendingTarget = OpenTarget & { path: string };
 
 export type LeftPanel = "files" | "search" | "tags";
-export type MainView = "note" | "graph" | "tasks" | "time";
+export type MainView = View;
+
+/** How to open a note. */
+export interface OpenOptions {
+  /** In a new tab instead of the active one. */
+  newTab?: boolean;
+}
 
 export interface AppState {
   vault: VaultInfo | null;
@@ -24,6 +33,8 @@ export interface AppState {
   notes: NoteRef[];
   /** Bumped whenever indexed data may have changed; panels re-query on change. */
   indexVersion: number;
+  /** Open tabs (see tabs.ts). `activePath` and `mainView` mirror the active tab. */
+  tabs: TabsState;
   /** Vault-relative path of the note open in the editor. */
   activePath: string | null;
   /** Consumed by the editor for `path` after it loads. */
@@ -45,13 +56,44 @@ export interface AppState {
   refreshTree(): Promise<void>;
   /** Bump `indexVersion` and re-list notes (after the app's own writes). */
   bumpIndex(): void;
-  openFile(path: string | null, target?: OpenTarget): void;
+  openFile(path: string | null, target?: OpenTarget, opts?: OpenOptions): void;
+  newTab(): void;
+  /** Close a tab (default: the active one). */
+  closeTab(id?: string): void;
+  closeOtherTabs(id?: string): void;
+  closeTabsToRight(id?: string): void;
+  activateTab(id: string): void;
+  /** Next (+1) or previous (-1) tab, wrapping around. */
+  cycleTab(delta: number): void;
+  /** The tab at a 0-based position; -1 is the last tab. */
+  goToTab(index: number): void;
+  goBack(): void;
+  goForward(): void;
+  /** Move a tab; `group` puts it in that group (null: none), else it keeps its own. */
+  moveTab(id: string, to: number, group?: string | null): void;
+  togglePinTab(id?: string): void;
+  reopenClosedTab(): void;
+  /** Ctrl+click ("toggle") or Shift+click ("range") a tab. */
+  selectTab(id: string, mode: "toggle" | "range"): void;
+  clearTabSelection(): void;
+  /** Put tabs (default: the selected ones) in a new group; returns its id. */
+  groupTabs(ids?: string[]): string | null;
+  addTabsToGroup(ids: string[], groupId: string): void;
+  /** Take tabs (default: the selected ones) out of their groups. */
+  removeTabsFromGroup(ids?: string[]): void;
+  ungroupTabs(groupId: string): void;
+  closeTabGroup(groupId: string): void;
+  updateTabGroup(groupId: string, patch: { name?: string; color?: GroupColor }): void;
+  /** Collapse or expand a group. */
+  toggleTabGroup(groupId: string): void;
+  newTabInGroup(groupId: string): void;
+  moveTabGroup(groupId: string, to: number): void;
   clearPendingTarget(): void;
   /**
    * Follow a wikilink written in note `from` (inner text like `Note#Heading|alias`).
    * Missing notes are created (at the vault root, or at the given path).
    */
-  openLink(inner: string, from: string): Promise<void>;
+  openLink(inner: string, from: string, opts?: OpenOptions): Promise<void>;
   /** Show the search panel with `query`. */
   search(query: string): void;
   setLeftPanel(panel: LeftPanel): void;
@@ -74,11 +116,31 @@ function describe(e: unknown): string {
 
 const isSameOrInside = (path: string, dir: string) => path === dir || path.startsWith(dir + "/");
 
+/** State for a new set of tabs: the tabs plus the active tab mirrored for older callers. */
+function withTabs(tabs: TabsState) {
+  const tab = T.activeTab(tabs);
+  return { tabs, activePath: tab.path, mainView: tab.view };
+}
+
+function filesIn(tree: VaultEntry): Set<string> {
+  const out = new Set<string>();
+  const walk = (e: VaultEntry) => {
+    if (e.children) e.children.forEach(walk);
+    else out.add(e.path);
+  };
+  walk(tree);
+  return out;
+}
+
+/** Set after restoring a vault's tabs: drop tabs for missing files once the tree is in. */
+let pruneRestoredTabs = false;
+
 export const useAppStore = create<AppState>((set, get) => ({
   vault: null,
   tree: null,
   notes: [],
   indexVersion: 0,
+  tabs: T.initialTabs(),
   activePath: null,
   pendingTarget: null,
   leftPanel: "files",
@@ -120,6 +182,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const [tree, notes] = await Promise.all([backend.listTree(), backend.listNotes()]);
       set((s) => ({ tree, notes, indexVersion: s.indexVersion + 1 }));
+      if (pruneRestoredTabs) {
+        pruneRestoredTabs = false;
+        const files = filesIn(tree);
+        const tabs = T.dropPaths(get().tabs, (p) => files.has(p));
+        if (tabs !== get().tabs) set(withTabs(tabs));
+      }
     } catch (e) {
       set({ error: describe(e) });
     }
@@ -133,19 +201,65 @@ export const useAppStore = create<AppState>((set, get) => ({
     );
   },
 
-  openFile(path, target) {
+  openFile(path, target, opts) {
     set({
-      activePath: path,
-      mainView: "note",
+      ...withTabs(T.navigate(get().tabs, { path, view: "note" }, opts)),
       pendingTarget: path && target && Object.keys(target).length ? { ...target, path } : null,
     });
   },
+
+  newTab: () => set({ ...withTabs(T.newTab(get().tabs)), pendingTarget: null }),
+  closeTab(id) {
+    const tabs = get().tabs;
+    set({ ...withTabs(T.closeTab(tabs, id ?? tabs.active)), pendingTarget: null });
+  },
+  closeOtherTabs(id) {
+    const tabs = get().tabs;
+    set({ ...withTabs(T.closeOthers(tabs, id ?? tabs.active)), pendingTarget: null });
+  },
+  closeTabsToRight(id) {
+    const tabs = get().tabs;
+    set({ ...withTabs(T.closeToRight(tabs, id ?? tabs.active)), pendingTarget: null });
+  },
+  activateTab: (id) => set({ ...withTabs(T.activate(get().tabs, id)), pendingTarget: null }),
+  cycleTab: (delta) => set({ ...withTabs(T.cycle(get().tabs, delta)), pendingTarget: null }),
+  goToTab: (index) => set({ ...withTabs(T.goTo(get().tabs, index)), pendingTarget: null }),
+  goBack: () => set({ ...withTabs(T.back(get().tabs)), pendingTarget: null }),
+  goForward: () => set({ ...withTabs(T.forward(get().tabs)), pendingTarget: null }),
+  moveTab: (id, to, group) => set(withTabs(T.moveTab(get().tabs, id, to, group))),
+  togglePinTab(id) {
+    const tabs = get().tabs;
+    set(withTabs(T.togglePin(tabs, id ?? tabs.active)));
+  },
+  reopenClosedTab: () => set({ ...withTabs(T.reopenClosed(get().tabs)), pendingTarget: null }),
+  selectTab: (id, mode) => set({ tabs: T.selectTab(get().tabs, id, mode) }),
+  clearTabSelection: () => set({ tabs: T.clearSelection(get().tabs) }),
+  groupTabs(ids) {
+    const tabs = T.groupTabs(get().tabs, ids ?? T.selection(get().tabs));
+    if (tabs === get().tabs) return null;
+    set(withTabs(tabs));
+    return tabs.groups.at(-1)!.id;
+  },
+  addTabsToGroup: (ids, groupId) => set(withTabs(T.addToGroup(get().tabs, ids, groupId))),
+  removeTabsFromGroup(ids) {
+    const tabs = get().tabs;
+    set(withTabs(T.removeFromGroup(tabs, ids ?? T.selection(tabs))));
+  },
+  ungroupTabs: (groupId) => set(withTabs(T.ungroup(get().tabs, groupId))),
+  closeTabGroup: (groupId) =>
+    set({ ...withTabs(T.closeGroup(get().tabs, groupId)), pendingTarget: null }),
+  updateTabGroup: (groupId, patch) => set({ tabs: T.updateGroup(get().tabs, groupId, patch) }),
+  toggleTabGroup: (groupId) =>
+    set({ ...withTabs(T.toggleGroup(get().tabs, groupId)), pendingTarget: null }),
+  newTabInGroup: (groupId) =>
+    set({ ...withTabs(T.newTabInGroup(get().tabs, groupId)), pendingTarget: null }),
+  moveTabGroup: (groupId, to) => set(withTabs(T.moveGroup(get().tabs, groupId, to))),
 
   clearPendingTarget() {
     set({ pendingTarget: null });
   },
 
-  async openLink(inner, from) {
+  async openLink(inner, from, opts) {
     const link = parseWikilinkInner(inner);
     const target: OpenTarget = {};
     if (link.heading) target.heading = link.heading;
@@ -158,22 +272,28 @@ export const useAppStore = create<AppState>((set, get) => ({
         await backend.createFile(path, "");
         await get().refreshTree();
       }
-      get().openFile(path, target);
+      get().openFile(path, target, opts);
     } catch (e) {
       set({ error: describe(e) });
     }
   },
 
+  // Both bring the left panel back if it was hidden, so the result is visible.
   search(query) {
     set({ leftPanel: "search", searchQuery: query });
+    showLeftPanel();
   },
 
   setLeftPanel(panel) {
     set({ leftPanel: panel });
+    showLeftPanel();
   },
 
+  // Views live in tabs too: the graph replaces the note in the active tab, and showing
+  // "note" again brings that tab's note back.
   setMainView(view) {
-    set({ mainView: view });
+    const tab = T.activeTab(get().tabs);
+    set({ ...withTabs(T.navigate(get().tabs, { path: tab.path, view })), pendingTarget: null });
   },
 
   setSearchQuery(query) {
@@ -181,15 +301,25 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   onEntryRenamed(from, to) {
-    const active = get().activePath;
-    if (active && isSameOrInside(active, from)) {
-      set({ activePath: to + active.slice(from.length) });
-    }
+    const { activePath: active, tabs } = get();
+    // activePath can be set directly (older callers, tests), not through a tab: keep such
+    // a path following too. Otherwise the active tab decides.
+    const loose = active !== T.activeTab(tabs).path;
+    set({
+      ...withTabs(T.renamePath(tabs, from, to)),
+      ...(loose && active && isSameOrInside(active, from)
+        ? { activePath: to + active.slice(from.length) }
+        : {}),
+    });
   },
 
   onEntryRemoved(path) {
-    const active = get().activePath;
-    if (active && isSameOrInside(active, path)) set({ activePath: null });
+    const { activePath: active, tabs } = get();
+    const loose = active !== T.activeTab(tabs).path;
+    set({
+      ...withTabs(T.removePath(tabs, path)),
+      ...(loose && active && isSameOrInside(active, path) ? { activePath: null } : {}),
+    });
   },
 
   setError(message) {
@@ -202,3 +332,33 @@ export const useAppStore = create<AppState>((set, get) => ({
     noticeTimer = setTimeout(() => set({ notice: null }), 3000);
   },
 }));
+
+// ---- Tabs are kept per vault on this device ----
+
+const TABS_KEY = "axisnotes.tabs:";
+
+function loadTabs(root: string): TabsState {
+  try {
+    return T.deserialize(localStorage.getItem(TABS_KEY + root));
+  } catch {
+    return T.initialTabs();
+  }
+}
+
+useAppStore.subscribe((s, prev) => {
+  const root = s.vault?.root;
+  if (root !== prev.vault?.root) {
+    // Another vault (or none): its own tabs, checked against its files once they're listed.
+    pruneRestoredTabs = root !== undefined;
+    useAppStore.setState({
+      ...withTabs(root ? loadTabs(root) : T.initialTabs()),
+      pendingTarget: null,
+    });
+  } else if (root && s.tabs !== prev.tabs) {
+    try {
+      localStorage.setItem(TABS_KEY + root, T.serialize(s.tabs));
+    } catch {
+      // Storage full or blocked: tabs just won't come back next time.
+    }
+  }
+});

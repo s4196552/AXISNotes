@@ -31,6 +31,7 @@
   color: var(--accent);
 }
 .editor-title {
+  color: var(--heading);
   margin: 0;
   font-size: 28px;
   font-weight: 700;
@@ -60,7 +61,7 @@
   padding: 8px 12px;
   width: calc(100% - 48px);
   border: 1px solid var(--accent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-active);
 }
 .editor-banner span {
@@ -109,11 +110,11 @@
   font-family: var(--font-mono);
   font-size: 0.9em;
   padding: 1px 3px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--code-bg);
 }
 .cm-lp-link {
-  color: var(--accent);
+  color: var(--link);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -154,7 +155,7 @@
 
 /* Wikilinks and tags */
 .cm-lp-wikilink {
-  color: var(--accent);
+  color: var(--link);
   cursor: pointer;
 }
 .cm-lp-wikilink:hover {
@@ -179,7 +180,7 @@
   margin: 2px 0 8px;
   padding: 1px 8px;
   border: 1px dashed var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--fg-muted);
   font-size: 12px;
   cursor: pointer;
@@ -251,7 +252,7 @@
 }
 .props-type {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg);
   color: var(--fg-muted);
 }
@@ -351,7 +352,7 @@
   border: none;
   color: var(--fg-muted);
   padding: 0 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 /* Embeds */
@@ -359,7 +360,7 @@
   margin: 6px 0;
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-sidebar);
   overflow: hidden;
 }
@@ -389,6 +390,15 @@
 .cm-embed-status {
   color: var(--fg-muted);
 }
+/* "Reload from source" / "Keep mine" when the source block changed (T-074). */
+.cm-embed-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+.cm-embed-edit.cm-embed-action {
+  margin-left: 0;
+  color: var(--accent);
+}
 .cm-embed-body {
   padding: 2px 4px;
 }
@@ -410,13 +420,13 @@
   display: block;
   max-width: 100%;
   height: auto;
-  border-radius: 6px;
+  border-radius: var(--radius);
 }
 .cm-image-embed.missing {
   display: inline-block;
   padding: 4px 8px;
   border: 1px dashed var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--fg-muted);
   font-size: 13px;
 }
@@ -458,4 +468,59 @@
   font-size: 0.85em;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* Toggles: `> [!toggle|hN]± Title` (src/features/editor/toggles.ts). No quote bar; the
+   inside is indented under the arrow. */
+.cm-line.cm-toggle-title,
+.cm-line.cm-toggle-body {
+  border-left: none;
+  color: var(--fg);
+}
+.cm-line.cm-toggle-title {
+  padding-left: 0 !important;
+}
+.cm-line.cm-toggle-body {
+  padding-left: 1.5em !important;
+}
+.cm-toggle-arrow {
+  display: inline-block;
+  width: 1.1em;
+  margin-right: 0.3em;
+  color: var(--fg-muted);
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.12s ease;
+}
+.cm-toggle-arrow:hover {
+  color: var(--fg);
+}
+.cm-toggle-arrow.cm-toggle-open {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-toggle-arrow {
+    transition: none;
+  }
+}
+
+/* $$ math $$, rendered by KaTeX (src/features/editor/math.ts). */
+.cm-math {
+  cursor: pointer;
+  border-radius: 4px;
+}
+.cm-math:hover {
+  background: var(--bg-hover);
+}
+.cm-math-display {
+  display: block;
+  margin: 6px 0;
+  padding: 4px 0;
+  overflow-x: auto;
+  text-align: center;
+}
+.cm-math-error {
+  color: var(--danger, #d1242f);
+  font-family: var(--font-mono, monospace);
 }

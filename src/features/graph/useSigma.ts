@@ -1,18 +1,33 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { onThemeChange } from "../../app/appearance";
 import type Graph from "graphology";
 import type { NodeAttrs } from "./graphModel";
 import { loadGraphLibs } from "./graphLibs";
+import {
+  applyForces,
+  createSimulation,
+  preTick,
+  type GraphSimulation,
+  type SimNode,
+} from "./forces";
+import {
+  DEFAULT_DISPLAY,
+  DEFAULT_FORCES,
+  type DisplaySettings,
+  type ForceSettings,
+} from "./graphSettings";
 
-// Render a graphology graph with sigma (WebGL), lay it out with ForceAtlas2 (in a web
-// worker for large graphs), highlight a hovered node's neighbors, and report clicks.
-// Sigma and the layout are loaded on first use: they're large and need WebGL.
+// Render a graphology graph with sigma (WebGL) and move it with a live force simulation,
+// like Obsidian: nodes can be dragged (their neighbours follow), hovering highlights a
+// node's neighbours, and clicks are reported. Display settings and colour groups apply
+// without moving anything; force changes reheat the simulation. Sigma and d3-force are
+// loaded on first use.
 
 const cssVar = (name: string, fallback: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
-/** Layout budget: small graphs lay out synchronously; large ones in a worker briefly. */
-const SYNC_LIMIT = 400;
-const WORKER_MS = 2500;
+/** Synchronous layout before the first frame, so the graph doesn't open as a cloud. */
+const PRETICK_MS = 120;
 
 interface LabelData {
   x: number;
@@ -55,46 +70,90 @@ function themedHoverDrawer(bg: string, fg: string, border: string) {
   };
 }
 
+/** What the view can change on a mounted graph without re-creating it. */
+export interface SigmaLook {
+  display: DisplaySettings;
+  /** Colour overrides from the colour groups. */
+  groupColors: Map<string, string>;
+  /** The open note: emphasized and always labelled. */
+  highlight: string | null;
+}
+
+interface Mounted {
+  dispose(): void;
+  refresh(): void;
+  setForces(f: ForceSettings): void;
+  /** Scatter the nodes and lay the graph out again, visibly. */
+  animate(): void;
+}
+
 /**
- * Lay out `graph` (mutating positions) and render it into `el`. Resolves to a disposer,
- * or null if `cancelled()` became true while the libraries were loading.
+ * Render `graph` into `el` and start its simulation. Positions in `positions` (from an
+ * earlier mount) are reused, and kept up to date. Resolves to null if `cancelled()`
+ * became true while the libraries were loading.
  */
 async function mountSigma(
   el: HTMLElement,
   graph: Graph<NodeAttrs>,
   onClick: (id: string) => void,
-  highlight: string | null,
+  look: () => SigmaLook,
+  forces: ForceSettings,
+  positions: Map<string, { x: number; y: number }>,
   cancelled: () => boolean,
-): Promise<(() => void) | null> {
-  const { Sigma, forceAtlas2, FA2Layout } = await loadGraphLibs();
+): Promise<Mounted | null> {
+  const { Sigma, d3 } = await loadGraphLibs();
   // A newer graph replaced this one while loading: don't start a second renderer.
   if (cancelled()) return null;
   const faded = cssVar("--border", "#e3e4e8");
   const edgeColor = cssVar("--fg-muted", "#8d9199");
   const accent = cssVar("--accent", "#4f5bd5");
   let hovered: string | null = null;
+  let dragged: SimNode | null = null;
 
-  let layout: InstanceType<typeof FA2Layout> | null = null;
-  let stopTimer: ReturnType<typeof setTimeout> | null = null;
-  if (graph.order > 1) {
-    // Strong gravity keeps small graphs (and their orphans) compact.
-    const settings = { ...forceAtlas2.inferSettings(graph), strongGravityMode: true, gravity: 0.5 };
-    if (graph.order <= SYNC_LIMIT) {
-      forceAtlas2.assign(graph, { iterations: 150, settings });
-    } else {
-      layout = new FA2Layout(graph, { settings });
-      layout.start();
-      stopTimer = setTimeout(() => layout?.stop(), WORKER_MS);
-    }
+  // Simulation nodes start where they were last time, or at the graph's seeded spot.
+  const nodes: SimNode[] = graph.mapNodes((id, a) => {
+    const p = positions.get(id);
+    return { id, x: p?.x ?? a.x, y: p?.y ?? a.y };
+  });
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const known = nodes.filter((n) => positions.has(n.id)).length;
+  const sim: GraphSimulation = createSimulation(
+    d3,
+    nodes,
+    graph.mapEdges((_e, _a, source, target) => ({ source, target })),
+    forces,
+  );
+  const sync = () => {
+    graph.updateEachNodeAttributes(
+      (id, a) => {
+        const n = byId.get(id)!;
+        a.x = n.x ?? a.x;
+        a.y = n.y ?? a.y;
+        positions.set(id, { x: a.x, y: a.y });
+        return a;
+      },
+      { attributes: ["x", "y"] },
+    );
+  };
+  if (!nodes.length) {
+    sim.alpha(0);
+  } else if (known === nodes.length) {
+    // Same notes as before (a filter or theme change): settle gently in place.
+    sim.alpha(0.05);
+  } else {
+    if (known > 0) sim.alpha(0.5);
+    preTick(sim, PRETICK_MS);
   }
+  sync();
 
   // Only hovering fades the rest; the open note is just emphasized.
-  const focus = () => hovered;
   const renderer = new Sigma(graph, el, {
+    // A hidden or minimized window can mount the view at zero size; the resize observer
+    // below draws it once it has room.
+    allowInvalidContainer: true,
     renderEdgeLabels: false,
     labelColor: { color: cssVar("--fg", "#1f2328") },
-    // Label everything in small graphs; only prominent nodes in big ones.
-    labelRenderedSizeThreshold: graph.order <= 200 ? 0 : 8,
+    labelRenderedSizeThreshold: look().display.textFade,
     defaultEdgeColor: edgeColor,
     defaultDrawNodeHover: themedHoverDrawer(
       cssVar("--bg-sidebar", "#f6f6f7"),
@@ -103,24 +162,49 @@ async function mountSigma(
     ),
     zIndex: true,
     nodeReducer: (node, data) => {
-      const f = focus();
+      const { display, groupColors, highlight } = look();
+      const base = {
+        ...data,
+        size: data.size * display.nodeSize,
+        color: groupColors.get(node) ?? data.color,
+      };
+      const f = hovered;
       if (!f || !graph.hasNode(f)) {
         return node === highlight
-          ? { ...data, forceLabel: true, highlighted: true, zIndex: 1 }
-          : data;
+          ? { ...base, forceLabel: true, highlighted: true, zIndex: 1 }
+          : base;
       }
       if (node === f || graph.areNeighbors(node, f))
-        return { ...data, zIndex: 1, forceLabel: node === f };
-      return { ...data, color: faded, label: "", zIndex: 0 };
+        return { ...base, zIndex: 1, forceLabel: node === f };
+      return { ...base, color: faded, label: "", zIndex: 0 };
     },
     edgeReducer: (edge, data) => {
-      const f = focus();
-      if (!f || !graph.hasNode(f)) return data;
+      const { display } = look();
+      const base = {
+        ...data,
+        size: display.linkThickness,
+        type: display.arrows ? "arrow" : "line",
+      };
+      const f = hovered;
+      if (!f || !graph.hasNode(f)) return base;
       return graph.hasExtremity(edge, f)
-        ? { ...data, color: accent, size: 1.5 }
-        : { ...data, hidden: true };
+        ? { ...base, color: accent, size: display.linkThickness + 0.5 }
+        : { ...base, hidden: true };
     },
   });
+
+  // Keep the graph fitted while it settles, until the user moves or zooms it: from then
+  // on the frame stays put, so a dragged node stays under the pointer.
+  let frozen = false;
+  const freeze = () => {
+    if (frozen || graph.order === 0) return;
+    frozen = true;
+    renderer.setCustomBBox(renderer.getBBox());
+  };
+  sim.on("tick", sync);
+  sim.on("end", freeze);
+  sim.restart();
+
   renderer.on("clickNode", ({ node }) => onClick(node));
   renderer.on("enterNode", ({ node }) => {
     hovered = node;
@@ -129,30 +213,149 @@ async function mountSigma(
   });
   renderer.on("leaveNode", () => {
     hovered = null;
-    el.style.cursor = "";
+    if (!dragged) el.style.cursor = "";
     renderer.refresh({ skipIndexation: true });
   });
+
+  // Dragging: pin the node to the pointer and keep the simulation warm so its
+  // neighbours follow; on release it's free again and everything settles.
+  renderer.on("downNode", ({ node, event }) => {
+    const n = byId.get(node);
+    if (!n) return;
+    freeze();
+    dragged = n;
+    n.fx = n.x;
+    n.fy = n.y;
+    sim.alphaTarget(0.3).restart();
+    event.preventSigmaDefault();
+  });
+  renderer.on("moveBody", ({ event }) => {
+    if (!dragged) return;
+    const p = renderer.viewportToGraph(event);
+    dragged.fx = p.x;
+    dragged.fy = p.y;
+    el.style.cursor = "grabbing";
+    event.preventSigmaDefault();
+    event.original.preventDefault();
+    event.original.stopPropagation();
+  });
+  const release = () => {
+    if (!dragged) return;
+    dragged.fx = null;
+    dragged.fy = null;
+    dragged = null;
+    el.style.cursor = hovered ? "pointer" : "";
+    sim.alphaTarget(0);
+  };
+  renderer.on("upNode", release);
+  renderer.on("upStage", release);
+  renderer.on("downStage", freeze);
+  renderer.on("wheelStage", freeze);
+
   // Exposed for end-to-end tests, which can't click WebGL nodes by label.
   (el as HTMLElement & { __sigma?: unknown }).__sigma = renderer;
 
-  return () => {
-    if (stopTimer) clearTimeout(stopTimer);
-    layout?.kill();
-    renderer.kill();
+  // The container also changes size without a window resize, e.g. when the side panels
+  // are hidden or shown, so redraw to fit it (once per frame at most).
+  let frame = 0;
+  const observer =
+    typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => {
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(() => {
+            renderer.resize(true);
+            renderer.refresh({ skipIndexation: true });
+          });
+        });
+  observer?.observe(el);
+
+  return {
+    dispose() {
+      observer?.disconnect();
+      cancelAnimationFrame(frame);
+      sim.stop();
+      sim.on("tick", null).on("end", null);
+      renderer.kill();
+    },
+    refresh() {
+      renderer.setSetting("labelRenderedSizeThreshold", look().display.textFade);
+      renderer.refresh({ skipIndexation: true });
+    },
+    setForces(f) {
+      applyForces(d3, sim, f, nodes.length);
+      sim.alpha(Math.max(sim.alpha(), 0.3)).restart();
+    },
+    animate() {
+      // Scatter around the middle and let the forces pull it together again, refitting.
+      const spread = Math.sqrt(nodes.length) * 20;
+      for (const n of nodes) {
+        n.x = (Math.random() - 0.5) * spread;
+        n.y = (Math.random() - 0.5) * spread;
+        n.vx = n.vy = 0;
+      }
+      frozen = false;
+      renderer.setCustomBBox(null);
+      renderer.getCamera().setState({ x: 0.5, y: 0.5, ratio: 1, angle: 0 });
+      sim.alpha(1).restart();
+    },
   };
 }
 
+/**
+ * A number that changes whenever the theme does. Graph colors are read from the theme
+ * when a graph is built and when sigma mounts, so callers rebuild the graph on it.
+ */
+export function useThemeVersion(): number {
+  const [version, setVersion] = useState(0);
+  useEffect(() => onThemeChange(() => setVersion((v) => v + 1)), []);
+  return version;
+}
+
+export interface SigmaOptions {
+  display?: DisplaySettings;
+  forces?: ForceSettings;
+  groupColors?: Map<string, string>;
+}
+
+const NO_GROUPS = new Map<string, string>();
+
+/** Render `graph` into `container`. Returns `animate`, which lays it out again. */
 export function useSigma(
   container: React.RefObject<HTMLDivElement | null>,
   graph: Graph<NodeAttrs> | null,
   onClickNode: (id: string) => void,
   highlight?: string | null,
-) {
+  options: SigmaOptions = {},
+): { animate: () => void } {
   const onClick = useRef(onClickNode);
-  const dispose = useRef<(() => void) | null>(null);
+  const mounted = useRef<Mounted | null>(null);
+  // Where each note was drawn, so a rebuilt graph (filter, theme) doesn't jump around.
+  const positions = useRef(new Map<string, { x: number; y: number }>());
+  const look = useRef<SigmaLook>({
+    display: DEFAULT_DISPLAY,
+    groupColors: NO_GROUPS,
+    highlight: null,
+  });
+  const forces = options.forces ?? DEFAULT_FORCES;
+  const forcesRef = useRef(forces);
+  const display = options.display ?? DEFAULT_DISPLAY;
+  const groupColors = options.groupColors ?? NO_GROUPS;
+
   useEffect(() => {
     onClick.current = onClickNode;
   }, [onClickNode]);
+
+  useEffect(() => {
+    look.current = { display, groupColors, highlight: highlight ?? null };
+    mounted.current?.refresh();
+  }, [display, groupColors, highlight]);
+
+  useEffect(() => {
+    if (forcesRef.current === forces) return;
+    forcesRef.current = forces;
+    mounted.current?.setForces(forces);
+  }, [forces]);
 
   useEffect(() => {
     const el = container.current;
@@ -162,20 +365,25 @@ export function useSigma(
       el,
       graph,
       (id) => onClick.current(id),
-      highlight ?? null,
+      () => look.current,
+      forcesRef.current,
+      positions.current,
       () => disposed,
     ).then(
-      (d) => {
-        if (!d) return;
-        if (disposed) d();
-        else dispose.current = d;
+      (m) => {
+        if (!m) return;
+        if (disposed) m.dispose();
+        else mounted.current = m;
       },
       (e: unknown) => console.warn("graph render failed", e),
     );
     return () => {
       disposed = true;
-      dispose.current?.();
-      dispose.current = null;
+      mounted.current?.dispose();
+      mounted.current = null;
     };
-  }, [container, graph, highlight]);
+  }, [container, graph]);
+
+  const animate = useCallback(() => mounted.current?.animate(), []);
+  return { animate };
 }

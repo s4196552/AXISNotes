@@ -1,8 +1,10 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
+import { Effect, getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AiRunResult, Backend, Clipped, IndexProgress, VaultChange, VaultInfo } from "./types";
+import { IMAGE_EXTENSIONS } from "../lib/attachments";
 
 export const VAULT_CHANGED_EVENT = "vault://changed";
 export const INDEX_PROGRESS_EVENT = "index://progress";
@@ -28,14 +30,23 @@ export function createTauriBackend(): Backend {
     currentVault: () => track(invoke<VaultInfo | null>("current_vault")),
     listTree: () => invoke("list_tree"),
     readFile: (path) => invoke("read_file", { path }),
-    writeFile: (path, content, expectedModifiedMs) =>
-      invoke("write_file", { path, content, expectedModifiedMs }),
-    createFile: (path, content) => invoke("create_file", { path, content }),
+    writeFile: (path, content, expectedModifiedMs, vaultRoot) =>
+      invoke("write_file", { path, content, expectedModifiedMs, vaultRoot }),
+    createFile: (path, content, vaultRoot) => invoke("create_file", { path, content, vaultRoot }),
     createDir: (path) => invoke("create_dir", { path }),
+    async pickImage() {
+      const picked = await open({
+        multiple: false,
+        filters: [{ name: "Images", extensions: [...IMAGE_EXTENSIONS] }],
+      });
+      return typeof picked === "string" ? picked : null;
+    },
+    importImage: (source, folder) => invoke("import_image", { source, folder }),
     renameEntry: (from, to) => invoke("rename_entry", { from, to }),
     trashEntry: (path) => invoke("trash_entry", { path }),
     search: (query, limit) => invoke("search", { query, limit }),
     listTags: () => invoke("list_tags"),
+    listPropertyKeys: () => invoke("list_property_keys"),
     listNotes: () => invoke("list_notes"),
     resolveLink: (target, from) => invoke("resolve_link", { target, from }),
     backlinks: (path) => invoke("backlinks", { path }),
@@ -70,6 +81,11 @@ export function createTauriBackend(): Backend {
     clipperCancelPairing: () => invoke("clipper_cancel_pairing"),
     clipperRevoke: (id) => invoke("clipper_revoke", { id }),
     clipperOpenExtensionFolder: () => invoke("clipper_open_extension_folder"),
+    updatesSettings: () => invoke("updates_settings"),
+    updatesSaveSettings: (checkOnLaunch, folder) =>
+      invoke("updates_save_settings", { checkOnLaunch, folder }),
+    updatesCheck: () => invoke("updates_check"),
+    updatesInstall: (version) => invoke("updates_install", { version }),
     async onClipped(cb) {
       return listen<Clipped>(CLIPPED_EVENT, (e) => cb(e.payload));
     },
@@ -84,6 +100,22 @@ export function createTauriBackend(): Backend {
       return listen<{ changes: VaultChange[] }>(VAULT_CHANGED_EVENT, (e) => cb(e.payload.changes));
     },
     setZoom: (factor) => getCurrentWebview().setZoom(factor),
+    // The window is created transparent (tauri.conf.json); WebView2 shows what's behind.
+    // macOS would need the private API, and Linux depends on the compositor.
+    canBeTranslucent: () => /Windows/.test(navigator.userAgent),
+    setWindowBlur: (on) =>
+      on
+        ? getCurrentWindow().setEffects({ effects: [Effect.Acrylic] })
+        : getCurrentWindow().clearEffects(),
+    async onCloseRequested(cb) {
+      // Registering any listener keeps the window open (Tauri prevents the close while
+      // JS listens); preventing here also stops the API from closing it after `cb`.
+      return getCurrentWindow().onCloseRequested((e) => {
+        e.preventDefault();
+        cb();
+      });
+    },
+    closeWindow: () => getCurrentWindow().destroy(),
     listFonts: () => invoke("list_fonts"),
     async onIndexProgress(cb) {
       return listen<IndexProgress>(INDEX_PROGRESS_EVENT, (e) => cb(e.payload));

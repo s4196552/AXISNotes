@@ -6,11 +6,13 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG, mergeConfig } from "../../app/config";
 import { formatDate, parseDate } from "../../lib/dates";
 import {
+  DEFAULT_QUICK_CONFIG,
   emojiCompletions,
   loadEmoji,
   quickCommandConfig,
   searchEmoji,
   slashCompletions,
+  TURN_INTO,
 } from "../editor/quickCommands";
 import { monthGrid } from "../daily/monthGrid";
 import { promptsIn, renderTemplate } from "../templates/templates";
@@ -89,12 +91,8 @@ function viewWith(doc: string, cfg = {}) {
       selection: { anchor: doc.length },
       extensions: [
         markdown(),
-        quickCommandConfig.of({
-          ...DEFAULT_CONFIG.quickCommands,
-          insertTemplate: () => {},
-          runCommand: () => {},
-          ...cfg,
-        }),
+        // These tests use a typed `/` trigger (off by default; Ctrl+/ opens the menu).
+        quickCommandConfig.of({ ...DEFAULT_QUICK_CONFIG, slashTrigger: "/", ...cfg }),
       ],
     }),
   });
@@ -111,10 +109,10 @@ describe("slash commands", () => {
   });
 
   it("applies line-level and inline commands, and respects config", () => {
-    const run = (doc: string, label: string, cfg = {}) => {
+    const run = (doc: string, label: string, cfg = {}, detail?: string) => {
       const view = viewWith(doc, cfg);
       const r = slashCompletions(new CompletionContext(view.state, doc.length, false))!;
-      const opt = r.options.find((o) => o.label === label)!;
+      const opt = r.options.find((o) => o.label === label && o.detail === detail)!;
       (opt.apply as (v: EditorView, c: unknown, f: number, t: number) => void)(
         view,
         opt,
@@ -127,8 +125,10 @@ describe("slash commands", () => {
         labels: r.options.map((o) => o.label),
       };
     };
-    expect(run("Title /h2", "Heading 2").text).toBe("## Title");
-    expect(run("- item /ta", "Task").text).toBe("- [ ] item");
+    expect(run("Title /h2", "Heading 2", {}, TURN_INTO).text).toBe("## Title");
+    expect(run("- item /ta", "Task", {}, TURN_INTO).text).toBe("- [ ] item");
+    // Without Turn into, a block goes on a new line under one that has text.
+    expect(run("Title /h2", "Heading 2").text).toBe("Title\n## ");
     const code = run("/co", "Code block");
     expect(code.text).toBe("```\n\n```");
     expect(code.head).toBe(4);

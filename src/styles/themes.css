@@ -1,0 +1,344 @@
+/* Built-in themes beyond Light and Dark. Each sets the tokens from theme.css; a few add
+   structural touches (floating glass panels, retro hard shadows), always scoped to their
+   own `data-theme`. `[data-theme-preview]` scopes the same tokens to a Settings tile.
+
+   Darker         near-black OLED surfaces, soft violet accent
+   Minimal        warm white, monochrome ink, hairlines only
+   Glass          frosted, translucent floating panels over a soft wallpaper (light + dark)
+   Translucent    the window itself is see-through, with an opacity setting (light + dark)
+   High contrast  black, white and yellow; strong edges and focus rings (WCAG AAA text)
+   Retro          cream paper, ink lines, hard offset shadows, typewriter type */
+
+/* ---------------------------------------------------------------- Darker */
+:root[data-theme="darker"],
+[data-theme-preview="darker"] {
+  color-scheme: dark;
+  --bg: #0b0b0e;
+  --bg-sidebar: #070709;
+  --bg-elevated: #121215;
+  --bg-hover: #141418;
+  --bg-active: #1e1b33;
+  --fg: #ececf1;
+  --fg-muted: #7d7f8b;
+  --border: #1d1d23;
+  --accent: #a394ff;
+  --accent-fg: #0b0a14;
+  --danger: #ff6b6b;
+  --code-bg: #111114;
+  --selection: #2f2a57;
+  --heading: #ffffff;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 0 0 1px #23232a, 0 10px 30px rgba(0, 0, 0, 0.65);
+  --shadow-modal: 0 0 0 1px #26262e, 0 28px 70px rgba(0, 0, 0, 0.75);
+}
+
+/* ---------------------------------------------------------------- Minimal */
+:root[data-theme="minimal"],
+[data-theme-preview="minimal"] {
+  color-scheme: light;
+  --font-ui: "Segoe UI Variable Text", "Inter", "Segoe UI", system-ui, sans-serif;
+  --bg: #fbfbfa;
+  --bg-sidebar: #fbfbfa;
+  --bg-elevated: #ffffff;
+  --bg-hover: #f1f1ef;
+  --bg-active: #eaeae7;
+  --fg: #191919;
+  --fg-muted: #8b8b87;
+  --border: #ececea;
+  --accent: #191919;
+  --accent-fg: #ffffff;
+  --danger: #c4382f;
+  --code-bg: #f3f3f1;
+  --selection: #e1e1dc;
+  --link: #191919;
+  --scrim: rgba(250, 250, 248, 0.7);
+  --shadow-pop: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.07);
+  --shadow-modal: 0 1px 3px rgba(0, 0, 0, 0.05), 0 24px 60px rgba(0, 0, 0, 0.1);
+}
+/* Ink-coloured links, told apart by a quiet underline. */
+:root[data-theme="minimal"] .cm-lp-wikilink {
+  text-decoration: underline;
+  text-decoration-color: #a3a39e;
+  text-underline-offset: 3px;
+}
+:root[data-theme="minimal"] .cm-lp-wikilink:hover {
+  text-decoration-color: currentColor;
+}
+:root[data-theme="minimal"]
+  .cm-line.cm-callout:not(.cm-callout-tip, .cm-callout-warning, .cm-callout-question) {
+  --callout: #b9b9b4;
+}
+
+/* ---------------------------------------------------------------- Glass */
+:root[data-theme="glass"],
+[data-theme-preview="glass"] {
+  color-scheme: light;
+  --font-ui:
+    "SF Pro Text", "Segoe UI Variable Text", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --app-backdrop:
+    radial-gradient(1100px 760px at 8% -6%, #b7c9ff 0%, transparent 62%),
+    radial-gradient(900px 700px at 104% 12%, #ffc6e4 0%, transparent 58%),
+    radial-gradient(1000px 820px at 48% 112%, #b4ebff 0%, transparent 62%), #eceef6;
+  --bg: rgba(255, 255, 255, 0.55);
+  --bg-sidebar: rgba(255, 255, 255, 0.34);
+  --bg-elevated: rgba(250, 250, 252, 0.78);
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-active: rgba(0, 122, 255, 0.14);
+  --fg: #1d1d1f;
+  --fg-muted: #6e6e73;
+  --border: rgba(0, 0, 0, 0.08);
+  --accent: #007aff;
+  --accent-fg: #ffffff;
+  --danger: #ff3b30;
+  --code-bg: rgba(0, 0, 0, 0.045);
+  --selection: rgba(0, 122, 255, 0.2);
+  --glass-edge: rgba(255, 255, 255, 0.65);
+  --glass-blur: blur(30px) saturate(180%);
+  --scrim: rgba(240, 242, 248, 0.35);
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-pop: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 12px 32px rgba(0, 0, 0, 0.14);
+  --shadow-modal: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 30px 80px rgba(0, 0, 0, 0.22);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="glass"],
+  [data-theme-preview="glass"] {
+    color-scheme: dark;
+    --app-backdrop:
+      radial-gradient(1100px 760px at 8% -6%, #1f3a8a 0%, transparent 62%),
+      radial-gradient(900px 700px at 104% 12%, #5b1f6e 0%, transparent 58%),
+      radial-gradient(1000px 820px at 48% 112%, #0e5a6e 0%, transparent 62%), #0a0c16;
+    --bg: rgba(28, 28, 34, 0.55);
+    --bg-sidebar: rgba(22, 22, 28, 0.4);
+    --bg-elevated: rgba(40, 40, 48, 0.78);
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --bg-active: rgba(10, 132, 255, 0.26);
+    --fg: #f5f5f7;
+    --fg-muted: #a1a1a6;
+    --border: rgba(255, 255, 255, 0.09);
+    --accent: #0a84ff;
+    --danger: #ff453a;
+    --code-bg: rgba(255, 255, 255, 0.06);
+    --selection: rgba(10, 132, 255, 0.35);
+    --glass-edge: rgba(255, 255, 255, 0.12);
+    --scrim: rgba(0, 0, 0, 0.35);
+    --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 12px 32px rgba(0, 0, 0, 0.45);
+    --shadow-modal: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 30px 80px rgba(0, 0, 0, 0.55);
+  }
+}
+/* Floating, frosted panels with gaps between them, like macOS windows' sidebars. */
+:root[data-theme="glass"] .shell {
+  gap: 10px;
+  padding: 10px 10px 0;
+}
+:root[data-theme="glass"] .sidebar,
+:root[data-theme="glass"] .content {
+  --glass-fill: var(--bg-sidebar);
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+:root[data-theme="glass"] .content {
+  --glass-fill: var(--bg);
+}
+:root[data-theme="glass"] .modal {
+  --glass-fill: var(--bg-elevated);
+}
+/* The frosting is a layer *behind* each pane and dialog, never a filter on the pane
+   itself: `backdrop-filter` would make the pane the containing block of its fixed-position
+   menus (file tree, handwriting fixes), shifting and clipping them. No `isolation` either:
+   a stacking context per pane would let the next pane paint over a menu. The panes are
+   transparent, so the layer at z-index -1 shows through. */
+:root[data-theme="glass"] :is(.sidebar, .content, .modal) {
+  position: relative;
+  background: transparent;
+}
+:root[data-theme="glass"] :is(.sidebar, .content, .modal)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  pointer-events: none;
+}
+:root[data-theme="glass"] .statusbar {
+  border: none;
+  background: transparent;
+}
+/* Menus are fixed themselves and hold no fixed children, so they can be filtered. */
+:root[data-theme="glass"] :is(.filetree-menu, .hw-menu, .cm-spell-menu) {
+  backdrop-filter: var(--glass-blur);
+}
+:root[data-theme="glass"] .modal-backdrop {
+  backdrop-filter: blur(6px);
+}
+/* The note sits directly on its pane (one layer of glass, not two). */
+:root[data-theme="glass"] .content .cm-editor {
+  background: transparent;
+}
+/* Selection is a soft rounded pill, as in Finder's sidebar. */
+:root[data-theme="glass"] .filetree-row {
+  margin: 0 6px;
+  border-radius: var(--radius);
+}
+:root[data-theme="glass"] .filetree-row.selected,
+:root[data-theme="glass"] .filetree-body:focus-visible .filetree-row.selected {
+  box-shadow: none;
+}
+:root[data-theme="glass"] .filetree-row.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+:root[data-theme="glass"] .filetree-row.active * {
+  color: inherit;
+}
+
+/* ---------------------------------------------------------------- Translucent */
+/* The window itself is see-through: the desktop shows behind it, blurred by Windows
+   (acrylic) unless turned off. `--tl-alpha` is the opacity from Settings → Appearance
+   (1 where the window can't be see-through). Only the backdrop carries it; panes are
+   faint tints over it, so nested surfaces don't stack up into opaque patches. Menus and
+   dialogs stay nearly solid, for reading. */
+:root[data-theme="translucent"],
+[data-theme-preview="translucent"] {
+  color-scheme: light;
+  --app-backdrop: rgba(240, 242, 247, var(--tl-alpha, 0.8));
+  --bg: rgba(255, 255, 255, 0.34);
+  --bg-sidebar: rgba(255, 255, 255, 0.1);
+  --bg-elevated: rgba(248, 249, 252, 0.97);
+  --bg-hover: rgba(0, 0, 0, 0.06);
+  --bg-active: rgba(68, 82, 208, 0.16);
+  --fg: #14161b;
+  --fg-muted: #545962;
+  --border: rgba(0, 0, 0, 0.1);
+  --accent: #4452d0;
+  --accent-fg: #ffffff;
+  --danger: #c4302b;
+  --code-bg: rgba(0, 0, 0, 0.05);
+  --selection: rgba(68, 82, 208, 0.26);
+  --scrim: rgba(0, 0, 0, 0.16);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="translucent"],
+  [data-theme-preview="translucent"] {
+    color-scheme: dark;
+    --app-backdrop: rgba(20, 21, 26, var(--tl-alpha, 0.8));
+    --bg: rgba(255, 255, 255, 0.045);
+    --bg-sidebar: rgba(0, 0, 0, 0.16);
+    --bg-elevated: rgba(33, 34, 40, 0.97);
+    --bg-hover: rgba(255, 255, 255, 0.07);
+    --bg-active: rgba(143, 152, 255, 0.22);
+    --fg: #f1f2f5;
+    --fg-muted: #a7abb4;
+    --border: rgba(255, 255, 255, 0.1);
+    --accent: #8f98ff;
+    --accent-fg: #11121a;
+    --danger: #ff6b66;
+    --code-bg: rgba(255, 255, 255, 0.06);
+    --selection: rgba(143, 152, 255, 0.3);
+    --scrim: rgba(0, 0, 0, 0.3);
+  }
+}
+/* No solid page behind the app (app.css paints one until a theme loads). */
+:root[data-theme="translucent"] {
+  background: transparent;
+}
+/* One tint for the whole main area, header included; the note and graph sit on it. */
+:root[data-theme="translucent"] .content {
+  background: var(--bg);
+}
+:root[data-theme="translucent"] .content :is(.cm-editor, .graph-canvas) {
+  background: transparent;
+}
+
+/* ---------------------------------------------------------------- High contrast */
+:root[data-theme="contrast"],
+[data-theme-preview="contrast"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --bg-sidebar: #000000;
+  --bg-elevated: #000000;
+  --bg-hover: #1f1f1f;
+  --bg-active: #003f87;
+  --fg: #ffffff;
+  --fg-muted: #d4d4d4;
+  --border: #bdbdbd;
+  --accent: #ffd500;
+  --accent-fg: #000000;
+  --danger: #ff6b6b;
+  --code-bg: #141414;
+  --selection: #0050c8;
+  --scrim: rgba(0, 0, 0, 0.8);
+  --shadow-pop: 0 0 0 2px #ffffff;
+  --shadow-modal: 0 0 0 2px #ffffff;
+}
+:root[data-theme="contrast"] .cm-lp-wikilink {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:root[data-theme="contrast"] .cm-lp-highlight {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+:root[data-theme="contrast"] :focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- Retro */
+:root[data-theme="retro"],
+[data-theme-preview="retro"] {
+  color-scheme: light;
+  --font-ui: "Cascadia Mono", "IBM Plex Mono", Consolas, "Courier New", monospace;
+  --font-note: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --bg: #f4ecd9;
+  --bg-sidebar: #ebe0c6;
+  --bg-elevated: #fbf6ea;
+  --bg-hover: #e4d6b6;
+  --bg-active: #f3c86a;
+  --fg: #2a2118;
+  --fg-muted: #7b6a54;
+  --border: #2a2118;
+  --accent: #c8553d;
+  --accent-fg: #fff8ec;
+  --danger: #b3261e;
+  --code-bg: #e9dcbf;
+  --selection: #f6d58e;
+  --scrim: rgba(42, 33, 24, 0.35);
+  --radius-sm: 2px;
+  --radius: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --shadow-pop: 3px 3px 0 #2a2118;
+  --shadow-modal: 6px 6px 0 #2a2118;
+}
+:root[data-theme="retro"] :is(button.primary, .settings-control button, .welcome-actions button) {
+  box-shadow: 2px 2px 0 var(--border);
+}
+:root[data-theme="retro"]
+  :is(button.primary, .settings-control button, .welcome-actions button):active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--border);
+}
+/* Classic-Mac title bar: pinstripes behind the vault name. */
+:root[data-theme="retro"] .sidebar-header {
+  background: repeating-linear-gradient(var(--bg-sidebar) 0 2px, rgba(42, 33, 24, 0.55) 2px 3px)
+    center / 100% 11px no-repeat;
+}
+:root[data-theme="retro"] .sidebar-vault {
+  flex: none;
+  max-width: 70%;
+  margin: 0 auto;
+  padding: 0 8px;
+  background: var(--bg-sidebar);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+:root[data-theme="retro"] .sidebar-settings {
+  background: var(--bg-sidebar);
+}

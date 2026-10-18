@@ -1,8 +1,13 @@
-import { Suspense, useEffect } from "react";
+import { type CSSProperties, Suspense, useEffect } from "react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
-import { applyAppearance, applyTypography } from "./app/appearance";
+import {
+  applyAppearance,
+  applyTranslucency,
+  applyTypography,
+  onBlurAvailabilityChange,
+} from "./app/appearance";
 import { installZoom } from "./app/zoom";
 import { openDailyNote } from "./features/commands/actions";
 import { Modals } from "./features/commands/Modals";
@@ -12,9 +17,13 @@ import { lazyNamed } from "./app/lazy";
 import { loadFunctions } from "./lib/formula/functions";
 import { ImageView, UnsupportedView } from "./features/files/ImageView";
 import { useClipNotices } from "./features/clipper/useClipNotices";
+import { UpdateBanner } from "./features/updates/UpdateBanner";
+import { checkOnLaunch } from "./features/updates/updates";
+import { guardWindowClose } from "./features/files/closeGuard";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
+import { useLayout } from "./app/layout";
 
 // Views other than the note editor load on first use (grids also need the formula
 // function library before they render).
@@ -29,6 +38,11 @@ const TimeReport = lazyNamed(() => import("./features/time/TimeReport"), "TimeRe
 import { RunningTimer } from "./features/time/TimerControls";
 import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
+import { PanelToggle } from "./features/panels/PanelToggle";
+import { usePresence } from "./features/panels/presence";
+import { TabBar } from "./features/tabs/TabBar";
+import { TAB_PANEL_ID } from "./features/tabs/tabInfo";
+import { NewTab } from "./features/tabs/NewTab";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
@@ -38,6 +52,11 @@ export default function App() {
   const notice = useAppStore((s) => s.notice);
   const indexing = useAppStore((s) => s.indexing);
   const refreshTree = useAppStore((s) => s.refreshTree);
+  const showLeft = useLayout((s) => s.left);
+  const showRight = useLayout((s) => s.right);
+  const leftWidth = useLayout((s) => s.leftWidth);
+  const rightWidth = useLayout((s) => s.rightWidth);
+  const rightMounted = usePresence(showRight);
   useClipNotices();
 
   // Restore a vault the backend already has open (e.g. after a webview reload), or
@@ -90,9 +109,21 @@ export default function App() {
 
   const typography = useConfig((s) => s.config.appearance);
   useEffect(() => applyTypography(typography), [typography]);
+  const { windowOpacity, windowBlur } = typography;
+  useEffect(() => {
+    const apply = () => void applyTranslucency(theme, { windowOpacity, windowBlur });
+    apply();
+    return onBlurAvailabilityChange(apply);
+  }, [theme, windowOpacity, windowBlur]);
 
   // Zoom applies to the welcome screen too, so it doesn't wait for a vault.
   useEffect(() => installZoom(), []);
+
+  // A newer version in the updates folder is offered by a banner (never installed unasked).
+  useEffect(() => void checkOnLaunch(), []);
+
+  // Closing the window saves every open document first, and stays open if one can't be.
+  useEffect(() => guardWindowClose(), []);
 
   // Keep the tree in sync with edits made outside the app.
   useEffect(() => {
@@ -121,36 +152,77 @@ export default function App() {
     };
   }, []);
 
-  if (!vault) return <WelcomeScreen />;
+  if (!vault)
+    return (
+      <>
+        <WelcomeScreen />
+        <UpdateBanner />
+      </>
+    );
 
   return (
-    <div className="shell">
-      <LeftSidebar />
-      <main className="content">
-        <Suspense fallback={<div className="empty muted">Loading…</div>}>
-          {mainView === "graph" ? (
-            <GraphView />
-          ) : mainView === "tasks" ? (
-            <TasksView />
-          ) : mainView === "time" ? (
-            <TimeReport />
-          ) : activePath && docKind(activePath) === "grid" ? (
-            <Grid key={activePath} path={activePath} />
-          ) : activePath && docKind(activePath) === "canvas" ? (
-            <Canvas key={activePath} path={activePath} />
-          ) : activePath && docKind(activePath) === "image" ? (
-            <ImageView key={activePath} path={activePath} />
-          ) : activePath && docKind(activePath) === "other" ? (
-            <UnsupportedView key={activePath} path={activePath} />
-          ) : activePath ? (
-            <Editor key={activePath} path={activePath} />
-          ) : (
-            <div className="empty muted">Select or create a note</div>
-          )}
-        </Suspense>
+    <div
+      className="shell"
+      // A hidden panel's column is 0 px rather than removed, so it can slide (see .shell).
+      style={
+        {
+          gridTemplateColumns: `${showLeft ? leftWidth : 0}px minmax(0, 1fr) ${showRight ? rightWidth : 0}px`,
+          "--left-width": `${leftWidth}px`,
+          "--right-width": `${rightWidth}px`,
+        } as CSSProperties
+      }
+    >
+      {/* Kept mounted while hidden, so the file tree and search keep their state. */}
+      <div
+        className="sidebar-slot left"
+        data-closed={showLeft ? undefined : ""}
+        aria-hidden={showLeft ? undefined : true}
+        inert={!showLeft}
+      >
+        <LeftSidebar />
+      </div>
+      <main className={showLeft ? "content" : "content left-hidden"}>
+        {/* The left panel's own header holds its hide button; once hidden, it shows here. */}
+        {!showLeft && <PanelToggle side="left" className="side-panels-toggle left" />}
+        <PanelToggle side="right" className="side-panels-toggle" />
+        <TabBar />
+        <div className="tab-panel" id={TAB_PANEL_ID} role="tabpanel">
+          <Suspense fallback={<div className="empty muted">Loading…</div>}>
+            {mainView === "graph" ? (
+              <GraphView />
+            ) : mainView === "tasks" ? (
+              <TasksView />
+            ) : mainView === "time" ? (
+              <TimeReport />
+            ) : activePath && docKind(activePath) === "grid" ? (
+              <Grid key={activePath} path={activePath} />
+            ) : activePath && docKind(activePath) === "canvas" ? (
+              <Canvas key={activePath} path={activePath} />
+            ) : activePath && docKind(activePath) === "image" ? (
+              <ImageView key={activePath} path={activePath} />
+            ) : activePath && docKind(activePath) === "other" ? (
+              <UnsupportedView key={activePath} path={activePath} />
+            ) : activePath ? (
+              <Editor key={activePath} path={activePath} />
+            ) : (
+              <NewTab />
+            )}
+          </Suspense>
+        </div>
       </main>
-      <RightSidebar />
+      {/* The right side (with its live graph) only runs while showing or sliding away. */}
+      {rightMounted && (
+        <div
+          className="sidebar-slot right"
+          data-closed={showRight ? undefined : ""}
+          aria-hidden={showRight ? undefined : true}
+          inert={!showRight}
+        >
+          <RightSidebar />
+        </div>
+      )}
       <Modals />
+      <UpdateBanner />
       <footer className="statusbar">
         <span>{activePath ?? ""}</span>
         {indexing && (

@@ -128,7 +128,12 @@ describe("text size, fonts and editor width", () => {
     expect(useZoom.getState().zoom).toBe(1.5);
     await waitFor(async () =>
       expect(JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).appearance).toEqual(
-        { noteFontSize: 19, noteFont: "Georgia", uiFont: "", editorWidth: "wide" },
+        {
+          ...DEFAULT_CONFIG.appearance,
+          noteFontSize: 19,
+          noteFont: "Georgia",
+          editorWidth: "wide",
+        },
       ),
     );
   });

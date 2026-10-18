@@ -1,18 +1,42 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import { type FolderIcon, useConfig } from "../../app/config";
 import { loadEmoji, searchEmoji } from "../editor/quickCommands";
-import { ICON_COLORS, ICONS } from "./iconSet";
+import {
+  ICON_COLORS,
+  ICONS,
+  imageIcon,
+  imageIconPath,
+  isLucide,
+  loadAllIcons,
+  loadedIcons,
+  matchesIcon,
+} from "./iconSet";
+import { ImageChooser } from "./ImageChooser";
 import "./icons.css";
+
+/** Icons rendered per page of results, so typing stays quick with ~1,900 icons. */
+export const ICON_PAGE = 240;
+
+type Load = "loading" | "ready" | "error";
 
 export function IconPicker({ path, onClose }: { path: string; onClose(): void }) {
   const current = useConfig((s) => s.config.folderIcons[path]);
   const update = useConfig((s) => s.update);
-  const [tab, setTab] = useState<"icons" | "emoji">(
-    current && !current.icon.startsWith("lucide:") ? "emoji" : "icons",
+  const [tab, setTab] = useState<"icons" | "emoji" | "image">(
+    !current || isLucide(current.icon)
+      ? "icons"
+      : imageIconPath(current.icon) !== null
+        ? "image"
+        : "emoji",
   );
   const [color, setColor] = useState(current?.color ?? "");
   const [query, setQuery] = useState("");
   const [emoji, setEmoji] = useState<{ emoji: string; name: string }[]>([]);
+  const [all, setAll] = useState<Record<string, LucideIcon> | null>(loadedIcons);
+  const [load, setLoad] = useState<Load>(all ? "ready" : "loading");
+  const [attempt, setAttempt] = useState(0);
+  const [limit, setLimit] = useState(ICON_PAGE);
 
   useEffect(() => {
     if (tab !== "emoji") return;
@@ -25,6 +49,22 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
     };
   }, [tab, query]);
 
+  useEffect(() => {
+    if (tab !== "icons" || all) return;
+    let cancelled = false;
+    loadAllIcons().then(
+      (icons) => {
+        if (cancelled) return;
+        setAll(icons);
+        setLoad("ready");
+      },
+      () => !cancelled && setLoad("error"),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, all, attempt]);
+
   const save = (icon: FolderIcon | null) => {
     void update((c) => {
       const folderIcons = { ...c.folderIcons };
@@ -36,8 +76,29 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
   };
   const pick = (icon: string) => save(color ? { icon, color } : { icon });
 
-  const icons = Object.entries(ICONS).filter(([name]) =>
-    name.toLowerCase().includes(query.toLowerCase()),
+  const suggested = Object.entries(ICONS).filter(([name]) => matchesIcon(name, query));
+  // The full set minus the suggested ones (shown first), filtered by the query.
+  const rest = useMemo(
+    () =>
+      all
+        ? Object.entries(all).filter(([name]) => !(name in ICONS) && matchesIcon(name, query))
+        : [],
+    [all, query],
+  );
+  const shown = rest.slice(0, limit);
+  const customColor = color && !ICON_COLORS.includes(color) ? color : "";
+
+  const iconButton = ([name, Icon]: [string, LucideIcon]) => (
+    <button
+      key={name}
+      role="option"
+      aria-selected={current?.icon === `lucide:${name}`}
+      aria-label={name}
+      title={name}
+      onClick={() => pick(`lucide:${name}`)}
+    >
+      <Icon size={18} style={color ? { color } : undefined} />
+    </button>
   );
 
   return (
@@ -57,16 +118,28 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
             <button role="tab" aria-selected={tab === "emoji"} onClick={() => setTab("emoji")}>
               Emoji
             </button>
+            <button role="tab" aria-selected={tab === "image"} onClick={() => setTab("image")}>
+              Image
+            </button>
           </div>
           <input
             aria-label="Filter icons"
-            placeholder="Filter…"
+            placeholder={
+              tab === "icons"
+                ? "Search icons…"
+                : tab === "emoji"
+                  ? "Search emoji…"
+                  : "Search images…"
+            }
             autoFocus
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setLimit(ICON_PAGE);
+            }}
           />
         </div>
-        <div className="icon-colors" role="radiogroup" aria-label="Color">
+        <div className="icon-colors" role="radiogroup" aria-label="Color" hidden={tab === "image"}>
           {ICON_COLORS.map((c) => (
             <button
               key={c || "none"}
@@ -78,22 +151,70 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
               onClick={() => setColor(c)}
             />
           ))}
+          <label
+            className={`icon-swatch icon-custom-color${customColor ? " chosen" : ""}`}
+            title="Any colour"
+            style={customColor ? { background: customColor } : undefined}
+          >
+            <input
+              type="color"
+              aria-label="Custom color"
+              value={customColor || "#888888"}
+              onChange={(e) => setColor(e.target.value)}
+            />
+          </label>
         </div>
-        <div className="icon-grid" role="listbox" aria-label="Choose an icon">
-          {tab === "icons"
-            ? icons.map(([name, Icon]) => (
-                <button
-                  key={name}
-                  role="option"
-                  aria-selected={current?.icon === `lucide:${name}`}
-                  aria-label={name}
-                  title={name}
-                  onClick={() => pick(`lucide:${name}`)}
-                >
-                  <Icon size={18} style={color ? { color } : undefined} />
-                </button>
-              ))
-            : emoji.map((e) => (
+        <div className="icon-scroll">
+          {tab === "icons" ? (
+            <>
+              {suggested.length > 0 && (
+                <>
+                  {!query && <div className="icon-section">Suggested</div>}
+                  <div className="icon-grid" role="listbox" aria-label="Suggested icons">
+                    {suggested.map(iconButton)}
+                  </div>
+                </>
+              )}
+              {!query && <div className="icon-section">All icons</div>}
+              {load === "loading" && <p className="icon-note">Loading all icons…</p>}
+              {load === "error" && (
+                <p className="icon-note" role="alert">
+                  Couldn't load the full icon set.{" "}
+                  <button
+                    onClick={() => {
+                      setLoad("loading");
+                      setAttempt((n) => n + 1);
+                    }}
+                  >
+                    Try again
+                  </button>
+                </p>
+              )}
+              {load === "ready" && (
+                <>
+                  <div className="icon-grid" role="listbox" aria-label="Choose an icon">
+                    {shown.map(iconButton)}
+                  </div>
+                  {rest.length > shown.length && (
+                    <button className="icon-more" onClick={() => setLimit((n) => n + ICON_PAGE)}>
+                      Show more ({(rest.length - shown.length).toLocaleString()} left)
+                    </button>
+                  )}
+                  {query && suggested.length === 0 && rest.length === 0 && (
+                    <p className="icon-note">No icons match “{query}”.</p>
+                  )}
+                </>
+              )}
+            </>
+          ) : tab === "image" ? (
+            <ImageChooser
+              forPath={path}
+              query={query}
+              onPick={(p) => save({ icon: imageIcon(p) })}
+            />
+          ) : (
+            <div className="icon-grid" role="listbox" aria-label="Choose an emoji">
+              {emoji.map((e) => (
                 <button
                   key={e.emoji}
                   role="option"
@@ -105,6 +226,8 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
                   {e.emoji}
                 </button>
               ))}
+            </div>
+          )}
         </div>
         <div className="icon-picker-actions">
           {current && <button onClick={() => save(null)}>Remove icon</button>}
