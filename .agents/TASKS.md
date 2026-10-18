@@ -67,7 +67,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-084 | 6     | Welcome-screen ASCII art from the user's three-cusp star design (letters in a soft star, warm-to-cool tint) | claude | merged    | agent/claude/T-084 | `src/features/vault/{AsciiBackdrop.tsx,asciiField.ts,asciiBackdrop.test.tsx}` |
 | T-085 | 6     | Notes as tabs like Obsidian: tab bar, per-tab history, pins, new-tab clicks, shortcuts, saved per vault | claude | merged    | agent/claude/T-085 | `src/app/{store,tabs}*`, `src/features/tabs/**`, `src/App.tsx`, `src/styles/app.css` (content, toggles), `src/features/commands/{registry,Modals,Picker,actions}.ts*`, `src/features/filetree/FileTree.tsx`, `src/features/editor/{Editor.tsx,links.ts}`, `src/test/setup.ts`, `e2e/specs/tabs.e2e.ts` |
 | T-086 | 6     | Obsidian-style graph (live physics, drag, Filters/Groups/Display/Forces panel) and a Tree layout (links, backlinks or folders) | claude | merged    | agent/claude/T-086 | `src/features/graph/**`, `package.json`, `pnpm-lock.yaml`, `docs/DECISIONS.md` |
-| T-087 | 6     | Tab groups like Chrome: multi-select, coloured/named groups, collapse, drag groups, saved with tabs | claude | approved    | agent/claude/T-087 | `src/app/{store,tabs}*`, `src/features/tabs/**`, `src/features/commands/registry.ts`, `e2e/specs/tabs.e2e.ts` |
+| T-087 | 6     | Tab groups like Chrome: multi-select, coloured/named groups, collapse, drag groups, saved with tabs | claude | merged      | agent/claude/T-087 | `src/app/{store,tabs}*`, `src/features/tabs/**`, `src/features/commands/registry.ts`, `e2e/specs/tabs.e2e.ts` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
