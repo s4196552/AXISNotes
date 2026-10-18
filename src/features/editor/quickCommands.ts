@@ -2,6 +2,7 @@ import {
   type Completion,
   type CompletionContext,
   type CompletionResult,
+  type CompletionSection,
   completionStatus,
   startCompletion,
 } from "@codemirror/autocomplete";
@@ -328,6 +329,47 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: "style-plain", label: "Page style: Plain", icon: File, run: setPageStyle("plain") },
 ];
 
+/**
+ * The command menu's sections, in order, like Notion's. While something is typed the
+ * matches are ranked by how well they match, under one "Filtered results" header.
+ */
+export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
+  {
+    name: "Basic blocks",
+    ids: [
+      "h1",
+      "h2",
+      "h3",
+      "bullet",
+      "numbered",
+      "task",
+      "quote",
+      "code",
+      "table",
+      "divider",
+      "callout",
+    ],
+  },
+  { name: "Links", ids: ["link", "embed"] },
+  {
+    name: "Insert",
+    ids: ["date", "time", "due", "priority-high", "priority-medium", "priority-low", "template"],
+  },
+  { name: "Diagrams and pen", ids: ["diagram", "mermaid", "handwriting"] },
+  {
+    name: "Page style",
+    ids: ["style-plain", "style-lined", "style-dotted", "style-grid", "style-cornell"],
+  },
+];
+const CUSTOM_GROUP = "Custom";
+const FILTERED: CompletionSection = { name: "Filtered results", rank: 0 };
+
+const placeOf = new Map(
+  COMMAND_GROUPS.flatMap((g, rank) =>
+    g.ids.map((id, order) => [id, { section: { name: g.name, rank }, order }] as const),
+  ),
+);
+
 /** A command-menu option: carries its icon and Markdown hint for `commandMenuRender`. */
 interface CommandCompletion extends Completion {
   commandIcon: LucideIcon;
@@ -386,30 +428,42 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
   const { start, typedFrom } = at;
   // Once a command runs the menu is done, so typing afterwards doesn't reopen it.
   const done = (view: EditorView) => view.dispatch({ effects: setMenuAnchor.of(null) });
+  // Nothing typed: Notion-style sections in their set order. Typed: one ranked list. The
+  // result is only reused while that stays true, so the layout switches as you type.
+  const filtering = context.state.sliceDoc(typedFrom, context.pos).trim() !== "";
+  const place = (section: CompletionSection, order: number) =>
+    filtering ? { section: FILTERED } : { section, boost: -order };
+  const custom: CompletionSection = { name: CUSTOM_GROUP, rank: COMMAND_GROUPS.length };
   const options: CommandCompletion[] = [
-    ...SLASH_COMMANDS.filter((c) => !cfg.disabled.includes(c.id)).map((c) => ({
-      label: c.label,
-      detail: c.detail,
-      markdown: c.markdown,
-      commandIcon: c.icon,
-      type: "command",
-      apply: (view: EditorView, _c: Completion, _f: number, to: number) => {
-        done(view);
-        c.run(view, start, to, cfg);
-      },
-    })),
-    ...cfg.custom.map((c) => ({
+    ...SLASH_COMMANDS.filter((c) => !cfg.disabled.includes(c.id)).map((c) => {
+      const at = placeOf.get(c.id) ?? { section: custom, order: 0 };
+      return {
+        label: c.label,
+        detail: c.detail,
+        markdown: c.markdown,
+        commandIcon: c.icon,
+        type: "command",
+        ...place(at.section, at.order),
+        apply: (view: EditorView, _c: Completion, _f: number, to: number) => {
+          done(view);
+          c.run(view, start, to, cfg);
+        },
+      };
+    }),
+    ...cfg.custom.map((c, i) => ({
       label: c.label,
       detail: "custom",
       commandIcon: Zap,
       type: "command",
+      ...place(custom, i),
       apply: (view: EditorView, _c: Completion, _f: number, to: number) => {
         done(view);
         insert(view, start, to, c.insert.replace("{{cursor}}", "|"));
       },
     })),
   ];
-  return { from: typedFrom, options, validFor: /^[\w ]*$/ };
+  const validFor = (typed: string) => /^[\w ]*$/.test(typed) && (typed.trim() !== "") === filtering;
+  return { from: typedFrom, options, validFor };
 }
 
 // ---- Emoji ----

@@ -69,6 +69,14 @@ const editorTheme = EditorView.theme({
     color: "var(--fg-muted)",
   },
   "li[aria-selected] > .cm-commandIcon": { color: "var(--fg)" },
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > completion-section": {
+    padding: "8px 10px 3px",
+    borderBottom: "none",
+    opacity: "1",
+    color: "var(--fg-muted)",
+    fontSize: "11.5px",
+    fontWeight: "600",
+  },
   ".cm-commandMarkdown": {
     marginLeft: "auto",
     paddingLeft: "1.5em",
