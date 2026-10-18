@@ -17,11 +17,13 @@ import { formatDate } from "../../lib/dates";
 import { inlineProperties } from "../../lib/markdown";
 import {
   commandMenuAnchor,
+  COMMAND_GROUPS,
   commandMenuRender,
   DEFAULT_QUICK_CONFIG,
   openCommandMenu,
   type QuickCommandConfig,
   quickCommandConfig,
+  SLASH_COMMANDS,
   slashCompletions,
 } from "./quickCommands";
 import {
@@ -671,5 +673,68 @@ describe("command menu icons and Markdown hints", () => {
     const custom = slashCompletions(ctx(view))!.options.find((o) => o.label === "Signature")!;
     expect(render(custom)).toHaveLength(1);
     expect(render({ label: "Biology", type: "text" })).toEqual([]);
+  });
+});
+
+describe("command menu sections", () => {
+  const sectionOf = (c: Completion) =>
+    typeof c.section === "string" ? c.section : c.section?.name;
+
+  it("puts every built-in command in exactly one section", () => {
+    const ids = COMMAND_GROUPS.flatMap((g) => g.ids);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect([...ids].sort()).toEqual(SLASH_COMMANDS.map((c) => c.id).sort());
+  });
+
+  it("shows Notion-style sections in their set order until something is typed", async () => {
+    const view = viewWith("", {
+      cfg: { custom: [{ label: "Signature", insert: "— Me" }] },
+    });
+    openCommandMenu(view);
+    await vi.waitFor(() => expect(currentCompletions(view.state).length).toBeGreaterThan(0));
+    const shown = currentCompletions(view.state);
+    expect(shown.slice(0, 4).map((c) => c.label)).toEqual([
+      "Heading 1",
+      "Heading 2",
+      "Heading 3",
+      "Bulleted list",
+    ]);
+    expect([...new Set(shown.map(sectionOf))]).toEqual([
+      "Basic blocks",
+      "Links",
+      "Insert",
+      "Diagrams and pen",
+      "Page style",
+      "Custom",
+    ]);
+
+    type(view, "list");
+    await vi.waitFor(() => {
+      const now = currentCompletions(view.state);
+      expect(now.map((c) => c.label)).toContain("Bulleted list");
+      expect(now.every((c) => sectionOf(c) === "Filtered results")).toBe(true);
+    });
+
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length },
+      userEvent: "delete.backward",
+    });
+    await vi.waitFor(() =>
+      expect(sectionOf(currentCompletions(view.state)[0]!)).toBe("Basic blocks"),
+    );
+  });
+
+  it("keeps the menu open when several letters arrive before it re-ranks", async () => {
+    const view = viewWith("");
+    openCommandMenu(view);
+    await vi.waitFor(() => expect(currentCompletions(view.state).length).toBeGreaterThan(0));
+    for (const ch of "head") type(view, ch);
+    await vi.waitFor(() =>
+      expect(currentCompletions(view.state).map((c) => c.label)).toEqual([
+        "Heading 1",
+        "Heading 2",
+        "Heading 3",
+      ]),
+    );
   });
 });
