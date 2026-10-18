@@ -228,6 +228,16 @@ registerCommands([
     run: () => useAppStore.getState().closeOtherTabs(),
   },
   {
+    id: "group-tabs",
+    label: "Add selected tabs to a new group",
+    run: () => void useAppStore.getState().groupTabs(),
+  },
+  {
+    id: "ungroup-tabs",
+    label: "Remove selected tabs from their group",
+    run: () => useAppStore.getState().removeTabsFromGroup(),
+  },
+  {
     id: "copy-block-link",
     label: "Copy link to block",
     shortcut: { key: "b", mod: true, shift: true },

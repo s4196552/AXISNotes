@@ -4,7 +4,7 @@ import { parseWikilinkInner } from "../lib/markdown";
 import { markNewVault, rememberVault } from "./recentVaults";
 import { showLeftPanel } from "./layout";
 import * as T from "./tabs";
-import type { TabsState, View } from "./tabs";
+import type { GroupColor, TabsState, View } from "./tabs";
 
 /** Where to put the cursor after opening a note. */
 export interface OpenTarget {
@@ -69,9 +69,25 @@ export interface AppState {
   goToTab(index: number): void;
   goBack(): void;
   goForward(): void;
-  moveTab(id: string, to: number): void;
+  /** Move a tab; `group` puts it in that group (null: none), else it keeps its own. */
+  moveTab(id: string, to: number, group?: string | null): void;
   togglePinTab(id?: string): void;
   reopenClosedTab(): void;
+  /** Ctrl+click ("toggle") or Shift+click ("range") a tab. */
+  selectTab(id: string, mode: "toggle" | "range"): void;
+  clearTabSelection(): void;
+  /** Put tabs (default: the selected ones) in a new group; returns its id. */
+  groupTabs(ids?: string[]): string | null;
+  addTabsToGroup(ids: string[], groupId: string): void;
+  /** Take tabs (default: the selected ones) out of their groups. */
+  removeTabsFromGroup(ids?: string[]): void;
+  ungroupTabs(groupId: string): void;
+  closeTabGroup(groupId: string): void;
+  updateTabGroup(groupId: string, patch: { name?: string; color?: GroupColor }): void;
+  /** Collapse or expand a group. */
+  toggleTabGroup(groupId: string): void;
+  newTabInGroup(groupId: string): void;
+  moveTabGroup(groupId: string, to: number): void;
   clearPendingTarget(): void;
   /**
    * Follow a wikilink written in note `from` (inner text like `Note#Heading|alias`).
@@ -210,12 +226,34 @@ export const useAppStore = create<AppState>((set, get) => ({
   goToTab: (index) => set({ ...withTabs(T.goTo(get().tabs, index)), pendingTarget: null }),
   goBack: () => set({ ...withTabs(T.back(get().tabs)), pendingTarget: null }),
   goForward: () => set({ ...withTabs(T.forward(get().tabs)), pendingTarget: null }),
-  moveTab: (id, to) => set(withTabs(T.moveTab(get().tabs, id, to))),
+  moveTab: (id, to, group) => set(withTabs(T.moveTab(get().tabs, id, to, group))),
   togglePinTab(id) {
     const tabs = get().tabs;
     set(withTabs(T.togglePin(tabs, id ?? tabs.active)));
   },
   reopenClosedTab: () => set({ ...withTabs(T.reopenClosed(get().tabs)), pendingTarget: null }),
+  selectTab: (id, mode) => set({ tabs: T.selectTab(get().tabs, id, mode) }),
+  clearTabSelection: () => set({ tabs: T.clearSelection(get().tabs) }),
+  groupTabs(ids) {
+    const tabs = T.groupTabs(get().tabs, ids ?? T.selection(get().tabs));
+    if (tabs === get().tabs) return null;
+    set(withTabs(tabs));
+    return tabs.groups.at(-1)!.id;
+  },
+  addTabsToGroup: (ids, groupId) => set(withTabs(T.addToGroup(get().tabs, ids, groupId))),
+  removeTabsFromGroup(ids) {
+    const tabs = get().tabs;
+    set(withTabs(T.removeFromGroup(tabs, ids ?? T.selection(tabs))));
+  },
+  ungroupTabs: (groupId) => set(withTabs(T.ungroup(get().tabs, groupId))),
+  closeTabGroup: (groupId) =>
+    set({ ...withTabs(T.closeGroup(get().tabs, groupId)), pendingTarget: null }),
+  updateTabGroup: (groupId, patch) => set({ tabs: T.updateGroup(get().tabs, groupId, patch) }),
+  toggleTabGroup: (groupId) =>
+    set({ ...withTabs(T.toggleGroup(get().tabs, groupId)), pendingTarget: null }),
+  newTabInGroup: (groupId) =>
+    set({ ...withTabs(T.newTabInGroup(get().tabs, groupId)), pendingTarget: null }),
+  moveTabGroup: (groupId, to) => set(withTabs(T.moveGroup(get().tabs, groupId, to))),
 
   clearPendingTarget() {
     set({ pendingTarget: null });
