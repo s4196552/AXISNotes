@@ -6,6 +6,13 @@ import { loadFunctions } from "../lib/formula/functions";
 // Vitest globals are off, so Testing Library can't register its auto-cleanup.
 afterEach(cleanup);
 
+// Open tabs are saved per vault in local storage; don't carry them into the next test.
+afterEach(() => {
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith("axisnotes.tabs:")) localStorage.removeItem(key);
+  }
+});
+
 // waitFor/findBy default to 1 s, which busy machines can exceed.
 configure({ asyncUtilTimeout: 5000 });
 

@@ -76,6 +76,20 @@ export interface EditorProps {
 
 export const AUTOSAVE_DELAY_MS = 500;
 
+/**
+ * Where each note's cursor and scroll were when its editor closed, so switching back to
+ * a tab (or reopening the note) returns to the same place. Kept for this session only.
+ */
+const viewStates = new Map<string, { anchor: number; head: number; scrollTop: number }>();
+const VIEW_STATE_LIMIT = 200;
+
+function rememberViewState(path: string, view: EditorView) {
+  const { anchor, head } = view.state.selection.main;
+  viewStates.delete(path); // re-insert as the newest
+  viewStates.set(path, { anchor, head, scrollTop: view.scrollDOM.scrollTop });
+  if (viewStates.size > VIEW_STATE_LIMIT) viewStates.delete(viewStates.keys().next().value!);
+}
+
 type SaveStatus = "loading" | "saved" | "saving" | "dirty" | "error";
 type Banner = null | "conflict" | "removed";
 
@@ -243,12 +257,18 @@ export function Editor({ path }: EditorProps) {
         if (cancelled || !host.current) return;
         mtime.current = file.modifiedMs;
         const store = useAppStore.getState;
+        // Back where it was, unless a link asked for a heading/block/line.
+        const pending = store().pendingTarget?.path === path;
+        const saved = pending ? undefined : viewStates.get(path);
+        const len = file.content.length;
         created = new EditorView({
           parent: host.current,
           state: EditorState.create({
             doc: file.content,
-            // Start below the frontmatter so it shows as the properties chip.
-            selection: EditorSelection.cursor(splitFrontmatter(file.content).length),
+            // Else start below the frontmatter so it shows as the properties chip.
+            selection: saved
+              ? EditorSelection.single(Math.min(saved.anchor, len), Math.min(saved.head, len))
+              : EditorSelection.cursor(splitFrontmatter(file.content).length),
             extensions: [
               history(),
               drawSelection(),
@@ -283,7 +303,7 @@ export function Editor({ path }: EditorProps) {
               math,
               spellCompartment.current.of(configuredSpellcheck()),
               links({
-                openLink: (inner) => void followLink(inner, path),
+                openLink: (inner, newTab) => void followLink(inner, path, { newTab }),
                 openTag: (tag) => store().search(`tag:${tag}`),
                 isKnown: (target) => isKnownTarget(store().notes, target),
                 notes: () => store().notes,
@@ -314,6 +334,13 @@ export function Editor({ path }: EditorProps) {
         syncProps(created.state);
         setStatus("saved");
         setReady(true);
+        if (saved) {
+          const v = created;
+          v.requestMeasure({
+            read: () => {},
+            write: () => (v.scrollDOM.scrollTop = saved.scrollTop),
+          });
+        }
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -342,6 +369,7 @@ export function Editor({ path }: EditorProps) {
           await backend.writeFile(path, content, mtime.current, vault ?? undefined);
         });
       }
+      if (created) rememberViewState(path, created);
       created?.destroy();
       view.current = null;
       setActiveEditor(null);

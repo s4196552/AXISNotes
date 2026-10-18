@@ -244,13 +244,16 @@ input {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  /* Tabs on top, the active tab's view below (see features/tabs/tabs.css). */
+  display: flex;
+  flex-direction: column;
 }
 
-/* The hide/show right panel button, top right of the main area, and (while the left panel
-   is hidden) the show left panel button, top left. Headers there leave room for them. */
+/* The hide/show right panel button at the right end of the tab row, and (while the left
+   panel is hidden) the show left panel button at its left end. The row leaves room. */
 .side-panels-toggle {
   position: absolute;
-  top: 8px;
+  top: 5px;
   right: 10px;
   z-index: 5;
   display: grid;
@@ -274,26 +277,6 @@ input {
 .side-panels-toggle.left {
   right: auto;
   left: 10px;
-}
-.content .editor-header,
-.content .graph-toolbar {
-  padding-right: 52px;
-}
-/* Full-width headers (graph, grid, canvas) start at the left edge, so they always leave
-   room; the centred note and image headers only reach the button when the main area is
-   narrow. */
-.content.left-hidden .graph-toolbar,
-.content.left-hidden .grid-header,
-.content.left-hidden .canvas-header {
-  padding-left: 52px;
-}
-.content {
-  container-type: inline-size;
-}
-@container (max-width: 880px) {
-  .content.left-hidden .editor-header {
-    padding-left: 52px;
-  }
 }
 .empty {
   display: grid;

@@ -94,9 +94,10 @@ function QuickSwitcher() {
       items={items}
       limit={100}
       onClose={close}
-      onPick={(item) => {
+      // Ctrl+Enter (or Ctrl+click) opens the note in a new tab, as in Obsidian.
+      onPick={(item, { mod }) => {
         close();
-        openFile(item.id);
+        openFile(item.id, undefined, { newTab: mod });
       }}
       onCreate={(name) => {
         close();
