@@ -70,6 +70,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-087 | 6     | Tab groups like Chrome: multi-select, coloured/named groups, collapse, drag groups, saved with tabs | claude | merged      | agent/claude/T-087 | `src/app/{store,tabs}*`, `src/features/tabs/**`, `src/features/commands/registry.ts`, `e2e/specs/tabs.e2e.ts` |
 | T-088 | 6     | Command menu: a Lucide icon per command (no key glyph) and its Markdown on the right, like Notion | claude | merged      | agent/claude/T-088 | `src/features/editor/{quickCommands,lucideSvg,theme,Editor,triggers.test}.ts*` |
 | T-089 | 6     | Command menu sections like Notion (Basic blocks, Links, Insert, …) and "Filtered results" while typing | claude | merged      | agent/claude/T-089 | `src/features/editor/{quickCommands,theme,triggers.test}.ts` |
+| T-090 | 6     | Command menu: Turn into, toggle headings/list (foldable callouts) and a description under each command | claude | merged      | agent/claude/T-090 | `src/features/editor/{quickCommands,toggles,obsidianSyntax,lucideSvg,theme,Editor,editor.css}`, tests, `docs/DECISIONS.md` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

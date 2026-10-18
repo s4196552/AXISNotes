@@ -45,6 +45,7 @@ import {
   quickCommandConfig,
   slashCompletions,
 } from "./quickCommands";
+import { toggles } from "./toggles";
 import {
   blockCompletions,
   mentionCompletions,
@@ -301,6 +302,7 @@ export function Editor({ path }: EditorProps) {
               }),
               livePreview,
               obsidianSyntax,
+              toggles,
               mermaidBlocks,
               math,
               spellCompartment.current.of(configuredSpellcheck()),

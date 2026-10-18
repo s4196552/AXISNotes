@@ -2,6 +2,13 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-19: Notion-style command menu: Turn into, toggles and descriptions (T-090)
+
+- **Toggles are Obsidian foldable callouts:** `> [!toggle|h1]- Title` with the inside on the `> ` lines below. `|h1`–`|h6` (callout metadata) makes a toggle heading; without it the toggle is a toggle list. `+` is open and `-` closed, so the open/closed state is saved in the note and Obsidian folds the same block. The user chose this over plain headings with folding (no distinct block, state not saved) and HTML `<details>` (HTML in notes, awkward to edit).
+- **Toggles are drawn in two parts:** a state field hides a closed toggle's inside (hiding across line breaks must come from a state field) and makes it atomic for the cursor; a view plugin draws the arrow, the heading size and the indent, showing the Markdown only on a focused title line like the rest of the live preview. Code fences are tracked while scanning rather than read from the syntax tree, which may not be parsed that far yet.
+- **New blocks and Turn into, like Notion:** a block command (text, headings, lists, task, toggles, quote, callout, code) starts a new line under a line that has text, and replaces an empty line. While a query is typed on a line with text, each block command is followed by its "Turn into", which changes the current line and keeps its text.
+- **Descriptions** sit under each command's label (an icon tile on the left, the Markdown hint on the right).
+
 ## 2026-10-18: Obsidian-style graph physics and a tree layout (T-086)
 
 - **Live physics with d3-force instead of ForceAtlas2.** Obsidian's graph is a live simulation you can drag, with four sliders (centre, repel, link force, link distance); d3-force has exactly those forces, stops by itself when it cools (`alphaMin`), and pauses with `requestAnimationFrame` when the window is hidden. ForceAtlas2 has no link distance and no dragging story, so `graphology-layout-forceatlas2` is removed. Up to 120 ms of ticks run before the first frame so the graph doesn't open as a cloud; the rest animates. Graphs over 1,500 notes use a coarser Barnes–Hut (`theta` 1.2, `distanceMax` 600) and cool faster. The physics now runs on the main thread (ForceAtlas2 used a worker for big graphs); it only runs while the graph view is open and settling.
