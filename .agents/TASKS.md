@@ -72,6 +72,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-089 | 6     | Command menu sections like Notion (Basic blocks, Links, Insert, …) and "Filtered results" while typing | claude | merged      | agent/claude/T-089 | `src/features/editor/{quickCommands,theme,triggers.test}.ts` |
 | T-090 | 6     | Command menu: Turn into, toggle headings/list (foldable callouts) and a description under each command | claude | merged      | agent/claude/T-090 | `src/features/editor/{quickCommands,toggles,obsidianSyntax,lucideSvg,theme,Editor,editor.css}`, tests, `docs/DECISIONS.md` |
 | T-091 | 6     | Icon and image packs: upload a folder or .zip into the vault's hidden .axisnotes/packs, use them in the icon picker and cover gallery, manage in Settings | claude | merged      | agent/claude/T-091 | `src-tauri/src/packs.rs`, commands, `src/features/packs/**`, icon picker, `EntryIcon`, `PageHeader`, Settings, `e2e/specs/packs.e2e.ts`, `docs/DECISIONS.md` |
+| T-092 | 6     | Icons in the graph view: custom or kind icons on graph, local graph and tree nodes, on by default with an Icons checkbox | claude | merged      | agent/claude/T-092 | `src/features/graph/**` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

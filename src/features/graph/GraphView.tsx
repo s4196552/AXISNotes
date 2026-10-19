@@ -2,9 +2,16 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { Crosshair, Network, Settings2, Workflow, X } from "lucide-react";
 import { backend, type GraphData } from "../../ipc";
 import { useAppStore } from "../../app/store";
+import { useConfig } from "../../app/config";
 import { buildGraph, groupColors } from "./graphModel";
 import { useSigma, useThemeVersion } from "./useSigma";
-import { RANGES, useGraphSettings, type GraphMode, type TreeDirection } from "./graphSettings";
+import {
+  DEFAULT_DISPLAY,
+  RANGES,
+  useGraphSettings,
+  type GraphMode,
+  type TreeDirection,
+} from "./graphSettings";
 import { GraphSettingsPanel } from "./GraphSettingsPanel";
 import { TreeView } from "./TreeView";
 import { busiestNote } from "./treeModel";
@@ -62,6 +69,7 @@ export function GraphView() {
   const [panelOpen, setPanelOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const colors = useGraphColors();
+  const icons = useConfig((s) => s.config.folderIcons);
   const isGraph = settings.mode === "graph";
 
   const graph = useMemo(
@@ -94,6 +102,7 @@ export function GraphView() {
     display: settings.display,
     forces: settings.forces,
     groupColors: groups,
+    icons,
   });
 
   // Tree: the chosen root, else the open note, else the busiest note.
@@ -154,11 +163,13 @@ export function GraphView() {
             direction={settings.tree.direction}
             depth={settings.tree.depth}
             showUnresolved={settings.showUnresolved}
+            showIcons={settings.display.icons}
             activePath={activePath}
             onRoot={setChosenRoot}
             onDirection={(direction) => update((s) => ({ ...s, tree: { ...s.tree, direction } }))}
             onDepth={(depth) => update((s) => ({ ...s, tree: { ...s.tree, depth } }))}
             onUnresolved={(v) => update((s) => ({ ...s, showUnresolved: v }))}
+            onIcons={(v) => update((s) => ({ ...s, display: { ...s.display, icons: v } }))}
           />
         )}
         <span className="graph-count muted" aria-live="polite">
@@ -206,6 +217,7 @@ export function GraphView() {
           root={root}
           activePath={activePath}
           colors={colors}
+          icons={settings.display.icons ? icons : null}
           onOpen={open}
           onMakeRoot={setChosenRoot}
           onCount={onTreeCount}
@@ -230,11 +242,13 @@ function TreeControls(props: {
   direction: TreeDirection;
   depth: number;
   showUnresolved: boolean;
+  showIcons: boolean;
   activePath: string | null;
   onRoot(id: string | null): void;
   onDirection(d: TreeDirection): void;
   onDepth(d: number): void;
   onUnresolved(v: boolean): void;
+  onIcons(v: boolean): void;
 }) {
   const listId = useId();
   const notes = useMemo(() => (props.data?.nodes ?? []).filter((n) => !n.unresolved), [props.data]);
@@ -329,6 +343,14 @@ function TreeControls(props: {
           Unresolved
         </label>
       )}
+      <label>
+        <input
+          type="checkbox"
+          checked={props.showIcons}
+          onChange={(e) => props.onIcons(e.target.checked)}
+        />
+        Icons
+      </label>
     </div>
   );
 }
@@ -340,6 +362,10 @@ export function LocalGraph() {
   const [depth, setDepth] = useState(1);
   const container = useRef<HTMLDivElement>(null);
   const colors = useGraphColors();
+  const icons = useConfig((s) => s.config.folderIcons);
+  // Icons follow the graph's setting (as it was when this panel opened).
+  const [{ display: shown }] = useGraphSettings();
+  const display = useMemo(() => ({ ...DEFAULT_DISPLAY, icons: shown.icons }), [shown.icons]);
   const graph = useMemo(
     () =>
       data && activePath
@@ -351,7 +377,7 @@ export function LocalGraph() {
         : null,
     [data, activePath, depth, colors],
   );
-  useSigma(container, graph, openNode, activePath);
+  useSigma(container, graph, openNode, activePath, { display, icons });
 
   if (!activePath) return null;
   return (
