@@ -68,7 +68,7 @@ const CODE_NODES = new Set(["InlineCode", "FencedCode", "CodeBlock", "CodeText",
 
 type Node = ReturnType<ReturnType<typeof syntaxTree>["resolveInner"]>;
 
-function inCode(state: EditorState, pos: number): boolean {
+export function inCode(state: EditorState, pos: number): boolean {
   for (let n: Node | null = syntaxTree(state).resolveInner(pos, 1); n; n = n.parent) {
     if (CODE_NODES.has(n.name)) return true;
   }
@@ -181,11 +181,16 @@ const mathField = StateField.define<MathState>({
   provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
 });
 
+/** The document's `$$…$$` spans, as last scanned (none without the math extension). */
+export function mathRanges(state: EditorState): readonly { from: number; to: number }[] {
+  return state.field(mathField, false)?.spans ?? [];
+}
+
 /**
  * Whether `pos` is inside `$$…$$` math: an odd number of `$$` before it, outside code
  * (masked the same way as for rendering).
  */
-function insideMath(state: EditorState, pos: number): boolean {
+export function insideMath(state: EditorState, pos: number): boolean {
   return (withoutCode(state, pos).match(/(?<!\\)\$\$/g)?.length ?? 0) % 2 === 1;
 }
 

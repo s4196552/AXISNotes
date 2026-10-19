@@ -30,6 +30,7 @@ import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { PageHeader } from "./PageHeader";
 import { outlinerKeys, outlineView } from "./outlinerView";
+import { listAutoformat } from "./listAutoformat";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
 import { followLink, openAskAi, openFixText } from "../commands/actions";
@@ -293,6 +294,7 @@ export function Editor({ path }: EditorProps) {
               embeds(path),
               quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
               outlinerKeys,
+              listAutoformat,
               outlineCompartment.current.of(
                 useEditorPrefs.getState().outlineView ? outlineView : [],
               ),
