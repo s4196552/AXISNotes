@@ -150,3 +150,20 @@ describe("text size, fonts and editor width", () => {
     expect(screen.getByText("Rare Sans (not installed)")).toBeInTheDocument();
   });
 });
+
+describe("settings sections", () => {
+  it("shows an icon beside every section name", () => {
+    render(<Settings onClose={vi.fn()} />);
+    const nav = screen.getByRole("navigation", { name: "Settings sections" });
+    const buttons = nav.querySelectorAll("button");
+    expect(buttons.length).toBe(12);
+    for (const b of buttons) {
+      expect(b.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+      expect(b.textContent).not.toBe("");
+    }
+    expect(screen.getByRole("button", { name: "Appearance" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+});

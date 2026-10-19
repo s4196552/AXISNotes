@@ -79,6 +79,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-092 | 6     | Icons in the graph view: custom or kind icons on graph, local graph and tree nodes, on by default with an Icons checkbox | claude | merged      | agent/claude/T-092 | `src/features/graph/**` |
 | T-093 | 6     | No system title bar: the tab row is the title bar, with its own minimize/maximize/close and drag regions, like Obsidian | claude | merged      | agent/claude/T-093 | `src/features/window/**`, `src-tauri/{tauri.conf.json,capabilities/default.json}`, `src/ipc/{types,tauriBackend}.ts`, `src/App.tsx`, `src/main.tsx`, `src/features/tabs/TabBar.tsx`, `src/features/panels/Sidebars.tsx`, `src/styles/app.css` |
 | T-094 | 6     | Shared dialog header/footer/icon-button styles are global, so Import and Handwriting are styled on first open | claude | merged      | agent/claude/T-094 | `src/styles/{app.css,dialogChrome.test.ts}`, `src/features/ai/ai.css`, `src/features/vault/GettingStarted.tsx` |
+| T-095 | 6     | Settings sidebar: a Lucide icon beside each section name | claude | in-review   | agent/claude/T-095 | `src/features/settings/{Settings.tsx,settings.css,appearance.test.tsx}` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

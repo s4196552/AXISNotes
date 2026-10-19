@@ -1,5 +1,21 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Plus, X } from "lucide-react";
+import {
+  CalendarDays,
+  Images,
+  Info,
+  Keyboard,
+  LayoutTemplate,
+  type LucideIcon,
+  Palette,
+  Paperclip,
+  Plus,
+  RefreshCw,
+  Scissors,
+  Sparkles,
+  SpellCheck,
+  SquareSlash,
+  X,
+} from "lucide-react";
 import { backend } from "../../ipc";
 import { type AxisConfig, type EditorWidth, useConfig } from "../../app/config";
 import {
@@ -40,19 +56,19 @@ export type Section =
   | "updates"
   | "about";
 
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: "appearance", label: "Appearance" },
-  { id: "packs", label: "Icon & image packs" },
-  { id: "spelling", label: "Spelling" },
-  { id: "daily", label: "Daily notes" },
-  { id: "templates", label: "Templates" },
-  { id: "files", label: "Files & links" },
-  { id: "commands", label: "Quick commands" },
-  { id: "hotkeys", label: "Keyboard shortcuts" },
-  { id: "ai", label: "AI" },
-  { id: "clipper", label: "Web clipper" },
-  { id: "updates", label: "Updates" },
-  { id: "about", label: "About" },
+const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "packs", label: "Icon & image packs", icon: Images },
+  { id: "spelling", label: "Spelling", icon: SpellCheck },
+  { id: "daily", label: "Daily notes", icon: CalendarDays },
+  { id: "templates", label: "Templates", icon: LayoutTemplate },
+  { id: "files", label: "Files & links", icon: Paperclip },
+  { id: "commands", label: "Quick commands", icon: SquareSlash },
+  { id: "hotkeys", label: "Keyboard shortcuts", icon: Keyboard },
+  { id: "ai", label: "AI", icon: Sparkles },
+  { id: "clipper", label: "Web clipper", icon: Scissors },
+  { id: "updates", label: "Updates", icon: RefreshCw },
+  { id: "about", label: "About", icon: Info },
 ];
 
 export function Settings({ onClose, section: initial }: { onClose(): void; section?: Section }) {
@@ -77,6 +93,7 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
               aria-current={section === s.id ? "page" : undefined}
               onClick={() => setSection(s.id)}
             >
+              <s.icon size={16} aria-hidden="true" />
               {s.label}
             </button>
           ))}
