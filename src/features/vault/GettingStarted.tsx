@@ -4,8 +4,6 @@ import { backend } from "../../ipc";
 import { Logo } from "../../app/Logo";
 import { useAppStore } from "../../app/store";
 import { useUi } from "../commands/ui";
-// Its header and footer share the Ask AI dialog's styles, which otherwise only load with Ask AI.
-import "../ai/ai.css";
 import "./gettingStarted.css";
 
 // A short checklist shown once for a new vault (and from the palette): the essentials,
