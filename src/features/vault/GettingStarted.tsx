@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { Check, Circle, Rocket, X } from "lucide-react";
+import { Check, Circle, X } from "lucide-react";
 import { backend } from "../../ipc";
+import { Logo } from "../../app/Logo";
 import { useAppStore } from "../../app/store";
 import { useUi } from "../commands/ui";
+// Its header and footer share the Ask AI dialog's styles, which otherwise only load with Ask AI.
+import "../ai/ai.css";
 import "./gettingStarted.css";
 
 // A short checklist shown once for a new vault (and from the palette): the essentials,
@@ -88,7 +91,7 @@ export function GettingStarted({ onClose }: { onClose(): void }) {
         onKeyDown={(e) => e.key === "Escape" && onClose()}
       >
         <header className="ask-ai-header">
-          <Rocket size={16} /> <strong>Getting started</strong>
+          <Logo size={18} decorative /> <strong>Getting started</strong>
           <button className="ai-icon" aria-label="Close" onClick={onClose}>
             <X size={15} />
           </button>

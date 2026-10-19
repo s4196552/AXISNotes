@@ -70,6 +70,9 @@ describe("welcome and onboarding", () => {
     render(<GettingStarted onClose={onClose} />);
     await screen.findByRole("button", { name: "Change" }); // AI already set up
     expect(screen.getByRole("button", { name: "Pair" })).toBeInTheDocument();
+    // The header shows the logo, hidden from screen readers since the title names the dialog.
+    const logo = screen.getByRole("dialog").querySelector("header img.app-logo");
+    expect(logo).toHaveAttribute("alt", "");
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Open" })));
     expect(useAppStore.getState().activePath).toBe("Start here.md");
     expect(onClose).toHaveBeenCalled();
