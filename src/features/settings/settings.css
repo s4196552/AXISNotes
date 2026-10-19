@@ -1,6 +1,6 @@
 .settings {
   display: grid;
-  grid-template-columns: 170px 1fr;
+  grid-template-columns: 190px 1fr;
   width: min(820px, calc(100vw - 32px));
   height: min(560px, calc(100vh - 120px));
 }
@@ -14,12 +14,21 @@
 }
 .settings-nav button {
   justify-content: flex-start;
+  gap: 8px;
   border: none;
   background: transparent;
+  text-align: left;
+}
+.settings-nav button svg {
+  flex: none;
+  color: var(--fg-muted);
 }
 .settings-nav button[aria-current="page"] {
   background: var(--bg-active);
   color: var(--accent);
+}
+.settings-nav button[aria-current="page"] svg {
+  color: inherit;
 }
 .settings-body {
   overflow: auto;
