@@ -6,9 +6,10 @@ import {
   applyAppearance,
   applyTranslucency,
   applyTypography,
-  onBlurAvailabilityChange,
+  onTransparencyEffectsChange,
 } from "./app/appearance";
 import { installZoom } from "./app/zoom";
+import { installFileDrops } from "./features/editor/media";
 import { openDailyNote } from "./features/commands/actions";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
@@ -110,15 +111,18 @@ export default function App() {
 
   const typography = useConfig((s) => s.config.appearance);
   useEffect(() => applyTypography(typography), [typography]);
-  const { windowOpacity, windowBlur } = typography;
+  const { windowOpacity, windowEffect } = typography;
   useEffect(() => {
-    const apply = () => void applyTranslucency(theme, { windowOpacity, windowBlur });
+    const apply = () => void applyTranslucency(theme, { windowOpacity, windowEffect });
     apply();
-    return onBlurAvailabilityChange(apply);
-  }, [theme, windowOpacity, windowBlur]);
+    return onTransparencyEffectsChange(apply);
+  }, [theme, windowOpacity, windowEffect]);
 
   // Zoom applies to the welcome screen too, so it doesn't wait for a vault.
   useEffect(() => installZoom(), []);
+
+  // Files dropped from Explorer/Finder onto a note are copied in and embedded.
+  useEffect(() => (vault ? installFileDrops() : undefined), [vault]);
 
   // A newer version in the updates folder is offered by a banner (never installed unasked).
   useEffect(() => void checkOnLaunch(), []);
@@ -204,7 +208,8 @@ export default function App() {
               <Grid key={activePath} path={activePath} />
             ) : activePath && docKind(activePath) === "canvas" ? (
               <Canvas key={activePath} path={activePath} />
-            ) : activePath && docKind(activePath) === "image" ? (
+            ) : activePath &&
+              (docKind(activePath) === "image" || docKind(activePath) === "media") ? (
               <ImageView key={activePath} path={activePath} />
             ) : activePath && docKind(activePath) === "other" ? (
               <UnsupportedView key={activePath} path={activePath} />

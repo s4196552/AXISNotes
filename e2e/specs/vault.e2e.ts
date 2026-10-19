@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { $, browser, expect } from "@wdio/globals";
+import { $, $$, browser, expect } from "@wdio/globals";
 import { Key } from "webdriverio";
 
 // Phase 0 acceptance: open a folder, create nested folders and notes, edit and save
@@ -48,6 +48,30 @@ describe("AXISNotes desktop app on a real vault", () => {
       timeoutMsg: "edit never reached the disk",
     });
     await expect($(".editor-status")).toHaveText("Saved");
+  });
+
+  it("starts bulleted and numbered lists as you type, and continues them on Enter", async () => {
+    await $(".cm-content").click();
+    await browser.keys([Key.Ctrl, Key.End]);
+    await browser.keys(Key.Enter);
+    await browser.keys(Key.Enter);
+    await browser.keys("-milk"); // no space typed: `-` alone starts the bullet
+    await browser.keys(Key.Enter);
+    await browser.keys("eggs");
+    await browser.keys(Key.Enter);
+    await browser.keys(Key.Enter); // Enter on the empty bullet ends the list
+    await browser.keys("1first");
+    await browser.keys(Key.Enter);
+    await browser.keys("second");
+    await browser.keys(Key.Enter);
+    await browser.keys(Key.Enter);
+    await browser.keys("10 apples");
+    await browser.waitUntil(() => read("Welcome.md").includes("10 apples"), {
+      timeoutMsg: "typing never reached the disk",
+    });
+    // Enter on an empty item turns that line back into plain text, which ends the list.
+    expect(read("Welcome.md")).toContain("- milk\n- eggs\n1. first\n2. second\n10 apples");
+    await expect($$(".cm-lp-bullet")).toBeElementsArrayOfSize({ gte: 2 });
   });
 
   it("reloads a note edited by another program right after an autosave", async () => {

@@ -42,8 +42,44 @@ function linkDir(target: string, link: string) {
   fs.symlinkSync(target, link, process.platform === "win32" ? "junction" : "dir");
 }
 
+/** A 1×1 PNG. */
+const DOT_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+/** One second of silence as an 8 kHz, 8-bit mono WAV file. */
+function silentWav(): Buffer {
+  const rate = 8000;
+  const head = Buffer.alloc(44);
+  head.write("RIFF", 0);
+  head.writeUInt32LE(36 + rate, 4);
+  head.write("WAVEfmt ", 8);
+  head.writeUInt32LE(16, 16); // fmt chunk size
+  head.writeUInt16LE(1, 20); // PCM
+  head.writeUInt16LE(1, 22); // mono
+  head.writeUInt32LE(rate, 24);
+  head.writeUInt32LE(rate, 28); // bytes per second
+  head.writeUInt16LE(1, 32); // block align
+  head.writeUInt16LE(8, 34); // bits per sample
+  head.write("data", 36);
+  head.writeUInt32LE(rate, 40);
+  return Buffer.concat([head, Buffer.alloc(rate, 128)]);
+}
+
 /** Seeds per spec file (chosen by name); every spec gets a fresh vault. */
 const SEEDS: Record<string, (dir: string) => void> = {
+  media(dir) {
+    write(
+      dir,
+      "Media.md",
+      "# Media\n\nIntro\n\n![[tone.wav]]\n\n![[dot.png|40]]\n\n![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)\n\nEnd\n",
+    );
+    fs.mkdirSync(path.join(dir, "Sounds"));
+    fs.writeFileSync(path.join(dir, "Sounds", "tone.wav"), silentWav());
+    fs.writeFileSync(path.join(dir, "dot.png"), DOT_PNG);
+    write(dir, "Paste here.md", "# Paste here\n\nScreenshot:");
+  },
   vault(dir) {
     write(dir, "Welcome.md", "# Welcome\n\nHello from disk\n");
     write(dir, "School/Biology.md", "# Biology\n\n- [ ] read ch. 1\n");

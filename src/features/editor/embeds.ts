@@ -7,7 +7,15 @@ import { backend, isBackendError, type VaultChange } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { embedRange, ensureBlockId, listBlocks, listHeadings } from "../../lib/blocks";
 import { noteName, parseWikilinkInner } from "../../lib/markdown";
-import { isImagePath, parseImageEmbed, resolveAttachment } from "../../lib/attachments";
+import {
+  isWebUrl,
+  type MediaKind,
+  mediaKind,
+  parseImageEmbed,
+  parseMarkdownEmbed,
+  resolveMedia,
+  videoPlayerUrl,
+} from "../../lib/attachments";
 import {
   currentVault,
   registerDocument,
@@ -394,58 +402,151 @@ class EmbedWidget extends WidgetType {
   }
 }
 
-/** `![[photo.png]]` (optionally `|width`) as an image. */
-class ImageWidget extends WidgetType {
+type MediaShown = MediaKind | "player";
+
+/** What a media embed's target shows as: a web video player, or by its extension. */
+function shownAs(target: string): MediaShown {
+  if (isWebUrl(target) && videoPlayerUrl(target)) return "player";
+  return mediaKind(target) ?? "image"; // a web address without an extension: an image
+}
+
+const MEDIA_ICON: Record<MediaShown, string> = {
+  image: "🖼",
+  video: "🎞",
+  audio: "🔊",
+  player: "🎞",
+};
+
+/**
+ * An image, video, audio file or web video on a line of its own: `![[photo.png|300]]`,
+ * `![[clip.mp4]]`, `![alt](https://…/pic.jpg)`, `![](https://youtu.be/…)`. Clicking an
+ * image shows its link for editing; players keep their clicks and get an "Edit link"
+ * button instead.
+ */
+class MediaWidget extends WidgetType {
+  readonly shown: MediaShown;
   constructor(
-    readonly inner: string,
+    readonly target: string,
+    readonly width: number | null,
+    readonly label: string,
     readonly from: string,
   ) {
     super();
+    this.shown = shownAs(target);
   }
-  eq(other: ImageWidget) {
-    return other.inner === this.inner && other.from === this.from;
+  eq(other: MediaWidget) {
+    return (
+      other.target === this.target &&
+      other.width === this.width &&
+      other.label === this.label &&
+      other.from === this.from
+    );
   }
   toDOM(view: EditorView) {
-    const { target, width } = parseImageEmbed(this.inner);
     const wrap = document.createElement("div");
-    wrap.className = "cm-image-embed";
-    const path = resolveAttachment(target, this.from, useAppStore.getState().tree);
-    const url = path ? backend.fileUrl(path) : null;
-    if (url) {
-      const img = document.createElement("img");
-      img.src = url;
-      img.alt = target;
-      img.title = `${path} (click to edit the link)`;
-      if (width) img.width = width;
-      img.addEventListener("load", () => view.requestMeasure());
-      img.addEventListener("error", () => {
-        wrap.textContent = `Couldn't load ${target}`;
-        wrap.classList.add("missing");
-      });
-      wrap.appendChild(img);
-    } else {
-      wrap.classList.add("missing");
-      wrap.textContent = path ? `🖼 ${target}` : `🖼 ${target} (not found)`;
-    }
-    wrap.addEventListener("mousedown", (e) => {
-      e.preventDefault();
+    wrap.className = "cm-image-embed cm-media-embed";
+    wrap.dataset.kind = this.shown;
+    const web = isWebUrl(this.target);
+    const path = web ? null : resolveMedia(this.target, this.from, useAppStore.getState().tree);
+    const url = web ? this.target.trim() : path ? backend.fileUrl(path) : null;
+    const name = this.label || this.target;
+    const editLink = () => {
       const pos = view.posAtDOM(wrap);
       view.dispatch({ selection: { anchor: view.state.doc.lineAt(pos).to } });
       view.focus();
+    };
+    const failed = () => {
+      wrap.replaceChildren(`Couldn't load ${this.target}`);
+      wrap.classList.add("missing");
+    };
+    if (!url) {
+      wrap.classList.add("missing");
+      const icon = MEDIA_ICON[this.shown];
+      wrap.textContent = path ? `${icon} ${this.target}` : `${icon} ${this.target} (not found)`;
+      wrap.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        editLink();
+      });
+      return wrap;
+    }
+    if (this.shown === "image") {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = name;
+      img.title = `${path ?? url} (click to edit the link)`;
+      if (this.width) img.width = this.width;
+      img.addEventListener("load", () => view.requestMeasure());
+      img.addEventListener("error", failed);
+      wrap.appendChild(img);
+      wrap.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        editLink();
+      });
+      return wrap;
+    }
+    let media: HTMLElement;
+    if (this.shown === "player") {
+      const frame = document.createElement("iframe");
+      frame.src = videoPlayerUrl(url)!;
+      frame.title = this.label || "Video";
+      frame.loading = "lazy";
+      frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = "strict-origin-when-cross-origin";
+      // A page from another site: it runs its own player, with no way into the app.
+      frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation");
+      media = frame;
+    } else {
+      const el = document.createElement(this.shown); // <video> or <audio>
+      el.controls = true;
+      el.preload = "metadata";
+      el.src = url;
+      el.title = name;
+      if (el instanceof HTMLVideoElement) el.playsInline = true;
+      el.addEventListener("loadedmetadata", () => view.requestMeasure());
+      el.addEventListener("error", failed);
+      media = el;
+    }
+    if (this.width) media.style.width = `${this.width}px`;
+    const edit = document.createElement("button");
+    edit.className = "cm-media-edit";
+    edit.textContent = "Edit link";
+    edit.title = path ?? url;
+    edit.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      editLink();
     });
+    wrap.append(media, edit);
     return wrap;
   }
   ignoreEvent() {
-    return false;
+    // Images hand clicks to the editor (to edit the link); players keep theirs.
+    return this.shown !== "image";
   }
   get estimatedHeight() {
-    return 200;
+    return this.shown === "audio" ? 54 : this.shown === "image" ? 200 : 300;
   }
+}
+
+/** The widget for a line that is only an embed (`![[…]]` or `![…](…)`), if it is one. */
+function embedWidgetFor(text: string, from: string): WidgetType | null {
+  const wiki = EMBED_LINE_RE.exec(text);
+  if (wiki) {
+    const { target, width } = parseImageEmbed(wiki[1]!);
+    return mediaKind(target)
+      ? new MediaWidget(target, width, "", from)
+      : new EmbedWidget(wiki[1]!, from);
+  }
+  const md = parseMarkdownEmbed(text);
+  // A Markdown image of a note or other file stays as text.
+  if (md && (isWebUrl(md.src) || mediaKind(md.src)))
+    return new MediaWidget(md.src, md.width, md.alt, from);
+  return null;
 }
 
 function embedDecorations(state: EditorState): DecorationSet {
   const doc = state.doc;
-  if (!doc.toString().includes("![[")) return Decoration.none;
+  if (!doc.toString().includes("![")) return Decoration.none;
   const from = state.facet(notePath);
   const active = new Set<number>();
   for (const r of state.selection.ranges) {
@@ -457,16 +558,8 @@ function embedDecorations(state: EditorState): DecorationSet {
     const line = doc.line(n);
     if (/^[ \t]*(```|~~~)/.test(line.text)) inFence = !inFence;
     if (inFence || active.has(n)) continue;
-    const m = EMBED_LINE_RE.exec(line.text);
-    if (m)
-      out.push(
-        Decoration.replace({
-          widget: isImagePath(parseImageEmbed(m[1]!).target)
-            ? new ImageWidget(m[1]!, from)
-            : new EmbedWidget(m[1]!, from),
-          block: true,
-        }).range(line.from, line.to),
-      );
+    const widget = embedWidgetFor(line.text, from);
+    if (widget) out.push(Decoration.replace({ widget, block: true }).range(line.from, line.to));
   }
   return Decoration.set(out);
 }

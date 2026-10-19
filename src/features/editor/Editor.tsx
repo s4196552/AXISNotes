@@ -24,12 +24,14 @@ import {
 import { setActiveEditor } from "./activeEditor";
 import { links, refreshLinks, wikilinkCompletions } from "./links";
 import { anchorCompletions, embeds } from "./embeds";
+import { mediaInput } from "./media";
 import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
 import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { PageHeader } from "./PageHeader";
 import { outlinerKeys, outlineView } from "./outlinerView";
+import { listAutoformat } from "./listAutoformat";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
 import { followLink, openAskAi, openFixText } from "../commands/actions";
@@ -291,8 +293,10 @@ export function Editor({ path }: EditorProps) {
               }),
               commandMenuAnchor,
               embeds(path),
+              mediaInput,
               quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
               outlinerKeys,
+              listAutoformat,
               outlineCompartment.current.of(
                 useEditorPrefs.getState().outlineView ? outlineView : [],
               ),

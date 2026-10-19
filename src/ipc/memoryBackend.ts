@@ -143,6 +143,7 @@ export function createMemoryBackend(
   vaultName = "Demo Vault",
 ): MemoryBackend {
   const nodes = new Map<string, Node>();
+  const blobUrls = new Map<string, string>();
   const listeners = new Set<(c: VaultChange[]) => void>();
   const closeListeners = new Set<() => void>();
   let closed = false;
@@ -376,12 +377,38 @@ export function createMemoryBackend(
     updatesCheck: async () => null,
     updatesInstall: async () => fail("Io", "Updates install in the desktop app."),
     onClipped: async () => () => {},
-    // SVG files are text, so the browser preview can show them; other images need the app.
+    // Pasted media lives in memory as blobs, shown through object URLs. SVG files are
+    // text, so the browser preview can show them too; other images need the app.
     fileUrl(path) {
+      const blob = blobUrls.get(normalize(path));
+      if (blob) return blob;
       const n = nodes.get(normalize(path));
       if (!n || n.kind !== "file" || !/\.svg$/i.test(path)) return null;
       return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(n.content)}`;
     },
+    async saveAttachment(dir, name, bytes, vaultRoot) {
+      requireVault(vaultRoot);
+      const folder = normalize(dir);
+      validateName(name);
+      const dot = name.lastIndexOf(".");
+      const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+      let path = "";
+      for (let n = 0; !path || nodes.has(path); n++) {
+        const file = n ? `${stem} ${n}${ext}` : name;
+        path = folder ? `${folder}/${file}` : file;
+      }
+      put(path, { kind: "file", content: "", modifiedMs: tick() });
+      try {
+        blobUrls.set(path, URL.createObjectURL(new Blob([bytes.slice()])));
+      } catch {
+        // No object URLs here (tests): saved, just not shown.
+      }
+      return path;
+    },
+    // The browser preview has no files dropped from outside, and no file picker.
+    importDropped: async () => ({ paths: [], failed: [] }),
+    pickAttachments: async () => ({ paths: [], failed: [] }),
+    onFilesDropped: async () => () => {},
     // The browser preview can't read folders on disk: importing adds a sample note.
     inspectImport: async (source) => ({ obsidian: true, name: baseName(source) || "Vault" }),
     async importObsidian(_source, target) {
@@ -625,7 +652,7 @@ export function createMemoryBackend(
     },
     // A browser page can't show the desktop behind it.
     canBeTranslucent: () => false,
-    async setWindowBlur() {},
+    async setWindowEffect() {},
     // A browser tab closes without asking the page; the desktop app asks first.
     async onCloseRequested(cb) {
       closeListeners.add(cb);

@@ -2,7 +2,8 @@
 //!
 //! Heavier commands are `async` so they run off the main (UI) thread.
 
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -10,6 +11,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::attachments;
 use crate::error::{AppError, AppResult};
 use crate::index::graph::GraphData;
 use crate::index::search::SearchHit;
@@ -22,6 +24,35 @@ use crate::vault::{FileContent, Vault, VaultEntry, VaultInfo, WriteResult};
 pub const VAULT_CHANGED_EVENT: &str = "vault://changed";
 /// Progress of bringing a newly opened vault's index up to date: `{ done, total, finished }`.
 pub const INDEX_PROGRESS_EVENT: &str = "index://progress";
+/// Files from outside were dropped on the window: `{ x, y, count }` (physical pixels).
+pub const FILES_DROPPED_EVENT: &str = "attachments://dropped";
+
+/// The files most recently dropped onto the window from outside (set in `lib.rs`). The
+/// page can import only these, or what the user picks in `pick_attachments`: never a
+/// path it names itself.
+#[derive(Default)]
+pub struct DroppedFiles(pub Mutex<Vec<PathBuf>>);
+
+/// What an import of dropped or picked files did: the vault paths of those that made it in,
+/// and the ones that didn't, with why.
+#[derive(Default, Serialize)]
+pub struct Imported {
+    paths: Vec<String>,
+    failed: Vec<ImportFailure>,
+}
+
+#[derive(Serialize)]
+pub struct ImportFailure {
+    name: String,
+    error: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct FilesDropped {
+    pub x: f64,
+    pub y: f64,
+    pub count: usize,
+}
 
 type SharedIndex = Arc<Mutex<Option<Index>>>;
 
@@ -102,6 +133,41 @@ impl AppState {
     /// Keep the index in step with a change the app itself made (the watcher ignores those).
     fn reindex(&self, vault: &Vault, change: VaultChange) {
         apply_to_index(&self.index, vault, &[change]);
+    }
+
+    /// Bring files the user dropped or picked into the vault's `dir` (vault files are
+    /// linked where they are; folders are skipped). Each file succeeds or fails on its
+    /// own: the ones that made it in are always reported, so they get embedded.
+    fn import_files(
+        &self,
+        files: &[PathBuf],
+        dir: &str,
+        vault_root: Option<&str>,
+    ) -> AppResult<Imported> {
+        let v = self.vault_at(vault_root)?;
+        let mut out = Imported::default();
+        for src in files.iter().filter(|f| f.is_file()) {
+            let name = src.file_name().unwrap_or_default().to_string_lossy();
+            match self.import_file(&v, src, dir, &name) {
+                Ok(rel) => out.paths.push(rel),
+                Err(e) => out.failed.push(ImportFailure {
+                    name: name.into_owned(),
+                    error: e.to_string(),
+                }),
+            }
+        }
+        Ok(out)
+    }
+
+    fn import_file(&self, v: &Vault, src: &Path, dir: &str, name: &str) -> AppResult<String> {
+        if let Some(rel) = attachments::in_vault(v, src) {
+            return Ok(rel);
+        }
+        let rel = attachments::reserve(v, dir, name)?;
+        self.touch(v, &rel)?;
+        attachments::fill(v, &rel, |tmp| fs::copy(src, tmp).map(|_| ()))?;
+        self.reindex(v, change(ChangeKind::Created, &[&rel]));
+        Ok(rel)
     }
 
     /// Open `path` as the vault at startup (used by `AXIS_OPEN_VAULT`, e.g. in E2E tests).
@@ -259,6 +325,69 @@ pub fn create_file(
     let entry = v.create_file(&path, content.as_deref().unwrap_or(""))?;
     state.reindex(&v, change(ChangeKind::Created, &[&path]));
     Ok(entry)
+}
+
+/// Save pasted media, sent as the request's raw bytes, as `dir/name` (or `name 1`, … if
+/// taken). Headers, percent-encoded: `x-dir`, `x-name` and optionally `x-vault` (the vault
+/// it's for, as in `write_file`). Returns the vault path.
+#[tauri::command]
+pub fn save_attachment(
+    state: State<AppState>,
+    request: tauri::ipc::Request<'_>,
+) -> AppResult<String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err(AppError::Io("expected the file's bytes".into()));
+    };
+    let header = |key: &str| {
+        request
+            .headers()
+            .get(key)
+            .and_then(|v| v.to_str().ok())
+            .map(attachments::percent_decode)
+    };
+    let v = state.vault_at(header("x-vault").as_deref())?;
+    let rel = attachments::reserve(
+        &v,
+        &header("x-dir").unwrap_or_default(),
+        &header("x-name").unwrap_or_default(),
+    )?;
+    state.touch(&v, &rel)?;
+    attachments::fill(&v, &rel, |tmp| fs::write(tmp, bytes))?;
+    state.reindex(&v, change(ChangeKind::Created, &[&rel]));
+    Ok(rel)
+}
+
+/// Import the files just dropped onto the window (see `DroppedFiles`) into `dir`.
+#[tauri::command]
+pub async fn import_dropped(
+    state: State<'_, AppState>,
+    dropped: State<'_, DroppedFiles>,
+    dir: String,
+    vault_root: Option<String>,
+) -> AppResult<Imported> {
+    let files = std::mem::take(&mut *dropped.0.lock().unwrap());
+    state.import_files(&files, &dir, vault_root.as_deref())
+}
+
+/// Let the user pick images, videos or audio files, and import them into `dir`. Empty
+/// if they cancel.
+#[tauri::command]
+pub async fn pick_attachments(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    dir: String,
+    vault_root: Option<String>,
+) -> AppResult<Imported> {
+    use tauri_plugin_dialog::DialogExt;
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("Embed images, video or audio")
+        .add_filter("Images, video and audio", attachments::MEDIA_EXTS)
+        .blocking_pick_files()
+        .unwrap_or_default();
+    let files: Vec<PathBuf> = picked.into_iter().filter_map(|f| f.into_path().ok()).collect();
+    state.import_files(&files, &dir, vault_root.as_deref())
 }
 
 /// Copy an image file chosen by the user into `folder` (created if needed) under a free

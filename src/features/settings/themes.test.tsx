@@ -105,36 +105,71 @@ describe("built-in themes", () => {
 
 describe("Translucent", () => {
   const alpha = () => document.documentElement.style.getPropertyValue("--tl-alpha");
-  const look = { windowOpacity: 80, windowBlur: true };
+  const look = { windowOpacity: 80, windowEffect: "frosted" as const };
 
-  it("makes the window as see-through as asked, and blurs the desktop only when wanted", async () => {
+  it("makes the window as see-through as asked, with the chosen effect behind it", async () => {
     h.b.canBeTranslucent = () => true;
-    const blur = vi.spyOn(h.b, "setWindowBlur");
+    const fx = vi.spyOn(h.b, "setWindowEffect");
     await applyTranslucency("axis:translucent", look);
     expect(alpha()).toBe("0.8");
-    expect(blur).toHaveBeenLastCalledWith(true);
-    // Out-of-range opacity is clamped; a solid window needs no blur.
+    expect(fx).toHaveBeenLastCalledWith("acrylic");
+    for (const [id, os] of [
+      ["blur", "blur"],
+      ["mica", "mica"],
+      ["micaAlt", "tabbed"],
+      ["clear", null],
+      ["frosted", "acrylic"],
+    ] as const) {
+      await applyTranslucency("axis:translucent", { ...look, windowEffect: id });
+      expect(fx, id).toHaveBeenLastCalledWith(os);
+    }
+    // Out-of-range opacity is clamped; a solid window needs no effect.
     await applyTranslucency("axis:translucent", { ...look, windowOpacity: 5 });
     expect(alpha()).toBe("0.2");
     await applyTranslucency("axis:translucent", { ...look, windowOpacity: 100 });
-    expect(blur).toHaveBeenLastCalledWith(false);
-    await applyTranslucency("axis:translucent", { windowOpacity: 60, windowBlur: false });
-    expect(alpha()).toBe("0.6");
-    expect(blur).toHaveBeenLastCalledWith(false);
-    // Unchanged blur isn't sent to the window again (a slider sends many changes).
-    const calls = blur.mock.calls.length;
-    await applyTranslucency("axis:translucent", { windowOpacity: 55, windowBlur: false });
-    expect(blur).toHaveBeenCalledTimes(calls);
-    // Any other theme: solid, no blur.
-    await applyTranslucency("axis:translucent", look);
+    expect(fx).toHaveBeenLastCalledWith(null);
+    // An unknown saved effect gets the default; an unchanged one isn't sent again.
+    await applyTranslucency("axis:translucent", {
+      windowOpacity: 60,
+      windowEffect: "sparkly" as never,
+    });
+    expect(fx).toHaveBeenLastCalledWith("acrylic");
+    const calls = fx.mock.calls.length;
+    await applyTranslucency("axis:translucent", { ...look, windowOpacity: 55 });
+    expect(fx).toHaveBeenCalledTimes(calls);
+    // Any other theme: solid, no effect.
     await applyTranslucency("axis:glass", look);
     expect(alpha()).toBe("1");
-    expect(blur).toHaveBeenLastCalledWith(false);
+    expect(fx).toHaveBeenLastCalledWith(null);
   });
 
-  it("skips the blur while Windows' transparency effects are off (it'd be solid grey)", async () => {
+  it("sends effect changes one at a time, in order, however fast they come", async () => {
     h.b.canBeTranslucent = () => true;
-    const blur = vi.spyOn(h.b, "setWindowBlur");
+    await applyTranslucency("axis:glass", look); // start from no effect
+    const log: string[] = [];
+    vi.spyOn(h.b, "setWindowEffect").mockImplementation(async (fx) => {
+      log.push(`start ${fx}`);
+      await new Promise((r) => setTimeout(r, 5));
+      log.push(`end ${fx}`);
+    });
+    await Promise.all(
+      (["blur", "mica", "micaAlt"] as const).map((id) =>
+        applyTranslucency("axis:translucent", { ...look, windowEffect: id }),
+      ),
+    );
+    expect(log).toEqual([
+      "start blur",
+      "end blur",
+      "start mica",
+      "end mica",
+      "start tabbed",
+      "end tabbed",
+    ]);
+  });
+
+  it("looks Clear while Windows' transparency effects are off, and says why", async () => {
+    h.b.canBeTranslucent = () => true;
+    const fx = vi.spyOn(h.b, "setWindowEffect");
     // One media query whose answer can change, like Windows' setting being switched.
     let reduced = false;
     const listeners = new Set<() => void>();
@@ -152,24 +187,40 @@ describe("Translucent", () => {
     try {
       reduce(false);
       await applyTranslucency("axis:translucent", look);
-      expect(blur).toHaveBeenLastCalledWith(true);
+      expect(fx).toHaveBeenLastCalledWith("acrylic");
       reduce(true);
       await applyTranslucency("axis:translucent", look);
-      expect(alpha()).toBe("0.8"); // still see-through, just not blurred
-      expect(blur).toHaveBeenLastCalledWith(false);
+      expect(alpha()).toBe("0.8"); // still see-through, with no effect (it'd be solid)
+      expect(fx).toHaveBeenLastCalledWith(null);
       render(<Settings section="appearance" onClose={vi.fn()} />);
       fireEvent.click(screen.getByRole("radio", { name: "Translucent" }));
-      const box = await screen.findByRole("checkbox", { name: "Blur behind the window" });
-      expect(box).toBeDisabled();
-      expect(screen.getByText(/transparency effects/)).toBeInTheDocument();
-      // Turned on in Windows while Settings is open: the option comes back right away.
+      const slider = await screen.findByRole("slider", { name: "Window effect" });
+      expect(slider).toBeEnabled(); // still choosable, for when Windows' setting is on
+      expect(screen.getByText(/Frosted needs Windows' transparency effects/)).toBeInTheDocument();
+      // Clear needs nothing from Windows.
+      fireEvent.change(slider, { target: { value: "0" } });
+      expect(screen.queryByText(/needs Windows' transparency effects/)).toBeNull();
+      fireEvent.change(slider, { target: { value: "3" } });
+      expect(screen.getByText(/Mica needs Windows' transparency effects/)).toBeInTheDocument();
+      // Turned on in Windows while Settings is open: the hint goes right away.
       reduce(false);
-      expect(box).toBeEnabled();
-      expect(box).toBeChecked();
-      expect(screen.queryByText(/transparency effects/)).toBeNull();
+      expect(screen.queryByText(/needs Windows' transparency effects/)).toBeNull();
+      expect(screen.getByText(/soft tint of your wallpaper/)).toBeInTheDocument();
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("keeps a 0.3.1 vault's blur choice: off becomes Clear, on becomes Frosted", async () => {
+    const load = async (appearance: object) => {
+      await h.b.writeFile(".axisnotes/config.json", JSON.stringify({ appearance }));
+      await useConfig.getState().load();
+      return useConfig.getState().config.appearance.windowEffect;
+    };
+    expect(await load({ windowBlur: false })).toBe("clear");
+    expect(await load({ windowBlur: true })).toBe("frosted");
+    expect(await load({})).toBe("frosted");
+    expect(await load({ windowBlur: false, windowEffect: "mica" })).toBe("mica");
   });
 
   it("stays solid where the window can't be see-through", async () => {
@@ -196,7 +247,7 @@ describe("Translucent", () => {
     expect(readFileSync("src/styles/app.css", "utf8")).toMatch(/^html \{\s*background: #/m);
   });
 
-  it("has opacity and blur settings, shown only while it's the theme", async () => {
+  it("has opacity and effect settings, shown only while it's the theme", async () => {
     h.b.canBeTranslucent = () => true;
     render(<Settings section="appearance" onClose={vi.fn()} />);
     expect(screen.queryByRole("slider", { name: "Window opacity" })).toBeNull();
@@ -204,11 +255,19 @@ describe("Translucent", () => {
     const slider = await screen.findByRole("slider", { name: "Window opacity" });
     expect(slider).toHaveValue("80");
     fireEvent.change(slider, { target: { value: "45" } });
-    fireEvent.click(screen.getByRole("checkbox", { name: "Blur behind the window" }));
+    const effect = screen.getByRole("slider", { name: "Window effect" });
+    expect(effect).toHaveValue("2");
+    expect(effect).toHaveAttribute("aria-valuetext", "Frosted");
+    fireEvent.change(effect, { target: { value: "1" } });
+    expect(effect).toHaveAttribute("aria-valuetext", "Blur");
+    expect(screen.getByText(/soft blur of what's behind/)).toBeInTheDocument();
+    // The names under the slider pick an effect too.
+    fireEvent.click(screen.getByText("Mica Alt"));
+    expect(effect).toHaveValue("4");
     await waitFor(async () => {
       const saved = JSON.parse((await h.b.readFile(".axisnotes/config.json")).content);
       expect(saved.theme).toBe("axis:translucent");
-      expect(saved.appearance).toMatchObject({ windowOpacity: 45, windowBlur: false });
+      expect(saved.appearance).toMatchObject({ windowOpacity: 45, windowEffect: "micaAlt" });
     });
     expect(screen.getByText("45%")).toBeInTheDocument();
   });
@@ -220,7 +279,7 @@ describe("Translucent", () => {
     });
     render(<Settings section="appearance" onClose={vi.fn()} />);
     expect(screen.getByRole("slider", { name: "Window opacity" })).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "Blur behind the window" })).toBeDisabled();
+    expect(screen.getByRole("slider", { name: "Window effect" })).toBeDisabled();
     expect(screen.getByText(/need Windows/)).toBeInTheDocument();
   });
 });

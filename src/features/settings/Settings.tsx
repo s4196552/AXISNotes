@@ -3,12 +3,14 @@ import { Plus, X } from "lucide-react";
 import { backend } from "../../ipc";
 import { type AxisConfig, type EditorWidth, useConfig } from "../../app/config";
 import {
-  blurUnavailable,
-  onBlurAvailabilityChange,
   EDITOR_WIDTHS,
   fontStack,
   NOTE_FONT_SIZES,
+  onTransparencyEffectsChange,
+  transparencyEffectsOff,
+  WINDOW_EFFECTS,
   WINDOW_OPACITY,
+  windowEffectInfo,
 } from "../../app/appearance";
 import { useZoom, ZOOM_STEPS, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { formatDate } from "../../lib/dates";
@@ -30,6 +32,7 @@ export type Section =
   | "spelling"
   | "daily"
   | "templates"
+  | "files"
   | "commands"
   | "hotkeys"
   | "ai"
@@ -43,6 +46,7 @@ const SECTIONS: { id: Section; label: string }[] = [
   { id: "spelling", label: "Spelling" },
   { id: "daily", label: "Daily notes" },
   { id: "templates", label: "Templates" },
+  { id: "files", label: "Files & links" },
   { id: "commands", label: "Quick commands" },
   { id: "hotkeys", label: "Keyboard shortcuts" },
   { id: "ai", label: "AI" },
@@ -88,6 +92,7 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
           {section === "packs" && <PacksSettings />}
           {section === "spelling" && <Spelling config={config} set={set} />}
           {section === "daily" && <Daily config={config} set={set} />}
+          {section === "files" && <Files config={config} set={set} />}
           {section === "templates" && (
             <Field label="Templates folder" hint="Notes in this folder are offered as templates.">
               <input
@@ -133,8 +138,11 @@ function Translucency(p: {
 }) {
   const can = backend.canBeTranslucent();
   // Live: the hint tells the user to change a Windows setting while this is open.
-  const unavailable = useSyncExternalStore(onBlurAvailabilityChange, blurUnavailable);
-  const noBlur = can && unavailable;
+  const effectsOff = useSyncExternalStore(onTransparencyEffectsChange, transparencyEffectsOff);
+  const effect = windowEffectInfo(p.a.windowEffect);
+  const index = WINDOW_EFFECTS.indexOf(effect);
+  const choose = (i: number) => p.setA({ windowEffect: WINDOW_EFFECTS[i]!.id });
+  const needsWindows = can && effectsOff && effect.os !== null;
   return (
     <>
       <Field
@@ -160,20 +168,39 @@ function Translucency(p: {
         </span>
       </Field>
       <Field
-        label="Blur behind the window"
+        label="Effect"
         hint={
-          noBlur
-            ? "Needs Windows' transparency effects (Settings → Personalization → Colors). Until then the desktop shows through unblurred."
-            : "Frosted, so text stays easy to read."
+          needsWindows
+            ? `${effect.label} needs Windows' transparency effects (Settings → Personalization → Colors). Until they're on, the window looks Clear.`
+            : effect.note
         }
       >
-        <input
-          type="checkbox"
-          aria-label="Blur behind the window"
-          checked={p.a.windowBlur && !noBlur}
-          disabled={!can || noBlur}
-          onChange={(e) => p.setA({ windowBlur: e.target.checked })}
-        />
+        <div className="effect-slider">
+          <input
+            type="range"
+            aria-label="Window effect"
+            aria-valuetext={effect.label}
+            min={0}
+            max={WINDOW_EFFECTS.length - 1}
+            step={1}
+            value={index}
+            disabled={!can}
+            onChange={(e) => choose(Number(e.target.value))}
+          />
+          {/* The stops, under the slider; clicking one picks it (the slider is the control
+              for keyboards and screen readers). */}
+          <div className="effect-stops" aria-hidden="true">
+            {WINDOW_EFFECTS.map((e, i) => (
+              <span
+                key={e.id}
+                className={i === index ? "effect-stop current" : "effect-stop"}
+                onClick={() => can && choose(i)}
+              >
+                {e.label}
+              </span>
+            ))}
+          </div>
+        </div>
       </Field>
     </>
   );
@@ -360,6 +387,31 @@ function Spelling({ config, set }: SectionProps) {
             ))}
           </ul>
         )}
+      </Field>
+    </>
+  );
+}
+
+function Files({ config, set }: SectionProps) {
+  return (
+    <>
+      <p className="settings-note muted">
+        Paste a screenshot, drop images or videos from your computer onto a note, or use
+        &ldquo;Image, video or audio…&rdquo; in the command menu (Ctrl+/). Web images, videos and
+        YouTube or Vimeo links embed with <code>![](https://…)</code>.
+      </p>
+      <Field
+        label="Attachment folder"
+        hint="Where pasted and dropped files go. Empty: the vault's top folder. ./ : next to the note. ./name : a folder next to the note. Anything else: that folder."
+      >
+        <input
+          aria-label="Attachment folder"
+          placeholder="(vault top folder)"
+          defaultValue={config.attachments.folder}
+          onBlur={(e) =>
+            set((c) => ({ ...c, attachments: { ...c.attachments, folder: e.target.value.trim() } }))
+          }
+        />
       </Field>
     </>
   );

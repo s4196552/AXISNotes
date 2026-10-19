@@ -380,6 +380,20 @@ export interface ImportReport {
   };
 }
 
+/** Where files from outside were dropped on the window (physical pixels). */
+/** What importing dropped or picked files did: each file succeeds or fails on its own. */
+export interface Imported {
+  /** Vault paths of the files that made it in. */
+  paths: string[];
+  failed: { name: string; error: string }[];
+}
+
+export interface FilesDropped {
+  x: number;
+  y: number;
+  count: number;
+}
+
 export interface Backend {
   /** Show a native folder picker; resolves null if cancelled. */
   pickFolder(): Promise<string | null>;
@@ -436,8 +450,11 @@ export interface Backend {
   setZoom(factor: number): Promise<void>;
   /** Whether the window can be see-through (Translucent theme). Windows only, for now. */
   canBeTranslucent(): boolean;
-  /** Blur the desktop behind the see-through window (acrylic), or stop blurring it. */
-  setWindowBlur(on: boolean): Promise<void>;
+  /**
+   * What Windows draws behind the see-through window; `null` for nothing (clear). Replaces
+   * any effect from before.
+   */
+  setWindowEffect(effect: OsWindowEffect | null): Promise<void>;
   /**
    * The user asked to close the window (close button, Alt+F4, …). While a listener is
    * registered the window stays open; it closes only through `closeWindow`. Returns an
@@ -504,8 +521,21 @@ export interface Backend {
   clipperOpenExtensionFolder(): Promise<string>;
   /** A clip was saved as a note. Returns an unsubscribe function. */
   onClipped(cb: (clip: Clipped) => void): Promise<() => void>;
-  /** A URL the webview can load a vault file from (images), or null if not possible. */
+  /** A URL the webview can load a vault file from (images, video), or null if not possible. */
   fileUrl(path: string): string | null;
+  /**
+   * Save pasted media as `dir/name` (or `name 1`, … if taken); returns its vault path.
+   * `vaultRoot` as for `writeFile`.
+   */
+  saveAttachment(dir: string, name: string, bytes: Uint8Array, vaultRoot?: string): Promise<string>;
+  /** Import the files just dropped onto the window from outside into `dir` (files already
+   *  in the vault are linked where they are). */
+  importDropped(dir: string, vaultRoot?: string): Promise<Imported>;
+  /** Let the user pick images, video or audio and import them into `dir` (nothing if
+   *  they cancel). */
+  pickAttachments(dir: string, vaultRoot?: string): Promise<Imported>;
+  /** Files from outside were dropped on the window, at `x`, `y` in physical pixels. */
+  onFilesDropped(cb: (drop: FilesDropped) => void): Promise<() => void>;
 
   updatesSettings(): Promise<UpdateSettings>;
   /** An empty `folder` goes back to the default folder. */
@@ -519,6 +549,9 @@ export interface Backend {
   /** Copy a folder (e.g. an Obsidian vault) into `target` in the open vault. */
   importObsidian(source: string, target: string): Promise<ImportReport>;
 }
+
+/** Window materials Windows can draw behind a see-through window (Tauri's names). */
+export type OsWindowEffect = "blur" | "acrylic" | "mica" | "tabbed";
 
 /** The window's own controls (see `Backend.windowFrame`). */
 export interface WindowFrame {

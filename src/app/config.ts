@@ -20,6 +20,9 @@ export interface FolderIcon {
 
 export type EditorWidth = "narrow" | "medium" | "wide" | "full";
 
+/** What Windows draws behind the see-through window (Translucent theme). */
+export type WindowEffect = "clear" | "blur" | "frosted" | "mica" | "micaAlt";
+
 export interface AxisConfig {
   /** Per-folder AI access, enforced by the Rust AI layer (`src-tauri/src/ai/privacy.rs`). */
   ai: { folders: Record<string, AiRule> };
@@ -33,10 +36,9 @@ export interface AxisConfig {
     noteFont: string;
     uiFont: string;
     editorWidth: EditorWidth;
-    /** Translucent theme: how opaque the window is (percent), and whether the desktop
-     *  behind it is blurred. */
+    /** Translucent theme: how opaque the window is (percent), and what shows behind it. */
     windowOpacity: number;
-    windowBlur: boolean;
+    windowEffect: WindowEffect;
   };
   folderIcons: Record<string, FolderIcon>;
   dailyNotes: {
@@ -48,6 +50,11 @@ export interface AxisConfig {
     openOnStartup: boolean;
   };
   templatesFolder: string;
+  /**
+   * Where pasted, dropped and picked images/videos go (Obsidian's forms): "" the vault
+   * root, "./" next to the note, "./name" a folder next to the note, else a vault folder.
+   */
+  attachments: { folder: string };
   /** Offline spellcheck; `words` is the vault's personal dictionary (lower-case). */
   spellcheck: { enabled: boolean; words: string[] };
   /** Remapped keyboard shortcuts by command id ("" = no shortcut). */
@@ -82,11 +89,12 @@ export const DEFAULT_CONFIG: AxisConfig = {
     uiFont: "",
     editorWidth: "medium",
     windowOpacity: 80,
-    windowBlur: true,
+    windowEffect: "frosted",
   },
   folderIcons: {},
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   templatesFolder: "Templates",
+  attachments: { folder: "Attachments" },
   spellcheck: { enabled: true, words: [] },
   hotkeys: {},
   quickCommands: {
@@ -117,6 +125,17 @@ export function migrateTriggers(raw: unknown): unknown {
   if (typeof q.triggerVersion === "number" && q.triggerVersion >= 2) return raw;
   const slashTrigger = q.slashTrigger === "/" ? "" : q.slashTrigger;
   return { ...raw, quickCommands: { ...q, slashTrigger, triggerVersion: 2 } };
+}
+
+/**
+ * 0.3.1 saved the Translucent blur as `windowBlur`; it became `windowEffect`. Blur off
+ * means Clear; on (or unset) gets the default, Frosted, which is the same acrylic.
+ */
+export function migrateWindowEffect(raw: unknown): unknown {
+  if (!isObject(raw) || !isObject(raw.appearance)) return raw;
+  const a = raw.appearance;
+  if (a.windowEffect !== undefined || a.windowBlur !== false) return raw;
+  return { ...raw, appearance: { ...a, windowEffect: "clear" } };
 }
 
 /** Deep-merge `raw` over the defaults, ignoring values of the wrong type. */
@@ -150,7 +169,7 @@ export const useConfig = create<ConfigState>((set, get) => ({
   async load() {
     try {
       const file = await backend.readFile(CONFIG_PATH);
-      const raw = migrateTriggers(JSON.parse(file.content || "{}"));
+      const raw = migrateWindowEffect(migrateTriggers(JSON.parse(file.content || "{}")));
       set({ config: mergeConfig(raw), loaded: true });
     } catch (e) {
       // Missing or invalid: fall back to defaults (written on first change).
