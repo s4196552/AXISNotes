@@ -1,6 +1,6 @@
 [package]
 name = "axisnotes"
-version = "0.3.1"
+version = "0.3.2"
 description = "AXISNotes - local-first personal knowledge base, by AXIS"
 authors = ["AXIS"]
 license = ""
@@ -39,6 +39,7 @@ base64 = "0.22"
 ring = "0.17"
 fontdb = { version = "0.24.0", default-features = false, features = ["fs", "memmap"] }
 semver = "1.0.28"
+zip = { version = "7.3.0", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

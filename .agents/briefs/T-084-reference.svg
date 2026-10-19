@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="100%" height="100%">
+  <defs>
+    <!-- Soft Tip Falloff + Subtle Organic Edge Feathering -->
+    <radialGradient id="cusp-fade" cx="50%" cy="58%" r="44%" fx="50%" fy="58%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="1" />
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.85" />
+      <stop offset="88%" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Warm-to-Cool Gradient from the 3-Cusp Star Reference -->
+    <linearGradient id="star-tint" x1="25%" y1="20%" x2="80%" y2="85%">
+      <stop offset="0%" stop-color="#d6c7b2" stop-opacity="0.26" />
+      <stop offset="55%" stop-color="#b5ada2" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#94a0b8" stop-opacity="0.28" />
+    </linearGradient>
+
+    <filter id="soft-feather" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+    </filter>
+
+    <!-- 3-Cusp Deltoid Star Mask Centered in 1920x1080 -->
+    <mask id="tricusp-mask">
+      <rect width="1920" height="1080" fill="#000" />
+      <path d="M 960,110
+               Q 960,620 1410,880
+               Q 960,620 510,880
+               Q 960,620 960,110 Z" fill="url(#cusp-fade)" filter="url(#soft-feather)" />
+    </mask>
+
+    <style>
+      .matrix-text {
+        font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+        font-size: 12.5px;
+        fill: url(#star-tint);
+        letter-spacing: 0.6px;
+        user-select: none;
+      }
+    </style>
+  </defs>
+
+  <!-- Dark Background -->
+  <rect width="1920" height="1080" fill="#111110" />
+
+  <!-- Masked Alphanumeric Matrix -->
+  <g mask="url(#tricusp-mask)" class="matrix-text">
+    <text x="450" y="124">yqawo0n4e9AuIbvre3A9AdqposjguWxlAgurK2zxyqTf7xstZaK2J2Etd1nKaflaarouRwfai1SubRRumibocaRagn6svgTfso4hju7oIl3fx2vvcngzRcSogioAqwzbnrp95RweijccoE2sogo5tut6</text>
+    <text x="450" y="140">nybjat3a3cEVkgvg0aKkascREaje9daclborxog3gjE3oc7vap595AnccyRa3xricnouoapdqa7cR5Zhf1iSvoufRhqrqu10g7i3a1qqyoc3qUfrp7xstZaK2J2Etd1nKaflaarouRwfai1SubRRu</text>
+    <text x="450" y="156">taooen5xzvjoAapwowyghhagStmySgelr02E5cKjalqEg5pobgdhExttx6s1pAzxi0liaktuc0occQchncjceg5fyeo7lCoA0ucCzaabh2pamWcxu0crRca1xrgtr6a5x0ccQchncjceg5fyeo7lCo</text>
+    <text x="450" y="172">zzn1fxpvlcaf5opocrop9taxuq5Susq0ao7agrAdp2Sr29eor2wxRR1wagg5RR239fag2vvcngzRcSogioAqwzbnrp95RweijccoE2sogo5tut6nybjat3a3cEVkgvg0aKkascREaje9daclborxog</text>
+    <text x="450" y="188">03a4c9SAqnxRksvz02oxyncgjgdupyy1onomSRky5myttjauaudtcjzuukBE85rggk1xjb7Set1ontAnrwgviofSehka51w2t01a9ytxncSftbKnaqrqu10g7i3a1qqyoc3qUfrp7xstZaK2J2Etd</text>
+    <text x="450" y="204">gegSg1Abb9FRcjtbad7wjcYzRg3qgjun5nzLvugkbsbgg1Ag1kcsxd91pSoachnu7uhvcfa3ijcb1ncqcaulXofLCoA0ucCzaabh2pamWcxu0crRca1xrgtr6a5x0ccQchncjceg5fyeo7lCoA0uc</text>
+    <text x="450" y="220">cxnbacqnlufpa2c0G9acyk0wqcuisgzdKEpr27dkng1xkk7SuKaiRuurAnb5k01onb24r0x5z31zSuiqun9ncnhw0tcgKfKzeRa2qcf1AouTduhoowSdaA3a3cEVkgvg0aKkascREaje9daclborx</text>
+    <text x="450" y="236">hfgo010scxKccAojavhqbaerotaEREt9aR0uK31anp0qKtSvdjrC9c77fscx1ncngyrxS2kmte35umagpx9wocc2ar5ajtycaGqR59Kjh95vkc1jinn3jExuusRhqrqu10g7i3a1qqyoc3qUfrp7x</text>
+    <text x="450" y="252">fapcsA3ahyou2vfz1cabdKARxxbyauzwpax3919pk2amophpt95SEed5aE2kfb1eREhwa7tRucu3ccSFAEntAnrwgviofSehka51w2t01a9ytxncSftbKnaqrqu10g7i3a1qqyoc3qUfrp7xstZaK</text>
+    <text x="450" y="268">gcuh1Aymsqn9fbKf7dpRykmg1t1tgyKb77gySaEdgzEg5kgx9hEeen3gasgwipV9rsbaatm73tKdzd2dxuqSxnAffr2cojt1dhj9c9Eauwf7qnxRksvz02oxyncgjgdupyy1onomSRky5myttjauau</text>
+    <text x="450" y="284">kaxuE2xpkaKrvpc1pj59ffgczfu2vAa9A3n3ddccg1gzpS033REwgbrgKA3A1ma1zzs07exhxyagg7ccb5cpsoyd3z7232cyygboz3ho2SyRRrgulavrejo1cup9jdSpkur13g31icfvhsgt8gnc</text>
+    <text x="450" y="300">1ikzgKna9dSkvguRvuS0arg9ezksc5dk2a120gavvtAz7eA0gDky1mEuySavxroabk1s3uj0pg3zdycta1w72gcjcAasahar07um122socrgREqK7oozbqcf1aqut0K1cnf9t1vtchccccwpRyxjy</text>
+    <text x="450" y="316">yqawo0n4e9AuIbvre3A9AdqposjguWxlAgurK2zxyqTf7xstZaK2J2Etd1nKaflaarouRwfai1SubRRumibocaRagn6svgTfso4hju7oIl3fx2vvcngzRcSogioAqwzbnrp95RweijccoE2sogo5tut6</text>
+    <text x="450" y="332">nybjat3a3cEVkgvg0aKkascREaje9daclborxog3gjE3oc7vap595AnccyRa3xricnouoapdqa7cR5Zhf1iSvoufRhqrqu10g7i3a1qqyoc3qUfrp7xstZaK2J2Etd1nKaflaarouRwfai1SubRRu</text>
+    <text x="450" y="348">taooen5xzvjoAapwowyghhagStmySgelr02E5cKjalqEg5pobgdhExttx6s1pAzxi0liaktuc0occQchncjceg5fyeo7lCoA0ucCzaabh2pamWcxu0crRca1xrgtr6a5x0ccQchncjceg5fyeo7lCo</text>
+    <text x="450" y="364">zzn1fxpvlcaf5opocrop9taxuq5Susq0ao7agrAdp2Sr29eor2wxRR1wagg5RR239fag2vvcngzRcSogioAqwzbnrp95RweijccoE2sogo5tut6nybjat3a3cEVkgvg0aKkascREaje9daclborxog</text>
+    <text x="450" y="380">03a4c9SAqnxRksvz02oxyncgjgdupyy1onomSRky5myttjauaudtcjzuukBE85rggk1xjb7Set1ontAnrwgviofSehka51w2t01a9ytxncSftbKnaqrqu10g7i3a1qqyoc3qUfrp7xstZaK2J2Etd</text>
+    <text x="450" y="396">gegSg1Abb9FRcjtbad7wjcYzRg3qgjun5nzLvugkbsbgg1Ag1kcsxd91pSoachnu7uhvcfa3ijcb1ncqcaulXofLCoA0ucCzaabh2pamWcxu0crRca1xrgtr6a5x0ccQchncjceg5fyeo7lCoA0uc</text>
+    <text x="450" y="412">cxnbacqnlufpa2c0G9acyk0wqcuisgzdKEpr27dkng1xkk7SuKaiRuurAnb5k01onb24r0x5z31zSuiqun9ncnhw0tcgKfKzeRa2qcf1AouTduhoowSdaA3a3cEVkgvg0aKkascREaje9daclborx</text>
+    <text x="450" y="428">hfgo010scxKccAojavhqbaerotaEREt9aR0uK31anp0qKtSvdjrC9c77fscx1ncngyrxS2kmte35umagpx9wocc2ar5ajtycaGqR59Kjh95vkc1jinn3jExuusRhqrqu10g7i3a1qqyoc3qUfrp7x</text>
+    <text x="450" y="444">fapcsA3ahyou2vfz1cabdKARxxbyauzwpax3919pk2amophpt95SEed5aE2kfb1eREhwa7tRucu3ccSFAEntAnrwgviofSehka51w2t01a9ytxncSftbKnaqrqu10g7i3a1qqyoc3qUfrp7xstZaK</text>
+    <text x="450" y="460">gcuh1Aymsqn9fbKf7dpRykmg1t1tgyKb77gySaEdgzEg5kgx9hEeen3gasgwipV9rsbaatm73tKdzd2dxuqSxnAffr2cojt1dhj9c9Eauwf7qnxRksvz02oxyncgjgdupyy1onomSRky5myttjauau</text>
+    <text x="450" y="476">kaxuE2xpkaKrvpc1pj59ffgczfu2vAa9A3n3ddccg1gzpS033REwgbrgKA3A1ma1zzs07exhxyagg7ccb5cpsoyd3z7232cyygboz3ho2SyRRrgulavrejo1cup9jdSpkur13g31icfvhsgt8gnc</text>
+    <text x="450" y="492">1ikzgKna9dSkvguRvuS0arg9ezksc5dk2a120gavvtAz7eA0gDky1mEuySavxroabk1s3uj0pg3zdycta1w72gcjcAasahar07um122socrgREqK7oozbqcf1aqut0K1cnf9t1vtchccccwpRyxjy</text>
+    <text x="450" y="508">yqawo0n4e9AuIbvre3A9AdqposjguWxlAgurK2zxyqTf7xstZaK2J2Etd1nKaflaarouRwfai1SubRRumibocaRagn6svgTfso4hju7oIl3fx2vvcngzRcSogioAqwzbnrp95RweijccoE2sogo5tut6</text>
+    <text x="450" y="524">nybjat3a3cEVkgvg0aKkascREaje9daclborxog3gjE3oc7vap595AnccyRa3xricnouoapdqa7cR5Zhf1iSvoufRhqrqu10g7i3a1qqyoc3qUfrp7xstZaK2J2Etd1nKaflaarouRwfai1SubRRu</text>
+    <text x="450" y="540">taooen5xzvjoAapwowyghhagStmySgelr02E5cKjalqEg5pobgdhExttx6s1pAzxi0liaktuc0occQchncjceg5fyeo7lCoA0ucCzaabh2pamWcxu0crRca1xrgtr6a5x0ccQchncjceg5fyeo7lCo</text>
+    <text x="450" y="556">zzn1fxpvlcaf5opocrop9taxuq5Susq0ao7agrAdp2Sr29eor2wxRR1wagg5RR239fag2vvcngzRcSogioAqwzbnrp95RweijccoE2sogo5tut6nybjat3a3cEVkgvg0aKkascREaje9daclborxog</text>
+    <text x="450" y="572">03a4c9SAqnxRksvz02oxyncgjgdupyy1onomSRky5myttjauaudtcjzuukBE85rggk1xjb7Set1ontAnrwgviofSehka51w2t01a9ytxncSftbKnaqrqu10g7i3a1qqyoc3qUfrp7xstZaK2J2Etd</text>
+    <text x="450" y="588">gegSg1Abb9FRcjtbad7wjcYzRg3qgjun5nzLvugkbsbgg1Ag1kcsxd91pSoachnu7uhvcfa3ijcb1ncqcaulXofLCoA0ucCzaabh2pamWcxu0crRca1xrgtr6a5x0ccQchncjceg5fyeo7lCoA0uc</text>
+    <text x="450" y="604">cxnbacqnlufpa2c0G9acyk0wqcuisgzdKEpr27dkng1xkk7SuKaiRuurAnb5k01onb24r0x5z31zSuiqun9ncnhw0tcgKfKzeRa2qcf1AouTduhoowSdaA3a3cEVkgvg0aKkascREaje9daclborx</text>
+    <text x="450" y="620">hfgo010scxKccAojavhqbaerotaEREt9aR0uK31anp0qKtSvdjrC9c77fscx1ncngyrxS2kmte35umagpx9wocc2ar5ajtycaGqR59Kjh95vkc1jinn3jExuusRhqrqu10g7i3a1qqyoc3qUfrp7x</text>
+    <text x="450" y="636">fapcsA3ahyou2vfz1cabdKARxxbyauzwpax3919pk2amophpt95SEed5aE2kfb1eREhwa7tRucu3ccSFAEntAnrwgviofSehka51w2t01a9ytxncSftbKnaqrqu10g7i3a1qqyoc3qUfrp7xstZaK</text>
+    <text x="450" y="652">gcuh1Aymsqn9fbKf7dpRykmg1t1tgyKb77gySaEdgzEg5kgx9hEeen3gasgwipV9rsbaatm73tKdzd2dxuqSxnAffr2cojt1dhj9c9Eauwf7qnxRksvz02oxyncgjgdupyy1onomSRky5myttjauau</text>
+    <text x="450" y="668">kaxuE2xpkaKrvpc1pj59ffgczfu2vAa9A3n3ddccg1gzpS033REwgbrgKA3A1ma1zzs07exhxyagg7ccb5cpsoyd3z7232cyygboz3ho2SyRRrgulavrejo1cup9jdSpkur13g31icfvhsgt8gnc</text>
+    <text x="450" y="684">1ikzgKna9dSkvguRvuS0arg9ezksc5dk2a120gavvtAz7eA0gDky1mEuySavxroabk1s3uj0pg3zdycta1w72gcjcAasahar07um122socrgREqK7oozbqcf1aqut0K1cnf9t1vtchccccwpRyxjy</text>
+    <text x="450" y="700">yqawo0n4e9AuIbvre3A9AdqposjguWxlAgurK2zxyqTf7xstZaK2J2Etd1nKaflaarouRwfai1SubRRumibocaRagn6svgTfso4hju7oIl3fx2vvcngzRcSogioAqwzbnrp95RweijccoE2sogo5tut6</text>
+    <text x="450" y="716">nybjat3a3cEVkgvg0aKkascREaje9daclborxog3gjE3oc7vap595AnccyRa3xricnouoapdqa7cR5Zhf1iSvoufRhqrqu10g7i3a1qqyoc3qUfrp7xstZaK2J2Etd1nKaflaarouRwfai1SubRRu</text>
+    <text x="450" y="732">taooen5xzvjoAapwowyghhagStmySgelr02E5cKjalqEg5pobgdhExttx6s1pAzxi0liaktuc0occQchncjceg5fyeo7lCoA0ucCzaabh2pamWcxu0crRca1xrgtr6a5x0ccQchncjceg5fyeo7lCo</text>
+    <text x="450" y="748">zzn1fxpvlcaf5opocrop9taxuq5Susq0ao7agrAdp2Sr29eor2wxRR1wagg5RR239fag2vvcngzRcSogioAqwzbnrp95RweijccoE2sogo5tut6nybjat3a3cEVkgvg0aKkascREaje9daclborxog</text>
+    <text x="450" y="764">03a4c9SAqnxRksvz02oxyncgjgdupyy1onomSRky5myttjauaudtcjzuukBE85rggk1xjb7Set1ontAnrwgviofSehka51w2t01a9ytxncSftbKnaqrqu10g7i3a1qqyoc3qUfrp7xstZaK2J2Etd</text>
+    <text x="450" y="780">gegSg1Abb9FRcjtbad7wjcYzRg3qgjun5nzLvugkbsbgg1Ag1kcsxd91pSoachnu7uhvcfa3ijcb1ncqcaulXofLCoA0ucCzaabh2pamWcxu0crRca1xrgtr6a5x0ccQchncjceg5fyeo7lCoA0uc</text>
+    <text x="450" y="796">cxnbacqnlufpa2c0G9acyk0wqcuisgzdKEpr27dkng1xkk7SuKaiRuurAnb5k01onb24r0x5z31zSuiqun9ncnhw0tcgKfKzeRa2qcf1AouTduhoowSdaA3a3cEVkgvg0aKkascREaje9daclborx</text>
+    <text x="450" y="812">hfgo010scxKccAojavhqbaerotaEREt9aR0uK31anp0qKtSvdjrC9c77fscx1ncngyrxS2kmte35umagpx9wocc2ar5ajtycaGqR59Kjh95vkc1jinn3jExuusRhqrqu10g7i3a1qqyoc3qUfrp7x</text>
+    <text x="450" y="828">fapcsA3ahyou2vfz1cabdKARxxbyauzwpax3919pk2amophpt95SEed5aE2kfb1eREhwa7tRucu3ccSFAEntAnrwgviofSehka51w2t01a9ytxncSftbKnaqrqu10g7i3a1qqyoc3qUfrp7xstZaK</text>
+    <text x="450" y="844">gcuh1Aymsqn9fbKf7dpRykmg1t1tgyKb77gySaEdgzEg5kgx9hEeen3gasgwipV9rsbaatm73tKdzd2dxuqSxnAffr2cojt1dhj9c9Eauwf7qnxRksvz02oxyncgjgdupyy1onomSRky5myttjauau</text>
+    <text x="450" y="860">kaxuE2xpkaKrvpc1pj59ffgczfu2vAa9A3n3ddccg1gzpS033REwgbrgKA3A1ma1zzs07exhxyagg7ccb5cpsoyd3z7232cyygboz3ho2SyRRrgulavrejo1cup9jdSpkur13g31icfvhsgt8gnc</text>
+    <text x="450" y="876">1ikzgKna9dSkvguRvuS0arg9ezksc5dk2a120gavvtAz7eA0gDky1mEuySavxroabk1s3uj0pg3zdycta1w72gcjcAasahar07um122socrgREqK7oozbqcf1aqut0K1cnf9t1vtchccccwpRyxjy</text>
+  </g>
+</svg>

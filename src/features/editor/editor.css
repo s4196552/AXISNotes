@@ -390,6 +390,15 @@
 .cm-embed-status {
   color: var(--fg-muted);
 }
+/* "Reload from source" / "Keep mine" when the source block changed (T-074). */
+.cm-embed-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+.cm-embed-edit.cm-embed-action {
+  margin-left: 0;
+  color: var(--accent);
+}
 .cm-embed-body {
   padding: 2px 4px;
 }
@@ -459,6 +468,41 @@
   font-size: 0.85em;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* Toggles: `> [!toggle|hN]± Title` (src/features/editor/toggles.ts). No quote bar; the
+   inside is indented under the arrow. */
+.cm-line.cm-toggle-title,
+.cm-line.cm-toggle-body {
+  border-left: none;
+  color: var(--fg);
+}
+.cm-line.cm-toggle-title {
+  padding-left: 0 !important;
+}
+.cm-line.cm-toggle-body {
+  padding-left: 1.5em !important;
+}
+.cm-toggle-arrow {
+  display: inline-block;
+  width: 1.1em;
+  margin-right: 0.3em;
+  color: var(--fg-muted);
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.12s ease;
+}
+.cm-toggle-arrow:hover {
+  color: var(--fg);
+}
+.cm-toggle-arrow.cm-toggle-open {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-toggle-arrow {
+    transition: none;
+  }
 }
 
 /* $$ math $$, rendered by KaTeX (src/features/editor/math.ts). */

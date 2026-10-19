@@ -2,10 +2,6 @@
 // is split out of the startup bundle and tests can substitute a WebGL-free stand-in.
 
 export async function loadGraphLibs() {
-  const [{ default: Sigma }, { default: forceAtlas2 }, { default: FA2Layout }] = await Promise.all([
-    import("sigma"),
-    import("graphology-layout-forceatlas2"),
-    import("graphology-layout-forceatlas2/worker"),
-  ]);
-  return { Sigma, forceAtlas2, FA2Layout };
+  const [{ default: Sigma }, d3] = await Promise.all([import("sigma"), import("d3-force")]);
+  return { Sigma, d3 };
 }

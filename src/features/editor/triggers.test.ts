@@ -17,11 +17,15 @@ import { formatDate } from "../../lib/dates";
 import { inlineProperties } from "../../lib/markdown";
 import {
   commandMenuAnchor,
+  COMMAND_GROUPS,
+  commandMenuRender,
   DEFAULT_QUICK_CONFIG,
   openCommandMenu,
   type QuickCommandConfig,
   quickCommandConfig,
+  SLASH_COMMANDS,
   slashCompletions,
+  TURN_INTO,
 } from "./quickCommands";
 import {
   blockCompletions,
@@ -133,7 +137,7 @@ describe("command menu (Ctrl+/)", () => {
     type(view, " he");
     const r = slashCompletions(ctx(view));
     expect(r?.from).toBe(5);
-    expect(await pick(view, r, "Heading 1")).toBe("# Title");
+    expect(await pick(view, r, "Heading 1")).toBe("Title\n# ");
     type(view, " more");
     expect(slashCompletions(ctx(view))).toBeNull();
   });
@@ -637,5 +641,199 @@ describe("$$ math", () => {
     view.dispatch({ selection: { anchor: 10 } });
     view.dispatch({ selection: { anchor: 12 } });
     expect(view.dom.querySelector(".cm-math")).toBe(before);
+  });
+});
+
+describe("command menu icons and Markdown hints", () => {
+  const render = (c: Completion) =>
+    commandMenuRender.map((r) => r.render(c)).filter((n): n is HTMLElement => n !== null);
+
+  it("gives every command an icon instead of the key glyph, and its Markdown on the right", () => {
+    const view = viewWith("");
+    openCommandMenu(view);
+    const r = slashCompletions(ctx(view))!;
+    for (const o of r.options) {
+      expect(o.type).toBe("command");
+      expect(render(o)[0]?.querySelector("svg")).not.toBeNull();
+    }
+    const hint = (label: string) =>
+      render(r.options.find((o) => o.label === label)!).find((n) => n.tagName === "KBD")
+        ?.textContent;
+    expect(hint("Heading 1")).toBe("#");
+    expect(hint("Heading 3")).toBe("###");
+    expect(hint("Bulleted list")).toBe("-");
+    expect(hint("Embed note")).toBe("![[");
+    expect(hint("Insert template…")).toBeUndefined();
+  });
+
+  it("gives custom commands an icon too, and leaves other menus alone", () => {
+    const view = viewWith("", {
+      cfg: { custom: [{ label: "Signature", insert: "— Me" }] },
+    });
+    openCommandMenu(view);
+    const custom = slashCompletions(ctx(view))!.options.find((o) => o.label === "Signature")!;
+    expect(render(custom).map((n) => n.className)).toEqual([
+      "cm-commandIcon",
+      "cm-commandDescription",
+    ]);
+    expect(render(custom)[1]!.textContent).toBe("— Me");
+    expect(render({ label: "Biology", type: "text" })).toEqual([]);
+  });
+});
+
+describe("command menu sections", () => {
+  const sectionOf = (c: Completion) =>
+    typeof c.section === "string" ? c.section : c.section?.name;
+
+  it("puts every built-in command in exactly one section", () => {
+    const ids = COMMAND_GROUPS.flatMap((g) => g.ids);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect([...ids].sort()).toEqual(SLASH_COMMANDS.map((c) => c.id).sort());
+  });
+
+  it("shows Notion-style sections in their set order until something is typed", async () => {
+    const view = viewWith("", {
+      cfg: { custom: [{ label: "Signature", insert: "— Me" }] },
+    });
+    openCommandMenu(view);
+    await vi.waitFor(() => expect(currentCompletions(view.state).length).toBeGreaterThan(0));
+    const shown = currentCompletions(view.state);
+    expect(shown.slice(0, 4).map((c) => c.label)).toEqual([
+      "Text",
+      "Heading 1",
+      "Heading 2",
+      "Heading 3",
+    ]);
+    expect([...new Set(shown.map(sectionOf))]).toEqual([
+      "Basic blocks",
+      "Links",
+      "Insert",
+      "Diagrams and pen",
+      "Page style",
+      "Custom",
+    ]);
+
+    type(view, "list");
+    await vi.waitFor(() => {
+      const now = currentCompletions(view.state);
+      expect(now.map((c) => c.label)).toContain("Bulleted list");
+      expect(now.every((c) => sectionOf(c) === "Filtered results")).toBe(true);
+    });
+
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length },
+      userEvent: "delete.backward",
+    });
+    await vi.waitFor(() =>
+      expect(sectionOf(currentCompletions(view.state)[0]!)).toBe("Basic blocks"),
+    );
+  });
+
+  it("keeps the menu open when several letters arrive before it re-ranks", async () => {
+    const view = viewWith("");
+    openCommandMenu(view);
+    await vi.waitFor(() => expect(currentCompletions(view.state).length).toBeGreaterThan(0));
+    for (const ch of "head") type(view, ch);
+    await vi.waitFor(() =>
+      expect(currentCompletions(view.state).map((c) => c.label)).toEqual([
+        "Heading 1",
+        "Heading 2",
+        "Heading 3",
+        "Toggle heading 1",
+        "Toggle heading 2",
+        "Toggle heading 3",
+      ]),
+    );
+  });
+});
+
+describe("command menu: new blocks, Turn into and descriptions", () => {
+  const render = (c: Completion) =>
+    commandMenuRender.map((r) => r.render(c)).filter((n): n is HTMLElement => n !== null);
+
+  /** Open the menu at the end of `doc`, type `query`, and pick `label` (with `detail`). */
+  async function run(doc: string, query: string, label: string, detail?: string) {
+    const view = viewWith(doc);
+    openCommandMenu(view);
+    type(view, query);
+    const r = slashCompletions(ctx(view))!;
+    const opt = r.options.find((o) => o.label === label && o.detail === detail);
+    if (!opt) throw new Error(`no ${label} ${detail ?? ""}`);
+    const apply = opt.apply as (v: EditorView, c: Completion, f: number, t: number) => unknown;
+    await apply(view, opt, r.from, view.state.selection.main.head);
+    return { doc: view.state.doc.toString(), cursor: view.state.selection.main.head };
+  }
+
+  it("turns the current line into another block, keeping its text", async () => {
+    expect((await run("Title ", "head", "Heading 1", TURN_INTO)).doc).toBe("# Title");
+    expect((await run("- milk ", "task", "Task", TURN_INTO)).doc).toBe("- [ ] milk");
+    expect((await run("## Old ", "text", "Text", TURN_INTO)).doc).toBe("Old");
+    expect((await run("Plan ", "toggle h", "Toggle heading 2", TURN_INTO)).doc).toBe(
+      "> [!toggle|h2]+ Plan",
+    );
+    expect((await run("> [!toggle|h1]- Plan ", "bul", "Bulleted list", TURN_INTO)).doc).toBe(
+      "- Plan",
+    );
+    const code = await run("x = 1 ", "code", "Code block", TURN_INTO);
+    expect(code.doc).toBe("```\nx = 1\n```");
+    expect(code.cursor).toBe("```\nx = 1".length);
+  });
+
+  it("starts a new block under a line with text, or replaces an empty one", async () => {
+    expect((await run("Title ", "bul", "Bulleted list")).doc).toBe("Title\n- ");
+    expect((await run("", "head", "Heading 2")).doc).toBe("## ");
+    expect((await run("- ", "head", "Heading 1")).doc).toBe("# ");
+    expect((await run("Notes ", "toggle", "Toggle list")).doc).toBe("Notes\n> [!toggle]+ ");
+  });
+
+  it("offers Turn into only while filtering and only when the line has text", () => {
+    const turns = (doc: string, query: string) => {
+      const view = viewWith(doc);
+      openCommandMenu(view);
+      if (query) type(view, query);
+      return slashCompletions(ctx(view))!.options.filter((o) => o.detail === TURN_INTO);
+    };
+    expect(turns("Title ", "")).toEqual([]);
+    expect(turns("", "head")).toEqual([]);
+    expect(turns("- ", "head")).toEqual([]);
+    expect(turns("Title ", "head").map((o) => o.label)).toContain("Heading 1");
+    // Only blocks can be turned into; a divider or a date can't.
+    const labels = turns("Title ", "div").map((o) => o.label);
+    expect(labels).not.toContain("Divider");
+    expect(labels).not.toContain("Today's date");
+  });
+
+  it("lists each Turn into right after its command, like Notion", async () => {
+    const view = viewWith("Title ");
+    openCommandMenu(view);
+    type(view, "head");
+    await vi.waitFor(() => expect(currentCompletions(view.state).length).toBeGreaterThan(5));
+    expect(
+      currentCompletions(view.state)
+        .slice(0, 4)
+        .map((c) => [c.label, c.detail ?? ""]),
+    ).toEqual([
+      ["Heading 1", ""],
+      ["Heading 1", TURN_INTO],
+      ["Heading 2", ""],
+      ["Heading 2", TURN_INTO],
+    ]);
+  });
+
+  it("describes every built-in command under its label", () => {
+    const view = viewWith("");
+    openCommandMenu(view);
+    for (const o of slashCompletions(ctx(view))!.options) {
+      const desc = render(o).find((n) => n.className === "cm-commandDescription");
+      expect(desc?.textContent, o.label).toBeTruthy();
+    }
+    expect(SLASH_COMMANDS.every((c) => c.description.length <= 45)).toBe(true);
+  });
+
+  it("draws a toggle heading's icon as an arrow with the heading", () => {
+    const view = viewWith("");
+    openCommandMenu(view);
+    const opt = slashCompletions(ctx(view))!.options.find((o) => o.label === "Toggle heading 1")!;
+    expect(render(opt)[0]!.querySelectorAll("svg")).toHaveLength(2);
   });
 });

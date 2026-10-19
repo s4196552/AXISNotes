@@ -78,6 +78,16 @@ describe("command palette and quick switcher", () => {
     await waitFor(() => expect(useAppStore.getState().activePath).toBe("Brand New.md"));
   });
 
+  it("ignores every shortcut while the window is frozen for an update (T-073)", async () => {
+    render(<Modals />);
+    document.body.toggleAttribute("inert", true);
+    key("p", { ctrlKey: true });
+    key("o", { ctrlKey: true });
+    document.body.toggleAttribute("inert", false);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
   it("closes on Escape and ignores shortcuts while open", async () => {
     render(<Modals />);
     key("p", { ctrlKey: true });

@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { backend, isBackendError, type VaultChange } from "../../ipc";
 import { useAppStore } from "../../app/store";
+import {
+  currentVault,
+  registerDocument,
+  SAVE_ATTEMPTS,
+  trackClosingWrite,
+  type UnsavedDocument,
+} from "./unsavedWork";
 
 // Load / autosave / conflict handling for a file-backed document (grids, canvases).
 // Mirrors the Markdown editor's rules: debounced autosave with mtime-checked writes,
@@ -26,8 +33,12 @@ export interface FileDocument {
   text: string | null;
   /** Bumped each time `text` is (re)loaded from disk. */
   loadVersion: number;
-  /** Record that the document changed; it is saved after the debounce. */
-  markDirty(): void;
+  /**
+   * Record that the document changed; it is saved after the debounce. Pass `serialize`
+   * when the change is still React state that hasn't rendered: a save that runs right
+   * away (e.g. installing an update, T-073) then writes the change, not the last render.
+   */
+  markDirty(serialize?: () => string): void;
   /** Save now. `force` skips the on-disk change check ("Keep my version"). */
   save(force?: boolean): Promise<void>;
   /** Discard local changes and load the file from disk. */
@@ -52,6 +63,7 @@ export function useFileDocument(
   const mtime = useRef<number | undefined>(undefined);
   const dirty = useRef(false);
   const paused = useRef(false);
+  const bannerRef = useRef<Banner>(null);
   const saving = useRef<Promise<void> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const serializeRef = useRef(serialize);
@@ -66,6 +78,7 @@ export function useFileDocument(
 
   const setBanner = useCallback((b: Banner) => {
     paused.current = b !== null;
+    bannerRef.current = b;
     setBannerState(b);
   }, []);
 
@@ -79,7 +92,10 @@ export function useFileDocument(
       clearTimer();
       if (!enabledRef.current) return;
       if (!force && (!dirty.current || paused.current)) return;
-      if (saving.current) await saving.current; // one write at a time
+      // One write at a time. Several saves can be waiting (autosave, blur, install's
+      // flush); each waits for whichever write is current, then checks it's still needed.
+      while (saving.current) await saving.current;
+      if (!force && (!dirty.current || paused.current)) return;
       const content = serializeRef.current();
       const editsAtStart = edits.current;
       setStatus("saving");
@@ -111,13 +127,27 @@ export function useFileDocument(
     [path, setBanner],
   );
 
-  const markDirty = useCallback(() => {
-    edits.current++;
-    dirty.current = true;
-    setStatus("dirty");
-    clearTimer();
-    if (!paused.current) timer.current = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
-  }, [save]);
+  /** Save now, waiting for the write; reports changes that still aren't on disk. */
+  const flush = useCallback(async (): Promise<UnsavedDocument | null> => {
+    if (!enabledRef.current) return null; // never saved while the file can't be parsed
+    for (let i = 0; i < SAVE_ATTEMPTS && dirty.current && !paused.current; i++) await save();
+    if (saving.current) await saving.current;
+    return dirty.current ? { path, reason: bannerRef.current ?? "failed" } : null;
+  }, [path, save]);
+
+  useEffect(() => registerDocument(() => path, flush), [path, flush]);
+
+  const markDirty = useCallback(
+    (serialize?: () => string) => {
+      if (serialize) serializeRef.current = serialize; // until the next render's
+      edits.current++;
+      dirty.current = true;
+      setStatus("dirty");
+      clearTimer();
+      if (!paused.current) timer.current = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
+    },
+    [save],
+  );
 
   const reload = useCallback(async () => {
     const file = await backend.readFile(path);
@@ -133,6 +163,7 @@ export function useFileDocument(
   // Initial load; flush unsaved changes on unmount.
   useEffect(() => {
     let cancelled = false;
+    const vault = currentVault();
     backend.readFile(path).then(
       (file) => {
         if (cancelled) return;
@@ -150,12 +181,22 @@ export function useFileDocument(
     return () => {
       cancelled = true;
       clearTimer();
-      if (dirty.current && !paused.current && enabledRef.current) {
-        void backend
-          .writeFile(path, serializeRef.current(), mtime.current)
-          .catch((e: unknown) =>
-            useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
-          );
+      if (dirty.current && enabledRef.current) {
+        // If the write fails, the changes are kept in an "(unsaved …)" file instead.
+        const content = serializeRef.current();
+        trackClosingWrite(path, content, vault, async () => {
+          while (saving.current) await saving.current; // it may have saved this already
+          if (!dirty.current) return;
+          // With the "changed on disk" or "moved or deleted" banner up, writing would
+          // overwrite the other version or bring the file back: keep these changes in a
+          // recovery file instead (T-074).
+          if (paused.current) {
+            throw new Error(
+              bannerRef.current === "removed" ? "it was moved or deleted" : "it changed on disk",
+            );
+          }
+          await backend.writeFile(path, content, mtime.current, vault ?? undefined);
+        });
       }
     };
   }, [path]);

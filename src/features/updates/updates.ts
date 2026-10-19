@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { type AvailableUpdate, backend, isBackendError } from "../../ipc";
+import { freezeEditing, saveBeforeExit, unsavedChanges } from "../files/beforeExit";
 
 // Updates from a folder (T-066): what the last check found, and installing it.
 
@@ -42,12 +43,25 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
   },
   async install() {
     const update = get().available;
-    if (!update) return;
+    if (!update || get().installing) return;
     set({ installing: true, error: null });
     try {
+      // Installing closes the app (T-073): freeze the window and save every open document
+      // first, and don't install while any change can't be saved (e.g. a note with an
+      // unresolved conflict).
+      const unsaved = await saveBeforeExit();
+      if (unsaved.length > 0) {
+        const { sentence, them } = unsavedChanges(unsaved);
+        set({
+          installing: false,
+          error: `Not installed, so no edits are lost. ${sentence} Resolve ${them}, then try again.`,
+        });
+        return;
+      }
       // On success the app closes while the installer runs, then reopens updated.
       await backend.updatesInstall(update.version);
     } catch (e) {
+      freezeEditing(false);
       set({ installing: false, error: message(e) });
     }
   },

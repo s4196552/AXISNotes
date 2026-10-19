@@ -49,7 +49,8 @@ interface MenuState {
 /** Everything a row can trigger. Kept in one stable object so rows can be memoized. */
 interface RowActions {
   select(path: string): void;
-  activate(entry: VaultEntry): void;
+  /** Open a file (in a new tab with `newTab`), or expand/collapse a folder. */
+  activate(entry: VaultEntry, newTab?: boolean): void;
   toggle(path: string): void;
   openMenu(e: React.MouseEvent, entry: VaultEntry | null): void;
   commitRename(entry: VaultEntry, input: string): void;
@@ -187,10 +188,11 @@ export function FileTree() {
   const actions = useMemo<RowActions>(
     () => ({
       select: setSelected,
-      activate(entry) {
+      activate(entry, newTab) {
         setSelected(entry.path);
         if (entry.kind === "dir") toggle(entry.path);
-        else if (isOpenable(entry)) useAppStore.getState().openFile(entry.path);
+        else if (isOpenable(entry))
+          useAppStore.getState().openFile(entry.path, undefined, { newTab });
       },
       toggle: (path) => toggle(path),
       openMenu(e, entry) {
@@ -526,7 +528,14 @@ const TreeRow = memo(function TreeRow({
       className={classes}
       style={{ paddingLeft: 6 + (depth - 1) * 14 }}
       draggable={!renaming}
-      onClick={() => actions.activate(entry)}
+      // Ctrl/Cmd+click or middle-click opens in a new tab, as in Obsidian.
+      onClick={(e) => actions.activate(entry, e.ctrlKey || e.metaKey)}
+      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+      onAuxClick={(e) => {
+        if (e.button !== 1 || isDir) return;
+        e.preventDefault();
+        actions.activate(entry, true);
+      }}
       onContextMenu={(e) => actions.openMenu(e, entry)}
       onDragStart={(e) => {
         e.dataTransfer?.setData("text/plain", entry.path);
@@ -551,7 +560,10 @@ const TreeRow = memo(function TreeRow({
         {isDir && (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
       </span>
       {customIcon ? (
-        <EntryIcon icon={customIcon} />
+        <EntryIcon
+          icon={customIcon}
+          fallback={<Icon size={15} className="filetree-icon" aria-hidden />}
+        />
       ) : (
         <Icon size={15} className="filetree-icon" aria-hidden />
       )}

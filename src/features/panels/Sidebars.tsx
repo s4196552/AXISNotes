@@ -12,11 +12,14 @@ import { lazyNamed } from "../../app/lazy";
 
 // The local graph (and its graph library) loads right after the first paint.
 const LocalGraph = lazyNamed(() => import("../graph/GraphView"), "LocalGraph");
+import { backend } from "../../ipc";
 import { useUi } from "../commands/ui";
 import { type LeftPanel, useAppStore } from "../../app/store";
 import { Calendar } from "../daily/Calendar";
 import { FileTree } from "../filetree";
 import { BacklinksPanel } from "./BacklinksPanel";
+import { PanelResizer } from "./PanelResizer";
+import { PanelToggle } from "./PanelToggle";
 import { SearchPanel } from "./SearchPanel";
 import { TagsPanel } from "./TagsPanel";
 import "./panels.css";
@@ -33,8 +36,11 @@ export function LeftSidebar() {
   const setPanel = useAppStore((s) => s.setLeftPanel);
   return (
     <aside className="sidebar" aria-label="Navigation">
-      <header className="sidebar-header" title={vault?.root}>
-        <span className="sidebar-vault">{vault?.name}</span>
+      <header className="sidebar-header" title={vault?.root} data-tauri-drag-region>
+        <span className="sidebar-vault" data-tauri-drag-region>
+          {vault?.name}
+        </span>
+        <PanelToggle side="left" className="sidebar-settings" />
         <button
           className="sidebar-settings"
           aria-label="Settings"
@@ -88,6 +94,7 @@ export function LeftSidebar() {
         {panel === "search" && <SearchPanel />}
         {panel === "tags" && <TagsPanel />}
       </div>
+      <PanelResizer side="left" />
     </aside>
   );
 }
@@ -95,6 +102,8 @@ export function LeftSidebar() {
 export function RightSidebar() {
   return (
     <aside className="sidebar sidebar-right" aria-label="Links">
+      {/* Under the window's own buttons, level with the tab row; it moves the window. */}
+      {backend.windowFrame && <div className="sidebar-right-head" data-tauri-drag-region />}
       <Calendar />
       <Suspense fallback={null}>
         <LocalGraph />
@@ -102,6 +111,7 @@ export function RightSidebar() {
       <div className="sidebar-body">
         <BacklinksPanel />
       </div>
+      <PanelResizer side="right" />
     </aside>
   );
 }

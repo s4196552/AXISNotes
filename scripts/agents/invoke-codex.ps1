@@ -11,10 +11,14 @@
 param(
     [Parameter(Mandatory)] [string[]] $CodexArgs,
     [Parameter(Mandatory)] [string] $Prompt,
-    [Parameter(Mandatory)] [string] $LogBase   # e.g. .agents/logs/T-003 -> .prompt.md, .log, .err.log
+    [Parameter(Mandatory)] [string] $LogBase,  # e.g. .agents/logs/T-003 -> .prompt.md, .log, .err.log
+    # Codex rewrites the default model in ~/.codex/config.toml (it picked gpt-6.1-sol, which a
+    # ChatGPT-account login rejects), so name a supported model here. Empty = Codex default.
+    [string] $Model = "gpt-6-astra"
 )
 
 $ErrorActionPreference = "Stop"
+if ($Model) { $CodexArgs += @("-m", $Model) }
 $promptFile = "$LogBase.prompt.md"
 $outLog     = "$LogBase.log"
 $errLog     = "$LogBase.err.log"

@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Effect, getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AiRunResult, Backend, Clipped, IndexProgress, VaultChange, VaultInfo } from "./types";
+import { IMAGE_EXTENSIONS } from "../lib/attachments";
 
 export const VAULT_CHANGED_EVENT = "vault://changed";
 export const INDEX_PROGRESS_EVENT = "index://progress";
@@ -29,10 +30,29 @@ export function createTauriBackend(): Backend {
     currentVault: () => track(invoke<VaultInfo | null>("current_vault")),
     listTree: () => invoke("list_tree"),
     readFile: (path) => invoke("read_file", { path }),
-    writeFile: (path, content, expectedModifiedMs) =>
-      invoke("write_file", { path, content, expectedModifiedMs }),
-    createFile: (path, content) => invoke("create_file", { path, content }),
+    writeFile: (path, content, expectedModifiedMs, vaultRoot) =>
+      invoke("write_file", { path, content, expectedModifiedMs, vaultRoot }),
+    createFile: (path, content, vaultRoot) => invoke("create_file", { path, content, vaultRoot }),
     createDir: (path) => invoke("create_dir", { path }),
+    async pickImage() {
+      const picked = await open({
+        multiple: false,
+        filters: [{ name: "Images", extensions: [...IMAGE_EXTENSIONS] }],
+      });
+      return typeof picked === "string" ? picked : null;
+    },
+    importImage: (source, folder) => invoke("import_image", { source, folder }),
+    listPacks: () => invoke("list_packs"),
+    async pickPackSource(from) {
+      const picked = await open(
+        from === "folder"
+          ? { directory: true, multiple: false }
+          : { multiple: false, filters: [{ name: "Zip archives", extensions: ["zip"] }] },
+      );
+      return typeof picked === "string" ? picked : null;
+    },
+    importPack: (kind, source) => invoke("import_pack", { kind, source }),
+    removePack: (kind, name) => invoke("remove_pack", { kind, name }),
     renameEntry: (from, to) => invoke("rename_entry", { from, to }),
     trashEntry: (path) => invoke("trash_entry", { path }),
     search: (query, limit) => invoke("search", { query, limit }),
@@ -100,6 +120,24 @@ export function createTauriBackend(): Backend {
       const window = getCurrentWindow();
       await window.clearEffects();
       if (effect) await window.setEffects({ effects: [effect as Effect] });
+    },
+    async onCloseRequested(cb) {
+      // Registering any listener keeps the window open (Tauri prevents the close while
+      // JS listens); preventing here also stops the API from closing it after `cb`.
+      return getCurrentWindow().onCloseRequested((e) => {
+        e.preventDefault();
+        cb();
+      });
+    },
+    closeWindow: () => getCurrentWindow().destroy(),
+    // The window is created without the system frame (tauri.conf.json); the title bar's
+    // own buttons drive it.
+    windowFrame: {
+      minimize: () => getCurrentWindow().minimize(),
+      toggleMaximize: () => getCurrentWindow().toggleMaximize(),
+      requestClose: () => getCurrentWindow().close(),
+      isMaximized: () => getCurrentWindow().isMaximized(),
+      onResized: (cb) => getCurrentWindow().onResized(() => cb()),
     },
     listFonts: () => invoke("list_fonts"),
     async onIndexProgress(cb) {
