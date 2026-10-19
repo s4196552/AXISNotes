@@ -43,6 +43,7 @@ import { usePresence } from "./features/panels/presence";
 import { TabBar } from "./features/tabs/TabBar";
 import { TAB_PANEL_ID } from "./features/tabs/tabInfo";
 import { NewTab } from "./features/tabs/NewTab";
+import { WindowControls } from "./features/window/WindowControls";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
@@ -156,6 +157,7 @@ export default function App() {
     return (
       <>
         <WelcomeScreen />
+        <WindowControls dragStrip />
         <UpdateBanner />
       </>
     );
@@ -181,7 +183,11 @@ export default function App() {
       >
         <LeftSidebar />
       </div>
-      <main className={showLeft ? "content" : "content left-hidden"}>
+      <main
+        className={["content", !showLeft && "left-hidden", !showRight && "right-hidden"]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {/* The left panel's own header holds its hide button; once hidden, it shows here. */}
         {!showLeft && <PanelToggle side="left" className="side-panels-toggle left" />}
         <PanelToggle side="right" className="side-panels-toggle" />
@@ -221,6 +227,7 @@ export default function App() {
           <RightSidebar />
         </div>
       )}
+      <WindowControls />
       <Modals />
       <UpdateBanner />
       <footer className="statusbar">

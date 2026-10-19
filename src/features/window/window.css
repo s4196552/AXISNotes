@@ -1,0 +1,60 @@
+/* The app's own title bar buttons (WindowControls.tsx). Their width is reserved at the
+   right of the tab row while the right panel is hidden, and by the right panel's top strip
+   while it shows. */
+:root {
+  --frame-controls: 0px;
+}
+:root.framed {
+  --frame-controls: 138px;
+}
+.window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  /* Above dialogs too, so the window can always be moved off, minimized or closed. */
+  z-index: 250;
+  display: flex;
+  height: 38px;
+}
+.window-controls button {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.window-controls button:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.window-controls .window-close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+.window-restore {
+  transform: scaleX(-1);
+}
+.titlebar-drag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: var(--frame-controls);
+  z-index: 240;
+  height: 38px;
+}
+/* The right panel's top lines up with the tab row and sits under the buttons. */
+.sidebar-right-head {
+  flex: none;
+  height: 38px;
+  border-bottom: 1px solid var(--border);
+}
+.content.right-hidden .tabbar-row {
+  padding-right: calc(44px + var(--frame-controls));
+}
+.content.right-hidden .side-panels-toggle:not(.left) {
+  right: calc(10px + var(--frame-controls));
+}

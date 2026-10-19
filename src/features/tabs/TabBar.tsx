@@ -176,7 +176,8 @@ export function TabBar() {
   const atEnd: Drop = { index: tabs.list.length, group: null, mark: "end", side: "after" };
 
   return (
-    <div className="tabbar-row">
+    // The row is the window's title bar: its empty part moves the window (see WindowControls).
+    <div className="tabbar-row" data-tauri-drag-region>
       <div
         ref={bar}
         className={["tabbar", marker("end") && "drop-end"].filter(Boolean).join(" ")}

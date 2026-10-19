@@ -198,7 +198,10 @@ input {
   border-right: 1px solid var(--border);
 }
 .sidebar-header {
-  padding: 10px 12px;
+  /* Level with the tab row, which is the window's title bar. */
+  flex: none;
+  height: 38px;
+  padding: 0 12px;
   font-weight: 600;
   border-bottom: 1px solid var(--border);
   overflow: hidden;
