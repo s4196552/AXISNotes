@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { FolderOpen, FileArchive } from "lucide-react";
 import type { Pack, PackKind } from "../../ipc";
 import { backend } from "../../ipc";
-import { matchesPackFile, packCount, packFileLabel, usePacks } from "./packs";
+import { matchesPackFile, packCount, packFileLabel, TEXT_COLOR, usePacks } from "./packs";
 import "../icons/icons.css";
 import "./packs.css";
 
@@ -103,9 +103,6 @@ export function PackImage({
     </span>
   );
 }
-
-/** The colour that one-colour pack icons get unless another is chosen: the text's. */
-export const TEXT_COLOR = "currentColor";
 
 /** Pack icons per page of results, as in the icon picker's Lucide set. */
 const PAGE = 240;

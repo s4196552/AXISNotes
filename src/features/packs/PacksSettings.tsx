@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Pack } from "../../ipc";
-import { AddPack, PackImage, TEXT_COLOR } from "./PackParts";
-import { packCount, usePacks } from "./packs";
+import { AddPack, PackImage } from "./PackParts";
+import { packCount, TEXT_COLOR, usePacks } from "./packs";
 
 /** Settings → Icon & image packs: what's in the vault, adding and removing packs. */
 export function PacksSettings() {

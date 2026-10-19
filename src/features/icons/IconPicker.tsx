@@ -13,8 +13,8 @@ import {
   matchesIcon,
 } from "./iconSet";
 import { ImageChooser } from "./ImageChooser";
-import { isPackPath } from "../packs/packs";
-import { IconPacks, TEXT_COLOR } from "../packs/PackParts";
+import { isPackPath, TEXT_COLOR } from "../packs/packs";
+import { IconPacks } from "../packs/PackParts";
 import "./icons.css";
 
 /** Icons rendered per page of results, so typing stays quick with ~1,900 icons. */

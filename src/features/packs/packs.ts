@@ -8,6 +8,9 @@ import { backend, isBackendError, type Pack, type PackKind } from "../../ipc";
 
 const PACKS_PREFIX = ".axisnotes/packs/";
 
+/** The colour that one-colour pack icons get unless another is chosen: the text's. */
+export const TEXT_COLOR = "currentColor";
+
 /** A path inside a pack (these aren't in the file tree, so they're used as written). */
 export const isPackPath = (path: string) =>
   path.startsWith(PACKS_PREFIX) && !path.split("/").includes("..");
