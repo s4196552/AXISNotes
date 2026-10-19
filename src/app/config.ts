@@ -18,6 +18,16 @@ export interface FolderIcon {
   color?: string;
 }
 
+/** A file-tree row's own colours (hex, e.g. `#e5484d40`); unset parts use the theme. */
+export interface EntryColors {
+  background?: string;
+  text?: string;
+}
+
+/** Only plain hex colours are applied, so a hand-edited config can't inject other CSS. */
+export const isHexColor = (v: unknown): v is string =>
+  typeof v === "string" && /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v);
+
 export type EditorWidth = "narrow" | "medium" | "wide" | "full";
 
 /** What Windows draws behind the see-through window (Translucent theme). */
@@ -41,6 +51,8 @@ export interface AxisConfig {
     windowEffect: WindowEffect;
   };
   folderIcons: Record<string, FolderIcon>;
+  /** Background and text colours of file-tree rows, by vault path. */
+  entryColors: Record<string, EntryColors>;
   dailyNotes: {
     folder: string;
     /** Date format for the file name, e.g. `YYYY-MM-DD`. */
@@ -92,6 +104,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     windowEffect: "frosted",
   },
   folderIcons: {},
+  entryColors: {},
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   templatesFolder: "Templates",
   attachments: { folder: "Attachments" },

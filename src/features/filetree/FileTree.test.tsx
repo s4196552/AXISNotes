@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
+import { useUi } from "../commands/ui";
 import { FileTree } from "./FileTree";
+import { RowColorsDialog } from "./RowColors";
+import { rowColors } from "./rowColorsModel";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -199,5 +202,67 @@ describe("FileTree", () => {
     expect(screen.getByRole("menuitem", { name: "✓ AI access: never" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "AI access: inherit" }));
     await waitFor(() => expect(row("Medical")).toBeInTheDocument());
+  });
+
+  it("gives a row its own background and text colour from Change colours…", async () => {
+    await setup({ "Ideas.md": "", "School/Bio.md": "" });
+    fireEvent.contextMenu(row("Ideas"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Change colours…" }));
+    expect(useUi.getState().modal).toEqual({ kind: "colors", path: "Ideas.md" });
+
+    const onClose = vi.fn();
+    render(<RowColorsDialog path="Ideas.md" onClose={onClose} />);
+    const dialog = screen.getByRole("dialog", { name: "Colours for Ideas" });
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Background #0090ff40" }));
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Text #ffc53d" }));
+    await waitFor(() =>
+      expect(JSON.parse(h.b.files()[".axisnotes/config.json"]!).entryColors).toEqual({
+        "Ideas.md": { background: "#0090ff40", text: "#ffc53d" },
+      }),
+    );
+    expect(row("Ideas")).toHaveClass("has-bg", "has-fg");
+    expect(row("Ideas").style.getPropertyValue("--row-bg")).toBe("#0090ff40");
+    expect(row("Ideas").style.getPropertyValue("--row-fg")).toBe("#ffc53d");
+    expect(row("School")).not.toHaveClass("has-bg");
+
+    // Default text keeps the background; Reset clears both.
+    fireEvent.click(within(dialog).getByRole("radio", { name: "Default text" }));
+    await waitFor(() => expect(row("Ideas")).not.toHaveClass("has-fg"));
+    expect(row("Ideas")).toHaveClass("has-bg");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reset" }));
+    await waitFor(() => expect(row("Ideas")).not.toHaveClass("has-bg"));
+    expect(useConfig.getState().config.entryColors).toEqual({});
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("keeps a folder's colours (and its children's) when it is renamed", async () => {
+    useConfig.setState({
+      config: {
+        ...DEFAULT_CONFIG,
+        entryColors: { School: { background: "#30a46c40" }, "School/Bio.md": { text: "#e5484d" } },
+      },
+    });
+    await setup({ "School/Bio.md": "" });
+    fireEvent.click(row("School"));
+    fireEvent.keyDown(screen.getByRole("tree"), { key: "F2" });
+    const input = screen.getByRole("textbox", { name: "New name" });
+    fireEvent.change(input, { target: { value: "Uni" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() =>
+      expect(useConfig.getState().config.entryColors).toEqual({
+        Uni: { background: "#30a46c40" },
+        "Uni/Bio.md": { text: "#e5484d" },
+      }),
+    );
+    expect(row("Uni")).toHaveClass("has-bg");
+  });
+
+  it("ignores saved colours that are not hex, so the config can't inject CSS", () => {
+    expect(rowColors({ background: "url(https://x.test/a.png)", text: "#abc" })).toEqual({
+      text: "#abc",
+    });
+    expect(rowColors({ background: "red; color: blue" })).toBeUndefined();
+    expect(rowColors({ background: "#11223344" })).toEqual({ background: "#11223344" });
   });
 });
