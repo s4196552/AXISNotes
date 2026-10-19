@@ -284,6 +284,22 @@
 .tree-node-lit .tree-more {
   fill: var(--accent-fg);
 }
+.tree-icon-box {
+  overflow: visible;
+  pointer-events: none;
+}
+.tree-icon-box > * {
+  display: flex;
+  color: var(--fg-muted);
+}
+.tree-icon-box > .emoji-icon {
+  width: 14px;
+  height: 14px;
+  font-size: 13px;
+}
+.tree-node-lit .tree-icon-box > * {
+  color: var(--accent-fg);
+}
 .tree-more {
   fill: var(--fg-muted);
   font-size: 11px;

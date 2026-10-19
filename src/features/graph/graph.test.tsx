@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import type { GraphData } from "../../ipc";
 import { useAppStore } from "../../app/store";
+import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { buildGraph, folderColor, groupColors, topFolder } from "./graphModel";
 import { GraphView, LocalGraph } from "./GraphView";
 
@@ -155,6 +156,7 @@ describe("graph views", () => {
       "Lonely.md": "",
     });
     useAppStore.setState({ activePath: "A.md", mainView: "graph", pendingTarget: null });
+    useConfig.setState({ config: DEFAULT_CONFIG });
     await act(() => useAppStore.getState().refreshTree());
   });
 
@@ -327,6 +329,68 @@ describe("graph views", () => {
     // Clicking a note opens it.
     fireEvent.click(screen.getByRole("treeitem", { name: "Lonely" }));
     expect(useAppStore.getState().activePath).toBe("Lonely.md");
+  });
+
+  it("shows icons on tree nodes by default, and an Icons checkbox hides them", async () => {
+    useConfig.setState({
+      config: {
+        ...DEFAULT_CONFIG,
+        folderIcons: { "Dir/B.md": { icon: "🧪" }, Dir: { icon: "📁" } },
+      },
+    });
+    render(<GraphView />);
+    fireEvent.click(await screen.findByRole("radio", { name: /Tree/ }));
+    const tree = await screen.findByRole("tree", { name: "Note tree" });
+    const iconOf = (name: string) =>
+      screen.getByRole("treeitem", { name }).querySelector(".tree-icon-box");
+    // A custom icon where one is set, else one for the kind of item.
+    expect(iconOf("B")).toHaveTextContent("🧪");
+    expect(iconOf("A")?.querySelector("svg.lucide-file-text")).not.toBeNull();
+    fireEvent.change(screen.getByRole("combobox", { name: "Tree follows" }), {
+      target: { value: "folders" },
+    });
+    expect(iconOf("Dir")).toHaveTextContent("📁");
+    expect(iconOf("Vault")?.querySelector("svg.lucide-folder")).not.toBeNull();
+
+    const box = screen.getByRole("checkbox", { name: "Icons" });
+    expect(box).toBeChecked();
+    fireEvent.click(box);
+    expect(tree.querySelector(".tree-icon-box")).toBeNull();
+    expect(JSON.parse(localStorage.getItem("axisnotes.graph")!)).toMatchObject({
+      display: { icons: false },
+    });
+  });
+
+  it("draws icons on graph labels by default, with a switch in Display", async () => {
+    render(<GraphView />);
+    await waitFor(() => expect(h.sigmas.length).toBe(1));
+    const sigma = h.sigmas[0]!;
+    const draw = sigma.settings.defaultDrawNodeLabel as (
+      ctx: CanvasRenderingContext2D,
+      data: object,
+      settings: object,
+    ) => void;
+    const texts: [string, number][] = [];
+    const ctx = {
+      fillText: (t: string, x: number) => texts.push([t, x]),
+      drawImage: vi.fn(),
+      save() {},
+      restore() {},
+    } as unknown as CanvasRenderingContext2D;
+    const label = { key: "A.md", label: "A", x: 100, y: 50, size: 5 };
+    const font = { labelSize: 14, labelFont: "sans-serif", labelWeight: "normal" };
+    draw(ctx, label, font);
+    // The label makes room for the icon after the node.
+    expect(texts).toEqual([["A", 100 + 5 + 3 + 16 + 3]]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Graph settings" }));
+    const toggle = screen.getByRole("switch", { name: "Icons" });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    texts.length = 0;
+    draw(ctx, label, font);
+    expect(texts).toEqual([["A", 108]]);
+    expect(h.sigmas.length).toBe(1);
   });
 
   it("closes back to the note", async () => {

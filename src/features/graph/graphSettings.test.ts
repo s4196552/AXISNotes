@@ -40,6 +40,14 @@ describe("graph settings", () => {
     });
   });
 
+  it("shows icons unless they were turned off", () => {
+    expect(DEFAULT_SETTINGS.display.icons).toBe(true);
+    // Settings saved before the option existed, or unusable values, keep them on.
+    expect(sanitizeSettings({ display: { arrows: true } }).display.icons).toBe(true);
+    expect(sanitizeSettings({ display: { icons: 0 } }).display.icons).toBe(true);
+    expect(sanitizeSettings({ display: { icons: false } }).display.icons).toBe(false);
+  });
+
   it("survives unreadable storage and saves changes", () => {
     localStorage.setItem("axisnotes.graph", "{not json");
     expect(loadGraphSettings()).toEqual(DEFAULT_SETTINGS);

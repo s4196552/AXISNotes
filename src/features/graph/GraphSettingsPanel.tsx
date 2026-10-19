@@ -138,6 +138,7 @@ export function GraphSettingsPanel(props: {
           checked={s.display.arrows}
           onChange={(v) => display({ arrows: v })}
         />
+        <Toggle label="Icons" checked={s.display.icons} onChange={(v) => display({ icons: v })} />
         <Slider
           label="Text fade threshold"
           range="textFade"

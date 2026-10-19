@@ -17,6 +17,8 @@ export interface ColorGroup {
 
 export interface DisplaySettings {
   arrows: boolean;
+  /** Each note's icon (its custom icon, else one for its kind) beside its label. */
+  icons: boolean;
   /** Labels show on nodes drawn at least this many pixels wide (0 = always). */
   textFade: number;
   /** Multiplier on node sizes. */
@@ -49,6 +51,7 @@ export interface GraphSettings {
 
 export const DEFAULT_DISPLAY: DisplaySettings = {
   arrows: false,
+  icons: true,
   textFade: 5,
   nodeSize: 1,
   linkThickness: 1,
@@ -114,6 +117,7 @@ export function sanitizeSettings(raw: unknown): GraphSettings {
       .map((g) => ({ query: g.query, color: g.color })),
     display: {
       arrows: bool(d.arrows, DEFAULT_DISPLAY.arrows),
+      icons: bool(d.icons, DEFAULT_DISPLAY.icons),
       textFade: num(d.textFade, "textFade", DEFAULT_DISPLAY.textFade),
       nodeSize: num(d.nodeSize, "nodeSize", DEFAULT_DISPLAY.nodeSize),
       linkThickness: num(d.linkThickness, "linkThickness", DEFAULT_DISPLAY.linkThickness),
