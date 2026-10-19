@@ -126,6 +126,7 @@ describe("slash commands", () => {
       };
     };
     expect(run("Title /h2", "Heading 2", {}, TURN_INTO).text).toBe("## Title");
+    expect(run("Title /h6", "Heading 6", {}, TURN_INTO).text).toBe("###### Title");
     expect(run("- item /ta", "Task", {}, TURN_INTO).text).toBe("- [ ] item");
     // Without Turn into, a block goes on a new line under one that has text.
     expect(run("Title /h2", "Heading 2").text).toBe("Title\n## ");

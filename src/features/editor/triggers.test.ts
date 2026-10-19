@@ -661,6 +661,7 @@ describe("command menu icons and Markdown hints", () => {
         ?.textContent;
     expect(hint("Heading 1")).toBe("#");
     expect(hint("Heading 3")).toBe("###");
+    expect(hint("Heading 6")).toBe("######");
     expect(hint("Bulleted list")).toBe("-");
     expect(hint("Embed note")).toBe("![[");
     expect(hint("Insert template…")).toBeUndefined();
@@ -740,9 +741,15 @@ describe("command menu sections", () => {
         "Heading 1",
         "Heading 2",
         "Heading 3",
+        "Heading 4",
+        "Heading 5",
+        "Heading 6",
         "Toggle heading 1",
         "Toggle heading 2",
         "Toggle heading 3",
+        "Toggle heading 4",
+        "Toggle heading 5",
+        "Toggle heading 6",
       ]),
     );
   });
