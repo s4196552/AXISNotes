@@ -1,6 +1,19 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { FolderIcon } from "../../app/config";
 import type { GraphData } from "../../ipc";
+import { EntryIcon } from "../icons/EntryIcon";
 import type { TreeDirection } from "./graphSettings";
+import { nodeIcon } from "./nodeIcons";
+import "../icons/icons.css";
 import {
   buildTree,
   layoutTree,
@@ -26,6 +39,10 @@ interface View {
 }
 
 const NONE: ReadonlySet<string> = new Set();
+
+/** Icon box size, and how far it pushes the label along. */
+const ICON = 14;
+const ICON_ROOM = ICON + 6;
 
 const clampZoom = (k: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, k));
 
@@ -57,6 +74,8 @@ export interface TreeViewProps {
   /** Highlighted when nothing is hovered or focused. */
   activePath: string | null;
   colors: { accent: string; muted: string };
+  /** Custom icons by path when icons are shown, else null. */
+  icons: Readonly<Record<string, FolderIcon>> | null;
   onOpen(id: string): void;
   onMakeRoot(id: string): void;
   /** Reports how many notes the tree shows. */
@@ -64,7 +83,8 @@ export interface TreeViewProps {
 }
 
 export function TreeView(props: TreeViewProps) {
-  const { data, direction, depth, showUnresolved, root, activePath, colors, onCount } = props;
+  const { data, direction, depth, showUnresolved, root, activePath, colors, icons, onCount } =
+    props;
   const box = useRef<HTMLDivElement>(null);
   const markerId = useId().replace(/:/g, "");
   // Collapsed nodes belong to one tree: a different root, direction or depth starts
@@ -224,6 +244,7 @@ export function TreeView(props: TreeViewProps) {
     e.preventDefault();
   };
 
+  const labelX = icons ? 12 + ICON_ROOM : 12;
   const rovingId = focused && byId.has(focused) ? focused : layout.nodes[0]?.node.id;
   return (
     <div
@@ -346,8 +367,9 @@ export function TreeView(props: TreeViewProps) {
                   </title>
                   <rect className="tree-box" width={W} height={H} rx={6} />
                   <rect className="tree-stripe" width={4} height={H} rx={2} fill={node.color} />
-                  <text className="tree-label" x={12} y={H / 2 + 4.5}>
-                    {fit(node.label, W - (hasKids ? 44 : 20))}
+                  {icons ? <TreeIcon id={node.id} node={node} icons={icons} /> : null}
+                  <text className="tree-label" x={labelX} y={H / 2 + 4.5}>
+                    {fit(node.label, W - (hasKids ? 44 : 20) - (icons ? ICON_ROOM : 0))}
                   </text>
                   {node.beyond + node.elsewhere > 0 && !hasKids ? (
                     <text className="tree-more" x={W - 8} y={H / 2 + 4} textAnchor="end">
@@ -391,5 +413,24 @@ export function TreeView(props: TreeViewProps) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** A node's icon at the start of its box (HTML inside the SVG, as emoji and images are). */
+function TreeIcon(props: {
+  id: string;
+  node: { folder: boolean; unresolved: boolean };
+  icons: Readonly<Record<string, FolderIcon>>;
+}) {
+  const icon = nodeIcon(props.id, props.icons, props.node);
+  const kind = createElement(icon.kind, {
+    size: ICON,
+    className: "tree-icon",
+    "aria-hidden": true,
+  });
+  return (
+    <foreignObject x={12} y={(H - ICON) / 2} width={ICON} height={ICON} className="tree-icon-box">
+      {icon.custom ? <EntryIcon icon={icon.custom} size={ICON} fallback={kind} /> : kind}
+    </foreignObject>
   );
 }

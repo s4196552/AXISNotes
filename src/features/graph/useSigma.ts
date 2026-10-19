@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onThemeChange } from "../../app/appearance";
+import type { FolderIcon } from "../../app/config";
 import type Graph from "graphology";
 import type { NodeAttrs } from "./graphModel";
 import { loadGraphLibs } from "./graphLibs";
@@ -16,12 +17,13 @@ import {
   type DisplaySettings,
   type ForceSettings,
 } from "./graphSettings";
+import { createIconPainter, nodeIcon, type IconPainter, type NodeIcon } from "./nodeIcons";
 
 // Render a graphology graph with sigma (WebGL) and move it with a live force simulation,
 // like Obsidian: nodes can be dragged (their neighbours follow), hovering highlights a
 // node's neighbours, and clicks are reported. Display settings and colour groups apply
-// without moving anything; force changes reheat the simulation. Sigma and d3-force are
-// loaded on first use.
+// without moving anything; force changes reheat the simulation. Labels can show each
+// note's icon. Sigma and d3-force are loaded on first use.
 
 const cssVar = (name: string, fallback: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
@@ -30,6 +32,7 @@ const cssVar = (name: string, fallback: string) =>
 const PRETICK_MS = 120;
 
 interface LabelData {
+  key?: string;
   x: number;
   y: number;
   size: number;
@@ -37,17 +40,51 @@ interface LabelData {
   color?: string;
 }
 
+interface LabelSettings {
+  labelSize: number;
+  labelFont: string;
+  labelWeight: string;
+}
+
+/** A node's icon on its label, if icons are shown. */
+type IconFor = (key: string | undefined) => NodeIcon | null;
+
+/** Icons are a little taller than the label text. */
+const iconSize = (labelSize: number) => labelSize + 2;
+
+/** Labels in the theme colour, after the node's icon when it has one. */
+function iconLabelDrawer(fg: string, iconFor: IconFor, painter: IconPainter) {
+  return (ctx: CanvasRenderingContext2D, data: LabelData, settings: LabelSettings) => {
+    if (!data.label) return;
+    const size = settings.labelSize;
+    let x = data.x + data.size + 3;
+    const icon = iconFor(data.key);
+    if (icon) {
+      const s = iconSize(size);
+      painter.draw(ctx, icon, x, data.y - s / 2, s);
+      x += s + 3;
+    }
+    ctx.fillStyle = fg;
+    ctx.font = `${settings.labelWeight} ${size}px ${settings.labelFont}`;
+    ctx.fillText(data.label, x, data.y + size / 3);
+  };
+}
+
 /** Hover/highlight label drawn with theme colors (sigma's default is a white box). */
-function themedHoverDrawer(bg: string, fg: string, border: string) {
-  return (
-    ctx: CanvasRenderingContext2D,
-    data: LabelData,
-    settings: { labelSize: number; labelFont: string; labelWeight: string },
-  ) => {
+function themedHoverDrawer(
+  bg: string,
+  fg: string,
+  border: string,
+  iconFor: IconFor,
+  painter: IconPainter,
+) {
+  return (ctx: CanvasRenderingContext2D, data: LabelData, settings: LabelSettings) => {
     const size = settings.labelSize;
     ctx.font = `${settings.labelWeight} ${size}px ${settings.labelFont}`;
     const label = data.label ?? "";
-    const width = label ? ctx.measureText(label).width + 10 : 0;
+    const icon = label ? iconFor(data.key) : null;
+    const room = icon ? iconSize(size) + 3 : 0;
+    const width = label ? ctx.measureText(label).width + 10 + room : 0;
     const h = size + 8;
     const x = data.x + data.size + 4;
     const y = data.y - h / 2;
@@ -63,9 +100,13 @@ function themedHoverDrawer(bg: string, fg: string, border: string) {
     ctx.strokeStyle = data.color ?? fg;
     ctx.lineWidth = 2;
     ctx.stroke();
+    if (icon) {
+      const s = iconSize(size);
+      painter.draw(ctx, icon, x + 3, data.y - s / 2, s);
+    }
     if (label) {
       ctx.fillStyle = fg;
-      ctx.fillText(label, x + 3, data.y + size / 3);
+      ctx.fillText(label, x + 3 + room, data.y + size / 3);
     }
   };
 }
@@ -77,6 +118,8 @@ export interface SigmaLook {
   groupColors: Map<string, string>;
   /** The open note: emphasized and always labelled. */
   highlight: string | null;
+  /** Custom icons by path, shown on labels when `display.icons` is on. */
+  icons: Readonly<Record<string, FolderIcon>>;
 }
 
 interface Mounted {
@@ -107,6 +150,14 @@ async function mountSigma(
   const faded = cssVar("--border", "#e3e4e8");
   const edgeColor = cssVar("--fg-muted", "#8d9199");
   const accent = cssVar("--accent", "#4f5bd5");
+  const fg = cssVar("--fg", "#1f2328");
+  // Redraws once an icon image has loaded (`renderer` exists by then).
+  const painter = createIconPainter(edgeColor, () => renderer.refresh({ skipIndexation: true }));
+  const iconFor: IconFor = (key) => {
+    const { display, icons } = look();
+    if (!display.icons || key === undefined || !graph.hasNode(key)) return null;
+    return nodeIcon(key, icons, { unresolved: graph.getNodeAttribute(key, "unresolved") });
+  };
   let hovered: string | null = null;
   let dragged: SimNode | null = null;
 
@@ -152,13 +203,16 @@ async function mountSigma(
     // below draws it once it has room.
     allowInvalidContainer: true,
     renderEdgeLabels: false,
-    labelColor: { color: cssVar("--fg", "#1f2328") },
+    labelColor: { color: fg },
     labelRenderedSizeThreshold: look().display.textFade,
     defaultEdgeColor: edgeColor,
+    defaultDrawNodeLabel: iconLabelDrawer(fg, iconFor, painter),
     defaultDrawNodeHover: themedHoverDrawer(
       cssVar("--bg-sidebar", "#f6f6f7"),
-      cssVar("--fg", "#1f2328"),
+      fg,
       cssVar("--border", "#e3e4e8"),
+      iconFor,
+      painter,
     ),
     zIndex: true,
     nodeReducer: (node, data) => {
@@ -274,6 +328,7 @@ async function mountSigma(
     dispose() {
       observer?.disconnect();
       cancelAnimationFrame(frame);
+      painter.dispose();
       sim.stop();
       sim.on("tick", null).on("end", null);
       renderer.kill();
@@ -314,11 +369,14 @@ export function useThemeVersion(): number {
 
 export interface SigmaOptions {
   display?: DisplaySettings;
+  /** Custom icons by path (the vault's `folderIcons`). */
+  icons?: Readonly<Record<string, FolderIcon>>;
   forces?: ForceSettings;
   groupColors?: Map<string, string>;
 }
 
 const NO_GROUPS = new Map<string, string>();
+const NO_ICONS: Readonly<Record<string, FolderIcon>> = {};
 
 /** Render `graph` into `container`. Returns `animate`, which lays it out again. */
 export function useSigma(
@@ -336,20 +394,22 @@ export function useSigma(
     display: DEFAULT_DISPLAY,
     groupColors: NO_GROUPS,
     highlight: null,
+    icons: NO_ICONS,
   });
   const forces = options.forces ?? DEFAULT_FORCES;
   const forcesRef = useRef(forces);
   const display = options.display ?? DEFAULT_DISPLAY;
   const groupColors = options.groupColors ?? NO_GROUPS;
+  const icons = options.icons ?? NO_ICONS;
 
   useEffect(() => {
     onClick.current = onClickNode;
   }, [onClickNode]);
 
   useEffect(() => {
-    look.current = { display, groupColors, highlight: highlight ?? null };
+    look.current = { display, groupColors, highlight: highlight ?? null, icons };
     mounted.current?.refresh();
-  }, [display, groupColors, highlight]);
+  }, [display, groupColors, highlight, icons]);
 
   useEffect(() => {
     if (forcesRef.current === forces) return;
