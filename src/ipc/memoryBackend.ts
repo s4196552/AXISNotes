@@ -9,6 +9,8 @@ import {
   inlineProperties,
 } from "../lib/markdown";
 import { compareTasks, findTasks } from "../lib/tasks";
+import { isImagePath } from "../lib/attachments";
+import { svgIsMonochrome } from "../lib/svgMonochrome";
 import { createMemoryAi } from "./memoryAi";
 import type {
   Backend,
@@ -18,6 +20,8 @@ import type {
   ErrorCode,
   GraphData,
   Mention,
+  Pack,
+  PackKind,
   SearchHit,
   TimeEntry,
   UpdateSettings,
@@ -86,7 +90,53 @@ export interface MemoryBackend extends Backend {
   emitChanges(changes: VaultChange[]): void;
   /** Direct access for assertions in tests. */
   files(): Record<string, string>;
+  /** Simulate clicking the window's close button (fires onCloseRequested). */
+  requestClose(): void;
+  /** Whether closeWindow was called. */
+  windowClosed(): boolean;
 }
+
+/** What the browser preview's pack picker returns: one of the sample packs below. */
+export const SAMPLE_SOURCE = "memory:sample-pack";
+
+const icon = (body: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+const scene = (top: string, bottom: string, sun: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bottom}"/></linearGradient></defs><rect width="1200" height="400" fill="url(#g)"/><circle cx="900" cy="250" r="70" fill="${sun}"/><path d="M0 330 Q300 260 600 320 T1200 300 V400 H0Z" fill="#00000055"/></svg>`;
+
+/** Small packs for the browser preview, where no files on disk can be picked. */
+const SAMPLE_PACKS: Record<PackKind, { name: string; files: Record<string, string> }> = {
+  icons: {
+    name: "Sample icons",
+    files: {
+      "anchor.svg": icon(
+        '<circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/>',
+      ),
+      "atom.svg": icon(
+        '<circle cx="12" cy="12" r="1"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="4" ry="10"/>',
+      ),
+      "cloud.svg": icon('<path d="M17.5 19H9a7 7 0 1 1 6.7-9h1.8a4.5 4.5 0 1 1 0 9Z"/>'),
+      "leaf.svg": icon(
+        '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.5 19 2c1 2 2 4.2 2 8 0 5.5-4.8 10-10 10Z"/><path d="M2 21c0-3 1.9-5.4 5.1-6"/>',
+      ),
+      "planet.svg": icon(
+        '<circle cx="12" cy="12" r="6"/><path d="M4 16c-3 3 2 4 8 1.5S23 9 20 7"/>',
+      ),
+      "spark.svg": icon(
+        '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+      ),
+    },
+  },
+  images: {
+    name: "Sample covers",
+    files: {
+      "dawn.svg": scene("#f9c58d", "#f492f0", "#fff3b0"),
+      "dusk.svg": scene("#2b1055", "#d53369", "#ffd166"),
+      "lagoon.svg": scene("#43cea2", "#185a9d", "#e0f7fa"),
+      "meadow.svg": scene("#a8e063", "#56ab2f", "#fffde7"),
+    },
+  },
+};
 
 export function createMemoryBackend(
   initial: Record<string, string> = {},
@@ -94,6 +144,8 @@ export function createMemoryBackend(
 ): MemoryBackend {
   const nodes = new Map<string, Node>();
   const listeners = new Set<(c: VaultChange[]) => void>();
+  const closeListeners = new Set<() => void>();
+  let closed = false;
   let clock = 1_700_000_000_000;
   const tick = () => ++clock;
   let vault: VaultInfo | null = { root: `/memory/${vaultName}`, name: vaultName };
@@ -113,8 +165,11 @@ export function createMemoryBackend(
     put(normalize(path), { kind: "file", content, modifiedMs: tick() });
   }
 
-  const requireVault = () => {
+  const requireVault = (expectedRoot?: string) => {
     if (!vault) fail("NoVault", "no vault is open");
+    if (expectedRoot !== undefined && vault.root !== expectedRoot) {
+      fail("Io", `${expectedRoot} is no longer the open vault, so nothing was written`);
+    }
   };
   const entry = (path: string, recurse = true): VaultEntry => {
     const node = nodes.get(path);
@@ -138,6 +193,18 @@ export function createMemoryBackend(
         : [];
     }
     return e;
+  };
+
+  const readPack = (kind: PackKind, name: string): Pack => {
+    const dir = `.axisnotes/packs/${kind}/${name}`;
+    const files = [...nodes.keys()]
+      .filter((k) => parentOf(k) === dir && nodes.get(k)!.kind === "file" && isImagePath(k))
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+    const monochrome =
+      kind === "icons" &&
+      files.length > 0 &&
+      files.every((f) => /\.svg$/i.test(f) && svgIsMonochrome(nodes.get(f)!.content));
+    return { kind, name, dir, files, monochrome };
   };
 
   // ---- Simplified index (mirrors src-tauri/src/index for tests and browser dev) ----
@@ -309,7 +376,12 @@ export function createMemoryBackend(
     updatesCheck: async () => null,
     updatesInstall: async () => fail("Io", "Updates install in the desktop app."),
     onClipped: async () => () => {},
-    fileUrl: () => null,
+    // SVG files are text, so the browser preview can show them; other images need the app.
+    fileUrl(path) {
+      const n = nodes.get(normalize(path));
+      if (!n || n.kind !== "file" || !/\.svg$/i.test(path)) return null;
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(n.content)}`;
+    },
     // The browser preview can't read folders on disk: importing adds a sample note.
     inspectImport: async (source) => ({ obsidian: true, name: baseName(source) || "Vault" }),
     async importObsidian(_source, target) {
@@ -342,6 +414,89 @@ export function createMemoryBackend(
     async pickFolder() {
       return "/memory";
     },
+    // The browser preview has no files on disk to pick from.
+    pickImage: async () => null,
+    async importImage(source, folder) {
+      requireVault();
+      const name = baseName(source.replace(/\\/g, "/"));
+      if (!isImagePath(name)) fail("InvalidName", `${name} is not an image`);
+      const dir = normalize(folder);
+      const dot = name.lastIndexOf(".");
+      const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+      let p = dir ? `${dir}/${name}` : name;
+      for (let n = 1; nodes.has(p); n++) p = `${dir ? dir + "/" : ""}${stem} ${n}${ext}`;
+      for (
+        let d = dir;
+        d && !nodes.has(d);
+        d = d.includes("/") ? d.slice(0, d.lastIndexOf("/")) : ""
+      )
+        put(d, { kind: "dir", content: "", modifiedMs: tick() });
+      put(p, { kind: "file", content: "", modifiedMs: tick() });
+      return entry(p);
+    },
+    async listPacks() {
+      requireVault();
+      const out: Pack[] = [];
+      for (const kind of ["icons", "images"] as const) {
+        const root = `.axisnotes/packs/${kind}`;
+        const names = [...nodes.keys()]
+          .filter((k) => parentOf(k) === root && nodes.get(k)!.kind === "dir")
+          .map(baseName)
+          .filter((n) => !n.startsWith("."))
+          .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+        for (const name of names) out.push(readPack(kind, name));
+      }
+      return out;
+    },
+    // The browser preview can't open folders on disk: it offers a small sample pack.
+    pickPackSource: async () => SAMPLE_SOURCE,
+    async importPack(kind, source) {
+      requireVault();
+      // A sample pack, or (in tests) a folder inside the memory vault.
+      const sample = source === SAMPLE_SOURCE ? SAMPLE_PACKS[kind] : null;
+      const dir = normalize(source.replace(/\\/g, "/"));
+      const found: [string, string][] = sample
+        ? Object.entries(sample.files)
+        : [...nodes.entries()]
+            .filter(([k, n]) => n.kind === "file" && k.startsWith(`${dir}/`) && isImagePath(k))
+            .filter(
+              ([k]) =>
+                !k
+                  .slice(dir.length + 1)
+                  .split("/")
+                  .some((p) => p.startsWith(".")),
+            )
+            .sort(([a], [b]) => a.split("/").length - b.split("/").length || a.localeCompare(b))
+            .map(([k, n]) => [baseName(k), n.content]);
+      let chosen = found;
+      if (kind === "icons" && found.some(([n]) => /\.svg$/i.test(n))) {
+        chosen = found.filter(([n]) => /\.svg$/i.test(n));
+      }
+      const seen = new Set<string>();
+      chosen = chosen.filter(([n]) => !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
+      if (!chosen.length) fail("NotFound", `no images in ${source}`);
+      const base = sample ? sample.name : baseName(dir) || "Pack";
+      const taken = (n: string) =>
+        [...nodes.keys()].some(
+          (k) => k.toLowerCase() === `.axisnotes/packs/${kind}/${n}`.toLowerCase(),
+        );
+      let name = base;
+      for (let n = 2; taken(name); n++) name = `${base} ${n}`;
+      for (const [file, content] of chosen) {
+        put(`.axisnotes/packs/${kind}/${name}/${file}`, {
+          kind: "file",
+          content,
+          modifiedMs: tick(),
+        });
+      }
+      return readPack(kind, name);
+    },
+    async removePack(kind, name) {
+      requireVault();
+      const dir = `.axisnotes/packs/${kind}/${name}`;
+      if (name.includes("/") || nodes.get(dir)?.kind !== "dir") fail("NotFound", dir);
+      for (const k of [...nodes.keys()]) if (k === dir || k.startsWith(`${dir}/`)) nodes.delete(k);
+    },
     async openVault(path) {
       vault = { root: path, name: baseName(path) || path };
       return vault;
@@ -366,8 +521,8 @@ export function createMemoryBackend(
       if (!n || n.kind !== "file") fail("NotFound", path);
       return { content: n.content, modifiedMs: n.modifiedMs };
     },
-    async writeFile(path, content, expectedModifiedMs) {
-      requireVault();
+    async writeFile(path, content, expectedModifiedMs, vaultRoot) {
+      requireVault(vaultRoot);
       const p = normalize(path);
       if (p === "") fail("OutsideVault", path);
       const n = nodes.get(p);
@@ -378,8 +533,8 @@ export function createMemoryBackend(
       put(p, { kind: "file", content, modifiedMs });
       return { modifiedMs };
     },
-    async createFile(path, content = "") {
-      requireVault();
+    async createFile(path, content = "", vaultRoot) {
+      requireVault(vaultRoot);
       const p = normalize(path);
       if (p === "") fail("OutsideVault", path);
       validateName(baseName(p));
@@ -471,6 +626,18 @@ export function createMemoryBackend(
     // A browser page can't show the desktop behind it.
     canBeTranslucent: () => false,
     async setWindowBlur() {},
+    // A browser tab closes without asking the page; the desktop app asks first.
+    async onCloseRequested(cb) {
+      closeListeners.add(cb);
+      return () => closeListeners.delete(cb);
+    },
+    async closeWindow() {
+      closed = true;
+    },
+    requestClose() {
+      for (const cb of [...closeListeners]) cb();
+    },
+    windowClosed: () => closed,
     listFonts: async () => [
       "Arial",
       "Cascadia Code",

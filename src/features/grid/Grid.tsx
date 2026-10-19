@@ -130,21 +130,21 @@ export function Grid({ path }: { path: string }) {
       undo: [...docState.undo.slice(-HISTORY + 1), docState.sheet],
       redo: [],
     });
-    markDirty();
+    markDirty(() => serializeSheet(next));
   };
 
   const undo = () => {
     const prev = docState.undo.at(-1);
     if (!prev || readOnly) return;
     setDocState({ sheet: prev, undo: docState.undo.slice(0, -1), redo: [...docState.redo, sheet] });
-    markDirty();
+    markDirty(() => serializeSheet(prev));
   };
 
   const redo = () => {
     const next = docState.redo.at(-1);
     if (!next || readOnly) return;
     setDocState({ sheet: next, undo: [...docState.undo, sheet], redo: docState.redo.slice(0, -1) });
-    markDirty();
+    markDirty(() => serializeSheet(next));
   };
 
   const setCell = (at: Pos, value: string) =>

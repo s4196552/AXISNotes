@@ -14,7 +14,8 @@ interface PickerProps<T extends PickerItem> {
   title: string;
   placeholder: string;
   items: T[];
-  onPick(item: T): void;
+  /** `mod`: chosen with Ctrl/Cmd held (Ctrl+Enter or Ctrl+click), e.g. "open in a new tab". */
+  onPick(item: T, how: { mod: boolean }): void;
   onClose(): void;
   /** Called on Enter when nothing matches (e.g. "create note"). */
   onCreate?(query: string): void;
@@ -56,8 +57,8 @@ export function Picker<T extends PickerItem>(p: PickerProps<T>) {
     listRef.current?.children[selected]?.scrollIntoView?.({ block: "nearest" });
   }, [selected]);
 
-  const choose = (i: number) => {
-    if (i < results.length) p.onPick(results[i]!);
+  const choose = (i: number, mod = false) => {
+    if (i < results.length) p.onPick(results[i]!, { mod });
     else if (canCreate) p.onCreate!(query.trim());
   };
 
@@ -87,7 +88,7 @@ export function Picker<T extends PickerItem>(p: PickerProps<T>) {
           onKeyDown={(e) => {
             if (e.key === "ArrowDown") setIndex((selected + 1) % Math.max(1, count));
             else if (e.key === "ArrowUp") setIndex((selected - 1 + count) % Math.max(1, count));
-            else if (e.key === "Enter") choose(selected);
+            else if (e.key === "Enter") choose(selected, e.ctrlKey || e.metaKey);
             else if (e.key === "Escape") p.onClose();
             else return;
             e.preventDefault();
@@ -108,7 +109,7 @@ export function Picker<T extends PickerItem>(p: PickerProps<T>) {
               aria-selected={i === selected}
               className={i === selected ? "selected" : undefined}
               onMouseMove={() => setIndex(i)}
-              onClick={() => choose(i)}
+              onClick={(e) => choose(i, e.ctrlKey || e.metaKey)}
             >
               <span className="picker-label">{item.label}</span>
               {item.detail && <span className="picker-detail muted">{item.detail}</span>}

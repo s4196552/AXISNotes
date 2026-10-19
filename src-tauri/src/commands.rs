@@ -80,6 +80,14 @@ impl AppState {
         self.vault()
     }
 
+    /// The open vault, provided it is the one at `expected_root` (when given). A write
+    /// sent for one vault must never land in another that was opened meanwhile (T-073).
+    fn vault_at(&self, expected_root: Option<&str>) -> AppResult<Vault> {
+        let v = self.vault()?;
+        ensure_vault(&v, expected_root)?;
+        Ok(v)
+    }
+
     /// Mark a path as touched by the app so the watcher ignores its echo.
     fn touch(&self, vault: &Vault, rel: &str) -> AppResult<()> {
         self.self_writes.mark(&vault.resolve(rel)?);
@@ -109,6 +117,12 @@ impl AppState {
         let _ = app
             .asset_protocol_scope()
             .allow_directory(vault.root(), true);
+        // Icon and image packs sit in the hidden `.axisnotes/packs/`. Scope globs skip
+        // dot-folders on macOS and Linux unless the dot is written out, so name it.
+        let _ = app.asset_protocol_scope().allow_directory(
+            vault.root().join(crate::vault::META_DIR).join("packs"),
+            true,
+        );
         // Open straight away; catching the index up happens in the background, so a big
         // vault opens at once and fills in as it's read.
         *self.index.lock().unwrap() = Some(Index::open_unsynced(&vault)?);
@@ -221,8 +235,9 @@ pub fn write_file(
     path: String,
     content: String,
     expected_modified_ms: Option<u64>,
+    vault_root: Option<String>,
 ) -> AppResult<WriteResult> {
-    let v = state.vault()?;
+    let v = state.vault_at(vault_root.as_deref())?;
     state.touch(&v, &path)?;
     let res = v.write_file(&path, &content, expected_modified_ms)?;
     state
@@ -237,11 +252,30 @@ pub fn create_file(
     state: State<AppState>,
     path: String,
     content: Option<String>,
+    vault_root: Option<String>,
 ) -> AppResult<VaultEntry> {
-    let v = state.vault()?;
+    let v = state.vault_at(vault_root.as_deref())?;
     state.touch(&v, &path)?;
     let entry = v.create_file(&path, content.as_deref().unwrap_or(""))?;
     state.reindex(&v, change(ChangeKind::Created, &[&path]));
+    Ok(entry)
+}
+
+/// Copy an image file chosen by the user into `folder` (created if needed) under a free
+/// name, for page covers and icons.
+#[tauri::command]
+pub fn import_image(
+    state: State<AppState>,
+    source: String,
+    folder: String,
+) -> AppResult<VaultEntry> {
+    let v = state.vault()?;
+    let source = PathBuf::from(source);
+    let name = crate::vault::image_file_name(&source)?;
+    let rel = v.free_path(&folder, &name)?;
+    state.touch(&v, &rel)?;
+    let entry = v.copy_image_in(&source, &rel)?;
+    state.reindex(&v, change(ChangeKind::Created, &[&rel]));
     Ok(entry)
 }
 
@@ -404,6 +438,33 @@ pub fn inspect_import(source: String) -> AppResult<ImportPreview> {
     })
 }
 
+/// Icon and image packs in the open vault (`.axisnotes/packs/`).
+#[tauri::command]
+pub fn list_packs(state: State<AppState>) -> AppResult<Vec<crate::packs::Pack>> {
+    crate::packs::list_packs(&state.vault()?)
+}
+
+/// Add the folder or `.zip` at `source` as a new pack. Async: a big pack takes a while.
+#[tauri::command]
+pub async fn import_pack(
+    state: State<'_, AppState>,
+    kind: crate::packs::PackKind,
+    source: String,
+) -> AppResult<crate::packs::Pack> {
+    crate::packs::import_pack(&state.vault()?, kind, &PathBuf::from(source))
+}
+
+/// Move a pack to the OS trash. Async: the Recycle Bin can take a few seconds, and a
+/// sync command would hold up the window meanwhile.
+#[tauri::command]
+pub async fn remove_pack(
+    state: State<'_, AppState>,
+    kind: crate::packs::PackKind,
+    name: String,
+) -> AppResult<()> {
+    crate::packs::remove_pack(&state.vault()?, kind, &name)
+}
+
 /// Copy an Obsidian vault (or any folder of Markdown) into the open vault.
 #[tauri::command]
 pub async fn import_obsidian(
@@ -437,6 +498,33 @@ fn installed_fonts() -> Vec<String> {
     names.sort_by_key(|n| n.to_lowercase());
     names.dedup();
     names
+}
+
+/// Refuses unless `v` is the vault at `expected_root` (as `VaultInfo::root` reports it).
+fn ensure_vault(v: &Vault, expected_root: Option<&str>) -> AppResult<()> {
+    match expected_root {
+        Some(root) if v.info().root != root => Err(AppError::Io(format!(
+            "{root} is no longer the open vault, so nothing was written"
+        ))),
+        _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod vault_binding_tests {
+    use super::*;
+
+    #[test]
+    fn a_write_for_another_vault_is_refused() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        let va = Vault::open(a.path()).unwrap();
+        let vb = Vault::open(b.path()).unwrap();
+        assert!(ensure_vault(&va, None).is_ok());
+        assert!(ensure_vault(&va, Some(&va.info().root)).is_ok());
+        let err = ensure_vault(&va, Some(&vb.info().root)).unwrap_err();
+        assert!(matches!(err, AppError::Io(m) if m.contains("no longer the open vault")));
+    }
 }
 
 #[cfg(test)]

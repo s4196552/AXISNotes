@@ -14,6 +14,13 @@ import { useConfig } from "../../app/config";
 import { type Props, splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { useUi } from "../commands/ui";
 import { PAGE_STYLE_PROP, PAGE_STYLES } from "../templates/templates";
+import {
+  currentVault,
+  registerDocument,
+  SAVE_ATTEMPTS,
+  trackClosingWrite,
+  type UnsavedDocument,
+} from "../files/unsavedWork";
 import { setActiveEditor } from "./activeEditor";
 import { links, refreshLinks, wikilinkCompletions } from "./links";
 import { anchorCompletions, embeds } from "./embeds";
@@ -21,6 +28,7 @@ import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
 import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { PageHeader } from "./PageHeader";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { listAutoformat } from "./listAutoformat";
 import { useEditorPrefs } from "./prefs";
@@ -32,11 +40,13 @@ import { mermaidBlocks } from "../diagrams/mermaidBlocks";
 import "../diagrams/diagrams.css";
 import {
   commandMenuAnchor,
+  commandMenuRender,
   emojiCompletions,
   type QuickCommandConfig,
   quickCommandConfig,
   slashCompletions,
 } from "./quickCommands";
+import { toggles } from "./toggles";
 import {
   blockCompletions,
   mentionCompletions,
@@ -69,6 +79,20 @@ export interface EditorProps {
 
 export const AUTOSAVE_DELAY_MS = 500;
 
+/**
+ * Where each note's cursor and scroll were when its editor closed, so switching back to
+ * a tab (or reopening the note) returns to the same place. Kept for this session only.
+ */
+const viewStates = new Map<string, { anchor: number; head: number; scrollTop: number }>();
+const VIEW_STATE_LIMIT = 200;
+
+function rememberViewState(path: string, view: EditorView) {
+  const { anchor, head } = view.state.selection.main;
+  viewStates.delete(path); // re-insert as the newest
+  viewStates.set(path, { anchor, head, scrollTop: view.scrollDOM.scrollTop });
+  if (viewStates.size > VIEW_STATE_LIMIT) viewStates.delete(viewStates.keys().next().value!);
+}
+
 type SaveStatus = "loading" | "saved" | "saving" | "dirty" | "error";
 type Banner = null | "conflict" | "removed";
 
@@ -100,6 +124,7 @@ export function Editor({ path }: EditorProps) {
   const dirty = useRef(false);
   /** Autosave is paused while a conflict/removed banner is showing. */
   const paused = useRef(false);
+  const bannerRef = useRef<Banner>(null);
   const saving = useRef<Promise<void> | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -129,11 +154,17 @@ export function Editor({ path }: EditorProps) {
     if (!v) return;
     const text = v.state.doc.toString();
     const change = minimalChange(text, withFrontmatter(text, next));
-    if (change.from !== change.to || change.insert) v.dispatch({ changes: change });
+    if (change.from === change.to && !change.insert) return;
+    // A cursor below the frontmatter stays below it, so the YAML stays folded behind its
+    // chip (a cursor at the very top would otherwise end up inside a new block).
+    const below = v.state.selection.main.from >= splitFrontmatter(text).length;
+    const changes = v.state.changes(change);
+    v.dispatch(below ? { changes, selection: v.state.selection.map(changes, 1) } : { changes });
   }, []);
 
   const setBanner = useCallback((b: Banner) => {
     paused.current = b !== null;
+    bannerRef.current = b;
     setBannerState(b);
   }, []);
 
@@ -151,7 +182,10 @@ export function Editor({ path }: EditorProps) {
       clearTimer();
       const v = view.current;
       if (!v || (!force && (!dirty.current || paused.current))) return;
-      if (saving.current) await saving.current; // one write at a time
+      // One write at a time. Several saves can be waiting (autosave, blur, install's
+      // flush); each waits for whichever write is current, then checks it's still needed.
+      while (saving.current) await saving.current;
+      if (!force && (!dirty.current || paused.current)) return;
       const content = v.state.doc.toString();
       setStatus("saving");
       const op = (async () => {
@@ -182,6 +216,15 @@ export function Editor({ path }: EditorProps) {
     [path, setBanner],
   );
 
+  /** Save now, waiting for the write; reports changes that still aren't on disk. */
+  const flush = useCallback(async (): Promise<UnsavedDocument | null> => {
+    for (let i = 0; i < SAVE_ATTEMPTS && dirty.current && !paused.current; i++) await save();
+    if (saving.current) await saving.current;
+    return dirty.current ? { path, reason: bannerRef.current ?? "failed" } : null;
+  }, [path, save]);
+
+  useEffect(() => registerDocument(() => path, flush), [path, flush]);
+
   const scheduleSave = useCallback(() => {
     clearTimer();
     if (!paused.current) timer.current = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
@@ -209,6 +252,7 @@ export function Editor({ path }: EditorProps) {
   useEffect(() => {
     let cancelled = false;
     let created: EditorView | null = null;
+    const vault = currentVault();
 
     backend
       .readFile(path)
@@ -216,12 +260,18 @@ export function Editor({ path }: EditorProps) {
         if (cancelled || !host.current) return;
         mtime.current = file.modifiedMs;
         const store = useAppStore.getState;
+        // Back where it was, unless a link asked for a heading/block/line.
+        const pending = store().pendingTarget?.path === path;
+        const saved = pending ? undefined : viewStates.get(path);
+        const len = file.content.length;
         created = new EditorView({
           parent: host.current,
           state: EditorState.create({
             doc: file.content,
-            // Start below the frontmatter so it shows as the properties chip.
-            selection: EditorSelection.cursor(splitFrontmatter(file.content).length),
+            // Else start below the frontmatter so it shows as the properties chip.
+            selection: saved
+              ? EditorSelection.single(Math.min(saved.anchor, len), Math.min(saved.head, len))
+              : EditorSelection.cursor(splitFrontmatter(file.content).length),
             extensions: [
               history(),
               drawSelection(),
@@ -238,6 +288,7 @@ export function Editor({ path }: EditorProps) {
                   propertyCompletions,
                   templateCompletions,
                 ],
+                addToOptions: commandMenuRender,
               }),
               commandMenuAnchor,
               embeds(path),
@@ -253,11 +304,12 @@ export function Editor({ path }: EditorProps) {
               }),
               livePreview,
               obsidianSyntax,
+              toggles,
               mermaidBlocks,
               math,
               spellCompartment.current.of(configuredSpellcheck()),
               links({
-                openLink: (inner) => void followLink(inner, path),
+                openLink: (inner, newTab) => void followLink(inner, path, { newTab }),
                 openTag: (tag) => store().search(`tag:${tag}`),
                 isKnown: (target) => isKnownTarget(store().notes, target),
                 notes: () => store().notes,
@@ -288,6 +340,13 @@ export function Editor({ path }: EditorProps) {
         syncProps(created.state);
         setStatus("saved");
         setReady(true);
+        if (saved) {
+          const v = created;
+          v.requestMeasure({
+            read: () => {},
+            write: () => (v.scrollDOM.scrollTop = saved.scrollTop),
+          });
+        }
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -297,20 +356,41 @@ export function Editor({ path }: EditorProps) {
 
     return () => {
       cancelled = true;
-      // Flush unsaved edits on unmount (fire-and-forget; the view is going away).
+      // Flush unsaved edits on unmount (the view is going away). If they can't be written,
+      // they are kept in an "(unsaved …)" file instead.
       clearTimer();
-      if (created && dirty.current && !paused.current) {
-        void backend
-          .writeFile(path, created.state.doc.toString(), mtime.current)
-          .catch((e: unknown) =>
-            useAppStore.getState().setError(isBackendError(e) ? e.message : String(e)),
-          );
+      if (created && dirty.current) {
+        const content = created.state.doc.toString();
+        trackClosingWrite(path, content, vault, async () => {
+          while (saving.current) await saving.current; // it may have saved this already
+          if (!dirty.current) return;
+          // With the "changed on disk" or "moved or deleted" banner up, writing would
+          // overwrite the other version or bring the file back: keep these changes in a
+          // recovery file instead (T-074).
+          if (paused.current) {
+            throw new Error(
+              bannerRef.current === "removed" ? "it was moved or deleted" : "it changed on disk",
+            );
+          }
+          await backend.writeFile(path, content, mtime.current, vault ?? undefined);
+        });
       }
+      if (created) rememberViewState(path, created);
       created?.destroy();
       view.current = null;
       setActiveEditor(null);
     };
   }, [path, save, scheduleSave, syncProps]);
+
+  // Once the note is scrolled, the page header shrinks so the cover doesn't take space.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const el = view.current?.scrollDOM;
+    if (!ready || !el) return;
+    const onScroll = () => setScrolled(el.scrollTop > 24);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [ready]);
 
   // Jump to a heading/block/line requested by the link that opened this note.
   const pendingTarget = useAppStore((s) => s.pendingTarget);
@@ -396,6 +476,8 @@ export function Editor({ path }: EditorProps) {
 
   return (
     <div className="editor">
+      {/* Shown while loading too, so the title doesn't jump when the note arrives. */}
+      <PageHeader path={path} props={props} onChange={changeProps} compact={scrolled} />
       <header className="editor-header">
         <h1 className="editor-title">{titleOf(path)}</h1>
         <button

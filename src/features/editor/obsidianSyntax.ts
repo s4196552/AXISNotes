@@ -72,13 +72,17 @@ export function buildObsidian(state: EditorState, ranges: readonly { from: numbe
       const line = state.doc.line(lineNo);
       if (line.from > to && !callout) break;
       if (line.from > to) break;
-      const head = /^>\s*\[!([\w-]+)\]([+-]?)/.exec(line.text);
-      if (head && !inCode(state, line.from)) {
+      // `[!type|meta]` is Obsidian's callout metadata. Toggles are drawn by toggles.ts.
+      const head = /^>\s*\[!([\w-]+)(?:\|[^\]]*)?\]([+-]?)/.exec(line.text);
+      if (head && head[1]!.toLowerCase() === "toggle") {
+        callout = null;
+        while (lineNo < state.doc.lines && /^>/.test(state.doc.line(lineNo + 1).text)) lineNo++;
+      } else if (head && !inCode(state, line.from)) {
         callout = calloutKind(head[1]!);
         if (line.from >= from) {
           out.push(calloutLine(callout, true).range(line.from));
           const start = line.from + line.text.indexOf("[");
-          const end = start + head[1]!.length + 3;
+          const end = line.from + line.text.indexOf("]") + 1;
           out.push(calloutType.range(start, end));
         }
       } else if (callout && /^>/.test(line.text)) {

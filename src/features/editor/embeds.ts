@@ -8,6 +8,12 @@ import { useAppStore } from "../../app/store";
 import { embedRange, ensureBlockId, listBlocks, listHeadings } from "../../lib/blocks";
 import { noteName, parseWikilinkInner } from "../../lib/markdown";
 import { isImagePath, parseImageEmbed, resolveAttachment } from "../../lib/attachments";
+import {
+  currentVault,
+  registerDocument,
+  SAVE_ATTEMPTS,
+  trackClosingWrite,
+} from "../files/unsavedWork";
 import { linkHost } from "./links";
 import { livePreview } from "./livePreview";
 import { axisTheme } from "./theme";
@@ -27,6 +33,42 @@ const fromSource = Annotation.define<boolean>();
 
 const describe = (e: unknown) => (isBackendError(e) ? e.message : String(e));
 
+type WriteBack = { ok: true } | { ok: false; current: string | null };
+
+/** Write `next` over the embedded block in `path` if the block on disk is still `loaded`.
+ *  Otherwise nothing is written and `current` is the block on disk (null if it's gone). */
+async function writeBlock(
+  path: string,
+  inner: string,
+  loaded: string,
+  next: string,
+  /** Write only while this vault (the embed's own) is still open (T-073). */
+  vaultRoot?: string,
+) {
+  const link = parseWikilinkInner(inner);
+  const file = await backend.readFile(path);
+  const range = embedRange(file.content, link);
+  if (!range || file.content.slice(range.from, range.to) !== loaded) {
+    return { ok: false, current: range && file.content.slice(range.from, range.to) } as WriteBack;
+  }
+  const text = file.content.slice(0, range.from) + next + file.content.slice(range.to);
+  await backend.writeFile(path, text, file.modifiedMs, vaultRoot);
+  useAppStore.getState().bumpIndex();
+  return { ok: true } as WriteBack;
+}
+
+/** Write `next` over the embedded block as it is on disk now ("Keep mine"). Returns false
+ *  if the block is no longer in the source. */
+async function overwriteBlock(path: string, inner: string, next: string, vaultRoot?: string) {
+  const file = await backend.readFile(path);
+  const range = embedRange(file.content, parseWikilinkInner(inner));
+  if (!range) return false;
+  const text = file.content.slice(0, range.from) + next + file.content.slice(range.to);
+  await backend.writeFile(path, text, file.modifiedMs, vaultRoot);
+  useAppStore.getState().bumpIndex();
+  return true;
+}
+
 class EmbedController {
   private view: EditorView | null = null;
   private path: string | null = null;
@@ -35,10 +77,31 @@ class EmbedController {
   private saving: Promise<void> | null = null;
   private unlisten: (() => void) | null = null;
   private destroyed = false;
+  /** The vault this embed was loaded from; its writes only land there. */
+  private readonly vault = currentVault();
+  private readonly vaultRoot = this.vault ?? undefined;
+  /** Which conflict buttons are showing (true: the block exists), if any. */
+  private shownConflict: boolean | null = null;
+  /** Why the last save didn't write the edit, if it didn't. */
+  private problem: "conflict" | "failed" | null = null;
+  /** Lets installing an update or closing the window save this embed first (T-073). */
+  private readonly unregister = registerDocument(
+    () => this.path ?? this.from,
+    async () => {
+      this.problem = null;
+      for (let i = 0; i < SAVE_ATTEMPTS && this.dirty && this.problem !== "conflict"; i++) {
+        await this.save();
+      }
+      if (!this.dirty || !this.path) return null;
+      return { path: this.path, reason: this.problem ?? "failed" };
+    },
+  );
 
   constructor(
     private readonly body: HTMLElement,
     private readonly status: HTMLElement,
+    /** Where "Reload from source" / "Keep mine" appear when the source block changed. */
+    private readonly actions: HTMLElement,
     private readonly inner: string,
     private readonly from: string,
     private readonly outer: EditorView,
@@ -133,29 +196,102 @@ class EmbedController {
     return this.view !== null && this.view.state.doc.toString() !== this.loaded;
   }
 
+  /** If the source block changed meanwhile, the edit is kept and the user chooses
+   *  (T-074): reload the block, or keep this version. Nothing is overwritten unasked. */
   async save(): Promise<void> {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
-    if (this.saving) await this.saving;
+    while (this.saving) await this.saving; // one write at a time
     if (!this.view || !this.path || !this.dirty) return;
     const next = this.view.state.doc.toString();
-    const link = parseWikilinkInner(this.inner);
     const path = this.path;
     const op = (async () => {
       try {
-        const file = await backend.readFile(path);
-        const range = embedRange(file.content, link);
-        if (!range || file.content.slice(range.from, range.to) !== this.loaded) {
-          this.setStatus("changed in the source — reloaded");
-          if (range) this.show(file.content.slice(range.from, range.to));
+        const r = await writeBlock(path, this.inner, this.loaded, next, this.vaultRoot);
+        if (!r.ok) {
+          this.problem = "conflict";
+          this.showConflict(r.current !== null);
           return;
         }
-        const text = file.content.slice(0, range.from) + next + file.content.slice(range.to);
-        await backend.writeFile(path, text, file.modifiedMs);
+        this.problem = null;
+        this.clearConflict();
         this.loaded = next;
         this.setStatus(this.dirty ? "unsaved" : "saved");
-        useAppStore.getState().bumpIndex();
       } catch (e) {
+        this.problem = "failed";
+        this.setStatus(`save failed: ${describe(e)}`);
+      }
+    })();
+    this.saving = op;
+    await op;
+    this.saving = null;
+  }
+
+  private showConflict(blockExists: boolean) {
+    this.setStatus(
+      blockExists ? "changed in the source — not saved" : "no longer in the source — not saved",
+    );
+    // Keep the same buttons while the choice is the same: a save started by pressing one
+    // (the embed's blur) must not swap it out from under the click, or drop focus.
+    if (this.shownConflict === blockExists) return;
+    this.shownConflict = blockExists;
+    const button = (label: string, run: () => Promise<void>) => {
+      const b = document.createElement("button");
+      b.className = "cm-embed-edit cm-embed-action";
+      b.textContent = label;
+      // Pressing it leaves focus in the embed, so no blur save starts first.
+      b.addEventListener("mousedown", (e) => e.preventDefault());
+      b.addEventListener("click", () => void run());
+      return b;
+    };
+    this.actions.replaceChildren(
+      ...(blockExists
+        ? [
+            button("Reload from source", () => this.reloadFromSource()),
+            button("Keep mine", () => this.keepMine()),
+          ]
+        : [button("Discard my edit", () => this.reloadFromSource())]),
+    );
+  }
+
+  private clearConflict() {
+    this.shownConflict = null;
+    this.actions.replaceChildren();
+  }
+
+  /** Drop the edit and show the block as it is in the source now. */
+  async reloadFromSource(): Promise<void> {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    while (this.saving) await this.saving;
+    this.problem = null;
+    this.clearConflict();
+    this.view?.destroy();
+    this.view = null;
+    this.loaded = "";
+    this.body.textContent = "Loading…";
+    await this.load();
+  }
+
+  /** Write this version over the block as it is in the source now. */
+  async keepMine(): Promise<void> {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    while (this.saving) await this.saving;
+    if (!this.view || !this.path) return;
+    const next = this.view.state.doc.toString();
+    const path = this.path;
+    const op = (async () => {
+      try {
+        if (!(await overwriteBlock(path, this.inner, next, this.vaultRoot))) {
+          return this.showConflict(false);
+        }
+        this.problem = null;
+        this.loaded = next;
+        this.clearConflict();
+        this.setStatus(this.dirty ? "unsaved" : "saved");
+      } catch (e) {
+        this.problem = "failed";
         this.setStatus(`save failed: ${describe(e)}`);
       }
     })();
@@ -172,7 +308,20 @@ class EmbedController {
 
   destroy() {
     this.destroyed = true;
-    if (this.dirty) void this.save();
+    this.unregister();
+    if (this.dirty && this.path) {
+      const path = this.path;
+      const next = this.view!.state.doc.toString();
+      // Rejects unless the edit reached the disk; then the block is kept in an
+      // "(unsaved …)" file next to the source note instead.
+      trackClosingWrite(path, next, this.vault, async () => {
+        while (this.saving) await this.saving;
+        if (next === this.loaded) return;
+        const r = await writeBlock(path, this.inner, this.loaded, next, this.vaultRoot);
+        if (!r.ok) throw new Error(`the embedded block in ${path} changed`);
+        this.loaded = next;
+      });
+    }
     this.unlisten?.();
     this.view?.destroy();
     this.view = null;
@@ -222,13 +371,15 @@ class EmbedWidget extends WidgetType {
       view.dispatch({ selection: { anchor: view.state.doc.lineAt(pos).from } });
       view.focus();
     });
-    header.append(open, status, edit);
+    const actions = document.createElement("span");
+    actions.className = "cm-embed-actions";
+    header.append(open, status, actions, edit);
 
     const body = document.createElement("div");
     body.className = "cm-embed-body";
     body.textContent = "Loading…";
     root.append(header, body);
-    controllers.set(root, new EmbedController(body, status, this.inner, this.from, view));
+    controllers.set(root, new EmbedController(body, status, actions, this.inner, this.from, view));
     return root;
   }
   destroy(dom: HTMLElement) {
