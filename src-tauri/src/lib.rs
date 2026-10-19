@@ -7,6 +7,7 @@ mod error;
 mod import;
 mod index;
 mod migrate;
+mod packs;
 mod updates;
 mod updates_commands;
 mod vault;
@@ -61,6 +62,9 @@ pub fn run() {
             commands::time_entries,
             commands::inspect_import,
             commands::import_obsidian,
+            commands::list_packs,
+            commands::import_pack,
+            commands::remove_pack,
             ai_commands::ai_settings,
             ai_commands::ai_save_settings,
             ai_commands::ai_set_key,

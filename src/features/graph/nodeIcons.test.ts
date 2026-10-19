@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { File, FileText, Folder, Shapes, Sheet } from "lucide-react";
+import { backend } from "../../ipc";
 import { createIconPainter, nodeIcon } from "./nodeIcons";
 
 describe("node icons", () => {
@@ -39,6 +40,46 @@ describe("node icons", () => {
       createIconPainter("#888888", () => {}).draw(c, nodeIcon("Ideas.md", icons), 0, 0, 16);
       expect(c.fillText).toHaveBeenCalledWith("💡", 8, 9);
       expect(c.drawImage).not.toHaveBeenCalled();
+    });
+
+    it("draws a coloured image icon (a one-colour pack) as a tinted silhouette", () => {
+      const made: { src: string; onload?: () => void }[] = [];
+      vi.stubGlobal(
+        "Image",
+        class {
+          src = "";
+          onload?: () => void;
+          constructor() {
+            made.push(this);
+          }
+        },
+      );
+      vi.stubGlobal("requestAnimationFrame", (fn: () => void) => (fn(), 1));
+      vi.spyOn(backend, "fileUrl").mockImplementation((p) => `asset://${p}`);
+      const offscreen = {
+        drawImage: vi.fn(),
+        fillRect: vi.fn(),
+        fillStyle: "",
+        globalCompositeOperation: "",
+      };
+      const getContext = vi
+        .spyOn(HTMLCanvasElement.prototype, "getContext")
+        .mockReturnValue(offscreen as unknown as CanvasRenderingContext2D);
+      const painter = createIconPainter("#abcdef", () => {});
+      const icon = nodeIcon("Trip.md", {
+        "Trip.md": { icon: "image:.axisnotes/packs/icons/P/leaf.svg", color: "currentColor" },
+      });
+      const c = ctx();
+      painter.draw(c, icon, 0, 0, 16);
+      for (const m of made) m.onload?.();
+      painter.draw(c, icon, 0, 0, 16);
+      painter.draw(c, icon, 4, 4, 16);
+      // The text colour stands for "currentColor"; one tinted copy serves both draws.
+      expect(offscreen.fillStyle).toBe("#abcdef");
+      expect(offscreen.globalCompositeOperation).toBe("source-in");
+      expect(getContext).toHaveBeenCalledTimes(1);
+      expect(c.drawImage).toHaveBeenCalledTimes(2);
+      vi.restoreAllMocks();
     });
 
     it("draws Lucide icons once their image loads, then asks for a redraw", () => {

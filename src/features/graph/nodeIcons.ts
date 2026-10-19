@@ -4,6 +4,7 @@ import { backend } from "../../ipc";
 import { docKind } from "../../lib/fileKinds";
 import { lucideSvg } from "../editor/lucideSvg";
 import { imageIconPath, isLucide, loadAllIcons, lucideFor } from "../icons/iconSet";
+import { TEXT_COLOR } from "../packs/packs";
 
 // Icons for graph and tree nodes: the custom icon set on the file (the same one the file
 // tree and page header show), else one for its kind. The tree draws them with React; the
@@ -116,6 +117,39 @@ export function createIconPainter(color: string, onReady: () => void): IconPaint
     return true;
   };
 
+  // Image icons with a colour (one-colour icon packs) are drawn as a silhouette in that
+  // colour, like the CSS mask elsewhere. Tinted copies are kept per power-of-two size, so
+  // zooming doesn't make a new one every frame.
+  const tinted = new Map<string, HTMLCanvasElement>();
+  const drawTinted = (
+    ctx: CanvasRenderingContext2D,
+    src: string,
+    tint: string,
+    x: number,
+    y: number,
+    size: number,
+  ) => {
+    const entry = image(src, ready);
+    if (entry.state !== "ready") return false;
+    const want = size * (window.devicePixelRatio || 1);
+    const px = Math.min(256, 2 ** Math.ceil(Math.log2(Math.max(8, want))));
+    const key = `${src}|${tint}|${px}`;
+    let copy = tinted.get(key);
+    if (!copy) {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = px;
+      const t = canvas.getContext("2d");
+      if (!t) return false;
+      t.drawImage(entry.img, 0, 0, px, px);
+      t.globalCompositeOperation = "source-in";
+      t.fillStyle = tint;
+      t.fillRect(0, 0, px, px);
+      tinted.set(key, (copy = canvas));
+    }
+    ctx.drawImage(copy, x, y, size, size);
+    return true;
+  };
+
   const drawCustom = (
     ctx: CanvasRenderingContext2D,
     icon: FolderIcon,
@@ -126,7 +160,10 @@ export function createIconPainter(color: string, onReady: () => void): IconPaint
     const path = imageIconPath(icon.icon);
     if (path !== null) {
       const url = backend.fileUrl(path);
-      return url !== null && drawSrc(ctx, url, x, y, size);
+      if (url === null) return false;
+      // "currentColor" means the text colour, which on the canvas is the icons' colour.
+      const tint = icon.color === TEXT_COLOR ? color : icon.color;
+      return tint ? drawTinted(ctx, url, tint, x, y, size) : drawSrc(ctx, url, x, y, size);
     }
     if (isLucide(icon.icon)) {
       const lucide = lucideFor(icon.icon);

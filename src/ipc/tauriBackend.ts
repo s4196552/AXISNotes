@@ -42,6 +42,17 @@ export function createTauriBackend(): Backend {
       return typeof picked === "string" ? picked : null;
     },
     importImage: (source, folder) => invoke("import_image", { source, folder }),
+    listPacks: () => invoke("list_packs"),
+    async pickPackSource(from) {
+      const picked = await open(
+        from === "folder"
+          ? { directory: true, multiple: false }
+          : { multiple: false, filters: [{ name: "Zip archives", extensions: ["zip"] }] },
+      );
+      return typeof picked === "string" ? picked : null;
+    },
+    importPack: (kind, source) => invoke("import_pack", { kind, source }),
+    removePack: (kind, name) => invoke("remove_pack", { kind, name }),
     renameEntry: (from, to) => invoke("rename_entry", { from, to }),
     trashEntry: (path) => invoke("trash_entry", { path }),
     search: (query, limit) => invoke("search", { query, limit }),

@@ -13,6 +13,8 @@ import {
   matchesIcon,
 } from "./iconSet";
 import { ImageChooser } from "./ImageChooser";
+import { isPackPath, TEXT_COLOR } from "../packs/packs";
+import { IconPacks } from "../packs/PackParts";
 import "./icons.css";
 
 /** Icons rendered per page of results, so typing stays quick with ~1,900 icons. */
@@ -23,14 +25,20 @@ type Load = "loading" | "ready" | "error";
 export function IconPicker({ path, onClose }: { path: string; onClose(): void }) {
   const current = useConfig((s) => s.config.folderIcons[path]);
   const update = useConfig((s) => s.update);
-  const [tab, setTab] = useState<"icons" | "emoji" | "image">(
+  const currentImage = current ? imageIconPath(current.icon) : null;
+  const [tab, setTab] = useState<"icons" | "packs" | "emoji" | "image">(
     !current || isLucide(current.icon)
       ? "icons"
-      : imageIconPath(current.icon) !== null
-        ? "image"
+      : currentImage !== null
+        ? isPackPath(currentImage)
+          ? "packs"
+          : "image"
         : "emoji",
   );
-  const [color, setColor] = useState(current?.color ?? "");
+  // "currentColor" (a one-colour pack icon in the text colour) shows as the default swatch.
+  const [color, setColor] = useState(
+    current?.color && current.color !== TEXT_COLOR ? current.color : "",
+  );
   const [query, setQuery] = useState("");
   const [emoji, setEmoji] = useState<{ emoji: string; name: string }[]>([]);
   const [all, setAll] = useState<Record<string, LucideIcon> | null>(loadedIcons);
@@ -115,6 +123,9 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
             <button role="tab" aria-selected={tab === "icons"} onClick={() => setTab("icons")}>
               Icons
             </button>
+            <button role="tab" aria-selected={tab === "packs"} onClick={() => setTab("packs")}>
+              Packs
+            </button>
             <button role="tab" aria-selected={tab === "emoji"} onClick={() => setTab("emoji")}>
               Emoji
             </button>
@@ -127,9 +138,11 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
             placeholder={
               tab === "icons"
                 ? "Search icons…"
-                : tab === "emoji"
-                  ? "Search emoji…"
-                  : "Search images…"
+                : tab === "packs"
+                  ? "Search pack icons…"
+                  : tab === "emoji"
+                    ? "Search emoji…"
+                    : "Search images…"
             }
             autoFocus
             value={query}
@@ -206,6 +219,19 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
                 </>
               )}
             </>
+          ) : tab === "packs" ? (
+            <IconPacks
+              query={query}
+              color={color}
+              selected={currentImage}
+              onPick={(p, monochrome) =>
+                save(
+                  color || monochrome
+                    ? { icon: imageIcon(p), color: color || TEXT_COLOR }
+                    : { icon: imageIcon(p) },
+                )
+              }
+            />
           ) : tab === "image" ? (
             <ImageChooser
               forPath={path}
