@@ -44,16 +44,20 @@
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  /* Names are light grey until the row is selected or open, then full white. */
+  color: var(--fg-muted);
 }
 .filetree-row:hover {
   background: var(--bg-hover);
 }
 .filetree-row.active {
   background: var(--bg-active);
+  color: var(--fg);
 }
 .filetree-body:focus-visible .filetree-row.selected,
 .filetree-row.selected {
   box-shadow: inset 0 0 0 1px var(--accent);
+  color: var(--fg);
 }
 .filetree-row.drop-target {
   background: var(--bg-active);
@@ -61,6 +65,7 @@
 }
 .filetree-row.dimmed {
   color: var(--fg-muted);
+  opacity: 0.6;
   cursor: default;
 }
 
