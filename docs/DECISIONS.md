@@ -74,6 +74,16 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Never in code, frontmatter or `$$` math**, never with several cursors, and never during IME composition, so Chinese, Japanese and Korean input methods are untouched. Only `1` starts a numbered list on its own; other numbers at a line's start are usually text.
 - **Live preview shows the bullet on the line being edited too.** The raw `-` appears only while the cursor is on the dash itself. Before, the bullet only rendered once the cursor left the line. A bullet just started under a paragraph (`- ` with nothing after it) is paragraph text to the Markdown parser, so it gets a bullet while it's typed as well.
 - Enter continuing a list, and Enter on an empty item ending it, come from CodeMirror's Markdown keymap, which was already active.
+## 2026-10-10: Translucent theme effects: Clear, Blur, Frosted, Mica, Mica Alt (T-072)
+
+- **An Effect slider replaces the "Blur behind the window" checkbox.** It has five stops, from most to least see-through: **Clear** (no effect), **Blur** (Tauri `blur`), **Frosted** (`acrylic`, the old blur and still the default), **Mica** (`mica`) and **Mica Alt** (`tabbed`). Clickable names sit under the slider, and the hint describes the chosen effect.
+  - These are all the materials Windows offers a window, and they're all Tauri `setEffects` effects. macOS has many vibrancy materials, but see-through windows are Windows-only here for now (T-069).
+  - Blur is documented to lag while dragging on newer Windows 11 builds, and the hint says so. Mica and Mica Alt are Windows 11 only.
+- **Saved as `appearance.windowEffect`.** A 0.3.1 config with `windowBlur: false` migrates to Clear, and anything else gets Frosted, which is the same acrylic as before. The old key is left in place, as unknown keys always are.
+- **Every effect except Clear needs Windows' "Transparency effects".** Measured on a machine with them off: Windows accepts all four materials but paints each as a solid fill. So while the setting is off:
+  - the app sends no effect, and the window looks Clear;
+  - the hint names the Windows setting;
+  - the choice is still saved, and it applies the moment the setting is turned on (`prefers-reduced-transparency` is watched live).
 
 ## 2026-10-09: Translucent theme with an opacity setting (T-069)
 

@@ -231,9 +231,53 @@ describe("Phase 1: knowledge features on a real vault", () => {
     expect(
       await browser.execute(() => getComputedStyle(document.documentElement).backgroundColor),
     ).toBe("rgba(0, 0, 0, 0)");
+    // Every stop of the effect slider is saved.
+    for (const [value, id] of [
+      ["0", "clear"],
+      ["1", "blur"],
+      ["3", "mica"],
+      ["4", "micaAlt"],
+      ["2", "frosted"],
+    ]) {
+      await browser.execute((v: string) => {
+        const input = document.querySelector<HTMLInputElement>(
+          'input[aria-label="Window effect"]',
+        )!;
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, v);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }, value);
+      await until(
+        () => read(".axisnotes/config.json").includes(`"windowEffect": "${id}"`),
+        `effect ${id} not saved`,
+      );
+    }
     expect(
       await browser.execute(() => (window as unknown as { warnings: string[] }).warnings),
     ).toEqual([]);
+    if (process.platform === "win32") {
+      // The window accepts each material the slider can ask for. (The app itself leaves
+      // them off while Windows' transparency effects are, so ask directly.)
+      for (const fx of ["blur", "acrylic", "mica", "tabbed", null]) {
+        const result = await browser.executeAsync(
+          (fx: string | null, done: (r: string) => void) => {
+            const w = window as unknown as {
+              __TAURI_INTERNALS__: { invoke(c: string, a: unknown): Promise<unknown> };
+            };
+            w.__TAURI_INTERNALS__
+              .invoke("plugin:window|set_effects", {
+                label: "main",
+                value: fx ? { effects: [fx] } : null,
+              })
+              .then(
+                () => done("ok"),
+                (e) => done(String(e)),
+              );
+          },
+          fx,
+        );
+        expect(result).toBe("ok");
+      }
+    }
     await browser.keys(Key.Escape);
     await snapshot("05-app-translucent");
   });

@@ -114,10 +114,13 @@ export function createTauriBackend(): Backend {
     // The window is created transparent (tauri.conf.json); WebView2 shows what's behind.
     // macOS would need the private API, and Linux depends on the compositor.
     canBeTranslucent: () => /Windows/.test(navigator.userAgent),
-    setWindowBlur: (on) =>
-      on
-        ? getCurrentWindow().setEffects({ effects: [Effect.Acrylic] })
-        : getCurrentWindow().clearEffects(),
+    // Tauri applies a material on top of whatever was there (blur and acrylic are one
+    // Windows mechanism, Mica another), so the old one is always cleared first.
+    async setWindowEffect(effect) {
+      const window = getCurrentWindow();
+      await window.clearEffects();
+      if (effect) await window.setEffects({ effects: [effect as Effect] });
+    },
     async onCloseRequested(cb) {
       // Registering any listener keeps the window open (Tauri prevents the close while
       // JS listens); preventing here also stops the API from closing it after `cb`.

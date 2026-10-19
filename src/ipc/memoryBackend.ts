@@ -625,7 +625,7 @@ export function createMemoryBackend(
     },
     // A browser page can't show the desktop behind it.
     canBeTranslucent: () => false,
-    async setWindowBlur() {},
+    async setWindowEffect() {},
     // A browser tab closes without asking the page; the desktop app asks first.
     async onCloseRequested(cb) {
       closeListeners.add(cb);

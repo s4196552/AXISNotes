@@ -436,8 +436,11 @@ export interface Backend {
   setZoom(factor: number): Promise<void>;
   /** Whether the window can be see-through (Translucent theme). Windows only, for now. */
   canBeTranslucent(): boolean;
-  /** Blur the desktop behind the see-through window (acrylic), or stop blurring it. */
-  setWindowBlur(on: boolean): Promise<void>;
+  /**
+   * What Windows draws behind the see-through window; `null` for nothing (clear). Replaces
+   * any effect from before.
+   */
+  setWindowEffect(effect: OsWindowEffect | null): Promise<void>;
   /**
    * The user asked to close the window (close button, Alt+F4, …). While a listener is
    * registered the window stays open; it closes only through `closeWindow`. Returns an
@@ -519,6 +522,9 @@ export interface Backend {
   /** Copy a folder (e.g. an Obsidian vault) into `target` in the open vault. */
   importObsidian(source: string, target: string): Promise<ImportReport>;
 }
+
+/** Window materials Windows can draw behind a see-through window (Tauri's names). */
+export type OsWindowEffect = "blur" | "acrylic" | "mica" | "tabbed";
 
 /** The window's own controls (see `Backend.windowFrame`). */
 export interface WindowFrame {
