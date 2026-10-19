@@ -214,6 +214,58 @@ const SEEDS: Record<string, (dir: string) => void> = {
     );
     process.env.AXIS_E2E_OBSIDIAN = obsidian;
   },
+  covers(dir) {
+    const fixtures = path.join(root, "e2e", "fixtures");
+    write(
+      dir,
+      "Trips/Coast.md",
+      '---\nbanner: "[[Trips/attachments/coast.jpg]]"\nbanner_y: 0.2\n---\n# Coast\n\nWaves.\n',
+    );
+    fs.mkdirSync(path.join(dir, "Trips", "attachments"), { recursive: true });
+    fs.copyFileSync(
+      path.join(fixtures, "coast.jpg"),
+      path.join(dir, "Trips", "attachments", "coast.jpg"),
+    );
+    write(dir, "Plans.md", "# Plans\n\nNothing yet.\n");
+    fs.copyFileSync(path.join(fixtures, "sunset.png"), path.join(dir, "sunset.png"));
+    // Pictures outside the vault, to upload from.
+    const pictures = `${dir}-pictures`;
+    fs.mkdirSync(pictures);
+    fs.copyFileSync(path.join(fixtures, "sunset.png"), path.join(pictures, "Holiday photo.png"));
+    fs.copyFileSync(path.join(fixtures, "coast.jpg"), path.join(pictures, "coast.jpg"));
+    fs.writeFileSync(path.join(pictures, "notes.txt"), "not an image");
+    process.env.AXIS_E2E_PICTURES = pictures;
+  },
+  packs(dir) {
+    const fixtures = path.join(root, "e2e", "fixtures");
+    write(dir, "Plans.md", "# Plans\n\nNothing yet.\n");
+    // Downloads outside the vault: a folder of line icons (with PNG copies that the SVGs
+    // win over) and a zip of photos.
+    const downloads = `${dir}-downloads`;
+    const line = (body: string) =>
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${body}</svg>`;
+    write(
+      downloads,
+      "Line Icons/svg/star.svg",
+      line('<path d="M12 2l3 7h7l-6 5 2 8-6-5-6 5 2-8-6-5h7z"/>'),
+    );
+    write(
+      downloads,
+      "Line Icons/svg/moon.svg",
+      line('<path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/>'),
+    );
+    fs.mkdirSync(path.join(downloads, "Line Icons", "png", "16"), { recursive: true });
+    fs.copyFileSync(
+      path.join(fixtures, "sunset.png"),
+      path.join(downloads, "Line Icons", "png", "16", "star.png"),
+    );
+    fs.copyFileSync(
+      path.join(fixtures, "Trip photos.zip"),
+      path.join(downloads, "Trip photos.zip"),
+    );
+    write(downloads, "notes.txt", "not a pack");
+    process.env.AXIS_E2E_DOWNLOADS = downloads;
+  },
   perf(dir) {
     const words = [
       "cell",
@@ -299,12 +351,17 @@ export const config: WebdriverIO.Config = {
     if (config?.includes("axis-e2e-config-")) {
       setTimeout(() => fs.rmSync(config, { recursive: true, force: true, maxRetries: 5 }), 500);
     }
-    for (const dir of [process.env.AXIS_E2E_VAULT, process.env.AXIS_E2E_OBSIDIAN]) {
+    for (const dir of [
+      process.env.AXIS_E2E_VAULT,
+      process.env.AXIS_E2E_OBSIDIAN,
+      process.env.AXIS_E2E_PICTURES,
+    ]) {
       if (dir?.includes("axis-e2e-")) {
         // The app may still hold files open for a moment after the session ends.
         setTimeout(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 }), 500);
       }
     }
     delete process.env.AXIS_E2E_OBSIDIAN;
+    delete process.env.AXIS_E2E_PICTURES;
   },
 };

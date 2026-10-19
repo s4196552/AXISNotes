@@ -13,6 +13,20 @@ export interface VaultEntry {
   children?: VaultEntry[];
 }
 
+export type PackKind = "icons" | "images";
+
+/** A set of images the user added: icons for the icon picker, images for covers. */
+export interface Pack {
+  kind: PackKind;
+  name: string;
+  /** Vault path of its folder, e.g. `.axisnotes/packs/icons/Feather`. */
+  dir: string;
+  /** Vault paths of its images, sorted by name. */
+  files: string[];
+  /** An icon pack of one-colour SVGs: drawn in the text colour, or any colour chosen. */
+  monochrome: boolean;
+}
+
 export interface VaultInfo {
   /** Absolute path of the vault folder on disk. */
   root: string;
@@ -401,6 +415,25 @@ export interface Backend {
   /** Rejects with "AlreadyExists" rather than overwrite. `vaultRoot` as for `writeFile`. */
   createFile(path: string, content?: string, vaultRoot?: string): Promise<VaultEntry>;
   createDir(path: string): Promise<VaultEntry>;
+  /** Show a native picker for one image file; resolves null if cancelled. */
+  pickImage(): Promise<string | null>;
+  /**
+   * Copy the image at `source` (a path on disk) into the vault folder `folder` under a
+   * free name (`photo 1.png` if `photo.png` exists). Images only, up to 25 MB.
+   */
+  importImage(source: string, folder: string): Promise<VaultEntry>;
+  /** Icon and image packs in the vault's hidden `.axisnotes/packs/`, icon packs first. */
+  listPacks(): Promise<Pack[]>;
+  /** Native picker for a pack: a folder or a `.zip` file. Resolves null if cancelled. */
+  pickPackSource(from: "folder" | "zip"): Promise<string | null>;
+  /**
+   * Copy the images in the folder or `.zip` at `source` into a new pack of `kind`, named
+   * after it (`Name 2` if taken). Flattened; an icon pack with SVGs keeps only those.
+   * Rejects with "NotFound" when there are no images, "InvalidName" for other files.
+   */
+  importPack(kind: PackKind, source: string): Promise<Pack>;
+  /** Move a pack to the OS trash. */
+  removePack(kind: PackKind, name: string): Promise<void>;
   /**
    * Rename or move. Rejects with "AlreadyExists" if `to` exists. Wikilinks to moved notes
    * are rewritten; rewritten notes are announced through `onVaultChanged` as "modified".
@@ -427,6 +460,11 @@ export interface Backend {
   onCloseRequested(cb: () => void): Promise<() => void>;
   /** Close the window (and so the app). */
   closeWindow(): Promise<void>;
+  /**
+   * Minimize, maximize and close for the app's own title bar: the desktop window has no
+   * system frame. Absent in a browser, which has its own.
+   */
+  windowFrame?: WindowFrame;
   /** Font families installed on this computer, sorted. */
   listFonts(): Promise<string[]>;
 
@@ -507,4 +545,15 @@ export interface Backend {
   inspectImport(source: string): Promise<ImportPreview>;
   /** Copy a folder (e.g. an Obsidian vault) into `target` in the open vault. */
   importObsidian(source: string, target: string): Promise<ImportReport>;
+}
+
+/** The window's own controls (see `Backend.windowFrame`). */
+export interface WindowFrame {
+  minimize(): Promise<void>;
+  toggleMaximize(): Promise<void>;
+  /** Ask to close, as the system close button would (so `onCloseRequested` runs first). */
+  requestClose(): Promise<void>;
+  isMaximized(): Promise<boolean>;
+  /** Called after each resize, maximize and restore. Returns an unsubscribe function. */
+  onResized(cb: () => void): Promise<() => void>;
 }

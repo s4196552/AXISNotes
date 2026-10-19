@@ -1,4 +1,5 @@
 import { useAppStore } from "../../app/store";
+import { activeTab } from "../../app/tabs";
 import { useConfig } from "../../app/config";
 import { effectiveMode } from "../../app/appearance";
 import { useTimer } from "../time/timer";
@@ -161,6 +162,81 @@ registerCommands([
     run: () => useUi.getState().open({ kind: "templates", mode: "new" }),
   },
   { id: "close-note", label: "Close note", run: () => useAppStore.getState().openFile(null) },
+  // ---- Tabs ----
+  {
+    id: "new-tab",
+    label: "New tab",
+    shortcut: { key: "t", mod: true },
+    run: () => useAppStore.getState().newTab(),
+  },
+  {
+    id: "close-tab",
+    label: "Close tab",
+    shortcut: { key: "w", mod: true },
+    run: () => {
+      const store = useAppStore.getState();
+      if (activeTab(store.tabs).pinned) store.notify("This tab is pinned. Unpin it to close it.");
+      else store.closeTab();
+    },
+  },
+  {
+    id: "next-tab",
+    label: "Next tab",
+    shortcut: { key: "Tab", mod: true },
+    run: () => useAppStore.getState().cycleTab(1),
+  },
+  {
+    id: "previous-tab",
+    label: "Previous tab",
+    shortcut: { key: "Tab", mod: true, shift: true },
+    run: () => useAppStore.getState().cycleTab(-1),
+  },
+  ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+    id: `go-to-tab-${n}`,
+    label: `Go to tab ${n}`,
+    shortcut: { key: String(n), mod: true },
+    run: () => useAppStore.getState().goToTab(n - 1),
+  })),
+  {
+    id: "last-tab",
+    label: "Go to last tab",
+    shortcut: { key: "9", mod: true },
+    run: () => useAppStore.getState().goToTab(-1),
+  },
+  {
+    id: "go-back",
+    label: "Go back",
+    shortcut: { key: "ArrowLeft", mod: true, alt: true },
+    run: () => useAppStore.getState().goBack(),
+  },
+  {
+    id: "go-forward",
+    label: "Go forward",
+    shortcut: { key: "ArrowRight", mod: true, alt: true },
+    run: () => useAppStore.getState().goForward(),
+  },
+  // Obsidian's Ctrl+Shift+T is "Open tasks" here, so this one has no default.
+  {
+    id: "reopen-closed-tab",
+    label: "Reopen closed tab",
+    run: () => useAppStore.getState().reopenClosedTab(),
+  },
+  { id: "pin-tab", label: "Pin/unpin tab", run: () => useAppStore.getState().togglePinTab() },
+  {
+    id: "close-other-tabs",
+    label: "Close other tabs",
+    run: () => useAppStore.getState().closeOtherTabs(),
+  },
+  {
+    id: "group-tabs",
+    label: "Add selected tabs to a new group",
+    run: () => void useAppStore.getState().groupTabs(),
+  },
+  {
+    id: "ungroup-tabs",
+    label: "Remove selected tabs from their group",
+    run: () => useAppStore.getState().removeTabsFromGroup(),
+  },
   {
     id: "copy-block-link",
     label: "Copy link to block",

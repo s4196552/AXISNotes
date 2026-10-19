@@ -184,11 +184,11 @@ describe("adding media to a note", () => {
     const pick = vi
       .spyOn(h.b, "pickAttachments")
       .mockResolvedValue({ paths: ["Attachments/a.webm"], failed: [] });
-    SLASH_COMMANDS.find((c) => c.id === "media")!.run(view, 0, 0, undefined as never);
+    SLASH_COMMANDS.find((c) => c.id === "media")!.run!(view, 0, 0, undefined as never);
     await waitFor(() => expect(text(view)).toBe("![[a.webm]]"));
     expect(pick).toHaveBeenCalledWith("Attachments", "/memory/Demo Vault");
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "" } });
-    SLASH_COMMANDS.find((c) => c.id === "web-embed")!.run(view, 0, 0, undefined as never);
+    SLASH_COMMANDS.find((c) => c.id === "web-embed")!.run!(view, 0, 0, undefined as never);
     expect(text(view)).toBe("![]()");
     expect(view.state.selection.main.head).toBe(4); // inside the ( )
   });
@@ -200,7 +200,7 @@ describe("adding media to a note", () => {
       paths: ["Attachments/a.png", "Attachments/c.png"],
       failed: [{ name: "b.png", error: "can't be read" }],
     });
-    SLASH_COMMANDS.find((c) => c.id === "media")!.run(view, 0, 0, undefined as never);
+    SLASH_COMMANDS.find((c) => c.id === "media")!.run!(view, 0, 0, undefined as never);
     await waitFor(() => expect(text(view)).toBe("![[a.png]]\n![[c.png]]"));
     expect(useAppStore.getState().error).toBe("Couldn't add: b.png (can't be read)");
   });

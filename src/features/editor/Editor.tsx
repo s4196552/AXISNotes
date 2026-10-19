@@ -29,6 +29,7 @@ import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
 import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { PageHeader } from "./PageHeader";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
@@ -39,11 +40,13 @@ import { mermaidBlocks } from "../diagrams/mermaidBlocks";
 import "../diagrams/diagrams.css";
 import {
   commandMenuAnchor,
+  commandMenuRender,
   emojiCompletions,
   type QuickCommandConfig,
   quickCommandConfig,
   slashCompletions,
 } from "./quickCommands";
+import { toggles } from "./toggles";
 import {
   blockCompletions,
   mentionCompletions,
@@ -75,6 +78,20 @@ export interface EditorProps {
 }
 
 export const AUTOSAVE_DELAY_MS = 500;
+
+/**
+ * Where each note's cursor and scroll were when its editor closed, so switching back to
+ * a tab (or reopening the note) returns to the same place. Kept for this session only.
+ */
+const viewStates = new Map<string, { anchor: number; head: number; scrollTop: number }>();
+const VIEW_STATE_LIMIT = 200;
+
+function rememberViewState(path: string, view: EditorView) {
+  const { anchor, head } = view.state.selection.main;
+  viewStates.delete(path); // re-insert as the newest
+  viewStates.set(path, { anchor, head, scrollTop: view.scrollDOM.scrollTop });
+  if (viewStates.size > VIEW_STATE_LIMIT) viewStates.delete(viewStates.keys().next().value!);
+}
 
 type SaveStatus = "loading" | "saved" | "saving" | "dirty" | "error";
 type Banner = null | "conflict" | "removed";
@@ -137,7 +154,12 @@ export function Editor({ path }: EditorProps) {
     if (!v) return;
     const text = v.state.doc.toString();
     const change = minimalChange(text, withFrontmatter(text, next));
-    if (change.from !== change.to || change.insert) v.dispatch({ changes: change });
+    if (change.from === change.to && !change.insert) return;
+    // A cursor below the frontmatter stays below it, so the YAML stays folded behind its
+    // chip (a cursor at the very top would otherwise end up inside a new block).
+    const below = v.state.selection.main.from >= splitFrontmatter(text).length;
+    const changes = v.state.changes(change);
+    v.dispatch(below ? { changes, selection: v.state.selection.map(changes, 1) } : { changes });
   }, []);
 
   const setBanner = useCallback((b: Banner) => {
@@ -238,12 +260,18 @@ export function Editor({ path }: EditorProps) {
         if (cancelled || !host.current) return;
         mtime.current = file.modifiedMs;
         const store = useAppStore.getState;
+        // Back where it was, unless a link asked for a heading/block/line.
+        const pending = store().pendingTarget?.path === path;
+        const saved = pending ? undefined : viewStates.get(path);
+        const len = file.content.length;
         created = new EditorView({
           parent: host.current,
           state: EditorState.create({
             doc: file.content,
-            // Start below the frontmatter so it shows as the properties chip.
-            selection: EditorSelection.cursor(splitFrontmatter(file.content).length),
+            // Else start below the frontmatter so it shows as the properties chip.
+            selection: saved
+              ? EditorSelection.single(Math.min(saved.anchor, len), Math.min(saved.head, len))
+              : EditorSelection.cursor(splitFrontmatter(file.content).length),
             extensions: [
               history(),
               drawSelection(),
@@ -260,6 +288,7 @@ export function Editor({ path }: EditorProps) {
                   propertyCompletions,
                   templateCompletions,
                 ],
+                addToOptions: commandMenuRender,
               }),
               commandMenuAnchor,
               embeds(path),
@@ -275,11 +304,12 @@ export function Editor({ path }: EditorProps) {
               }),
               livePreview,
               obsidianSyntax,
+              toggles,
               mermaidBlocks,
               math,
               spellCompartment.current.of(configuredSpellcheck()),
               links({
-                openLink: (inner) => void followLink(inner, path),
+                openLink: (inner, newTab) => void followLink(inner, path, { newTab }),
                 openTag: (tag) => store().search(`tag:${tag}`),
                 isKnown: (target) => isKnownTarget(store().notes, target),
                 notes: () => store().notes,
@@ -310,6 +340,13 @@ export function Editor({ path }: EditorProps) {
         syncProps(created.state);
         setStatus("saved");
         setReady(true);
+        if (saved) {
+          const v = created;
+          v.requestMeasure({
+            read: () => {},
+            write: () => (v.scrollDOM.scrollTop = saved.scrollTop),
+          });
+        }
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -338,11 +375,22 @@ export function Editor({ path }: EditorProps) {
           await backend.writeFile(path, content, mtime.current, vault ?? undefined);
         });
       }
+      if (created) rememberViewState(path, created);
       created?.destroy();
       view.current = null;
       setActiveEditor(null);
     };
   }, [path, save, scheduleSave, syncProps]);
+
+  // Once the note is scrolled, the page header shrinks so the cover doesn't take space.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const el = view.current?.scrollDOM;
+    if (!ready || !el) return;
+    const onScroll = () => setScrolled(el.scrollTop > 24);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [ready]);
 
   // Jump to a heading/block/line requested by the link that opened this note.
   const pendingTarget = useAppStore((s) => s.pendingTarget);
@@ -428,6 +476,8 @@ export function Editor({ path }: EditorProps) {
 
   return (
     <div className="editor">
+      {/* Shown while loading too, so the title doesn't jump when the note arrives. */}
+      <PageHeader path={path} props={props} onChange={changeProps} compact={scrolled} />
       <header className="editor-header">
         <h1 className="editor-title">{titleOf(path)}</h1>
         <button

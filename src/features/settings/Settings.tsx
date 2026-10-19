@@ -21,10 +21,12 @@ import { UpdatesSettings } from "../updates/UpdatesSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
 import { ThemePicker } from "./ThemePicker";
 import { About } from "./About";
+import { PacksSettings } from "../packs/PacksSettings";
 import "./settings.css";
 
 export type Section =
   | "appearance"
+  | "packs"
   | "spelling"
   | "daily"
   | "templates"
@@ -38,6 +40,7 @@ export type Section =
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "appearance", label: "Appearance" },
+  { id: "packs", label: "Icon & image packs" },
   { id: "spelling", label: "Spelling" },
   { id: "daily", label: "Daily notes" },
   { id: "templates", label: "Templates" },
@@ -84,6 +87,7 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
             </button>
           </header>
           {section === "appearance" && <Appearance config={config} set={set} />}
+          {section === "packs" && <PacksSettings />}
           {section === "spelling" && <Spelling config={config} set={set} />}
           {section === "daily" && <Daily config={config} set={set} />}
           {section === "files" && <Files config={config} set={set} />}

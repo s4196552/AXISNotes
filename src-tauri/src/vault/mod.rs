@@ -434,6 +434,83 @@ impl Vault {
         }
         trash::delete(&abs).map_err(|e| AppError::Io(e.to_string()))
     }
+
+    /// A free vault path for `file_name` inside `folder` ("" is the vault root):
+    /// `photo.png`, else `photo 1.png`, `photo 2.png`, …
+    pub fn free_path(&self, folder: &str, file_name: &str) -> AppResult<String> {
+        validate_name(file_name)?;
+        let folder = folder.trim_matches('/');
+        let join = |name: &str| {
+            if folder.is_empty() {
+                name.to_string()
+            } else {
+                format!("{folder}/{name}")
+            }
+        };
+        let (stem, ext) = match file_name.rfind('.') {
+            Some(i) if i > 0 => (&file_name[..i], &file_name[i..]),
+            _ => (file_name, ""),
+        };
+        for n in 0..10_000 {
+            let name = if n == 0 {
+                file_name.to_string()
+            } else {
+                format!("{stem} {n}{ext}")
+            };
+            let rel = join(&name);
+            if !self.resolve_entry(&rel)?.exists() {
+                return Ok(rel);
+            }
+        }
+        Err(AppError::AlreadyExists(join(file_name)))
+    }
+
+    /// Copy an image from anywhere on disk to the free vault path `rel` (see `free_path`).
+    pub fn copy_image_in(&self, source: &Path, rel: &str) -> AppResult<VaultEntry> {
+        image_file_name(source)?;
+        if self.resolve_entry(rel)?.exists() {
+            return Err(AppError::AlreadyExists(rel.to_string()));
+        }
+        let bytes = fs::read(source)?;
+        if bytes.len() as u64 > MAX_IMAGE_BYTES {
+            return Err(too_large());
+        }
+        self.write_bytes(rel, &bytes)?;
+        self.entry_for(&self.resolve_entry(rel)?, false)
+    }
+}
+
+/// Image types that can be copied into the vault (page covers and icons).
+pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif"];
+/// The largest image that can be copied in.
+pub const MAX_IMAGE_BYTES: u64 = 25 * 1024 * 1024;
+
+fn too_large() -> AppError {
+    AppError::Io("the image is larger than 25 MB".into())
+}
+
+/// The file name of `source` if it is an image file that may be copied into the vault.
+pub fn image_file_name(source: &Path) -> AppResult<String> {
+    let meta =
+        fs::metadata(source).map_err(|_| AppError::NotFound(source.display().to_string()))?;
+    if !meta.is_file() {
+        return Err(AppError::NotFound(source.display().to_string()));
+    }
+    let name = source
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = Path::new(&name)
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    if !IMAGE_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(AppError::InvalidName(format!("{name} is not an image")));
+    }
+    if meta.len() > MAX_IMAGE_BYTES {
+        return Err(too_large());
+    }
+    Ok(name)
 }
 
 #[cfg(test)]
@@ -608,6 +685,74 @@ pub(crate) mod tests {
             v.create_dir(" spaced"),
             Err(AppError::InvalidName(_))
         ));
+    }
+
+    #[test]
+    fn copies_an_image_in_under_a_free_name() {
+        let (_d, v) = vault();
+        let outside = tempfile::tempdir().unwrap();
+        let src = outside.path().join("Sunset.PNG");
+        fs::write(&src, b"\x89PNG fake").unwrap();
+
+        let name = image_file_name(&src).unwrap();
+        assert_eq!(name, "Sunset.PNG");
+        let rel = v.free_path("Notes/attachments", &name).unwrap();
+        assert_eq!(rel, "Notes/attachments/Sunset.PNG");
+        let entry = v.copy_image_in(&src, &rel).unwrap();
+        assert_eq!(entry.path, rel);
+        assert_eq!(
+            fs::read(v.resolve(&rel).unwrap()).unwrap(),
+            b"\x89PNG fake".to_vec()
+        );
+
+        // A second copy gets the next free name; the root folder works too.
+        assert_eq!(
+            v.free_path("/Notes/attachments/", &name).unwrap(),
+            "Notes/attachments/Sunset 1.PNG"
+        );
+        assert_eq!(v.free_path("", "x.png").unwrap(), "x.png");
+        // Never overwrites.
+        assert!(matches!(
+            v.copy_image_in(&src, &rel),
+            Err(AppError::AlreadyExists(_))
+        ));
+    }
+
+    #[test]
+    fn refuses_non_images_missing_files_and_escapes() {
+        let (_d, v) = vault();
+        let outside = tempfile::tempdir().unwrap();
+        let txt = outside.path().join("notes.txt");
+        fs::write(&txt, "hi").unwrap();
+        assert!(matches!(
+            image_file_name(&txt),
+            Err(AppError::InvalidName(_))
+        ));
+        assert!(matches!(
+            image_file_name(&outside.path().join("gone.png")),
+            Err(AppError::NotFound(_))
+        ));
+        assert!(matches!(
+            image_file_name(outside.path()),
+            Err(AppError::NotFound(_))
+        ));
+        assert!(matches!(
+            v.free_path("../elsewhere", "x.png"),
+            Err(AppError::OutsideVault(_))
+        ));
+        assert!(matches!(
+            v.free_path("a", "bad:name.png"),
+            Err(AppError::InvalidName(_))
+        ));
+    }
+
+    #[test]
+    fn refuses_images_over_the_size_cap() {
+        let outside = tempfile::tempdir().unwrap();
+        let big = outside.path().join("big.jpg");
+        let f = fs::File::create(&big).unwrap();
+        f.set_len(MAX_IMAGE_BYTES + 1).unwrap();
+        assert!(matches!(image_file_name(&big), Err(AppError::Io(_))));
     }
 
     #[test]

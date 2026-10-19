@@ -183,6 +183,12 @@ impl AppState {
         let _ = app
             .asset_protocol_scope()
             .allow_directory(vault.root(), true);
+        // Icon and image packs sit in the hidden `.axisnotes/packs/`. Scope globs skip
+        // dot-folders on macOS and Linux unless the dot is written out, so name it.
+        let _ = app.asset_protocol_scope().allow_directory(
+            vault.root().join(crate::vault::META_DIR).join("packs"),
+            true,
+        );
         // Open straight away; catching the index up happens in the background, so a big
         // vault opens at once and fills in as it's read.
         *self.index.lock().unwrap() = Some(Index::open_unsynced(&vault)?);
@@ -384,6 +390,24 @@ pub async fn pick_attachments(
     state.import_files(&files, &dir, vault_root.as_deref())
 }
 
+/// Copy an image file chosen by the user into `folder` (created if needed) under a free
+/// name, for page covers and icons.
+#[tauri::command]
+pub fn import_image(
+    state: State<AppState>,
+    source: String,
+    folder: String,
+) -> AppResult<VaultEntry> {
+    let v = state.vault()?;
+    let source = PathBuf::from(source);
+    let name = crate::vault::image_file_name(&source)?;
+    let rel = v.free_path(&folder, &name)?;
+    state.touch(&v, &rel)?;
+    let entry = v.copy_image_in(&source, &rel)?;
+    state.reindex(&v, change(ChangeKind::Created, &[&rel]));
+    Ok(entry)
+}
+
 #[tauri::command]
 pub fn create_dir(state: State<AppState>, path: String) -> AppResult<VaultEntry> {
     let v = state.vault()?;
@@ -541,6 +565,33 @@ pub fn inspect_import(source: String) -> AppResult<ImportPreview> {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default(),
     })
+}
+
+/// Icon and image packs in the open vault (`.axisnotes/packs/`).
+#[tauri::command]
+pub fn list_packs(state: State<AppState>) -> AppResult<Vec<crate::packs::Pack>> {
+    crate::packs::list_packs(&state.vault()?)
+}
+
+/// Add the folder or `.zip` at `source` as a new pack. Async: a big pack takes a while.
+#[tauri::command]
+pub async fn import_pack(
+    state: State<'_, AppState>,
+    kind: crate::packs::PackKind,
+    source: String,
+) -> AppResult<crate::packs::Pack> {
+    crate::packs::import_pack(&state.vault()?, kind, &PathBuf::from(source))
+}
+
+/// Move a pack to the OS trash. Async: the Recycle Bin can take a few seconds, and a
+/// sync command would hold up the window meanwhile.
+#[tauri::command]
+pub async fn remove_pack(
+    state: State<'_, AppState>,
+    kind: crate::packs::PackKind,
+    name: String,
+) -> AppResult<()> {
+    crate::packs::remove_pack(&state.vault()?, kind, &name)
 }
 
 /// Copy an Obsidian vault (or any folder of Markdown) into the open vault.

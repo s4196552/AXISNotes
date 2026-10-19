@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "AXISNotes",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "identifier": "app.axis.axisnotes",
   "build": {
     "frontendDist": "../dist",
@@ -19,6 +19,7 @@
         "minWidth": 720,
         "minHeight": 480,
         "resizable": true,
+        "decorations": false,
         "transparent": true
       }
     ],

@@ -1,0 +1,210 @@
+/* Notion-style page header: cover banner, large page icon, "Add icon / Add cover". */
+.page-header {
+  position: relative;
+  flex: none;
+}
+.page-cover {
+  position: relative;
+  height: clamp(120px, 26vh, 260px);
+  background: var(--bg-hover);
+  overflow: hidden;
+  outline: none;
+  transition: height 160ms ease-out;
+}
+/* Scrolled into the note: a thin strip of the cover, no icon row. */
+.page-header.compact .page-cover:not(.repositioning) {
+  height: 28px;
+}
+.page-header.compact .page-cover:not(.repositioning) > :not(img),
+.page-header.compact .page-meta {
+  display: none;
+}
+.page-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+}
+.page-cover.repositioning {
+  cursor: grab;
+}
+.page-cover.repositioning:active {
+  cursor: grabbing;
+}
+.page-cover.repositioning:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.page-cover-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.page-cover-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font-size: 12px;
+  pointer-events: none;
+}
+.page-cover-actions {
+  position: absolute;
+  right: 16px;
+  bottom: 10px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.page-cover:hover .page-cover-actions,
+.page-cover:focus-within .page-cover-actions,
+.page-cover.repositioning .page-cover-actions {
+  opacity: 1;
+}
+.page-cover-actions button,
+.page-add button {
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12px;
+  padding: 3px 8px;
+}
+.page-cover-actions button:hover,
+.page-add button:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.page-meta {
+  max-width: var(--editor-width);
+  margin: 0 auto;
+  padding: 20px 24px 0;
+}
+.page-header.has-cover .page-meta {
+  padding-top: 8px;
+}
+.page-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 78px;
+  height: 78px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg);
+}
+.page-icon:hover {
+  background: var(--bg-hover);
+}
+.page-header.has-cover .page-icon {
+  margin-top: -48px;
+  position: relative;
+}
+.page-icon .custom-icon {
+  margin: 0;
+}
+.page-icon .image-icon {
+  border-radius: 6px;
+  object-fit: cover;
+}
+.page-add {
+  display: flex;
+  gap: 4px;
+  min-height: 24px;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+.page-header:hover .page-add,
+.page-add:focus-within {
+  opacity: 1;
+}
+.page-add button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.page-header + .editor-header {
+  padding-top: 4px;
+}
+
+.cover-picker {
+  position: absolute;
+  z-index: 20;
+  right: 16px;
+  top: 12px;
+  width: min(420px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+}
+.page-header:not(.has-cover) .cover-picker {
+  top: 48px;
+}
+.cover-picker-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cover-remove {
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.cover-remove:hover {
+  color: var(--danger);
+}
+.cover-gallery,
+.cover-images {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow: auto;
+}
+.cover-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 6px;
+}
+.cover-tiles button {
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.cover-tiles button:hover,
+.cover-tiles button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-cover,
+  .page-cover-actions,
+  .page-add {
+    transition: none;
+  }
+}

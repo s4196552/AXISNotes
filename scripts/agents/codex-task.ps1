@@ -10,7 +10,7 @@
 param(
     [Parameter(Mandatory)] [string] $TaskId,
     [string] $Base = "main",
-    [string] $Model = ""          # e.g. gpt-6-sol; empty = Codex default
+    [string] $Model = ""   # omit = invoke-codex.ps1's default; "" = Codex's own default
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,9 +49,12 @@ $codexArgs = @("exec", "-C", $worktree, "-s", "workspace-write",
           "--add-dir", (Join-Path $repo ".agents"),
           "--add-dir", (Join-Path $repo ".git"),
           "-o", (Join-Path $logDir "$TaskId.last.md"))
-if ($Model) { $codexArgs += @("-m", $Model) }
 
-& (Join-Path $PSScriptRoot "invoke-codex.ps1") -CodexArgs $codexArgs -Prompt $prompt `
+# Only pass -Model through when given, so invoke-codex.ps1 keeps the shared default.
+$modelArg = @{}
+if ($PSBoundParameters.ContainsKey("Model")) { $modelArg.Model = $Model }
+
+& (Join-Path $PSScriptRoot "invoke-codex.ps1") -CodexArgs $codexArgs -Prompt $prompt @modelArg `
     -LogBase (Join-Path $logDir $TaskId)
 exit $LASTEXITCODE
 

@@ -1,5 +1,4 @@
-import { Suspense, useEffect } from "react";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { type CSSProperties, Suspense, useEffect } from "react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
@@ -25,9 +24,7 @@ import { guardWindowClose } from "./features/files/closeGuard";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
-import { toggleSidePanels, useLayout } from "./app/layout";
-import { formatHotkey } from "./features/commands/hotkeys";
-import { allCommands, shortcutOf } from "./features/commands/registry";
+import { useLayout } from "./app/layout";
 
 // Views other than the note editor load on first use (grids also need the formula
 // function library before they render).
@@ -42,6 +39,12 @@ const TimeReport = lazyNamed(() => import("./features/time/TimeReport"), "TimeRe
 import { RunningTimer } from "./features/time/TimerControls";
 import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
+import { PanelToggle } from "./features/panels/PanelToggle";
+import { usePresence } from "./features/panels/presence";
+import { TabBar } from "./features/tabs/TabBar";
+import { TAB_PANEL_ID } from "./features/tabs/tabInfo";
+import { NewTab } from "./features/tabs/NewTab";
+import { WindowControls } from "./features/window/WindowControls";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
@@ -53,6 +56,9 @@ export default function App() {
   const refreshTree = useAppStore((s) => s.refreshTree);
   const showLeft = useLayout((s) => s.left);
   const showRight = useLayout((s) => s.right);
+  const leftWidth = useLayout((s) => s.leftWidth);
+  const rightWidth = useLayout((s) => s.rightWidth);
+  const rightMounted = usePresence(showRight);
   useClipNotices();
 
   // Restore a vault the backend already has open (e.g. after a webview reload), or
@@ -155,6 +161,7 @@ export default function App() {
     return (
       <>
         <WelcomeScreen />
+        <WindowControls dragStrip />
         <UpdateBanner />
       </>
     );
@@ -162,42 +169,70 @@ export default function App() {
   return (
     <div
       className="shell"
-      style={{
-        gridTemplateColumns: [showLeft && "260px", "minmax(0, 1fr)", showRight && "280px"]
-          .filter(Boolean)
-          .join(" "),
-      }}
+      // A hidden panel's column is 0 px rather than removed, so it can slide (see .shell).
+      style={
+        {
+          gridTemplateColumns: `${showLeft ? leftWidth : 0}px minmax(0, 1fr) ${showRight ? rightWidth : 0}px`,
+          "--left-width": `${leftWidth}px`,
+          "--right-width": `${rightWidth}px`,
+        } as CSSProperties
+      }
     >
-      {/* Hidden rather than unmounted, so the file tree and search keep their state. */}
-      <div className="sidebar-slot" hidden={!showLeft}>
+      {/* Kept mounted while hidden, so the file tree and search keep their state. */}
+      <div
+        className="sidebar-slot left"
+        data-closed={showLeft ? undefined : ""}
+        aria-hidden={showLeft ? undefined : true}
+        inert={!showLeft}
+      >
         <LeftSidebar />
       </div>
-      <main className="content">
-        <SidePanelsButton hidden={!showLeft && !showRight} />
-        <Suspense fallback={<div className="empty muted">Loading…</div>}>
-          {mainView === "graph" ? (
-            <GraphView />
-          ) : mainView === "tasks" ? (
-            <TasksView />
-          ) : mainView === "time" ? (
-            <TimeReport />
-          ) : activePath && docKind(activePath) === "grid" ? (
-            <Grid key={activePath} path={activePath} />
-          ) : activePath && docKind(activePath) === "canvas" ? (
-            <Canvas key={activePath} path={activePath} />
-          ) : activePath && (docKind(activePath) === "image" || docKind(activePath) === "media") ? (
-            <ImageView key={activePath} path={activePath} />
-          ) : activePath && docKind(activePath) === "other" ? (
-            <UnsupportedView key={activePath} path={activePath} />
-          ) : activePath ? (
-            <Editor key={activePath} path={activePath} />
-          ) : (
-            <div className="empty muted">Select or create a note</div>
-          )}
-        </Suspense>
+      <main
+        className={["content", !showLeft && "left-hidden", !showRight && "right-hidden"]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {/* The left panel's own header holds its hide button; once hidden, it shows here. */}
+        {!showLeft && <PanelToggle side="left" className="side-panels-toggle left" />}
+        <PanelToggle side="right" className="side-panels-toggle" />
+        <TabBar />
+        <div className="tab-panel" id={TAB_PANEL_ID} role="tabpanel">
+          <Suspense fallback={<div className="empty muted">Loading…</div>}>
+            {mainView === "graph" ? (
+              <GraphView />
+            ) : mainView === "tasks" ? (
+              <TasksView />
+            ) : mainView === "time" ? (
+              <TimeReport />
+            ) : activePath && docKind(activePath) === "grid" ? (
+              <Grid key={activePath} path={activePath} />
+            ) : activePath && docKind(activePath) === "canvas" ? (
+              <Canvas key={activePath} path={activePath} />
+            ) : activePath &&
+              (docKind(activePath) === "image" || docKind(activePath) === "media") ? (
+              <ImageView key={activePath} path={activePath} />
+            ) : activePath && docKind(activePath) === "other" ? (
+              <UnsupportedView key={activePath} path={activePath} />
+            ) : activePath ? (
+              <Editor key={activePath} path={activePath} />
+            ) : (
+              <NewTab />
+            )}
+          </Suspense>
+        </div>
       </main>
-      {/* The right side (with its live graph) only runs while it's showing. */}
-      {showRight && <RightSidebar />}
+      {/* The right side (with its live graph) only runs while showing or sliding away. */}
+      {rightMounted && (
+        <div
+          className="sidebar-slot right"
+          data-closed={showRight ? undefined : ""}
+          aria-hidden={showRight ? undefined : true}
+          inert={!showRight}
+        >
+          <RightSidebar />
+        </div>
+      )}
+      <WindowControls />
       <Modals />
       <UpdateBanner />
       <footer className="statusbar">
@@ -216,25 +251,5 @@ export default function App() {
         )}
       </footer>
     </div>
-  );
-}
-
-/** Top right of the main area: hide both side panels for a focused view, or bring them back. */
-function SidePanelsButton({ hidden }: { hidden: boolean }) {
-  // Re-render when shortcuts are remapped in Settings, so the tooltip stays right.
-  useConfig((s) => s.config.hotkeys);
-  const cmd = allCommands().find((c) => c.id === "toggle-side-panels");
-  const key = cmd && shortcutOf(cmd);
-  const label = hidden ? "Show side panels" : "Hide side panels";
-  return (
-    <button
-      className="side-panels-toggle"
-      aria-label={label}
-      aria-pressed={hidden}
-      title={key ? `${label} (${formatHotkey(key)})` : label}
-      onClick={toggleSidePanels}
-    >
-      {hidden ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-    </button>
   );
 }
