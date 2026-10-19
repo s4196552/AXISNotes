@@ -336,3 +336,95 @@ input {
 .image-view-body audio {
   width: min(480px, 100%);
 }
+
+/* Dialog header/footer, icon buttons and status text shared by the AI dialogs, Import,
+   Handwriting, Getting Started and Settings. Global so a dialog is styled however early
+   it opens, not only once an AI feature has loaded ai.css. */
+.ai-icon {
+  display: inline-flex;
+  padding: 3px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.ai-icon:hover:not(:disabled) {
+  color: var(--fg);
+}
+.ai-ok,
+.ai-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.ai-ok {
+  color: var(--accent);
+}
+.ai-error {
+  color: var(--danger);
+}
+.spin {
+  animation: ai-spin 1s linear infinite;
+}
+@keyframes ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ask-ai {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, calc(100vw - 32px));
+  max-height: 76vh;
+}
+.ask-ai-header,
+.ask-ai-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+}
+.ask-ai-header {
+  border-bottom: 1px solid var(--border);
+}
+.ask-ai-header .ai-icon {
+  margin-left: auto;
+}
+.ask-ai-footer {
+  border-top: 1px solid var(--border);
+}
+.ask-ai-footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ask-ai-spacer {
+  flex: 1;
+}
+.ask-ai-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
+}
+.ask-ai-plan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+  font-size: 12px;
+}
+.ask-ai-answer {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-sidebar);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ask-ai-meta {
+  font-size: 12px;
+}
