@@ -323,7 +323,16 @@ input {
   overflow: auto;
   padding: 16px;
 }
-.image-view-body img {
+.image-view-body img,
+.image-view-body video {
   max-width: 100%;
   height: auto;
+}
+.image-view-body video {
+  max-height: calc(100vh - 160px);
+  border-radius: var(--radius);
+  background: #000;
+}
+.image-view-body audio {
+  width: min(480px, 100%);
 }

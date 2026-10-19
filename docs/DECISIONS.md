@@ -33,6 +33,32 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 | @types/d3-force                   | 3.0     | MIT     | Types (dev)                                             |
 | ~~graphology-layout-forceatlas2~~ | —       | MIT     | Removed: replaced by d3-force                           |
 
+## 2026-10-13: Images, video and audio in notes, including from the web (T-075)
+
+- **Embeds on a line of their own render inline**, in both Obsidian syntaxes:
+  - `![[photo.png|300]]` (as before), `![[clip.mp4]]` and `![[talk.mp3]]` from the vault;
+  - Markdown `![alt|300](path)`, with relative `../` paths and `%20`/`<…>` for spaces;
+  - web images and video files, `![](https://…/pic.jpg)` and `![](https://…/clip.mp4)`;
+  - YouTube and Vimeo links, `![](https://youtu.be/…)`, as their players. YouTube uses its privacy-enhanced `youtube-nocookie.com` player and keeps a `t=` start time.
+  - Video and audio files opened from the file tree play in the app too.
+- **Getting media in:**
+  - Pasting a screenshot saves it as Obsidian does, `Pasted image 20261013211845.png`; a copied file keeps its own name. Text copied from Excel or Word, which also carries a picture of itself, still pastes as text.
+  - Files dropped from Explorer/Finder onto a note are copied into the vault and embedded where they land. Files already in the vault are linked, not copied.
+  - "Image, video or audio…" in the command menu opens the system file picker.
+  - Dragging a file from the file tree into a note embeds it (a note becomes a `[[link]]`).
+  - Names that clash with another file use the full path; names a wikilink can't hold (`#`, `|`, `[`, `]`, `^`) use `![](<path>)`.
+- **Attachment folder** (Settings → Files & links), stored as `attachments.folder` in `.axisnotes/config.json`, uses Obsidian's forms: empty for the vault root, `./` next to the note, `./name` a folder next to the note, else a vault folder. The default is `Attachments`.
+- **The page never names a file outside the vault for the backend to read.**
+  - Rust catches the window's drop event and keeps the dropped paths; `import_dropped` imports only those.
+  - `pick_attachments` runs the native picker itself.
+  - Pasted bytes go to `save_attachment` as the raw IPC body (no base64), with names in percent-encoded headers.
+  - Copies are atomic (a hidden temporary file, then a rename), and names count up (`clip 1.mp4`).
+- **Network: an approved exception to "no network except AI".** The user asked for web media like Obsidian's (2026-10-13). A note that embeds web media loads it from those sites when shown; vault media never leaves the device. The CSP gains:
+  - `img-src https:`;
+  - `media-src 'self' asset: http://asset.localhost blob: https:`, which local video/audio also needs;
+  - `frame-src https://www.youtube-nocookie.com https://player.vimeo.com`, and no other frames.
+- **Players are sandboxed iframes** (`allow-scripts allow-same-origin allow-presentation`, no popups) with a `strict-origin-when-cross-origin` referrer, which YouTube needs to play. Tauri does inject its IPC bridge into them, but every call from their origin is refused. Checked on the real app (2026-10-13): app commands (`current_vault`, `list_tree`), core ones (`plugin:app|version`, `plugin:event|listen`, "allowed on: URL: local") and a raw request to the IPC endpoint (no invoke key) all fail from the YouTube frame, while the app's own calls work.
+
 ## 2026-10-12: Closing never loses an edit either (T-074)
 
 - **Closing the window saves every open document first**, the same way installing an update does (`src/features/files/beforeExit.ts`: freeze the window, wait a moment for blur-committed edits, `saveAll()`).

@@ -50,6 +50,11 @@ export interface AxisConfig {
     openOnStartup: boolean;
   };
   templatesFolder: string;
+  /**
+   * Where pasted, dropped and picked images/videos go (Obsidian's forms): "" the vault
+   * root, "./" next to the note, "./name" a folder next to the note, else a vault folder.
+   */
+  attachments: { folder: string };
   /** Offline spellcheck; `words` is the vault's personal dictionary (lower-case). */
   spellcheck: { enabled: boolean; words: string[] };
   /** Remapped keyboard shortcuts by command id ("" = no shortcut). */
@@ -89,6 +94,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
   folderIcons: {},
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   templatesFolder: "Templates",
+  attachments: { folder: "Attachments" },
   spellcheck: { enabled: true, words: [] },
   hotkeys: {},
   quickCommands: {

@@ -1,6 +1,6 @@
 // Which view opens a vault file, decided by extension.
 
-export type DocKind = "markdown" | "grid" | "canvas" | "image" | "other";
+export type DocKind = "markdown" | "grid" | "canvas" | "image" | "media" | "other";
 
 export const GRID_EXT = ".axgrid";
 export const CANVAS_EXT = ".axcanvas";
@@ -13,14 +13,17 @@ const KINDS: [ext: string, kind: DocKind][] = [
 ];
 
 const IMAGE_RE = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i;
+/** Video and audio, played in the app. */
+const MEDIA_RE = /\.(mp4|webm|mov|m4v|ogv|mp3|wav|ogg|oga|m4a|flac|opus)$/i;
 /** Binary or unknown files that must not be opened as text. */
-const OTHER_RE = /\.(pdf|zip|mp3|mp4|mov|wav|webm|ogg|docx?|xlsx?|pptx?|exe|dll|bin)$/i;
+const OTHER_RE = /\.(pdf|zip|docx?|xlsx?|pptx?|exe|dll|bin)$/i;
 
 export function docKind(path: string): DocKind | null {
   const lower = path.toLowerCase();
   const kind = KINDS.find(([ext]) => lower.endsWith(ext))?.[1];
   if (kind) return kind;
   if (IMAGE_RE.test(lower)) return "image";
+  if (MEDIA_RE.test(lower)) return "media";
   if (OTHER_RE.test(lower)) return "other";
   return null;
 }

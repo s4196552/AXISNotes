@@ -422,6 +422,53 @@
   height: auto;
   border-radius: var(--radius);
 }
+/* Video, audio and web players: they keep their own clicks, so "Edit link" shows the
+   embed's text (on hover, or when tabbed to). */
+.cm-media-embed:not([data-kind="image"]) {
+  position: relative;
+  cursor: default;
+}
+.cm-media-embed :is(video, iframe) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  border: none;
+  border-radius: var(--radius);
+  background: #000;
+}
+.cm-media-embed iframe {
+  max-width: 720px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+.cm-media-embed video {
+  max-height: 70vh;
+}
+.cm-media-embed[data-kind="audio"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cm-media-embed audio {
+  width: 100%;
+  max-width: 480px;
+}
+.cm-media-edit {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.cm-media-embed[data-kind="audio"] .cm-media-edit {
+  position: static;
+}
+.cm-media-embed:hover .cm-media-edit,
+.cm-media-edit:focus-visible {
+  opacity: 1;
+}
 .cm-image-embed.missing {
   display: inline-block;
   padding: 4px 8px;

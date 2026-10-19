@@ -3,13 +3,22 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
 import { Effect, getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AiRunResult, Backend, Clipped, IndexProgress, VaultChange, VaultInfo } from "./types";
+import type {
+  AiRunResult,
+  Backend,
+  Clipped,
+  FilesDropped,
+  IndexProgress,
+  VaultChange,
+  VaultInfo,
+} from "./types";
 import { IMAGE_EXTENSIONS } from "../lib/attachments";
 
 export const VAULT_CHANGED_EVENT = "vault://changed";
 export const INDEX_PROGRESS_EVENT = "index://progress";
 export const AI_DELTA_EVENT = "ai://delta";
 export const CLIPPED_EVENT = "clipper://clipped";
+export const FILES_DROPPED_EVENT = "attachments://dropped";
 
 export function createTauriBackend(): Backend {
   // The open vault's root, for file URLs (kept in sync by open/create/current).
@@ -104,6 +113,20 @@ export function createTauriBackend(): Backend {
       if (!root) return null;
       const sep = root.includes("\\") ? "\\" : "/";
       return convertFileSrc(root.replace(/[\\/]+$/, "") + sep + path.split("/").join(sep));
+    },
+    // The bytes go as the raw request body; names travel in (escaped) headers.
+    saveAttachment: (dir, name, bytes, vaultRoot) =>
+      invoke("save_attachment", bytes, {
+        headers: {
+          "x-dir": encodeURIComponent(dir),
+          "x-name": encodeURIComponent(name),
+          ...(vaultRoot ? { "x-vault": encodeURIComponent(vaultRoot) } : {}),
+        },
+      }),
+    importDropped: (dir, vaultRoot) => invoke("import_dropped", { dir, vaultRoot }),
+    pickAttachments: (dir, vaultRoot) => invoke("pick_attachments", { dir, vaultRoot }),
+    async onFilesDropped(cb) {
+      return listen<FilesDropped>(FILES_DROPPED_EVENT, (e) => cb(e.payload));
     },
     inspectImport: (source) => invoke("inspect_import", { source }),
     importObsidian: (source, target) => invoke("import_obsidian", { source, target }),

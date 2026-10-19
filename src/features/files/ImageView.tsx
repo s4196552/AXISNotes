@@ -1,6 +1,7 @@
 import { backend } from "../../ipc";
+import { mediaKind } from "../../lib/attachments";
 
-// Images and other attachments opened from the file tree.
+// Images, video and audio opened from the file tree.
 
 export function ImageView({ path }: { path: string }) {
   const url = backend.fileUrl(path);
@@ -11,10 +12,14 @@ export function ImageView({ path }: { path: string }) {
         <h1 className="editor-title">{name}</h1>
       </header>
       <div className="image-view-body">
-        {url ? (
-          <img src={url} alt={name} />
+        {!url ? (
+          <p className="muted">Images and videos are shown in the desktop app.</p>
+        ) : mediaKind(path) === "video" ? (
+          <video src={url} controls preload="metadata" aria-label={name} />
+        ) : mediaKind(path) === "audio" ? (
+          <audio src={url} controls preload="metadata" aria-label={name} />
         ) : (
-          <p className="muted">Images are shown in the desktop app.</p>
+          <img src={url} alt={name} />
         )}
       </div>
     </div>

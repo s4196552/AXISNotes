@@ -19,11 +19,13 @@ import {
   Clock,
   File,
   FileInput,
+  Globe,
   Grid3x3,
   Grip,
   Heading1,
   Heading2,
   Heading3,
+  ImagePlus,
   Info,
   LayoutTemplate,
   Link,
@@ -49,6 +51,7 @@ import { splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { PAGE_STYLE_PROP, type PageStyle } from "../templates/templates";
 import { lucideSvg } from "./lucideSvg";
 import { minimalChange } from "./targets";
+import { pickAndEmbed } from "./media";
 
 // The command menu (Ctrl+/, or an optional typed trigger) and `:` emoji, with
 // configurable triggers. The other typed menus (`@@`, `((`, `::`, `{{`) are in triggers.ts.
@@ -359,6 +362,25 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     run: (v, f, t) => insert(v, f, t, "![[|]]"),
   },
   {
+    id: "media",
+    label: "Image, video or audio…",
+    icon: ImagePlus,
+    description: "Embed a file from your computer",
+    markdown: "![[",
+    run: (v, f, t) => {
+      v.dispatch({ changes: { from: f, to: t, insert: "" } });
+      void pickAndEmbed(v);
+    },
+  },
+  {
+    id: "web-embed",
+    label: "Embed from the web",
+    icon: Globe,
+    description: "An image, video or YouTube link",
+    markdown: "![](",
+    run: (v, f, t) => insert(v, f, t, "![](|)"),
+  },
+  {
     id: "template",
     label: "Insert template…",
     icon: LayoutTemplate,
@@ -508,6 +530,7 @@ export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
     ],
   },
   { name: "Links", ids: ["link", "embed"] },
+  { name: "Media", ids: ["media", "web-embed"] },
   {
     name: "Insert",
     ids: ["date", "time", "due", "priority-high", "priority-medium", "priority-low", "template"],
