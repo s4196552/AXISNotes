@@ -6,6 +6,7 @@ import { Picker, type PickerItem } from "./Picker";
 import { allCommands, commandForEvent, hintFor, shortcutOf } from "./registry";
 import { useUi } from "./ui";
 import { IconPicker } from "../icons/IconPicker";
+import { RowColorsDialog } from "../filetree/RowColors";
 import { lazyNamed } from "../../app/lazy";
 import "./commands.css";
 
@@ -192,6 +193,8 @@ function renderModal(modal: NonNullable<ReturnType<typeof useUi.getState>["modal
       );
     case "icon":
       return <IconPicker path={modal.path} onClose={() => useUi.getState().close()} />;
+    case "colors":
+      return <RowColorsDialog path={modal.path} onClose={() => useUi.getState().close()} />;
     case "prompt":
       return (
         <PromptDialog

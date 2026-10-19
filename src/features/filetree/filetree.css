@@ -122,3 +122,60 @@
 .filetree-ai.ai-never {
   color: var(--danger);
 }
+
+/* Rows with their own colours ("Change colours…"). Hover and the open note mix in a
+   little of the theme text colour, so they still stand out on a coloured background. */
+.filetree-row.has-bg {
+  background: var(--row-bg);
+}
+.filetree-row.has-bg:hover {
+  background: color-mix(in srgb, var(--row-bg) 88%, var(--fg));
+}
+.filetree-row.has-bg.active {
+  background: color-mix(in srgb, var(--row-bg) 78%, var(--fg));
+}
+.filetree-row.has-fg .filetree-name {
+  color: var(--row-fg);
+}
+
+.row-colors {
+  width: min(360px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+.row-colors-title {
+  font-weight: 600;
+}
+.row-colors-preview {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0 10px;
+  cursor: default;
+}
+.row-colors-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.row-colors-label {
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.row-swatch-default {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--fg-muted);
+  background-image: linear-gradient(
+    135deg,
+    transparent 45%,
+    var(--fg-muted) 45%,
+    var(--fg-muted) 55%,
+    transparent 55%
+  );
+}
+.row-colors-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

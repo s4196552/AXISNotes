@@ -21,7 +21,7 @@ import { CANVAS_EXT, docKind, GRID_EXT, PATH_MIME } from "../../lib/fileKinds";
 import { emptySheet, serializeSheet } from "../../lib/formula/sheet";
 import { emptyCanvas, serializeCanvas } from "../../lib/canvas";
 import { useAppStore } from "../../app/store";
-import { type FolderIcon, useConfig } from "../../app/config";
+import { type EntryColors, type FolderIcon, useConfig } from "../../app/config";
 import { useUi } from "../commands/ui";
 import { EntryIcon } from "../icons/EntryIcon";
 import {
@@ -37,6 +37,7 @@ import {
   uniqueName,
   visibleRows,
 } from "./treeModel";
+import { rowColorProps, rowColors } from "./rowColorsModel";
 import { useExpanded } from "./useExpanded";
 import "./filetree.css";
 
@@ -61,20 +62,30 @@ interface RowActions {
   drop(e: React.DragEvent, dir: string): void;
 }
 
-/** Move icon settings along with a renamed entry (or drop them when `to` is null). */
+/** Re-key path-keyed settings for a renamed entry (or drop them when `to` is null). */
+function remapKeys<T>(map: Record<string, T>, from: string, to: string | null) {
+  const affected = Object.keys(map).filter((k) => k === from || k.startsWith(from + "/"));
+  if (affected.length === 0) return null;
+  const out = { ...map };
+  for (const k of affected) {
+    const v = out[k]!;
+    delete out[k];
+    if (to !== null) out[to + k.slice(from.length)] = v;
+  }
+  return out;
+}
+
+/** Move icon and colour settings along with a renamed entry (or drop them). */
 async function remapIcons(from: string, to: string | null) {
-  const icons = useConfig.getState().config.folderIcons;
-  const affected = Object.keys(icons).filter((k) => k === from || k.startsWith(from + "/"));
-  if (affected.length === 0) return;
-  await useConfig.getState().update((c) => {
-    const folderIcons = { ...c.folderIcons };
-    for (const k of affected) {
-      const icon = folderIcons[k]!;
-      delete folderIcons[k];
-      if (to !== null) folderIcons[to + k.slice(from.length)] = icon;
-    }
-    return { ...c, folderIcons };
-  });
+  const { folderIcons, entryColors } = useConfig.getState().config;
+  const icons = remapKeys(folderIcons, from, to);
+  const colors = remapKeys(entryColors, from, to);
+  if (!icons && !colors) return;
+  await useConfig.getState().update((c) => ({
+    ...c,
+    folderIcons: remapKeys(c.folderIcons, from, to) ?? c.folderIcons,
+    entryColors: remapKeys(c.entryColors, from, to) ?? c.entryColors,
+  }));
 }
 
 const errorMessage = (e: unknown) => (isBackendError(e) ? e.message : String(e));
@@ -84,6 +95,7 @@ export function FileTree() {
   const vault = useAppStore((s) => s.vault);
   const tree = useAppStore((s) => s.tree);
   const folderIcons = useConfig((s) => s.config.folderIcons);
+  const entryColors = useConfig((s) => s.config.entryColors);
   const aiFolders = useConfig((s) => s.config.ai.folders);
   const activePath = useAppStore((s) => s.activePath);
   const { expanded, toggle, collapseAll, update: updateExpanded } = useExpanded(vault?.root ?? "");
@@ -358,6 +370,7 @@ export function FileTree() {
             renaming={entry.path === renaming}
             dropTarget={entry.path === dropTarget}
             customIcon={folderIcons[entry.path]}
+            colors={entryColors[entry.path]}
             aiRule={aiFolders[entry.path]}
             actions={actions}
           />
@@ -402,6 +415,11 @@ export function FileTree() {
               <MenuItem
                 label="Change icon…"
                 onClick={() => useUi.getState().open({ kind: "icon", path: menu.entry!.path })}
+                close={setMenu}
+              />
+              <MenuItem
+                label="Change colours…"
+                onClick={() => useUi.getState().open({ kind: "colors", path: menu.entry!.path })}
                 close={setMenu}
               />
               <MenuItem
@@ -476,6 +494,7 @@ interface TreeRowProps {
   renaming: boolean;
   dropTarget: boolean;
   customIcon?: FolderIcon;
+  colors?: EntryColors;
   aiRule?: AiRule;
   actions: RowActions;
 }
@@ -489,9 +508,11 @@ const TreeRow = memo(function TreeRow({
   renaming,
   dropTarget,
   customIcon,
+  colors,
   aiRule,
   actions,
 }: TreeRowProps) {
+  const own = rowColorProps(rowColors(colors));
   const isDir = entry.kind === "dir";
   const openable = isOpenable(entry);
   const Icon = isDir
@@ -515,6 +536,7 @@ const TreeRow = memo(function TreeRow({
     active && "active",
     dropTarget && "drop-target",
     !isDir && !openable && "dimmed",
+    own.className,
   ]
     .filter(Boolean)
     .join(" ");
@@ -529,7 +551,7 @@ const TreeRow = memo(function TreeRow({
       aria-current={active ? "page" : undefined}
       data-path={entry.path}
       className={classes}
-      style={{ paddingLeft: 6 + (depth - 1) * 14 }}
+      style={{ ...own.style, paddingLeft: 6 + (depth - 1) * 14 }}
       draggable={!renaming}
       // Ctrl/Cmd+click or middle-click opens in a new tab, as in Obsidian.
       onClick={(e) => actions.activate(entry, e.ctrlKey || e.metaKey)}

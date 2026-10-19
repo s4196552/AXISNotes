@@ -10,6 +10,7 @@ export type Modal =
   | { kind: "settings"; section?: Section }
   | { kind: "getting-started" }
   | { kind: "icon"; path: string }
+  | { kind: "colors"; path: string }
   | { kind: "ask"; path?: string; selection?: string }
   | { kind: "handwriting"; path: string }
   | { kind: "import" }
