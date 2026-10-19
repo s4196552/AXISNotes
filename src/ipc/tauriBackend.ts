@@ -116,6 +116,15 @@ export function createTauriBackend(): Backend {
       });
     },
     closeWindow: () => getCurrentWindow().destroy(),
+    // The window is created without the system frame (tauri.conf.json); the title bar's
+    // own buttons drive it.
+    windowFrame: {
+      minimize: () => getCurrentWindow().minimize(),
+      toggleMaximize: () => getCurrentWindow().toggleMaximize(),
+      requestClose: () => getCurrentWindow().close(),
+      isMaximized: () => getCurrentWindow().isMaximized(),
+      onResized: (cb) => getCurrentWindow().onResized(() => cb()),
+    },
     listFonts: () => invoke("list_fonts"),
     async onIndexProgress(cb) {
       return listen<IndexProgress>(INDEX_PROGRESS_EVENT, (e) => cb(e.payload));

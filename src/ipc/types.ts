@@ -420,6 +420,11 @@ export interface Backend {
   onCloseRequested(cb: () => void): Promise<() => void>;
   /** Close the window (and so the app). */
   closeWindow(): Promise<void>;
+  /**
+   * Minimize, maximize and close for the app's own title bar: the desktop window has no
+   * system frame. Absent in a browser, which has its own.
+   */
+  windowFrame?: WindowFrame;
   /** Font families installed on this computer, sorted. */
   listFonts(): Promise<string[]>;
 
@@ -487,4 +492,15 @@ export interface Backend {
   inspectImport(source: string): Promise<ImportPreview>;
   /** Copy a folder (e.g. an Obsidian vault) into `target` in the open vault. */
   importObsidian(source: string, target: string): Promise<ImportReport>;
+}
+
+/** The window's own controls (see `Backend.windowFrame`). */
+export interface WindowFrame {
+  minimize(): Promise<void>;
+  toggleMaximize(): Promise<void>;
+  /** Ask to close, as the system close button would (so `onCloseRequested` runs first). */
+  requestClose(): Promise<void>;
+  isMaximized(): Promise<boolean>;
+  /** Called after each resize, maximize and restore. Returns an unsubscribe function. */
+  onResized(cb: () => void): Promise<() => void>;
 }

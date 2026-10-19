@@ -72,6 +72,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-089 | 6     | Command menu sections like Notion (Basic blocks, Links, Insert, …) and "Filtered results" while typing | claude | merged      | agent/claude/T-089 | `src/features/editor/{quickCommands,theme,triggers.test}.ts` |
 | T-090 | 6     | Command menu: Turn into, toggle headings/list (foldable callouts) and a description under each command | claude | merged      | agent/claude/T-090 | `src/features/editor/{quickCommands,toggles,obsidianSyntax,lucideSvg,theme,Editor,editor.css}`, tests, `docs/DECISIONS.md` |
 | T-092 | 6     | Icons in the graph view: custom or kind icons on graph, local graph and tree nodes, on by default with an Icons checkbox | claude | merged      | agent/claude/T-092 | `src/features/graph/**` |
+| T-093 | 6     | No system title bar: the tab row is the title bar, with its own minimize/maximize/close and drag regions, like Obsidian | claude | merged      | agent/claude/T-093 | `src/features/window/**`, `src-tauri/{tauri.conf.json,capabilities/default.json}`, `src/ipc/{types,tauriBackend}.ts`, `src/App.tsx`, `src/main.tsx`, `src/features/tabs/TabBar.tsx`, `src/features/panels/Sidebars.tsx`, `src/styles/app.css` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
