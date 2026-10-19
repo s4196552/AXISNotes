@@ -13,6 +13,20 @@ export interface VaultEntry {
   children?: VaultEntry[];
 }
 
+export type PackKind = "icons" | "images";
+
+/** A set of images the user added: icons for the icon picker, images for covers. */
+export interface Pack {
+  kind: PackKind;
+  name: string;
+  /** Vault path of its folder, e.g. `.axisnotes/packs/icons/Feather`. */
+  dir: string;
+  /** Vault paths of its images, sorted by name. */
+  files: string[];
+  /** An icon pack of one-colour SVGs: drawn in the text colour, or any colour chosen. */
+  monochrome: boolean;
+}
+
 export interface VaultInfo {
   /** Absolute path of the vault folder on disk. */
   root: string;
@@ -394,6 +408,18 @@ export interface Backend {
    * free name (`photo 1.png` if `photo.png` exists). Images only, up to 25 MB.
    */
   importImage(source: string, folder: string): Promise<VaultEntry>;
+  /** Icon and image packs in the vault's hidden `.axisnotes/packs/`, icon packs first. */
+  listPacks(): Promise<Pack[]>;
+  /** Native picker for a pack: a folder or a `.zip` file. Resolves null if cancelled. */
+  pickPackSource(from: "folder" | "zip"): Promise<string | null>;
+  /**
+   * Copy the images in the folder or `.zip` at `source` into a new pack of `kind`, named
+   * after it (`Name 2` if taken). Flattened; an icon pack with SVGs keeps only those.
+   * Rejects with "NotFound" when there are no images, "InvalidName" for other files.
+   */
+  importPack(kind: PackKind, source: string): Promise<Pack>;
+  /** Move a pack to the OS trash. */
+  removePack(kind: PackKind, name: string): Promise<void>;
   /**
    * Rename or move. Rejects with "AlreadyExists" if `to` exists. Wikilinks to moved notes
    * are rewritten; rewritten notes are announced through `onVaultChanged` as "modified".

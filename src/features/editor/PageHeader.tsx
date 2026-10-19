@@ -20,6 +20,8 @@ import type { Props } from "../../lib/markdown";
 import { useUi } from "../commands/ui";
 import { EntryIcon } from "../icons/EntryIcon";
 import { ImageChooser } from "../icons/ImageChooser";
+import { isPackPath } from "../packs/packs";
+import { ImagePacks } from "../packs/PackParts";
 import "../icons/icons.css";
 import "./pageHeader.css";
 
@@ -127,7 +129,13 @@ function CoverBanner({
   /** The focus being chosen while repositioning, else null. */
   const [moving, setMoving] = useState<number | null>(null);
 
-  const file = cover.kind === "image" ? resolveAttachment(cover.target, path, tree) : null;
+  // Pack images aren't in the file tree: their path is used as written.
+  const file =
+    cover.kind !== "image"
+      ? null
+      : isPackPath(cover.target)
+        ? cover.target
+        : resolveAttachment(cover.target, path, tree);
   const url = file ? backend.fileUrl(file) : null;
   const showImage = !!url && failed !== url;
   const shownY = moving ?? y;
@@ -336,6 +344,7 @@ function CoverPicker({
               />
             ))}
           </div>
+          <ImagePacks onPick={(p) => onPick(imageCover(p))} />
         </div>
       ) : (
         <div className="cover-images">

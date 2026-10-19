@@ -2,6 +2,14 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-19: Icon and image packs (T-091)
+
+- **Packs live in the vault, hidden:** `.axisnotes/packs/icons/<Pack>/` and `.axisnotes/packs/images/<Pack>/`, so they travel with the vault (sync, backup, another computer) without showing in the file tree. The user chose this over a visible `Packs/` folder and over app-wide packs (which would leave notes pointing outside their vault). Icons and covers refer to pack files by vault path (`image:.axisnotes/packs/…`, `[[.axisnotes/packs/…]]`) instead of copying them into `attachments/`. Covers that use a pack image don't show in Obsidian, which ignores dot-folders.
+- **Upload from a folder or a `.zip`** (the user asked for both). Importing flattens the pack: images only, an icon pack with SVGs keeps only those (packs often repeat each icon as PNGs in several sizes), and the shallowest copy of a repeated name wins. Limits: 25 MB per image (larger ones are skipped), 10,000 images and 500 MB per pack, 100,000 zip entries. Only a zip entry's base name is used, so entries can't escape the pack folder; sizes are re-checked while reading. Files are copied into a hidden staging folder and renamed into place, so a failed import leaves nothing behind. Removing a pack moves it to the OS trash.
+- **One-colour icon packs** (all SVGs, naming no colour but black or `currentColor`) are marked at import (`.pack.json`) and drawn with a CSS mask: in the text colour by default (saved as `color: currentColor`), or any colour picked. Other packs show their own colours.
+- **Asset scope:** the open vault's `.axisnotes/packs` is added to the asset-protocol scope by name, because scope globs skip dot-folders on macOS and Linux.
+- **Dependency:** `zip` 7.4 (MIT), with `typed-path` (MIT OR Apache-2.0) and `zopfli` (Apache-2.0); `flate2` and `crc32fast` were already in the tree. 7.x rather than the newest 9.x, which needs a newer Rust.
+
 ## 2026-10-19: Notion-style command menu: Turn into, toggles and descriptions (T-090)
 
 - **Toggles are Obsidian foldable callouts:** `> [!toggle|h1]- Title` with the inside on the `> ` lines below. `|h1`–`|h6` (callout metadata) makes a toggle heading; without it the toggle is a toggle list. `+` is open and `-` closed, so the open/closed state is saved in the note and Obsidian folds the same block. The user chose this over plain headings with folding (no distinct block, state not saved) and HTML `<details>` (HTML in notes, awkward to edit).
@@ -562,6 +570,7 @@ The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq,
 | notify                                         | 8.2        | CC0-1.0                  | File watching                           |
 | notify-debouncer-full                          | 0.6        | MIT OR Apache-2.0        | Event debouncing                        |
 | trash                                          | 5.2        | MIT                      | Move to OS trash                        |
+| zip (+ typed-path, zopfli)                     | 7.4        | MIT (Apache-2.0 deps)    | Icon/image packs from .zip files        |
 | thiserror                                      | 2.0        | MIT OR Apache-2.0        | Error types                             |
 | dunce                                          | 1.0        | CC0 / MIT-0 / Apache-2.0 | Windows paths without the `\\?\` prefix |
 | serde / serde_json                             | 1.0        | MIT OR Apache-2.0        | Serialization                           |

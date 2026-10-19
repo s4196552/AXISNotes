@@ -1,6 +1,6 @@
 import { createElement, type ReactNode, useEffect, useState } from "react";
 import type { FolderIcon } from "../../app/config";
-import { backend } from "../../ipc";
+import { PackImage } from "../packs/PackParts";
 import { imageIconPath, isLucide, loadAllIcons, lucideFor } from "./iconSet";
 
 /**
@@ -19,7 +19,18 @@ export function EntryIcon({
 }) {
   const lucide = useLucide(icon.icon);
   const image = imageIconPath(icon.icon);
-  if (image !== null) return <ImageIcon path={image} size={size} fallback={fallback} />;
+  if (image !== null) {
+    // A colour turns the image into a silhouette in that colour (for icon packs).
+    return (
+      <PackImage
+        className="filetree-icon custom-icon image-icon"
+        path={image}
+        size={size}
+        color={icon.color}
+        fallback={fallback}
+      />
+    );
+  }
   if (lucide) {
     // Looked up from the static icon tables, not created during render.
     return createElement(lucide, {
@@ -42,23 +53,6 @@ export function EntryIcon({
     >
       {icon.icon}
     </span>
-  );
-}
-
-function ImageIcon({ path, size, fallback }: { path: string; size: number; fallback: ReactNode }) {
-  const [failed, setFailed] = useState<string | null>(null);
-  const url = backend.fileUrl(path);
-  if (!url || failed === url) return fallback;
-  return (
-    <img
-      className="filetree-icon custom-icon image-icon"
-      src={url}
-      alt=""
-      width={size}
-      height={size}
-      draggable={false}
-      onError={() => setFailed(url)}
-    />
   );
 }
 
