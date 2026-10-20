@@ -105,6 +105,7 @@ export const COMMAND_ICONS: Record<string, LucideIcon> = {
   "reveal-note": FolderOpen,
   "choose-theme": Palette,
   "open-vault": BookOpen,
+  "reveal-vault": FolderOpen,
   "keyboard-shortcuts": Keyboard,
 };
 

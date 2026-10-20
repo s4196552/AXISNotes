@@ -1,5 +1,15 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { FileText, FolderInput, Hash, Palette, Shapes, Sheet } from "lucide-react";
+import {
+  BookOpen,
+  FileText,
+  FolderInput,
+  FolderOpen,
+  FolderPlus,
+  Hash,
+  Palette,
+  Shapes,
+  Sheet,
+} from "lucide-react";
 import { backend, type VaultEntry } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
@@ -13,6 +23,8 @@ import { allCommands, type Command, commandForEvent, hintFor, shortcutOf } from 
 import { commandIcon } from "./commandIcons";
 import { moveFile } from "./noteCommands";
 import { pushRecent, recentIds, useTrackRecentFiles } from "./recents";
+import { recentVaults } from "../../app/recentVaults";
+import { createVaultFromMenu, openVaultFolder, switchVault } from "../vault/vaultSwitch";
 import { useUi } from "./ui";
 import { IconPicker } from "../icons/IconPicker";
 import { RowColorsDialog } from "../filetree/RowColors";
@@ -287,6 +299,39 @@ function ThemeChooser() {
   );
 }
 
+/** "Open another vault…": recent vaults, or open or create one. */
+function VaultPicker() {
+  const close = useUi((s) => s.close);
+  const current = useAppStore((s) => s.vault?.root);
+  const items = useMemo<PickerItem[]>(
+    () => [
+      ...recentVaults()
+        .filter((r) => r.root !== current)
+        .map((r) => ({ id: r.root, label: r.name, detail: r.root, icon: BookOpen })),
+      { id: OPEN_FOLDER, label: "Open folder as vault…", icon: FolderOpen },
+      { id: CREATE_VAULT, label: "Create new vault…", icon: FolderPlus },
+    ],
+    [current],
+  );
+  return (
+    <Picker
+      title="Open another vault"
+      placeholder="Choose a vault…"
+      items={items}
+      footer={["↑↓ choose", "Enter open", "Esc close"]}
+      onClose={close}
+      onPick={(item) => {
+        close();
+        if (item.id === OPEN_FOLDER) void openVaultFolder();
+        else if (item.id === CREATE_VAULT) void createVaultFromMenu();
+        else void switchVault(item.id);
+      }}
+    />
+  );
+}
+const OPEN_FOLDER = "\0open";
+const CREATE_VAULT = "\0create";
+
 function TemplatePicker({ mode }: { mode: "insert" | "new" }) {
   const close = useUi((s) => s.close);
   const templates = useMemo(() => listTemplates(), []);
@@ -366,6 +411,8 @@ function renderModal(modal: NonNullable<ReturnType<typeof useUi.getState>["modal
       return <MovePicker path={modal.path} />;
     case "themes":
       return <ThemeChooser />;
+    case "vaults":
+      return <VaultPicker />;
     case "diagram":
       return (
         <NoteDiagram
