@@ -22,6 +22,7 @@ import {
   Columns2,
   Folder,
   GripVertical,
+  FolderTree,
   History,
   House,
   LayoutDashboard,
@@ -58,8 +59,11 @@ import {
   DEFAULT_RECENT_COUNT,
   defaultDashboard,
   dueCounts,
+  folderContents,
   type FolderStats,
   indexTree,
+  MODULE_PREVIEW,
+  recentInside,
   type TreeIndex,
   HOME,
   inScope,
@@ -90,6 +94,7 @@ import "./dashboard.css";
 // reorder. Layouts are saved in the vault config (see dashboardModel.ts).
 
 const WIDGET_ICONS: Record<WidgetType, typeof Pin> = {
+  contents: FolderTree,
   calendar: CalendarDays,
   tasks: ListChecks,
   schedule: CalendarClock,
@@ -268,7 +273,7 @@ export function Dashboard({ folder }: { folder: string }) {
                       if (
                         window.confirm("Replace this dashboard's widgets with the default ones?")
                       ) {
-                        saveWidgets(folder, () => defaultDashboard().widgets);
+                        saveWidgets(folder, () => defaultDashboard(folder).widgets);
                       }
                     }}
                   >
@@ -575,9 +580,139 @@ function AddWidget({ folder }: { folder: string }) {
 
 type TodayData = ReturnType<typeof useToday>;
 
+const shortDate = (ms: number) => formatDate(new Date(ms), "MMM D, YYYY");
+
+/** Open a file, or a folder's dashboard; Ctrl+click or middle-click opens a new tab. */
+function openEntry(e: VaultEntry, newTab: boolean) {
+  const store = useAppStore.getState();
+  if (e.kind === "dir") store.openDashboard(e.path, { newTab });
+  else store.openFile(e.path, undefined, { newTab });
+}
+
+/** A file or folder's icon: the user's custom icon, else one for its kind. */
+function EntryGlyph({ entry, size }: { entry: VaultEntry; size: number }) {
+  const custom = useConfig((s) => s.config.folderIcons[entry.path]);
+  // Looked up from a fixed table, not created during render.
+  const fallback = createElement(
+    entry.kind === "dir" ? Folder : (kindIcon({ path: entry.path, view: "note" }) ?? Folder),
+    { size, "aria-hidden": true },
+  );
+  return custom ? <EntryIcon icon={custom} size={size} fallback={fallback} /> : fallback;
+}
+
+/** One row in a module: a note (or anything else) that opens on click. */
+function ModuleRow({ entry, detail }: { entry: VaultEntry; detail: string }) {
+  return (
+    <li>
+      <button
+        className="dashboard-module-row"
+        title={entry.path}
+        onClick={(e) => openEntry(entry, e.ctrlKey || e.metaKey)}
+        onAuxClick={(e) => e.button === 1 && openEntry(entry, true)}
+      >
+        <EntryGlyph entry={entry} size={14} />
+        <span className="dashboard-module-name">{displayName(entry)}</span>
+        <span className="dashboard-module-detail muted">{detail}</span>
+      </button>
+    </li>
+  );
+}
+
+/** A subfolder as a module: its name and size, opening its dashboard, and its latest notes. */
+function FolderModule({ entry }: { entry: VaultEntry }) {
+  const stats = useContext(TreeIndexContext).folders.get(entry.path);
+  const latest = useMemo(() => recentInside(entry, MODULE_PREVIEW), [entry]);
+  const files = stats?.files ?? 0;
+  const hasDashboard = useConfig((s) => dashboardFor(s.config.dashboards, entry.path) !== null);
+  return (
+    <section className="dashboard-module" aria-label={displayName(entry)}>
+      <button
+        className="dashboard-module-head"
+        title={`Open ${entry.path}`}
+        onClick={(e) => openEntry(entry, e.ctrlKey || e.metaKey)}
+        onAuxClick={(e) => e.button === 1 && openEntry(entry, true)}
+      >
+        <span className="dashboard-module-icon">
+          <EntryGlyph entry={entry} size={18} />
+        </span>
+        <span className="dashboard-module-title">
+          <strong>{displayName(entry)}</strong>
+          <span className="muted">
+            {files} file{files === 1 ? "" : "s"}
+            {stats && ` · ${shortDate(stats.latest)}`}
+          </span>
+        </span>
+        {hasDashboard && (
+          <LayoutDashboard
+            size={13}
+            aria-label="Has a dashboard"
+            className="dashboard-card-badge"
+          />
+        )}
+        <ChevronRight size={14} aria-hidden className="dashboard-module-go" />
+      </button>
+      {latest.length > 0 ? (
+        <ul className="dashboard-module-list">
+          {latest.map((f) => (
+            <ModuleRow key={f.path} entry={f} detail={shortDate(f.modifiedMs)} />
+          ))}
+        </ul>
+      ) : (
+        <p className="dashboard-module-empty muted">Empty</p>
+      )}
+      {files > latest.length && (
+        <p className="dashboard-module-more muted">
+          {files - latest.length} more — open the folder to see all
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Only what's in this folder, as modules: one per subfolder (with its latest notes), and
+ * one for the notes directly inside it.
+ */
+function ContentsWidget({ folder }: { folder: string }) {
+  const tree = useAppStore((s) => s.tree);
+  const { entries } = useContext(TreeIndexContext);
+  const entry = folder === HOME ? tree : entries.get(folder);
+  const { folders, files } = useMemo(() => folderContents(entry), [entry]);
+  if (!folders.length && !files.length) {
+    return <p className="muted dashboard-note">This folder is empty.</p>;
+  }
+  return (
+    <div className="dashboard-modules">
+      {folders.map((f) => (
+        <FolderModule key={f.path} entry={f} />
+      ))}
+      {files.length > 0 && (
+        <section className="dashboard-module" aria-label="Notes in this folder">
+          <div className="dashboard-module-head static">
+            <span className="dashboard-module-icon">
+              <Folder size={18} aria-hidden />
+            </span>
+            <span className="dashboard-module-title">
+              <strong>Notes</strong>
+              <span className="muted">{files.length} in this folder</span>
+            </span>
+          </div>
+          <ul className="dashboard-module-list">
+            {files.map((f) => (
+              <ModuleRow key={f.path} entry={f} detail={shortDate(f.modifiedMs)} />
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
 function WidgetBody(props: { widget: Widget; folder: string; editing: boolean; today: TodayData }) {
   const { widget, folder, today } = props;
   switch (widget.type) {
+    case "contents":
+      return <ContentsWidget folder={folder} />;
     case "calendar":
       return <CalendarWidget folder={folder} data={today} />;
     case "tasks":

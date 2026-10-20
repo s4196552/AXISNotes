@@ -126,9 +126,11 @@ describe("Dashboard", () => {
     expect(useAppStore.getState().activePath).toBe("Ideas.md");
   });
 
-  it("adds a folder dashboard from the file tree, scoped to that folder", async () => {
+  it("adds a folder dashboard from the file tree that shows only its contents, as modules", async () => {
     await setup({
       "School/Bio.md": `- [ ] Read chapter 📅 ${today}\n`,
+      "School/Lab/Week 1.md": "",
+      "School/Lab/Week 2.md": "",
       "Work.md": `- [ ] Report 📅 ${today}\n`,
     });
     render(<FileTree />);
@@ -141,15 +143,32 @@ describe("Dashboard", () => {
     expect(useAppStore.getState().activePath).toBeNull();
 
     render(<Dashboard folder="School" />);
-    const tasks = widget("Today's tasks");
-    await within(tasks).findByText("Read chapter");
-    expect(within(tasks).queryByText("Report")).toBeNull();
+    const contents = widget("Contents");
+    // Only the folder's own things: no Home widgets, nothing from elsewhere in the vault.
+    expect(screen.queryByRole("region", { name: "Today's tasks" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Calendar" })).toBeNull();
+    expect(within(contents).queryByText("Work")).toBeNull();
+    // A module per subfolder, listing its notes; one for the notes directly inside.
+    const lab = within(contents).getByRole("region", { name: "Lab" });
+    expect(within(lab).getByText("2 files", { exact: false })).toBeInTheDocument();
+    expect(within(lab).getByText("Week 1")).toBeInTheDocument();
+    const notes = within(contents).getByRole("region", { name: "Notes in this folder" });
+    fireEvent.click(within(notes).getByTitle("School/Bio.md"));
+    expect(useAppStore.getState().activePath).toBe("School/Bio.md");
+    // A subfolder's module opens that folder's dashboard.
+    fireEvent.click(within(lab).getByTitle("Open School/Lab"));
+    expect(activeTab(useAppStore.getState().tabs)).toMatchObject({
+      view: "dashboard",
+      path: "School/Lab",
+    });
 
     // Removing it keeps the layout, switched off.
     fireEvent.click(screen.getByRole("button", { name: "Customize" }));
     fireEvent.click(screen.getByRole("button", { name: /Remove dashboard/ }));
     await waitFor(() => expect(savedConfig().dashboards.School.enabled).toBe(false));
-    expect(savedConfig().dashboards.School.widgets).toHaveLength(4);
+    expect(savedConfig().dashboards.School.widgets).toEqual([
+      { id: "default-contents", type: "contents" },
+    ]);
     expect(await screen.findByRole("button", { name: "Add dashboard" })).toBeInTheDocument();
   });
 
