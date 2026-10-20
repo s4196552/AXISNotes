@@ -122,6 +122,19 @@
 .filetree-ai.ai-never {
   color: var(--danger);
 }
+.filetree-dashboard {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+  padding: 2px;
+  border-radius: var(--radius);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.filetree-dashboard:hover {
+  color: var(--accent);
+  background: var(--bg-hover);
+}
 
 /* Rows with their own colours ("Change colours…"). Hover and the open note mix in a
    little of the theme text colour, so they still stand out on a coloured background. */

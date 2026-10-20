@@ -57,6 +57,8 @@ export interface AppState {
   /** Bump `indexVersion` and re-list notes (after the app's own writes). */
   bumpIndex(): void;
   openFile(path: string | null, target?: OpenTarget, opts?: OpenOptions): void;
+  /** Show a folder's dashboard ("" = the vault's Home). */
+  openDashboard(folder: string, opts?: OpenOptions): void;
   newTab(): void;
   /** Close a tab (default: the active one). */
   closeTab(id?: string): void;
@@ -116,17 +118,21 @@ function describe(e: unknown): string {
 
 const isSameOrInside = (path: string, dir: string) => path === dir || path.startsWith(dir + "/");
 
-/** State for a new set of tabs: the tabs plus the active tab mirrored for older callers. */
+/**
+ * State for a new set of tabs: the tabs plus the active tab mirrored for older callers. A
+ * dashboard's path is a folder, not a note, so no note is active while one shows.
+ */
 function withTabs(tabs: TabsState) {
   const tab = T.activeTab(tabs);
-  return { tabs, activePath: tab.path, mainView: tab.view };
+  return { tabs, activePath: tab.view === "dashboard" ? null : tab.path, mainView: tab.view };
 }
 
-function filesIn(tree: VaultEntry): Set<string> {
-  const out = new Set<string>();
+/** Every file and folder path in the tree ("" being the vault itself). */
+function pathsIn(tree: VaultEntry): Set<string> {
+  const out = new Set<string>([""]);
   const walk = (e: VaultEntry) => {
-    if (e.children) e.children.forEach(walk);
-    else out.add(e.path);
+    out.add(e.path);
+    e.children?.forEach(walk);
   };
   walk(tree);
   return out;
@@ -184,8 +190,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       set((s) => ({ tree, notes, indexVersion: s.indexVersion + 1 }));
       if (pruneRestoredTabs) {
         pruneRestoredTabs = false;
-        const files = filesIn(tree);
-        const tabs = T.dropPaths(get().tabs, (p) => files.has(p));
+        const paths = pathsIn(tree);
+        const tabs = T.dropPaths(get().tabs, (p) => paths.has(p));
         if (tabs !== get().tabs) set(withTabs(tabs));
       }
     } catch (e) {
@@ -205,6 +211,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       ...withTabs(T.navigate(get().tabs, { path, view: "note" }, opts)),
       pendingTarget: path && target && Object.keys(target).length ? { ...target, path } : null,
+    });
+  },
+
+  openDashboard(folder, opts) {
+    set({
+      ...withTabs(T.navigate(get().tabs, { path: folder, view: "dashboard" }, opts)),
+      pendingTarget: null,
     });
   },
 
@@ -290,10 +303,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // Views live in tabs too: the graph replaces the note in the active tab, and showing
-  // "note" again brings that tab's note back.
+  // "note" again brings that tab's note back (a dashboard's folder is no note to go back to).
   setMainView(view) {
     const tab = T.activeTab(get().tabs);
-    set({ ...withTabs(T.navigate(get().tabs, { path: tab.path, view })), pendingTarget: null });
+    const path = tab.view === "dashboard" ? null : tab.path;
+    set({ ...withTabs(T.navigate(get().tabs, { path, view })), pendingTarget: null });
   },
 
   setSearchQuery(query) {
