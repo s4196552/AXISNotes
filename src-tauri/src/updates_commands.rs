@@ -44,6 +44,10 @@ fn default_folder(app: &AppHandle) -> AppResult<PathBuf> {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSettingsView {
     check_on_launch: bool,
+    auto_install: bool,
+    /// Whether this build can install updates (a release build on Windows), so the app
+    /// doesn't try, and fail, to install at every start of a development build.
+    can_install: bool,
     /// The folder in use: the chosen one, or the default.
     folder: String,
     default_folder: String,
@@ -54,6 +58,8 @@ fn view(app: &AppHandle, s: &UpdateSettings) -> AppResult<UpdateSettingsView> {
     let default = default_folder(app)?.to_string_lossy().into_owned();
     Ok(UpdateSettingsView {
         check_on_launch: s.check_on_launch,
+        auto_install: s.auto_install,
+        can_install: can_install(),
         folder: s.folder.clone().unwrap_or_else(|| default.clone()),
         default_folder: default,
         current_version: app.package_info().version.to_string(),
@@ -67,6 +73,11 @@ fn folder(app: &AppHandle) -> AppResult<PathBuf> {
     }
 }
 
+/// Installing replaces the installed app, so only a release build on Windows does it.
+fn can_install() -> bool {
+    !cfg!(debug_assertions) && cfg!(windows)
+}
+
 #[tauri::command]
 pub fn updates_settings(app: AppHandle) -> AppResult<UpdateSettingsView> {
     view(&app, &UpdateSettings::load(&settings_path(&app)?))
@@ -77,11 +88,13 @@ pub fn updates_settings(app: AppHandle) -> AppResult<UpdateSettingsView> {
 pub fn updates_save_settings(
     app: AppHandle,
     check_on_launch: bool,
+    auto_install: bool,
     folder: String,
 ) -> AppResult<UpdateSettingsView> {
     let folder = folder.trim();
     let s = UpdateSettings {
         check_on_launch,
+        auto_install,
         folder: (!folder.is_empty()).then(|| folder.to_string()),
     };
     s.save(&settings_path(&app)?)?;

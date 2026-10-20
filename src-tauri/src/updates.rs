@@ -28,6 +28,9 @@ pub const MANIFEST: &str = "latest.json";
 pub struct UpdateSettings {
     /// Look for a newer version each time the app starts.
     pub check_on_launch: bool,
+    /// Install what the launch check finds without asking. On by default, including for
+    /// settings saved before this option existed (a missing field takes the default).
+    pub auto_install: bool,
     /// The updates folder; `None` uses the default.
     pub folder: Option<String>,
 }
@@ -36,6 +39,7 @@ impl Default for UpdateSettings {
     fn default() -> Self {
         Self {
             check_on_launch: true,
+            auto_install: true,
             folder: None,
         }
     }
@@ -330,13 +334,26 @@ mod tests {
         let path = dir.path().join("sub/updates.json");
         assert_eq!(UpdateSettings::load(&path), UpdateSettings::default());
         assert!(UpdateSettings::default().check_on_launch);
+        assert!(UpdateSettings::default().auto_install);
         let s = UpdateSettings {
             check_on_launch: false,
+            auto_install: false,
             folder: Some("D:\\Builds".into()),
         };
         s.save(&path).unwrap();
         assert_eq!(UpdateSettings::load(&path), s);
         fs::write(&path, "garbage").unwrap();
         assert_eq!(UpdateSettings::load(&path), UpdateSettings::default());
+    }
+
+    #[test]
+    fn settings_saved_before_auto_install_existed_turn_it_on() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("updates.json");
+        fs::write(&path, r#"{ "checkOnLaunch": false, "folder": "D:/Builds" }"#).unwrap();
+        let s = UpdateSettings::load(&path);
+        assert!(!s.check_on_launch);
+        assert!(s.auto_install);
+        assert_eq!(s.folder.as_deref(), Some("D:/Builds"));
     }
 }

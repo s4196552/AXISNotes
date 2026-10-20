@@ -42,7 +42,8 @@ describe("updates", () => {
     const banner = screen.getByRole("region", { name: "Update available" });
     expect(banner).toHaveTextContent("AXISNotes 0.2.0 is available.");
     expect(banner).toHaveTextContent("Auto-updates");
-    // Nothing is installed until the button is clicked.
+    // This build can't install (like a development build), so nothing is installed
+    // until the button is clicked.
     expect(install).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Install and restart" }));
     await waitFor(() => expect(install).toHaveBeenCalledWith("0.2.0"));
@@ -52,11 +53,70 @@ describe("updates", () => {
   it("doesn't check on launch when that is turned off", async () => {
     const check = vi.fn(async () => UPDATE);
     h.b.updatesCheck = check;
-    await h.b.updatesSaveSettings(false, "");
+    await h.b.updatesSaveSettings(false, true, "");
     render(<UpdateBanner />);
     await act(() => checkOnLaunch());
     expect(check).not.toHaveBeenCalled();
     expect(screen.queryByRole("region", { name: "Update available" })).toBeNull();
+  });
+
+  it("installs on its own at launch by default when the build can install", async () => {
+    const settings = h.b.updatesSettings;
+    h.b.updatesSettings = async () => ({ ...(await settings()), canInstall: true });
+    h.b.updatesCheck = async () => UPDATE;
+    const install = vi.fn(async () => {});
+    h.b.updatesInstall = install;
+    expect((await h.b.updatesSettings()).autoInstall).toBe(true);
+    render(<UpdateBanner />);
+    await act(() => checkOnLaunch());
+    expect(install).toHaveBeenCalledWith("0.2.0");
+    expect(screen.getByRole("region", { name: "Update available" })).toHaveTextContent(
+      "Installing… AXISNotes will reopen.",
+    );
+  });
+
+  it("only offers the update when automatic install is turned off", async () => {
+    await h.b.updatesSaveSettings(true, false, "");
+    const settings = h.b.updatesSettings;
+    h.b.updatesSettings = async () => ({ ...(await settings()), canInstall: true });
+    h.b.updatesCheck = async () => UPDATE;
+    const install = vi.fn(async () => {});
+    h.b.updatesInstall = install;
+    render(<UpdateBanner />);
+    await act(() => checkOnLaunch());
+    expect(screen.getByRole("button", { name: "Install and restart" })).toBeInTheDocument();
+    expect(install).not.toHaveBeenCalled();
+  });
+
+  it("Settings → Updates turns automatic install off, and greys it out without the launch check", async () => {
+    render(<UpdatesSettings />);
+    const auto = await screen.findByRole("checkbox", { name: "Install updates automatically" });
+    expect(auto).toBeChecked();
+    expect(auto).toBeEnabled();
+    fireEvent.click(auto);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("checkbox", { name: "Install updates automatically" }),
+      ).not.toBeChecked(),
+    );
+    expect((await h.b.updatesSettings()).autoInstall).toBe(false);
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Check for updates when AXISNotes starts" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("checkbox", { name: "Install updates automatically" }),
+      ).toBeDisabled(),
+    );
+    // Changing the folder keeps both choices.
+    const folder = screen.getByLabelText("Updates folder");
+    fireEvent.change(folder, { target: { value: "D:/Builds" } });
+    fireEvent.blur(folder);
+    await waitFor(async () => expect((await h.b.updatesSettings()).folder).toBe("D:/Builds"));
+    const saved = await h.b.updatesSettings();
+    expect(saved.checkOnLaunch).toBe(false);
+    expect(saved.autoInstall).toBe(false);
   });
 
   it("keeps launch-time problems quiet", async () => {
