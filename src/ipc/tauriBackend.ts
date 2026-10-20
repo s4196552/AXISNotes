@@ -102,8 +102,8 @@ export function createTauriBackend(): Backend {
     clipperRevoke: (id) => invoke("clipper_revoke", { id }),
     clipperOpenExtensionFolder: () => invoke("clipper_open_extension_folder"),
     updatesSettings: () => invoke("updates_settings"),
-    updatesSaveSettings: (checkOnLaunch, folder) =>
-      invoke("updates_save_settings", { checkOnLaunch, folder }),
+    updatesSaveSettings: (checkOnLaunch, autoInstall, folder) =>
+      invoke("updates_save_settings", { checkOnLaunch, autoInstall, folder }),
     updatesCheck: () => invoke("updates_check"),
     updatesInstall: (version) => invoke("updates_install", { version }),
     async onClipped(cb) {

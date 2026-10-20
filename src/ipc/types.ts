@@ -342,6 +342,10 @@ export interface Clipped {
 
 export interface UpdateSettings {
   checkOnLaunch: boolean;
+  /** Install what the launch check finds without asking (on by default). */
+  autoInstall: boolean;
+  /** This build can install updates (a release build on Windows). */
+  canInstall: boolean;
   /** The updates folder in use: the chosen one, or the default. */
   folder: string;
   defaultFolder: string;
@@ -539,7 +543,11 @@ export interface Backend {
 
   updatesSettings(): Promise<UpdateSettings>;
   /** An empty `folder` goes back to the default folder. */
-  updatesSaveSettings(checkOnLaunch: boolean, folder: string): Promise<UpdateSettings>;
+  updatesSaveSettings(
+    checkOnLaunch: boolean,
+    autoInstall: boolean,
+    folder: string,
+  ): Promise<UpdateSettings>;
   /** A newer version in the updates folder, or null. */
   updatesCheck(): Promise<AvailableUpdate | null>;
   /** Verifies and starts the installer, which closes the app, updates it and reopens it. */

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { type AvailableUpdate, backend, isBackendError } from "../../ipc";
+import { type AvailableUpdate, backend, isBackendError, type UpdateSettings } from "../../ipc";
 import { freezeEditing, saveBeforeExit, unsavedChanges } from "../files/beforeExit";
 
 // Updates from a folder (T-066): what the last check found, and installing it.
@@ -68,14 +68,20 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
   dismiss: () => set({ dismissed: true }),
 }));
 
-/** Once per app start: check the updates folder unless that is turned off. Problems
- *  (e.g. an unreachable network folder) stay quiet here; Settings → Updates shows them. */
+/** Once per app start: check the updates folder unless that is turned off, and install
+ *  what it finds when automatic install is on (the default) and this build can install.
+ *  Problems (e.g. an unreachable network folder) stay quiet here; Settings → Updates shows
+ *  them. Installing still saves every open document first and refuses over unsaved edits,
+ *  showing why in the banner. */
 export async function checkOnLaunch() {
+  let settings: UpdateSettings;
   try {
-    if (!(await backend.updatesSettings()).checkOnLaunch) return;
+    settings = await backend.updatesSettings();
+    if (!settings.checkOnLaunch) return;
   } catch {
     return;
   }
   const found = await useUpdates.getState().check();
   if (!found) useUpdates.setState({ error: null });
+  else if (settings.autoInstall && settings.canInstall) await useUpdates.getState().install();
 }
