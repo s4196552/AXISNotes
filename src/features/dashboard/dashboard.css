@@ -292,6 +292,112 @@
   padding: 4px 8px;
 }
 
+/* A folder's contents as modules: one per subfolder, one for its own notes. */
+.dashboard-modules {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.dashboard-module {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.dashboard-module-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+button.dashboard-module-head:hover {
+  background: var(--bg-hover);
+}
+button.dashboard-module-head:hover .dashboard-module-go {
+  color: var(--accent);
+}
+.dashboard-module-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--bg-sidebar);
+  color: var(--accent);
+}
+.dashboard-module-title {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.dashboard-module-title strong,
+.dashboard-module-title .muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard-module-title .muted {
+  font-size: 11px;
+}
+.dashboard-module-go {
+  flex: none;
+  color: var(--fg-muted);
+}
+.dashboard-module-list {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+.dashboard-module-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  font-size: 13px;
+  text-align: left;
+}
+.dashboard-module-row:hover {
+  background: var(--bg-hover);
+}
+.dashboard-module-row svg {
+  flex: none;
+  color: var(--fg-muted);
+}
+.dashboard-module-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard-module-detail {
+  flex: none;
+  font-size: 11px;
+}
+.dashboard-module-empty,
+.dashboard-module-more {
+  margin: 0;
+  padding: 8px 14px 10px;
+  font-size: 12px;
+}
+.dashboard-module-more {
+  padding-top: 0;
+}
+
 /* File and folder cards, like a notebook grid. */
 .dashboard-cards {
   display: grid;

@@ -129,12 +129,44 @@ describe("dashboard layouts", () => {
     const home = dashboardFor({}, HOME)!;
     expect(home.widgets.map((w) => w.type)).toEqual(["calendar", "tasks", "schedule", "links"]);
     expect(dashboardFor({}, "School")).toBeNull();
+    // A folder's dashboard shows only its contents, as modules.
     const added = addDashboard({}, "School");
-    expect(dashboardFor(added, "School")!.widgets).toHaveLength(4);
+    expect(dashboardFor(added, "School")!.widgets.map((w) => w.type)).toEqual(["contents"]);
+  });
+
+  it("turns a never-customized folder dashboard from before T-106 into the contents one", () => {
+    const old = {
+      enabled: true,
+      widgets: (["calendar", "tasks", "schedule", "links"] as const).map((type) => ({
+        id: `default-${type}`,
+        type,
+        ...(type === "links" ? { links: [] } : {}),
+      })),
+    };
+    expect(dashboardFor({ School: old }, "School")!.widgets.map((w) => w.type)).toEqual([
+      "contents",
+    ]);
+    // Re-adding a removed one, or editing it, also starts from the contents layout.
+    const off = { School: { ...old, enabled: false } };
+    expect(addDashboard(off, "School").School!.widgets.map((w) => w.type)).toEqual(["contents"]);
+    // Anything the user changed is kept as it is.
+    const pinned = {
+      ...old,
+      widgets: old.widgets.map((w) => (w.type === "links" ? { ...w, links: ["A.md"] } : w)),
+    };
+    expect(dashboardFor({ School: pinned }, "School")!.widgets).toHaveLength(4);
+    const renamed = {
+      ...old,
+      widgets: [{ ...old.widgets[0]!, title: "Month" }, ...old.widgets.slice(1)],
+    };
+    expect(dashboardFor({ School: renamed }, "School")!.widgets).toHaveLength(4);
+    // Home keeps its widgets.
+    expect(dashboardFor({ "": old }, HOME)!.widgets).toHaveLength(4);
   });
 
   it("keeps a removed folder dashboard's layout and brings it back when added again", () => {
     let map: Dashboards = addDashboard({}, "School");
+    map = editWidgets(map, "School", (ws) => [...ws, makeWidget("tasks")]);
     map = editWidgets(map, "School", (ws) => [ws[1]!]);
     map = removeDashboard(map, "School");
     expect(dashboardFor(map, "School")).toBeNull();
@@ -208,7 +240,7 @@ describe("dashboard layouts", () => {
     const map = addDashboard(addDashboard({}, "School/Bio"), "Work");
     const out = trashInDashboards(map, "School")!;
     expect(dashboardFor(out, "School/Bio")).toBeNull();
-    expect(out["School/Bio"]!.widgets).toHaveLength(4);
+    expect(out["School/Bio"]!.widgets).toHaveLength(1);
     expect(dashboardFor(out, "Work")).not.toBeNull();
     expect(trashInDashboards(out, "School")).toBeNull();
   });

@@ -80,7 +80,10 @@ describe("Dashboards on the real app (T-105)", () => {
     await $('.filetree [data-path="School"]').click({ button: "right" });
     await $('[role="menuitem"]=Add dashboard').click();
     await browser.waitUntil(async () => (await heading().getText()) === "School");
-    await expect(widget("Today's tasks").$("button.inline-wikilink=Welcome")).toBeDisplayed();
+    // Only the folder's contents, as modules: no Home widgets.
+    const notes = widget("Contents").$('section[aria-label="Notes in this folder"]');
+    await expect(notes.$('button[title="School/Biology.md"]')).toBeDisplayed();
+    await expect(widget("Today's tasks")).not.toExist();
     await snapshot("03-folder");
   });
 

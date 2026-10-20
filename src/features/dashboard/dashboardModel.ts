@@ -4,7 +4,7 @@ import type { TaskRef, VaultEntry } from "../../ipc";
 // config (`.axisnotes/config.json` → `dashboards`), keyed by folder path, "" being Home.
 // Pure functions; Dashboard.tsx reads and writes them through `useConfig`.
 
-export type WidgetType = "calendar" | "tasks" | "schedule" | "links" | "recent";
+export type WidgetType = "contents" | "calendar" | "tasks" | "schedule" | "links" | "recent";
 
 /** How far ahead a tasks widget looks: today (and overdue), or the next 7 days too. */
 export type TaskRange = "today" | "week";
@@ -15,6 +15,9 @@ export interface WidgetOptions {
   /** Recent widgets: how many files. Unset is 8. */
   count?: number;
 }
+
+/** How many of a subfolder's notes its module lists before "N more". */
+export const MODULE_PREVIEW = 4;
 
 /** Choices for a recent widget's file count. */
 export const RECENT_COUNTS = [4, 8, 16, 24] as const;
@@ -47,6 +50,11 @@ export type Dashboards = Record<string, Dashboard>;
 export const HOME = "";
 
 export const WIDGET_TYPES: { type: WidgetType; label: string; description: string }[] = [
+  {
+    type: "contents",
+    label: "Contents",
+    description: "This folder's subfolders and notes, as modules",
+  },
   { type: "calendar", label: "Calendar", description: "Month view of your daily notes" },
   { type: "tasks", label: "Today's tasks", description: "Due today, overdue and today's note" },
   { type: "schedule", label: "Day schedule", description: "Today's items that have a time" },
@@ -66,18 +74,38 @@ export function makeWidget(type: WidgetType): Widget {
   return type === "links" ? { id: widgetId(), type, links: [] } : { id: widgetId(), type };
 }
 
+const HOME_DEFAULT = ["calendar", "tasks", "schedule", "links"] as const;
+
 /**
- * A new dashboard: calendar, today's tasks, day schedule and pinned links. The ids are
- * fixed, so an unsaved Home reads the same each time and its first edit finds its widget.
+ * A new dashboard. Home gets calendar, today's tasks, day schedule and pinned links; a
+ * folder gets only its contents, as modules. The ids are fixed, so an unsaved Home reads
+ * the same each time and its first edit finds its widget.
  */
-export function defaultDashboard(): Dashboard {
+export function defaultDashboard(folder: string = HOME): Dashboard {
+  const types: readonly WidgetType[] = folder === HOME ? HOME_DEFAULT : ["contents"];
   return {
     enabled: true,
-    widgets: (["calendar", "tasks", "schedule", "links"] as const).map((type) => ({
-      ...makeWidget(type),
-      id: `default-${type}`,
-    })),
+    widgets: types.map((type) => ({ ...makeWidget(type), id: `default-${type}` })),
   };
+}
+
+/**
+ * Folder dashboards made before T-106 got Home's widgets. One still exactly as it was
+ * created (never customized) becomes the folder default; anything the user changed stays.
+ */
+function upgradeFolderDefault(d: Dashboard): Dashboard {
+  const untouched =
+    d.widgets.length === HOME_DEFAULT.length &&
+    d.widgets.every(
+      (w, i) =>
+        w.id === `default-${HOME_DEFAULT[i]}` &&
+        w.type === HOME_DEFAULT[i] &&
+        !w.title &&
+        !w.options &&
+        !w.size &&
+        !w.links?.length,
+    );
+  return untouched ? { ...d, widgets: [{ id: "default-contents", type: "contents" }] } : d;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
@@ -120,12 +148,21 @@ function normalizeOptions(raw: unknown): WidgetOptions | null {
 
 /** Whether a widget spans the whole row. */
 export const isWide = (w: Widget) =>
-  w.size ? w.size === "wide" : w.type === "links" || w.type === "recent";
+  w.size ? w.size === "wide" : w.type === "links" || w.type === "recent" || w.type === "contents";
+
+/** A folder's saved dashboard, read and brought up to date (see `upgradeFolderDefault`). */
+function savedFolder(map: Dashboards | undefined, folder: string): Dashboard | null {
+  const saved = normalizeDashboard(map?.[folder]);
+  return saved && upgradeFolderDefault(saved);
+}
 
 /** The dashboard to show for `folder`: Home always has one; a folder only when added. */
 export function dashboardFor(map: Dashboards | undefined, folder: string): Dashboard | null {
-  const saved = normalizeDashboard(map?.[folder]);
-  if (folder === HOME) return saved ? { ...saved, enabled: true } : defaultDashboard();
+  if (folder === HOME) {
+    const saved = normalizeDashboard(map?.[HOME]);
+    return saved ? { ...saved, enabled: true } : defaultDashboard();
+  }
+  const saved = savedFolder(map, folder);
   return saved?.enabled ? saved : null;
 }
 
@@ -134,8 +171,8 @@ export const hasDashboard = (map: Dashboards | undefined, folder: string) =>
 
 /** Add a folder's dashboard: the one it had before if it was removed, else the default. */
 export function addDashboard(map: Dashboards, folder: string): Dashboards {
-  const saved = normalizeDashboard(map[folder]);
-  return { ...map, [folder]: saved ? { ...saved, enabled: true } : defaultDashboard() };
+  const saved = savedFolder(map, folder);
+  return { ...map, [folder]: saved ? { ...saved, enabled: true } : defaultDashboard(folder) };
 }
 
 /** Remove a folder's dashboard. Its layout is kept (switched off) for adding it back. */
@@ -566,4 +603,36 @@ export function indexTree(tree: VaultEntry | null): TreeIndex {
   };
   if (tree) walk(tree);
   return { entries, folders };
+}
+
+// ---- A folder's contents, as modules ----
+
+const byName = (a: VaultEntry, b: VaultEntry) =>
+  a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+
+/** What's directly in a folder: its subfolders and its files, each by name. */
+export function folderContents(folder: VaultEntry | null | undefined): {
+  folders: VaultEntry[];
+  files: VaultEntry[];
+} {
+  const children = folder?.children ?? [];
+  return {
+    folders: children.filter((c) => c.kind === "dir").sort(byName),
+    files: children.filter((c) => c.kind !== "dir").sort(byName),
+  };
+}
+
+/** Files anywhere inside a folder, most recently changed first. */
+export function recentInside(folder: VaultEntry, limit: number): VaultEntry[] {
+  const files: VaultEntry[] = [];
+  const walk = (e: VaultEntry) => {
+    for (const c of e.children ?? []) {
+      if (c.children) walk(c);
+      else files.push(c);
+    }
+  };
+  walk(folder);
+  return files
+    .sort((a, b) => b.modifiedMs - a.modifiedMs || a.path.localeCompare(b.path))
+    .slice(0, limit);
 }
