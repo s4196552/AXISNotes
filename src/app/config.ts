@@ -64,6 +64,13 @@ export interface AxisConfig {
     template: string;
     openOnStartup: boolean;
   };
+  /** The vault's Home dashboard as a start page. */
+  home: {
+    /** Show Home when the vault opens (restored tabs stay). */
+    openOnStartup: boolean;
+    /** Show Home instead of an empty tab when the last tab closes. */
+    onLastTabClose: boolean;
+  };
   templatesFolder: string;
   /**
    * Where pasted, dropped and picked images/videos go (Obsidian's forms): "" the vault
@@ -110,6 +117,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
   entryColors: {},
   dashboards: {},
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
+  home: { openOnStartup: false, onLastTabClose: false },
   templatesFolder: "Templates",
   attachments: { folder: "Attachments" },
   spellcheck: { enabled: true, words: [] },

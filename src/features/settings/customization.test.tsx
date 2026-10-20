@@ -184,7 +184,7 @@ describe("settings", () => {
     fireEvent.click(await within(dialog).findByRole("checkbox", { name: "wide" }));
     await waitFor(() => expect(savedConfig()).toMatchObject({ theme: "Nord", snippets: ["wide"] }));
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Daily notes" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Home & daily notes" }));
     const folder = within(dialog).getByRole("textbox", { name: "Daily notes folder" });
     fireEvent.change(folder, { target: { value: "Journal" } });
     fireEvent.blur(folder);
@@ -192,6 +192,15 @@ describe("settings", () => {
     await waitFor(() =>
       expect(savedConfig().dailyNotes).toMatchObject({ folder: "Journal", openOnStartup: true }),
     );
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Open Home when a vault opens" }));
+    fireEvent.click(
+      within(dialog).getByRole("checkbox", { name: "Show Home when the last tab closes" }),
+    );
+    await waitFor(() =>
+      expect(savedConfig().home).toEqual({ openOnStartup: true, onLastTabClose: true }),
+    );
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Open Home when a vault opens" }));
+    await waitFor(() => expect(savedConfig().home.openOnStartup).toBe(false));
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Quick commands" }));
     fireEvent.click(within(dialog).getByRole("checkbox", { name: "Table" }));

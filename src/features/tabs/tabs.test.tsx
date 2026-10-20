@@ -10,6 +10,7 @@ import { Modals } from "../commands/Modals";
 import { FileTree } from "../filetree";
 import { Editor } from "../editor";
 import { TabBar } from "./TabBar";
+import { openStartupPages } from "../../app/startup";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -367,5 +368,113 @@ describe("returning to a note", () => {
     await waitFor(() =>
       expect(jumped.view.state.doc.lineAt(jumped.view.state.selection.main.head).number).toBe(3),
     );
+  });
+});
+
+describe("Home as the start page", () => {
+  const setHome = (home: Partial<typeof DEFAULT_CONFIG.home>, daily = false) =>
+    useConfig.setState({
+      config: {
+        ...DEFAULT_CONFIG,
+        home: { ...DEFAULT_CONFIG.home, ...home },
+        dailyNotes: { ...DEFAULT_CONFIG.dailyNotes, openOnStartup: daily },
+      },
+    });
+  const locs = () => store().tabs.list.map((t) => `${t.view}:${t.path}`);
+  const isHome = () =>
+    activeTab(store().tabs).view === "dashboard" && activeTab(store().tabs).path === "";
+
+  beforeEach(() => useAppStore.setState({ tabs: initialTabs() }));
+
+  it("adds Home before the restored tabs, or focuses the Home tab already open", () => {
+    act(() => store().openFile("Alpha.md"));
+    act(() => store().openFile("Beta.md", undefined, { newTab: true }));
+    act(() => store().openHomeOnStartup());
+    expect(locs()).toEqual(["dashboard:", "note:Alpha.md", "note:Beta.md"]);
+    expect(isHome()).toBe(true);
+    expect(store().activePath).toBeNull();
+
+    act(() => store().activateTab(store().tabs.list[2]!.id));
+    act(() => store().openHomeOnStartup());
+    expect(locs()).toHaveLength(3);
+    expect(isHome()).toBe(true);
+  });
+
+  it("shows Home in an empty tab instead of adding one", () => {
+    act(() => store().openHomeOnStartup());
+    expect(locs()).toEqual(["dashboard:"]);
+  });
+
+  it("opens nothing on startup while the setting is off", async () => {
+    act(() => store().openFile("Alpha.md"));
+    await act(() => openStartupPages());
+    expect(locs()).toEqual(["note:Alpha.md"]);
+  });
+
+  it("opens Home on startup, keeping the restored tabs", async () => {
+    setHome({ openOnStartup: true });
+    act(() => store().openFile("Alpha.md"));
+    await act(() => openStartupPages());
+    expect(locs()).toEqual(["dashboard:", "note:Alpha.md"]);
+    expect(isHome()).toBe(true);
+  });
+
+  it("opens the daily note and Home together, with Home showing", async () => {
+    setHome({ openOnStartup: true }, true);
+    await act(() => openStartupPages());
+    expect(locs()).toEqual(["dashboard:", expect.stringMatching(/^note:Daily\/.+\.md$/)]);
+    expect(isHome()).toBe(true);
+
+    // Restored with Home showing: the daily note gets its own tab rather than replacing it.
+    act(() => store().closeTab(store().tabs.list[1]!.id));
+    await act(() => openStartupPages());
+    expect(locs()).toEqual(["dashboard:", expect.stringMatching(/^note:Daily\//)]);
+    expect(isHome()).toBe(true);
+  });
+
+  it("doesn't open anything if the vault closes while it loads", async () => {
+    setHome({ openOnStartup: true }, true);
+    await act(() => openStartupPages(() => true));
+    expect(locs()).toEqual(["note:null"]);
+  });
+
+  it("shows Home when the last tab closes, if set to", () => {
+    act(() => store().openFile("Alpha.md"));
+    act(() => store().closeTab());
+    expect(locs()).toEqual(["note:null"]);
+
+    setHome({ onLastTabClose: true });
+    act(() => store().openFile("Alpha.md"));
+    act(() => store().openFile("Beta.md", undefined, { newTab: true }));
+    act(() => store().closeTab());
+    expect(locs()).toEqual(["note:Alpha.md"]);
+    act(() => store().closeTab());
+    expect(locs()).toEqual(["dashboard:"]);
+    // Closing Home itself as the last tab brings Home back, not an empty tab.
+    act(() => store().closeTab());
+    expect(locs()).toEqual(["dashboard:"]);
+    act(() => store().newTab());
+    act(() => store().closeTab());
+    expect(isHome()).toBe(true);
+  });
+
+  it("shows Home when a group close or a trash leaves no tabs, if set to", () => {
+    setHome({ onLastTabClose: true });
+    act(() => store().openFile("Alpha.md"));
+    const group = store().groupTabs()!;
+    act(() => store().closeTabGroup(group));
+    expect(locs()).toEqual(["dashboard:"]);
+
+    act(() => store().openFile("Beta.md"));
+    act(() => store().onEntryRemoved("Beta.md"));
+    expect(locs()).toEqual(["dashboard:"]);
+  });
+
+  it("opens Home from the tab bar's Home button", () => {
+    render(<TabBar />);
+    act(() => store().openFile("Alpha.md"));
+    fireEvent.click(screen.getByRole("button", { name: "Go to Home" }));
+    expect(isHome()).toBe(true);
+    expect(titles()).toHaveLength(1);
   });
 });
