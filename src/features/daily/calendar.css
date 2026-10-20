@@ -73,3 +73,17 @@
   margin-top: 4px;
   font-size: 12px;
 }
+/* Open tasks due that day (dashboard calendar). */
+.calendar-due {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  min-width: 12px;
+  padding: 0 3px;
+  border-radius: 6px;
+  background: var(--bg-active);
+  color: var(--fg-muted);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 12px;
+}

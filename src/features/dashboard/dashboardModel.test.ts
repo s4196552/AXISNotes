@@ -19,6 +19,11 @@ import {
   selectSchedule,
   trashInDashboards,
   type Dashboards,
+  addDays,
+  appendToNote,
+  dueCounts,
+  nowIndex,
+  taskGroup,
 } from "./dashboardModel";
 
 const task = (path: string, line: number, text: string, extra: Partial<TaskRef> = {}): TaskRef => ({
@@ -250,5 +255,111 @@ describe("links and recent files", () => {
 
   it("lists recent files newest first", () => {
     expect(recentFiles(tree, HOME).map((e) => e.path)).toEqual(["School/B.md", "A.md"]);
+  });
+});
+
+describe("planning ahead", () => {
+  it("adds days across month ends and DST changes", () => {
+    expect(addDays(TODAY, 7)).toBe("2026-10-27");
+    expect(addDays("2026-10-31", 1)).toBe("2026-11-01");
+    expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
+    // Sydney's clocks go forward on 2026-10-04 and back on 2026-04-05.
+    expect(addDays("2026-10-03", 1)).toBe("2026-10-04");
+    expect(addDays("2026-04-04", 2)).toBe("2026-04-06");
+  });
+
+  it("looks a week ahead and groups tasks as overdue, today and upcoming", () => {
+    const tasks = [
+      task("A.md", 1, "Late", { due: "2026-10-18" }),
+      task("A.md", 2, "Now", { due: TODAY }),
+      task("A.md", 3, "Soon", { due: "2026-10-24" }),
+      task("A.md", 4, "Later", { due: "2026-11-30" }),
+      task(DAILY, 1, "Undated"),
+    ];
+    const week = selectDailyTasks(tasks, {
+      today: TODAY,
+      folder: HOME,
+      dailyPath: DAILY,
+      horizon: addDays(TODAY, 7),
+    });
+    expect(week.map((t) => t.text)).toEqual(["Late", "Now", "Undated", "Soon"]);
+    expect(week.map((t) => taskGroup(t, TODAY))).toEqual(["overdue", "today", "today", "upcoming"]);
+    // Without a horizon it is today only, as before.
+    expect(
+      selectDailyTasks(tasks, { today: TODAY, folder: HOME, dailyPath: DAILY }).map((t) => t.text),
+    ).toEqual(["Late", "Now", "Undated"]);
+  });
+
+  it("counts open tasks by due date in scope for the calendar", () => {
+    const counts = dueCounts(
+      [
+        task("School/A.md", 1, "a", { due: TODAY }),
+        task("School/A.md", 2, "b", { due: TODAY }),
+        task("School/A.md", 3, "c", { due: TODAY, done: true }),
+        task("Work.md", 1, "d", { due: TODAY }),
+        task("School/A.md", 4, "e"),
+      ],
+      "School",
+    );
+    expect([...counts]).toEqual([[TODAY, 2]]);
+  });
+
+  it("puts the now line before the first item that starts later", () => {
+    const items = ["09:00", "12:30", "17:00"].map((start, i) => ({
+      start,
+      rest: "",
+      path: DAILY,
+      line: i + 1,
+    }));
+    expect(nowIndex(items, "08:59")).toBe(0);
+    expect(nowIndex(items, "12:30")).toBe(2);
+    expect(nowIndex(items, "23:00")).toBe(3);
+    expect(nowIndex([], "10:00")).toBe(0);
+  });
+
+  it("keeps a tasks widget's range through a save, dropping unknown options", () => {
+    const d = normalizeDashboard({
+      widgets: [
+        { id: "t", type: "tasks", options: { range: "week", colour: "red" } },
+        { id: "u", type: "tasks", options: { range: "year" } },
+      ],
+    })!;
+    expect(d.widgets[0]!.options).toEqual({ range: "week" });
+    expect(d.widgets[1]!.options).toBeUndefined();
+  });
+});
+
+describe("quick add", () => {
+  const daily = "# Tuesday\n\n## Tasks\n\n- [ ] \n\n## Notes\n\n";
+
+  it("fills the template's empty task first, then adds after the last task", () => {
+    const once = appendToNote(daily, "- [ ] Buy milk");
+    expect(once).toBe("# Tuesday\n\n## Tasks\n\n- [ ] Buy milk\n\n## Notes\n\n");
+    expect(appendToNote(once, "- [ ] Call Sam")).toBe(
+      "# Tuesday\n\n## Tasks\n\n- [ ] Buy milk\n- [ ] Call Sam\n\n## Notes\n\n",
+    );
+  });
+
+  it("puts a timed line after the last timed line, else at the end", () => {
+    const first = appendToNote(daily, "- 09:00 Standup");
+    expect(first).toBe(`${daily.trimEnd()}\n\n- 09:00 Standup\n`);
+    expect(appendToNote(first, "- 14:00 Lab")).toBe(
+      `${daily.trimEnd()}\n\n- 09:00 Standup\n- 14:00 Lab\n`,
+    );
+  });
+
+  it("goes after the last list under the last heading, skipping code and frontmatter", () => {
+    const note = "---\ntags: [a]\n---\n# Log\n- one\n```\n- [ ] not a task\n```\nText\n";
+    expect(appendToNote(note, "- [ ] New")).toBe(
+      "---\ntags: [a]\n---\n# Log\n- one\n- [ ] New\n```\n- [ ] not a task\n```\nText\n",
+    );
+    expect(appendToNote("", "- [ ] First")).toBe("- [ ] First\n");
+    expect(appendToNote("Just text", "- [ ] Next")).toBe("Just text\n\n- [ ] Next\n");
+  });
+
+  it("keeps Windows line endings", () => {
+    expect(appendToNote("- [ ] a\r\n- [ ] b\r\n", "- [ ] c")).toBe(
+      "- [ ] a\r\n- [ ] b\r\n- [ ] c\r\n",
+    );
   });
 });

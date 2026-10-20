@@ -136,6 +136,69 @@ describe("Dashboard", () => {
     expect(await screen.findByRole("button", { name: "Add dashboard" })).toBeInTheDocument();
   });
 
+  it("quick-adds a task and a timed item to today's note, creating it from the template", async () => {
+    await setup({ "A.md": "" });
+    render(<Dashboard folder="" />);
+
+    const tasks = widget("Today's tasks");
+    const input = await within(tasks).findByRole("textbox", { name: "Add a task" });
+    fireEvent.change(input, { target: { value: "Buy milk" } });
+    fireEvent.submit(input.closest("form")!);
+    // The daily template's empty task is filled in.
+    await waitFor(() => expect(h.b.files()[dailyPath]).toContain("## Tasks\n\n- [ ] Buy milk\n"));
+    await within(tasks).findByText("Buy milk");
+    expect(input).toHaveValue("");
+
+    const schedule = widget("Day schedule");
+    fireEvent.change(within(schedule).getByLabelText("Time"), { target: { value: "09:30" } });
+    const what = within(schedule).getByRole("textbox", { name: "Add to schedule" });
+    fireEvent.change(what, { target: { value: "Standup" } });
+    fireEvent.submit(what.closest("form")!);
+    await waitFor(() => expect(h.b.files()[dailyPath]).toContain("- 09:30 Standup\n"));
+    await within(schedule).findByText("Standup");
+  });
+
+  it("looks a week ahead when asked, and remembers it", async () => {
+    const soon = formatDate(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3),
+      "YYYY-MM-DD",
+    );
+    await setup({ "Work.md": `- [ ] Essay 📅 ${soon}\n- [ ] Report 📅 ${today}\n` });
+    render(<Dashboard folder="" />);
+    const tasks = widget("Today's tasks");
+    await within(tasks).findByText("Report");
+    expect(within(tasks).queryByText("Essay")).toBeNull();
+
+    fireEvent.click(within(tasks).getByRole("button", { name: "7 days" }));
+    await within(tasks).findByText("Essay");
+    expect(within(tasks).getByRole("heading", { name: "Next 7 days" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        savedConfig().dashboards[""].widgets.find((w: { type: string }) => w.type === "tasks")
+          .options,
+      ).toEqual({ range: "week" }),
+    );
+  });
+
+  it("steps the schedule through days and marks task due dates on the calendar", async () => {
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    await setup({
+      [`Daily/${formatDate(tomorrow, "YYYY-MM-DD")}.md`]: "- 10:00 Dentist\n",
+      "Work.md": `- [ ] Report 📅 ${today}\n- [ ] Plan 📅 ${today}\n`,
+    });
+    render(<Dashboard folder="" />);
+    const schedule = widget("Day schedule");
+    expect(within(schedule).getByRole("button", { name: "Today" })).toBeDisabled();
+    fireEvent.click(within(schedule).getByRole("button", { name: "Next day" }));
+    await within(schedule).findByText("Dentist");
+    expect(within(schedule).getByText(formatDate(tomorrow, "dddd, MMMM D"))).toBeInTheDocument();
+    fireEvent.click(within(schedule).getByRole("button", { name: "Today" }));
+    await waitFor(() => expect(within(schedule).queryByText("Dentist")).toBeNull());
+
+    const calendar = widget("Calendar");
+    await within(calendar).findByRole("gridcell", { name: /, 2 tasks due$/ });
+  });
+
   it("restores a dashboard tab with the vault's other tabs", () => {
     const s = deserialize(
       JSON.stringify({ tabs: [{ path: "School", view: "dashboard" }], active: 0 }),
