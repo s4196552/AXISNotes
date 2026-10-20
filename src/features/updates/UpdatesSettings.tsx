@@ -19,8 +19,12 @@ export function UpdatesSettings() {
 
   if (!settings) return saveError ? <p className="ai-error">{saveError}</p> : null;
 
-  const save = (checkOnLaunch: boolean, folder: string) =>
-    backend.updatesSaveSettings(checkOnLaunch, folder).then(
+  const save = (
+    folder: string,
+    checkOnLaunch = settings.checkOnLaunch,
+    autoInstall = settings.autoInstall,
+  ) =>
+    backend.updatesSaveSettings(checkOnLaunch, autoInstall, folder).then(
       (s) => (setSettings(s), setSaveError(null), useUpdates.setState({ checked: false })),
       (e: unknown) => setSaveError(message(e)),
     );
@@ -38,9 +42,21 @@ export function UpdatesSettings() {
           type="checkbox"
           aria-label="Check for updates when AXISNotes starts"
           checked={settings.checkOnLaunch}
-          onChange={(e) => void save(e.target.checked, custom ? settings.folder : "")}
+          onChange={(e) => void save(custom ? settings.folder : "", e.target.checked)}
         />
         Check for updates when AXISNotes starts
+      </label>
+      <label className="updates-row">
+        <input
+          type="checkbox"
+          aria-label="Install updates automatically"
+          checked={settings.autoInstall}
+          disabled={!settings.checkOnLaunch}
+          onChange={(e) =>
+            void save(custom ? settings.folder : "", settings.checkOnLaunch, e.target.checked)
+          }
+        />
+        Install updates automatically (AXISNotes saves your work, updates and reopens)
       </label>
       <div className="updates-row">
         <label className="updates-row">
@@ -50,8 +66,7 @@ export function UpdatesSettings() {
             defaultValue={settings.folder}
             key={settings.folder}
             onBlur={(e) => {
-              if (e.target.value.trim() !== settings.folder)
-                void save(settings.checkOnLaunch, e.target.value);
+              if (e.target.value.trim() !== settings.folder) void save(e.target.value);
             }}
           />
         </label>
@@ -61,15 +76,13 @@ export function UpdatesSettings() {
           title="Choose folder"
           onClick={() =>
             void backend.pickFolder().then((f) => {
-              if (f) void save(settings.checkOnLaunch, f);
+              if (f) void save(f);
             })
           }
         >
           <FolderOpen size={14} />
         </button>
-        {custom && (
-          <button onClick={() => void save(settings.checkOnLaunch, "")}>Use default</button>
-        )}
+        {custom && <button onClick={() => void save("")}>Use default</button>}
       </div>
       {saveError && <p className="ai-error">{saveError}</p>}
       <div className="updates-row">

@@ -82,6 +82,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-095 | 6     | Settings sidebar: a Lucide icon beside each section name | claude | merged      | agent/claude/T-095 | `src/features/settings/{Settings.tsx,settings.css,appearance.test.tsx}` |
 | T-097 | 6     | File tree: names light grey by default, white when the row is selected or open | claude | merged      | agent/claude/T-097 | `src/features/filetree/filetree.css` |
 | T-098 | 6     | File tree: per-item background and text colours (right-click → Change colours…), saved per vault and kept through renames | claude | merged      | agent/claude/T-098 | `src/app/config.ts`, `src/features/filetree/**`, `src/features/commands/{ui.ts,Modals.tsx}` |
+| T-099 | 6     | Updates install automatically at launch by default (Settings → Updates: Install updates automatically) | claude | merged      | agent/claude/T-099 | `src-tauri/src/{updates,updates_commands}.rs`, `src/ipc/{types,tauriBackend,memoryBackend}.ts`, `src/features/updates/**` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

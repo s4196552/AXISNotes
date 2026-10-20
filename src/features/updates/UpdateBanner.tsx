@@ -2,7 +2,8 @@ import { Download, X } from "lucide-react";
 import { useUpdates } from "./updates";
 import "./updates.css";
 
-/** Offers a newer version found in the updates folder. Never installs without a click. */
+/** Offers a newer version found in the updates folder, or shows it installing on its own
+ *  (automatic install, Settings → Updates). */
 export function UpdateBanner() {
   const { available, dismissed, installing, error, install, dismiss } = useUpdates();
   if (!available || dismissed) return null;

@@ -352,6 +352,8 @@ export function createMemoryBackend(
   // Updates come from a folder on this computer; the browser preview never has one.
   let updates: UpdateSettings = {
     checkOnLaunch: true,
+    autoInstall: true,
+    canInstall: false,
     folder: "/home/AXISNotes Updates",
     defaultFolder: "/home/AXISNotes Updates",
     currentVersion: "0.0.0",
@@ -370,8 +372,13 @@ export function createMemoryBackend(
     clipperRevoke: async () => ({ ...clipper }),
     clipperOpenExtensionFolder: async () => "/app/extension",
     updatesSettings: async () => ({ ...updates }),
-    updatesSaveSettings: async (checkOnLaunch, folder) => {
-      updates = { ...updates, checkOnLaunch, folder: folder.trim() || updates.defaultFolder };
+    updatesSaveSettings: async (checkOnLaunch, autoInstall, folder) => {
+      updates = {
+        ...updates,
+        checkOnLaunch,
+        autoInstall,
+        folder: folder.trim() || updates.defaultFolder,
+      };
       return { ...updates };
     },
     updatesCheck: async () => null,
