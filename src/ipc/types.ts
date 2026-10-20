@@ -361,20 +361,41 @@ export interface AvailableUpdate {
   file: string;
 }
 
-// ---- Import (Phase 6); see src-tauri/src/import ----
+// ---- Import from other apps (Phase 6, T-103); see src-tauri/src/import ----
 
+/** The app an import comes from. */
+export type ImportKind = "obsidian" | "notion" | "markdown" | "evernote";
+
+/** What an import would bring in, shown before it runs. */
 export interface ImportPreview {
-  /** Has an `.obsidian` folder. */
-  obsidian: boolean;
+  /** The export's name (folder, or file name without its extension). */
   name: string;
+  notes: number;
+  attachments: number;
+  /** Database tables (Notion CSV). */
+  tables: number;
+  canvases: number;
+  /** What the source looks like when it isn't the kind chosen. */
+  looksLike: ImportKind | null;
+  warnings: string[];
+}
+
+export interface ImportOptions {
+  /** Notion databases as Markdown tables instead of grids. */
+  tablesAsMarkdown?: boolean;
 }
 
 export interface ImportReport {
+  /** The new vault folder the files went into. */
   target: string;
   notes: number;
   attachments: number;
   canvases: number;
+  tables: number;
+  /** Links rewritten to point at the imported notes and files. */
+  links: number;
   skipped: { path: string; reason: string }[];
+  warnings: string[];
   /** Obsidian settings found (paths inside the vault after import). */
   settings: {
     templatesFolder: string | null;
@@ -382,6 +403,12 @@ export interface ImportReport {
     dailyFormat: string | null;
     dailyTemplate: string | null;
   };
+}
+
+/** Files written so far during an import. */
+export interface ImportProgress {
+  done: number;
+  total: number;
 }
 
 /** Where files from outside were dropped on the window (physical pixels). */
@@ -553,9 +580,20 @@ export interface Backend {
   /** Verifies and starts the installer, which closes the app, updates it and reopens it. */
   updatesInstall(version: string): Promise<void>;
 
-  inspectImport(source: string): Promise<ImportPreview>;
-  /** Copy a folder (e.g. an Obsidian vault) into `target` in the open vault. */
-  importObsidian(source: string, target: string): Promise<ImportReport>;
+  inspectImport(kind: ImportKind, source: string): Promise<ImportPreview>;
+  /**
+   * Import notes from another app into a new folder named after `target` (made unique if
+   * it exists). Nothing in the vault is overwritten.
+   */
+  importNotes(
+    kind: ImportKind,
+    source: string,
+    target: string,
+    options?: ImportOptions,
+    onProgress?: (p: ImportProgress) => void,
+  ): Promise<ImportReport>;
+  /** Show a native file picker for an export file; resolves null if cancelled. */
+  pickImportFile(label: string, extensions: string[]): Promise<string | null>;
 }
 
 /** Window materials Windows can draw behind a see-through window (Tauri's names). */

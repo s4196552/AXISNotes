@@ -544,27 +544,22 @@ pub fn list_axis_files(state: State<AppState>, subdir: String) -> AppResult<Vec<
     Ok(names)
 }
 
-/// What importing `source` would bring in (shown before importing).
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportPreview {
-    pub obsidian: bool,
-    pub name: String,
+/// What importing `source` as `kind` would bring in (shown before importing). Async: a big
+/// export takes a moment to list.
+#[tauri::command]
+pub async fn inspect_import(
+    kind: crate::import::ImportKind,
+    source: String,
+) -> AppResult<crate::import::ImportPreview> {
+    crate::import::inspect(kind, &PathBuf::from(source))
 }
 
-#[tauri::command]
-pub fn inspect_import(source: String) -> AppResult<ImportPreview> {
-    let path = PathBuf::from(&source);
-    if !path.is_dir() {
-        return Err(AppError::NotFound(source));
-    }
-    Ok(ImportPreview {
-        obsidian: crate::import::is_obsidian_vault(&path),
-        name: path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default(),
-    })
+pub const IMPORT_PROGRESS_EVENT: &str = "import://progress";
+
+#[derive(Clone, Serialize)]
+struct ImportProgress {
+    done: usize,
+    total: usize,
 }
 
 /// Icon and image packs in the open vault (`.axisnotes/packs/`).
@@ -594,15 +589,34 @@ pub async fn remove_pack(
     crate::packs::remove_pack(&state.vault()?, kind, &name)
 }
 
-/// Copy an Obsidian vault (or any folder of Markdown) into the open vault.
+/// Import notes from another app (Obsidian, Notion, Markdown, Evernote) into a new folder
+/// of the open vault, reporting progress as `import://progress` events.
 #[tauri::command]
-pub async fn import_obsidian(
+pub async fn import_notes(
+    app: AppHandle,
     state: State<'_, AppState>,
+    kind: crate::import::ImportKind,
     source: String,
     target: String,
+    options: Option<crate::import::ImportOptions>,
 ) -> AppResult<crate::import::ImportReport> {
     let vault = state.vault()?;
-    let report = crate::import::import_obsidian(&vault, &PathBuf::from(source), &target)?;
+    let mut last = Instant::now();
+    let mut progress = |done: usize, total: usize| {
+        // A few updates a second is plenty for a progress bar.
+        if done == 0 || done == total || last.elapsed() >= Duration::from_millis(100) {
+            last = Instant::now();
+            let _ = app.emit(IMPORT_PROGRESS_EVENT, ImportProgress { done, total });
+        }
+    };
+    let report = crate::import::run(
+        &vault,
+        kind,
+        &PathBuf::from(source),
+        &target,
+        options.unwrap_or_default(),
+        &mut progress,
+    )?;
     // Thousands of new files at once: rescan instead of relying on watcher events.
     state.with_index(|i| i.sync(&vault))?;
     Ok(report)

@@ -64,8 +64,8 @@ export function GettingStarted({ onClose }: { onClose(): void }) {
       run: () => open({ kind: "settings", section: "clipper" }),
     },
     {
-      label: "Bring notes from Obsidian (optional)",
-      hint: "Copies a vault in; links and embeds keep working.",
+      label: "Bring notes from Notion, Obsidian or Evernote (optional)",
+      hint: "Imports into a new folder; links and attachments keep working.",
       done: false,
       action: "Import",
       run: () => open({ kind: "import" }),

@@ -81,7 +81,7 @@ pub fn run() {
             commands::list_tasks,
             commands::time_entries,
             commands::inspect_import,
-            commands::import_obsidian,
+            commands::import_notes,
             commands::list_packs,
             commands::import_pack,
             commands::remove_pack,

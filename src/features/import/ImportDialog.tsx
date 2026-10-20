@@ -1,49 +1,79 @@
 import { useState } from "react";
 import { FolderInput, Loader, X } from "lucide-react";
-import { backend, type ImportPreview, type ImportReport, isBackendError } from "../../ipc";
+import {
+  backend,
+  type ImportPreview,
+  type ImportProgress,
+  type ImportReport,
+  isBackendError,
+} from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
+import { formatDate } from "../../lib/dates";
+import {
+  articleFor,
+  countsText,
+  plural,
+  type Pick,
+  type Source,
+  SOURCES,
+  sourceOf,
+} from "./sources";
 import "./import.css";
 
-// Import an Obsidian vault (or any folder of Markdown) into the open vault. Notes are
-// copied as they are: AXISNotes reads Obsidian's Markdown natively. Nothing is overwritten.
-
-type Step =
-  | { kind: "pick" }
-  | { kind: "ready"; source: string; preview: ImportPreview }
-  | { kind: "importing" }
-  | { kind: "done"; report: ImportReport }
-  | { kind: "error"; message: string };
+// Import notes from another app into a new folder of the open vault (T-103). The Rust side
+// does the work (src-tauri/src/import): Notion's IDs dropped and links rewritten, databases
+// made grids, Evernote notes converted. Nothing in the vault is overwritten.
 
 const message = (e: unknown) => (isBackendError(e) ? e.message : String(e));
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+type Step =
+  | { kind: "choose"; error?: string }
+  | { kind: "ready"; source: Source; path: string; preview: ImportPreview }
+  | { kind: "importing"; progress: ImportProgress | null }
+  | { kind: "done"; report: ImportReport };
+
+const defaultTarget = (source: Source) =>
+  `Imported/${source.kind === "markdown" ? "Markdown" : source.name} ${formatDate(new Date(), "YYYY-MM-DD")}`;
 
 export function ImportDialog({ onClose }: { onClose(): void }) {
-  const [step, setStep] = useState<Step>({ kind: "pick" });
+  const [step, setStep] = useState<Step>({ kind: "choose" });
   const [target, setTarget] = useState("");
+  const [tablesAsMarkdown, setTablesAsMarkdown] = useState(false);
   const [useTemplates, setUseTemplates] = useState(true);
   const [useDaily, setUseDaily] = useState(true);
 
-  async function pick() {
-    const source = await backend.pickFolder();
-    if (!source) return;
+  async function inspect(source: Source, path: string) {
     try {
-      const preview = await backend.inspectImport(source);
-      setTarget(preview.name);
-      setStep({ kind: "ready", source, preview });
+      const preview = await backend.inspectImport(source.kind, path);
+      setTarget(defaultTarget(source));
+      setStep({ kind: "ready", source, path, preview });
     } catch (e) {
-      setStep({ kind: "error", message: message(e) });
+      setStep({ kind: "choose", error: message(e) });
     }
   }
 
-  async function run(source: string) {
-    setStep({ kind: "importing" });
+  async function pick(source: Source, how: Pick) {
+    const path = how.folder
+      ? await backend.pickFolder()
+      : await backend.pickImportFile(`${source.name} export`, how.ext);
+    if (path) await inspect(source, path);
+  }
+
+  async function run(source: Source, path: string) {
+    setStep({ kind: "importing", progress: null });
     try {
-      const report = await backend.importObsidian(source, target);
+      const report = await backend.importNotes(
+        source.kind,
+        path,
+        target,
+        { tablesAsMarkdown: source.kind === "notion" && tablesAsMarkdown },
+        (progress) => setStep({ kind: "importing", progress }),
+      );
       await useAppStore.getState().refreshTree();
       setStep({ kind: "done", report });
     } catch (e) {
-      setStep({ kind: "error", message: message(e) });
+      setStep({ kind: "choose", error: message(e) });
     }
   }
 
@@ -74,32 +104,54 @@ export function ImportDialog({ onClose }: { onClose(): void }) {
       <div
         className="modal ask-ai import-dialog"
         role="dialog"
-        aria-label="Import from Obsidian"
+        aria-label="Import notes"
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === "Escape" && !busy && onClose()}
       >
         <header className="ask-ai-header">
-          <FolderInput size={15} /> <strong>Import from Obsidian</strong>
+          <FolderInput size={15} />{" "}
+          <strong>
+            {step.kind === "ready" ? `Import from ${step.source.name}` : "Import notes"}
+          </strong>
           <button className="ai-icon" aria-label="Close" onClick={onClose} disabled={busy}>
             <X size={15} />
           </button>
         </header>
         <div className="ask-ai-body">
-          {(step.kind === "pick" || step.kind === "error") && (
+          {step.kind === "choose" && (
             <>
-              <p>
-                Copies an Obsidian vault into this vault: notes, attachments and canvases. Links,
-                embeds, tags, block references and frontmatter work as they are. Your Obsidian vault
-                isn’t changed, and nothing here is overwritten.
-              </p>
               <p className="muted">
-                Tip: you can also open an Obsidian vault directly as an AXISNotes vault.
+                Bring notes from another app into a new folder in this vault. The export isn’t
+                changed, and nothing in your vault is overwritten.
               </p>
-              {step.kind === "error" && (
+              {step.error && (
                 <p className="ai-error" role="alert">
-                  {step.message}
+                  {step.error}
                 </p>
               )}
+              <ul className="import-sources" aria-label="Import from">
+                {SOURCES.map((s) => (
+                  <li key={s.kind} className="import-source">
+                    <s.icon size={20} className="import-source-icon" aria-hidden />
+                    <div className="import-source-text">
+                      <strong>{s.name}</strong>
+                      <span className="muted">{s.how}</span>
+                    </div>
+                    <div className="import-source-actions">
+                      {s.picks.map((p, i) => (
+                        <button
+                          key={p.label}
+                          className={i === 0 ? "primary" : undefined}
+                          aria-label={`${s.name}: ${p.label}`}
+                          onClick={() => void pick(s, p)}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </>
           )}
 
@@ -107,47 +159,88 @@ export function ImportDialog({ onClose }: { onClose(): void }) {
             <>
               <p>
                 <strong>{step.preview.name}</strong>
-                {step.preview.obsidian ? (
-                  <span className="muted"> · Obsidian vault</span>
-                ) : (
-                  <span className="ai-error">
-                    {" "}
-                    · no .obsidian folder here; its files will still be copied
-                  </span>
-                )}
+                <span className="muted"> · {countsText(step.preview)}</span>
               </p>
+              {step.preview.looksLike && (
+                <p className="import-hint" role="note">
+                  This looks like {articleFor(step.preview.looksLike)}{" "}
+                  {sourceOf(step.preview.looksLike).name} export.{" "}
+                  <button
+                    className="link-button"
+                    onClick={() => void inspect(sourceOf(step.preview.looksLike!), step.path)}
+                  >
+                    Import it as {sourceOf(step.preview.looksLike).name} instead
+                  </button>
+                </p>
+              )}
+              {step.preview.warnings.length > 0 && (
+                <ul className="import-warnings" aria-label="Warnings">
+                  {step.preview.warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              )}
               <label className="import-row">
-                Into folder
+                Into new folder
                 <input
                   aria-label="Import into folder"
                   value={target}
-                  placeholder="(vault root)"
                   onChange={(e) => setTarget(e.target.value)}
                 />
               </label>
+              {step.source.kind === "notion" && step.preview.tables > 0 && (
+                <label className="import-row">
+                  Databases as
+                  <select
+                    aria-label="Databases as"
+                    value={tablesAsMarkdown ? "markdown" : "grid"}
+                    onChange={(e) => setTablesAsMarkdown(e.target.value === "markdown")}
+                  >
+                    <option value="grid">Grids (spreadsheets)</option>
+                    <option value="markdown">Markdown tables linking to their pages</option>
+                  </select>
+                </label>
+              )}
+              <p className="muted">If that folder exists, a new one is made beside it (“… 2”).</p>
             </>
           )}
 
-          {busy && (
-            <p className="dg-status" role="status">
-              <Loader size={14} className="spin" /> Copying files…
-            </p>
+          {step.kind === "importing" && (
+            <div className="import-progress" role="status" aria-label="Import progress">
+              <p className="dg-status">
+                <Loader size={14} className="spin" />{" "}
+                {!step.progress
+                  ? "Reading the export…"
+                  : step.progress.done < step.progress.total
+                    ? `Importing ${step.progress.done.toLocaleString()} of ${plural(step.progress.total, "file")}…`
+                    : "Updating search and links…"}
+              </p>
+              <progress
+                max={step.progress?.total || 1}
+                value={step.progress ? step.progress.done : undefined}
+              />
+            </div>
           )}
 
           {step.kind === "done" && (
             <div role="status" aria-label="Import result">
               <p>
-                Imported {plural(step.report.notes, "note")},{" "}
-                {plural(step.report.attachments, "attachment")} and{" "}
-                {plural(step.report.canvases, "canvas", "canvases")}
-                {step.report.target ? ` into “${step.report.target}”` : ""}.
+                Imported {countsText(step.report)} into “{step.report.target}”.
+                {step.report.links > 0 && ` ${plural(step.report.links, "link")} updated.`}
               </p>
+              {step.report.warnings.length > 0 && (
+                <ul className="import-warnings" aria-label="Warnings">
+                  {step.report.warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              )}
               {step.report.skipped.length > 0 && (
                 <details>
                   <summary>{plural(step.report.skipped.length, "file")} skipped</summary>
                   <ul className="import-skipped">
-                    {step.report.skipped.map((s) => (
-                      <li key={s.path}>
+                    {step.report.skipped.map((s, i) => (
+                      <li key={`${s.path}-${i}`}>
                         <code>{s.path}</code> <span className="muted">{s.reason}</span>
                       </li>
                     ))}
@@ -182,8 +275,12 @@ export function ImportDialog({ onClose }: { onClose(): void }) {
           <span className="ask-ai-spacer" />
           {step.kind === "ready" ? (
             <>
-              <button onClick={() => void pick()}>Choose another folder</button>
-              <button className="primary" onClick={() => void run(step.source)}>
+              <button onClick={() => setStep({ kind: "choose" })}>Back</button>
+              <button
+                className="primary"
+                disabled={!target.trim()}
+                onClick={() => void run(step.source, step.path)}
+              >
                 Import
               </button>
             </>
@@ -192,8 +289,8 @@ export function ImportDialog({ onClose }: { onClose(): void }) {
               Done
             </button>
           ) : (
-            <button className="primary" onClick={() => void pick()} disabled={busy}>
-              Choose a folder…
+            <button onClick={onClose} disabled={busy}>
+              Cancel
             </button>
           )}
         </footer>

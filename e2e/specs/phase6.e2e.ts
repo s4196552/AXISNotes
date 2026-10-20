@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { $, browser, expect } from "@wdio/globals";
 import { Key } from "webdriverio";
@@ -6,7 +7,7 @@ import { Key } from "webdriverio";
 import { deliver, flush, newClip, pair, queued } from "../../extension/lib/queue.js";
 
 // Phase 6 on the real app: image embeds served from the vault; importing an Obsidian
-// vault (notes, attachments, a JSON Canvas); the web clipper, paired and fed by the
+// vault (notes, attachments, a JSON Canvas) and a Notion export; the web clipper, paired and fed by the
 // extension's own queue code, including a clip queued while AXISNotes couldn't be reached;
 // Getting started; and a remapped keyboard shortcut.
 
@@ -94,13 +95,14 @@ describe("Phase 6: web clipper, import and polish on the real app", () => {
   });
 
   it("imports an Obsidian vault, converting its canvas", async () => {
-    const preview = await invoke<{ obsidian: boolean; name: string }>("inspect_import", {
+    const preview = await invoke<{ looksLike: string | null; notes: number }>("inspect_import", {
+      kind: "obsidian",
       source: obsidian,
     });
-    expect(preview.obsidian).toBe(true);
+    expect(preview).toMatchObject({ looksLike: null, notes: 2 });
     const report = await invoke<{ notes: number; attachments: number; canvases: number }>(
-      "import_obsidian",
-      { source: obsidian, target: "Old Vault" },
+      "import_notes",
+      { kind: "obsidian", source: obsidian, target: "Old Vault" },
     );
     expect(report).toMatchObject({ notes: 2, attachments: 1, canvases: 1 });
     expect(read("Old Vault/Ideas.md")).toContain("==important==");
@@ -123,6 +125,40 @@ describe("Phase 6: web clipper, import and polish on the real app", () => {
     await row("Old Vault/Board.axcanvas").click();
     await $(".excalidraw").waitForExist({ timeout: 15000 });
     await snapshot("03-imported-canvas");
+  });
+
+  it("imports a Notion export: IDs dropped, links rewritten, a database as a grid", async () => {
+    const id = (n: number) => String(n).repeat(32);
+    const src = fs.mkdtempSync(path.join(os.tmpdir(), "axis-notion-"));
+    const put = (rel: string, text: string) => {
+      fs.mkdirSync(path.dirname(path.join(src, rel)), { recursive: true });
+      fs.writeFileSync(path.join(src, rel), text);
+    };
+    put(`Home ${id(1)}.md`, `# Home\n\nSee [Plan](Home%20${id(1)}/Plan%20${id(2)}.md)\n`);
+    put(`Home ${id(1)}/Plan ${id(2)}.md`, "# Plan\n\nSteps.\n");
+    put(`Home ${id(1)}/Tasks ${id(3)}_all.csv`, "Name,Status\nWrite,Done\n");
+    const preview = await invoke<{ looksLike: string | null; notes: number; tables: number }>(
+      "inspect_import",
+      { kind: "notion", source: src },
+    );
+    expect(preview).toMatchObject({ looksLike: null, notes: 2, tables: 1 });
+    const report = await invoke<{ target: string; notes: number; tables: number; links: number }>(
+      "import_notes",
+      { kind: "notion", source: src, target: "Imported/Notion" },
+    );
+    expect(report).toMatchObject({ target: "Imported/Notion", notes: 2, tables: 1, links: 1 });
+    expect(read("Imported/Notion/Home.md")).toContain("[[Imported/Notion/Home/Plan|Plan]]");
+    expect(read("Imported/Notion/Home/Tasks.axgrid")).toContain('"A2": "Write"');
+
+    // The rewritten link opens the subpage.
+    await row("Imported").waitForExist();
+    await row("Imported").click();
+    await row("Imported/Notion").click();
+    await row("Imported/Notion/Home.md").click();
+    await expect($(".editor-title")).toHaveText("Home");
+    await $(".cm-lp-wikilink:not(.cm-lp-unresolved)").waitForExist();
+    await snapshot("03b-imported-notion");
+    fs.rmSync(src, { recursive: true, force: true });
   });
 
   it("pairs the extension and saves clips, including one queued while AXISNotes was away", async () => {
