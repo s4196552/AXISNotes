@@ -23,6 +23,7 @@ import { PanelResizer } from "./PanelResizer";
 import { PanelToggle } from "./PanelToggle";
 import { SearchPanel } from "./SearchPanel";
 import { TagsPanel } from "./TagsPanel";
+import { VaultMenu } from "../vault/VaultMenu";
 import "./panels.css";
 
 const TABS: { id: LeftPanel; label: string; Icon: typeof Search }[] = [
@@ -38,9 +39,7 @@ export function LeftSidebar() {
   return (
     <aside className="sidebar" aria-label="Navigation">
       <header className="sidebar-header" title={vault?.root} data-tauri-drag-region>
-        <span className="sidebar-vault" data-tauri-drag-region>
-          {vault?.name}
-        </span>
+        <VaultMenu />
         <PanelToggle side="left" className="sidebar-settings" />
         <button
           className="sidebar-settings"

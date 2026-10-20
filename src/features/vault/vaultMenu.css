@@ -1,0 +1,87 @@
+.vault-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 3px 6px;
+  margin-left: -6px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+}
+.vault-button:hover,
+.vault-button[aria-expanded="true"] {
+  background: var(--bg-hover);
+}
+.vault-button svg {
+  flex: none;
+  color: var(--fg-muted);
+}
+.vault-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-menu {
+  position: fixed;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop);
+}
+.vault-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.vault-menu button:hover,
+.vault-menu button:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+.vault-menu button svg {
+  flex: none;
+  color: var(--fg-muted);
+}
+.vault-menu-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.vault-menu-text .muted {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vault-menu-label {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.vault-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}

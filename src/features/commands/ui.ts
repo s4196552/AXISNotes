@@ -16,6 +16,7 @@ export type Modal =
   | { kind: "import" }
   | { kind: "move"; path: string }
   | { kind: "themes" }
+  | { kind: "vaults" }
   | { kind: "diagram"; path: string; selection?: string }
   | {
       kind: "fix";
