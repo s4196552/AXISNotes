@@ -1,5 +1,7 @@
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import {
+  ChevronDown,
+  ChevronRight,
   Clock,
   FolderTree,
   Hash,
@@ -19,6 +21,9 @@ import { type LeftPanel, useAppStore } from "../../app/store";
 import { Calendar } from "../daily/Calendar";
 import { FileTree } from "../filetree";
 import { BacklinksPanel } from "./BacklinksPanel";
+import { OutlinePanel } from "./OutlinePanel";
+import { activeTab } from "../../app/tabs";
+import { docKind } from "../../lib/fileKinds";
 import { PanelResizer } from "./PanelResizer";
 import { PanelToggle } from "./PanelToggle";
 import { SearchPanel } from "./SearchPanel";
@@ -113,18 +118,110 @@ export function LeftSidebar() {
   );
 }
 
+const SECTIONS_KEY = "axisnotes:right-panel-sections";
+type SectionId = "calendar" | "outline" | "graph";
+
+/** Which right-panel sections are open (this device; all open at first). */
+function useOpenSections() {
+  const [open, setOpen] = useState<Record<SectionId, boolean>>(() => {
+    try {
+      return {
+        calendar: true,
+        outline: true,
+        graph: true,
+        ...JSON.parse(localStorage.getItem(SECTIONS_KEY) ?? "{}"),
+      };
+    } catch {
+      return { calendar: true, outline: true, graph: true };
+    }
+  });
+  const toggle = (id: SectionId) =>
+    setOpen((o) => {
+      const next = { ...o, [id]: !o[id] };
+      try {
+        localStorage.setItem(SECTIONS_KEY, JSON.stringify(next));
+      } catch {
+        // Not remembered, that's all.
+      }
+      return next;
+    });
+  return [open, toggle] as const;
+}
+
+function SectionToggle(p: { title: string; open: boolean; onToggle(): void }) {
+  return (
+    <button className="side-section-toggle" aria-expanded={p.open} onClick={p.onToggle}>
+      {p.open ? (
+        <ChevronDown size={13} aria-hidden="true" />
+      ) : (
+        <ChevronRight size={13} aria-hidden="true" />
+      )}
+      {p.title}
+    </button>
+  );
+}
+
+/**
+ * The right panel shows what fits the open view: the calendar (not on Home, which has its
+ * own), and for a note its outline, local graph and links. Grids and canvases get their
+ * links; Graph, Tasks and Time only the calendar. Sections fold, remembered per device.
+ */
 export function RightSidebar() {
+  const view = useAppStore((s) => s.mainView);
+  const activePath = useAppStore((s) => s.activePath);
+  const tabPath = useAppStore((s) => activeTab(s.tabs).path);
+  const [open, toggle] = useOpenSections();
+  const file = view === "note" ? activePath : null;
+  const kind = file ? docKind(file) : null;
+  const isNote = kind === "markdown";
+  const linkable = isNote || kind === "grid" || kind === "canvas";
+  const onHome = view === "dashboard" && (tabPath ?? "") === "";
   return (
     <aside className="sidebar sidebar-right" aria-label="Links">
       {/* Under the window's own buttons, level with the tab row; it moves the window. */}
       {backend.windowFrame && <div className="sidebar-right-head" data-tauri-drag-region />}
-      <Calendar />
-      <Suspense fallback={null}>
-        <LocalGraph />
-      </Suspense>
-      <div className="sidebar-body">
-        <BacklinksPanel />
-      </div>
+      {!onHome && (
+        <section className="side-section" aria-label="Calendar section">
+          <h2 className="side-section-head">
+            <SectionToggle
+              title="Calendar"
+              open={open.calendar}
+              onToggle={() => toggle("calendar")}
+            />
+          </h2>
+          {open.calendar && <Calendar />}
+        </section>
+      )}
+      {isNote && file && (
+        <section className="side-section side-outline" aria-label="Outline section">
+          <h2 className="side-section-head">
+            <SectionToggle title="Outline" open={open.outline} onToggle={() => toggle("outline")} />
+          </h2>
+          {open.outline && <OutlinePanel path={file} />}
+        </section>
+      )}
+      {isNote &&
+        (open.graph ? (
+          <Suspense fallback={null}>
+            <LocalGraph
+              toggle={<SectionToggle title="Local graph" open onToggle={() => toggle("graph")} />}
+            />
+          </Suspense>
+        ) : (
+          <section className="side-section" aria-label="Local graph">
+            <h2 className="side-section-head">
+              <SectionToggle title="Local graph" open={false} onToggle={() => toggle("graph")} />
+            </h2>
+          </section>
+        ))}
+      {linkable && (
+        <div className="sidebar-body">
+          <BacklinksPanel />
+        </div>
+      )}
+      {!file && (
+        <p className="panel-note muted side-hint">Open a note to see its outline and links.</p>
+      )}
       <PanelResizer side="right" />
     </aside>
   );
