@@ -25,7 +25,7 @@ import { guardWindowClose } from "./features/files/closeGuard";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
-import { useLayout } from "./app/layout";
+import { closeOverlay, isPanelOpen, useLayout } from "./app/layout";
 import { activeTab } from "./app/tabs";
 
 // Views other than the note editor load on first use (grids also need the formula
@@ -58,12 +58,31 @@ export default function App() {
   const notice = useAppStore((s) => s.notice);
   const indexing = useAppStore((s) => s.indexing);
   const refreshTree = useAppStore((s) => s.refreshTree);
-  const showLeft = useLayout((s) => s.left);
-  const showRight = useLayout((s) => s.right);
+  const compact = useLayout((s) => s.compact);
+  const overlay = useLayout((s) => s.overlay);
+  const showLeft = useLayout((s) => isPanelOpen(s, "left"));
+  const showRight = useLayout((s) => isPanelOpen(s, "right"));
   const leftWidth = useLayout((s) => s.leftWidth);
   const rightWidth = useLayout((s) => s.rightWidth);
   const rightMounted = usePresence(showRight);
   useClipNotices();
+
+  // Compact: an open panel closes once something is opened from it, or on Escape.
+  useEffect(
+    () =>
+      useAppStore.subscribe((s, prev) => {
+        if (s.activePath !== prev.activePath || s.mainView !== prev.mainView) closeOverlay();
+      }),
+    [],
+  );
+  useEffect(() => {
+    if (!overlay) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented && !useUi.getState().modal) closeOverlay();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [overlay]);
 
   // Restore a vault the backend already has open (e.g. after a webview reload), or
   // reopen the last one used on this device.
@@ -170,11 +189,14 @@ export default function App() {
 
   return (
     <div
-      className="shell"
+      className={compact ? "shell compact" : "shell"}
       // A hidden panel's column is 0 px rather than removed, so it can slide (see .shell).
       style={
         {
-          gridTemplateColumns: `${showLeft ? leftWidth : 0}px minmax(0, 1fr) ${showRight ? rightWidth : 0}px`,
+          // Compact: the panels open over the note, so they take no column.
+          gridTemplateColumns: compact
+            ? "0px minmax(0, 1fr) 0px"
+            : `${showLeft ? leftWidth : 0}px minmax(0, 1fr) ${showRight ? rightWidth : 0}px`,
           "--left-width": `${leftWidth}px`,
           "--right-width": `${rightWidth}px`,
         } as CSSProperties
@@ -236,6 +258,8 @@ export default function App() {
           <RightSidebar />
         </div>
       )}
+      {/* Compact: clicking beside the open panel closes it. */}
+      {compact && overlay && <div className="overlay-scrim" onMouseDown={closeOverlay} />}
       <WindowControls />
       <Modals />
       <UpdateBanner />
