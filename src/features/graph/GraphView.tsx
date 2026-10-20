@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Crosshair, Network, Settings2, Workflow, X } from "lucide-react";
+import { Crosshair, Maximize, Network, Settings2, Workflow, X } from "lucide-react";
 import { backend, type GraphData } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
@@ -98,7 +98,9 @@ export function GraphView() {
     },
     [setMainView],
   );
-  const { animate } = useSigma(container, graph, open, activePath, {
+  const { animate, fit } = useSigma(container, graph, open, activePath, {
+    // Wide enough that labels at the right edge aren't cut off.
+    padding: 72,
     display: settings.display,
     forces: settings.forces,
     groupColors: groups,
@@ -176,6 +178,11 @@ export function GraphView() {
           {count}
         </span>
         <div className="graph-actions">
+          {isGraph ? (
+            <button type="button" aria-label="Fit graph" title="Fit graph to view" onClick={fit}>
+              <Maximize size={16} />
+            </button>
+          ) : null}
           {isGraph ? (
             <button
               type="button"
