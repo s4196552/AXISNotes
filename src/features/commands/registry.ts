@@ -125,7 +125,7 @@ registerCommands([
   },
   {
     id: "import-obsidian",
-    label: "Import from Obsidian…",
+    label: "Import notes (Notion, Obsidian, Evernote, Markdown)…",
     run: () => useUi.getState().open({ kind: "import" }),
   },
   { id: "time", label: "Time report", run: () => useAppStore.getState().setMainView("time") },

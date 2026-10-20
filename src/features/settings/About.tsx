@@ -42,7 +42,7 @@ export function About() {
       </ul>
       <div className="about-actions">
         <button onClick={() => open({ kind: "getting-started" })}>Getting started</button>
-        <button onClick={() => open({ kind: "import" })}>Import from Obsidian…</button>
+        <button onClick={() => open({ kind: "import" })}>Import notes…</button>
       </div>
       <h3>Open source</h3>
       <p className="muted">

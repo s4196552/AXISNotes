@@ -416,35 +416,72 @@ export function createMemoryBackend(
     importDropped: async () => ({ paths: [], failed: [] }),
     pickAttachments: async () => ({ paths: [], failed: [] }),
     onFilesDropped: async () => () => {},
-    // The browser preview can't read folders on disk: importing adds a sample note.
-    inspectImport: async (source) => ({ obsidian: true, name: baseName(source) || "Vault" }),
-    async importObsidian(_source, target) {
+    // The browser preview can't read files on disk: importing adds sample notes.
+    inspectImport: async (kind, source) => ({
+      name: baseName(source.replace(/\\/g, "/")).replace(/\.(zip|enex)$/i, "") || "Export",
+      notes: 2,
+      attachments: kind === "evernote" ? 1 : 0,
+      tables: kind === "notion" ? 1 : 0,
+      canvases: kind === "obsidian" ? 1 : 0,
+      looksLike: null,
+      warnings: [],
+    }),
+    async importNotes(kind, _source, target, options, onProgress) {
       requireVault();
-      const dir = normalize(target);
-      const path = dir ? `${dir}/From Obsidian.md` : "From Obsidian.md";
-      const exists = nodes.has(path);
-      if (!exists)
-        put(path, {
-          kind: "file",
-          content: "# From Obsidian\n\n[[Welcome]]\n",
-          modifiedMs: tick(),
-        });
+      const base = normalize(target);
+      if (!base) fail("InvalidName", "choose a folder to import into");
+      let dir = base;
+      for (let n = 2; nodes.has(dir); n++) dir = `${base} ${n}`;
+      const label = {
+        obsidian: "Obsidian",
+        notion: "Notion",
+        markdown: "Markdown",
+        evernote: "Evernote",
+      }[kind];
+      const files: [string, string][] = [
+        [
+          `${dir}/From ${label}.md`,
+          `# From ${label}\n\nSee [[${dir}/Second note|the second note]].\n`,
+        ],
+        [`${dir}/Second note.md`, "# Second note\n\n[[Welcome]]\n"],
+      ];
+      if (kind === "notion")
+        files.push(
+          options?.tablesAsMarkdown
+            ? [`${dir}/Tasks.md`, "# Tasks\n\n| Name | Status |\n| --- | --- |\n| Write | Done |\n"]
+            : [
+                `${dir}/Tasks.axgrid`,
+                JSON.stringify({
+                  version: 1,
+                  rows: 100,
+                  cols: 26,
+                  cells: { A1: "Name", A2: "Write" },
+                }),
+              ],
+        );
+      put(dir, { kind: "dir", content: "", modifiedMs: tick() });
+      files.forEach(([path, content], i) => {
+        put(path, { kind: "file", content, modifiedMs: tick() });
+        onProgress?.({ done: i + 1, total: files.length });
+      });
       return {
         target: dir,
-        notes: exists ? 0 : 1,
+        notes: 2,
         attachments: 0,
         canvases: 0,
-        skipped: exists
-          ? [{ path: "From Obsidian.md", reason: "already exists in the vault" }]
-          : [],
+        tables: kind === "notion" ? 1 : 0,
+        links: 1,
+        skipped: [],
+        warnings: [],
         settings: {
-          templatesFolder: dir ? `${dir}/Templates` : "Templates",
+          templatesFolder: kind === "obsidian" ? `${dir}/Templates` : null,
           dailyFolder: null,
           dailyFormat: null,
           dailyTemplate: null,
         },
       };
     },
+    pickImportFile: async (_label, extensions) => `/memory/export.${extensions[0] ?? "zip"}`,
     async pickFolder() {
       return "/memory";
     },

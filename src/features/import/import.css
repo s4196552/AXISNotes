@@ -1,5 +1,5 @@
 .import-dialog {
-  width: min(600px, calc(100vw - 32px));
+  width: min(640px, calc(100vw - 32px));
 }
 .import-dialog p {
   margin: 4px 0;
@@ -10,8 +10,18 @@
   gap: 8px;
   margin: 6px 0;
 }
-.import-row input:not([type="checkbox"]) {
+.import-row input:not([type="checkbox"]),
+.import-row select {
   flex: 1;
+  min-width: 0;
+}
+.import-row select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
 }
 .import-skipped {
   max-height: 160px;
@@ -19,4 +29,84 @@
   padding-left: 18px;
   overflow: auto;
   font-size: 12px;
+}
+
+/* One row per app: icon, name and how to export, then the pickers. */
+.import-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 2px;
+  padding: 0;
+  list-style: none;
+}
+.import-source {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.import-source-icon {
+  color: var(--accent);
+}
+.import-source-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.import-source-text .muted {
+  font-size: 12px;
+}
+.import-source-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 150px;
+}
+.import-source-actions button {
+  justify-content: center;
+}
+.import-source-actions button {
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .import-source {
+    grid-template-columns: auto 1fr;
+  }
+  .import-source-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    width: auto;
+  }
+}
+
+.import-hint,
+.import-warnings {
+  font-size: 12px;
+}
+.import-warnings {
+  margin: 6px 0;
+  padding: 6px 10px 6px 26px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+}
+.import-dialog .link-button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.import-progress progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
 }

@@ -8,6 +8,8 @@ import type {
   Backend,
   Clipped,
   FilesDropped,
+  ImportProgress,
+  ImportReport,
   IndexProgress,
   VaultChange,
   VaultInfo,
@@ -19,6 +21,7 @@ export const INDEX_PROGRESS_EVENT = "index://progress";
 export const AI_DELTA_EVENT = "ai://delta";
 export const CLIPPED_EVENT = "clipper://clipped";
 export const FILES_DROPPED_EVENT = "attachments://dropped";
+export const IMPORT_PROGRESS_EVENT = "import://progress";
 
 export function createTauriBackend(): Backend {
   // The open vault's root, for file URLs (kept in sync by open/create/current).
@@ -128,8 +131,21 @@ export function createTauriBackend(): Backend {
     async onFilesDropped(cb) {
       return listen<FilesDropped>(FILES_DROPPED_EVENT, (e) => cb(e.payload));
     },
-    inspectImport: (source) => invoke("inspect_import", { source }),
-    importObsidian: (source, target) => invoke("import_obsidian", { source, target }),
+    inspectImport: (kind, source) => invoke("inspect_import", { kind, source }),
+    async importNotes(kind, source, target, options, onProgress) {
+      const unlisten = onProgress
+        ? await listen<ImportProgress>(IMPORT_PROGRESS_EVENT, (e) => onProgress(e.payload))
+        : () => {};
+      try {
+        return await invoke<ImportReport>("import_notes", { kind, source, target, options });
+      } finally {
+        unlisten();
+      }
+    },
+    async pickImportFile(label, extensions) {
+      const picked = await open({ multiple: false, filters: [{ name: label, extensions }] });
+      return typeof picked === "string" ? picked : null;
+    },
     async onVaultChanged(cb) {
       return listen<{ changes: VaultChange[] }>(VAULT_CHANGED_EVENT, (e) => cb(e.payload.changes));
     },
