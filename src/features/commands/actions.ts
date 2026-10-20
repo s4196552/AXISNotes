@@ -306,34 +306,43 @@ export async function followLink(inner: string, from: string, opts?: OpenOptions
   return useAppStore.getState().openLink(inner, from, opts);
 }
 
-/** Open the daily note for `date`, creating it from the daily template if needed. */
-export async function openDailyNote(date = new Date(), target?: OpenTarget, opts?: OpenOptions) {
+/**
+ * Make sure the daily note for `date` exists, creating it from the daily template if not.
+ * `cursorLine` (the template's cursor) is set only when it was just created.
+ */
+export async function ensureDailyNote(
+  date = new Date(),
+): Promise<{ path: string; cursorLine?: number }> {
   const store = useAppStore.getState();
   const path = dailyNotePath(date);
-  try {
-    if (!store.notes.some((n) => n.path === path)) {
-      const cfg = useConfig.getState().config.dailyNotes;
-      let body = BUILTIN_TEMPLATES.find((t) => t.id === "builtin:daily")!.body;
-      if (cfg.template) {
-        try {
-          body = (await backend.readFile(cfg.template)).content;
-        } catch {
-          store.setError(`Daily note template not found: ${cfg.template}`);
-        }
-      }
-      const { text, cursor } = renderTemplate(body, { title: noteName(path), now: date });
-      try {
-        await backend.createFile(path, text);
-      } catch (e) {
-        if (!(isBackendError(e) && e.code === "AlreadyExists")) throw e;
-      }
-      await store.refreshTree();
-      // A heading or block the link asked for wins over the template's cursor.
-      const jump = target?.heading || target?.block ? target : undefined;
-      useAppStore.getState().openFile(path, jump ?? { line: lineOfOffset(text, cursor) }, opts);
-      return;
+  if (store.notes.some((n) => n.path === path)) return { path };
+  const cfg = useConfig.getState().config.dailyNotes;
+  let body = BUILTIN_TEMPLATES.find((t) => t.id === "builtin:daily")!.body;
+  if (cfg.template) {
+    try {
+      body = (await backend.readFile(cfg.template)).content;
+    } catch {
+      store.setError(`Daily note template not found: ${cfg.template}`);
     }
-    store.openFile(path, target, opts);
+  }
+  const { text, cursor } = renderTemplate(body, { title: noteName(path), now: date });
+  try {
+    await backend.createFile(path, text);
+  } catch (e) {
+    if (!(isBackendError(e) && e.code === "AlreadyExists")) throw e;
+  }
+  await store.refreshTree();
+  return { path, cursorLine: lineOfOffset(text, cursor) };
+}
+
+/** Open the daily note for `date`, creating it from the daily template if needed. */
+export async function openDailyNote(date = new Date(), target?: OpenTarget, opts?: OpenOptions) {
+  try {
+    const { path, cursorLine } = await ensureDailyNote(date);
+    // A heading or block the link asked for wins over a new note's template cursor.
+    const jump =
+      cursorLine === undefined || target?.heading || target?.block ? target : { line: cursorLine };
+    useAppStore.getState().openFile(path, jump, opts);
   } catch (e) {
     report(e);
   }

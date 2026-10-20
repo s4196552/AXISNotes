@@ -1,9 +1,11 @@
-import { createElement, type ReactNode, useEffect, useMemo, useState } from "react";
+import { createElement, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   CalendarDays,
   CalendarClock,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Folder,
   History,
@@ -21,7 +23,8 @@ import { backend, isBackendError, type TaskRef, type VaultEntry } from "../../ip
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { formatDate } from "../../lib/dates";
-import { dailyNotePath, openDailyNote } from "../commands/actions";
+import { dailyNotePath, ensureDailyNote, openDailyNote } from "../commands/actions";
+import { editNote } from "../files/editNote";
 import { Picker, type PickerItem } from "../commands/Picker";
 import { Calendar } from "../daily/Calendar";
 import { EntryIcon } from "../icons/EntryIcon";
@@ -31,19 +34,26 @@ import { kindIcon } from "../tabs/tabInfo";
 import { displayName } from "../filetree/treeModel";
 import { saveWidgets, setDashboard } from "./setDashboard";
 import {
+  addDays,
   addWidget,
+  appendToNote,
   dashboardFor,
   defaultDashboard,
+  dueCounts,
   entriesByPath,
   fileCount,
   HOME,
   inScope,
   linkCandidates,
   moveWidget,
+  nowIndex,
   recentFiles,
   removeWidget,
   selectDailyTasks,
   selectSchedule,
+  type TaskGroup,
+  taskGroup,
+  type TaskRange,
   updateWidget,
   type Widget,
   WIDGET_TYPES,
@@ -66,17 +76,46 @@ const WIDGET_ICONS: Record<WidgetType, typeof Pin> = {
 const errorText = (e: unknown) => (isBackendError(e) ? e.message : String(e));
 const noteName = (path: string) => path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
 
-/** Tasks and today's daily note, shared by the tasks and schedule widgets. */
+const dayOf = (date: Date) => formatDate(date, "YYYY-MM-DD");
+const dateOf = (day: string) => new Date(`${day}T00:00:00`);
+
+/** Today's date, which moves on at midnight (and on waking, if the computer slept past it). */
+function useDay(): string {
+  const [day, setDay] = useState(() => dayOf(new Date()));
+  useEffect(() => {
+    const check = () => setDay(dayOf(new Date()));
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+    const timer = window.setTimeout(check, midnight.getTime() - now.getTime());
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [day]);
+  return day;
+}
+
+/** The time now as `HH:MM`, kept current while `enabled`. */
+function useClock(enabled: boolean): string {
+  const [now, setNow] = useState(() => formatDate(new Date(), "HH:mm"));
+  useEffect(() => {
+    if (!enabled) return;
+    const tick = () => setNow(formatDate(new Date(), "HH:mm"));
+    tick();
+    const timer = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(timer);
+  }, [enabled]);
+  return now;
+}
+
+/** The vault's tasks and today's date and daily note path, for the planning widgets. */
 function useToday(enabled: boolean) {
   const indexVersion = useAppStore((s) => s.indexVersion);
-  const notes = useAppStore((s) => s.notes);
   const dailyCfg = useConfig((s) => s.config.dailyNotes);
   const [tasks, setTasks] = useState<TaskRef[] | null>(null);
-  const [daily, setDaily] = useState<{ path: string; content: string } | null>(null);
-  const now = new Date();
-  const today = formatDate(now, "YYYY-MM-DD");
-  const dailyPath = dailyNotePath(now, dailyCfg);
-  const dailyExists = notes.some((n) => n.path === dailyPath);
+  const today = useDay();
+  const dailyPath = dailyNotePath(dateOf(today), dailyCfg);
 
   useEffect(() => {
     if (!enabled) return;
@@ -85,20 +124,44 @@ function useToday(enabled: boolean) {
       (t) => !cancelled && setTasks(t),
       (e: unknown) => !cancelled && useAppStore.getState().setError(errorText(e)),
     );
-    if (dailyExists) {
-      backend.readFile(dailyPath).then(
-        (f) => !cancelled && setDaily({ path: dailyPath, content: f.content }),
-        () => !cancelled && setDaily(null),
-      );
-    }
     return () => {
       cancelled = true;
     };
-  }, [enabled, indexVersion, dailyPath, dailyExists]);
+  }, [enabled, indexVersion]);
 
-  // Yesterday's note (after midnight) or a note since deleted isn't today's.
-  const current = dailyExists && daily?.path === dailyPath ? daily : null;
-  return { tasks, daily: current, today, dailyPath };
+  return { tasks, today, dailyPath };
+}
+
+/** A note's text, or null while loading or when it doesn't exist. */
+function useNote(path: string) {
+  const indexVersion = useAppStore((s) => s.indexVersion);
+  const exists = useAppStore((s) => s.notes.some((n) => n.path === path));
+  const [note, setNote] = useState<{ path: string; content: string } | null>(null);
+  useEffect(() => {
+    if (!exists) return;
+    let cancelled = false;
+    backend.readFile(path).then(
+      (f) => !cancelled && setNote({ path, content: f.content }),
+      () => !cancelled && setNote(null),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [exists, path, indexVersion]);
+  // A note since deleted, or another day's, isn't this one.
+  return exists && note?.path === path ? note : null;
+}
+
+/** Add a line to the daily note for `day` (creating it from the template), where it fits. */
+async function addToDailyNote(day: string, line: string): Promise<boolean> {
+  try {
+    const { path } = await ensureDailyNote(dateOf(day));
+    await editNote(path, (text) => appendToNote(text, line));
+    return true;
+  } catch (e) {
+    useAppStore.getState().setError(errorText(e));
+    return false;
+  }
 }
 
 export function Dashboard({ folder }: { folder: string }) {
@@ -110,7 +173,10 @@ export function Dashboard({ folder }: { folder: string }) {
   const dashboard = useMemo(() => dashboardFor(saved, folder), [saved, folder]);
   const entries = useMemo(() => entriesByPath(tree), [tree]);
   const widgets = dashboard?.widgets ?? [];
-  const needsToday = widgets.some((w) => w.type === "tasks" || w.type === "schedule");
+  // The calendar marks days with tasks due, so it needs the tasks too.
+  const needsToday = widgets.some(
+    (w) => w.type === "tasks" || w.type === "schedule" || w.type === "calendar",
+  );
   const today = useToday(needsToday);
 
   const isHome = folder === HOME;
@@ -338,9 +404,9 @@ function WidgetBody(props: { widget: Widget; folder: string; editing: boolean; t
   const { widget, folder, today } = props;
   switch (widget.type) {
     case "calendar":
-      return <Calendar />;
+      return <CalendarWidget folder={folder} data={today} />;
     case "tasks":
-      return <TasksWidget folder={folder} data={today} />;
+      return <TasksWidget widget={widget} folder={folder} data={today} />;
     case "schedule":
       return <ScheduleWidget folder={folder} data={today} />;
     case "links":
@@ -378,90 +444,245 @@ function SourceButton({ path, line }: { path: string; line: number }) {
   );
 }
 
-function TasksWidget({ folder, data }: { folder: string; data: TodayData }) {
-  const { tasks, today, dailyPath } = data;
-  const list = useMemo(
-    () => (tasks ? selectDailyTasks(tasks, { today, folder, dailyPath }) : null),
-    [tasks, today, folder, dailyPath],
+function CalendarWidget({ folder, data }: { folder: string; data: TodayData }) {
+  const marks = useMemo(
+    () => (data.tasks ? dueCounts(data.tasks, folder) : undefined),
+    [data.tasks, folder],
   );
+  // Keyed by the day, so it moves to the new month at midnight.
+  return <Calendar key={data.today} today={dateOf(data.today)} marks={marks} />;
+}
+
+/** A one-line form that adds what's typed to a daily note; it clears once added. */
+function QuickAdd(props: {
+  label: string;
+  placeholder: string;
+  withTime?: boolean;
+  onAdd(text: string, time: string): Promise<boolean>;
+}) {
+  const [text, setText] = useState("");
+  const [time, setTime] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const value = text.trim();
+    if (!value || busy || (props.withTime && !time)) return;
+    setBusy(true);
+    void props.onAdd(value, time).then((ok) => {
+      setBusy(false);
+      if (ok) {
+        setText("");
+        setTime("");
+      }
+    });
+  };
+  return (
+    <form className="dashboard-quick-add" onSubmit={submit}>
+      {props.withTime && (
+        <input
+          type="time"
+          aria-label="Time"
+          value={time}
+          required
+          onChange={(e) => setTime(e.target.value)}
+        />
+      )}
+      <input
+        aria-label={props.label}
+        placeholder={props.placeholder}
+        value={text}
+        disabled={busy}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button type="submit" title={props.label} disabled={busy}>
+        <Plus size={14} aria-hidden />
+        <span className="visually-hidden">{props.label}</span>
+      </button>
+    </form>
+  );
+}
+
+const GROUP_LABELS: Record<TaskGroup, string> = {
+  overdue: "Overdue",
+  today: "Today",
+  upcoming: "Next 7 days",
+};
+
+function TaskRow({ task: t, today }: { task: TaskRef; today: string }) {
+  const group = taskGroup(t, today);
+  return (
+    <li className={t.done ? "done" : undefined}>
+      <TaskCheck task={t} today={today} />
+      <span className="dashboard-text">{t.text || <span className="muted">(empty)</span>}</span>
+      {PRIORITY[t.priority] && (
+        <span title={PRIORITY[t.priority]!.label} aria-label={PRIORITY[t.priority]!.label}>
+          {PRIORITY[t.priority]!.mark}
+        </span>
+      )}
+      {group !== "today" && t.due && (
+        <span
+          className={group === "overdue" ? "dashboard-overdue" : "dashboard-due"}
+          title={group === "overdue" ? "Overdue" : "Due"}
+        >
+          {formatDate(dateOf(t.due), group === "overdue" ? "MMM D" : "ddd D")}
+        </span>
+      )}
+      <SourceButton path={t.path} line={t.line} />
+    </li>
+  );
+}
+
+function TasksWidget(props: { widget: Widget; folder: string; data: TodayData }) {
+  const { widget, folder, data } = props;
+  const { tasks, today, dailyPath } = data;
+  const range: TaskRange = widget.options?.range ?? "today";
+  const list = useMemo(() => {
+    if (!tasks) return null;
+    const horizon = range === "week" ? addDays(today, 7) : today;
+    return selectDailyTasks(tasks, { today, folder, dailyPath, horizon });
+  }, [tasks, today, folder, dailyPath, range]);
   if (!list) return <p className="muted dashboard-note">Loading…</p>;
+
   const open = list.filter((t) => !t.done).length;
+  const setRange = (r: TaskRange) =>
+    saveWidgets(folder, (ws) =>
+      updateWidget(ws, widget.id, { options: { ...widget.options, range: r } }),
+    );
+  // The week under Overdue / Today / Next 7 days headings; today's tasks as one list.
+  const groups: [TaskGroup | null, TaskRef[]][] =
+    range === "week"
+      ? (["overdue", "today", "upcoming"] as const)
+          .map((g): [TaskGroup, TaskRef[]] => [g, list.filter((t) => taskGroup(t, today) === g)])
+          .filter(([, ts]) => ts.length > 0)
+      : [[null, list]];
+  const none = range === "week" ? "Nothing due this week." : "Nothing due today.";
+
   return (
     <>
-      <p className="muted dashboard-note">{open === 0 ? "Nothing due today." : `${open} to do`}</p>
-      <ul className="dashboard-list">
-        {list.map((t) => {
-          const overdue = !t.done && t.due !== null && t.due < today;
-          return (
-            <li key={`${t.path}:${t.line}`} className={t.done ? "done" : undefined}>
-              <TaskCheck task={t} today={today} />
-              <span className="dashboard-text">
-                {t.text || <span className="muted">(empty)</span>}
-              </span>
-              {PRIORITY[t.priority] && (
-                <span title={PRIORITY[t.priority]!.label} aria-label={PRIORITY[t.priority]!.label}>
-                  {PRIORITY[t.priority]!.mark}
-                </span>
-              )}
-              {overdue && (
-                <span className="dashboard-overdue" title="Overdue">
-                  {formatDate(new Date(`${t.due}T00:00:00`), "MMM D")}
-                </span>
-              )}
-              <SourceButton path={t.path} line={t.line} />
-            </li>
-          );
-        })}
-      </ul>
+      <div className="dashboard-note dashboard-row">
+        <span className="muted">{open === 0 ? none : `${open} to do`}</span>
+        <div className="dashboard-segmented" role="group" aria-label="Show tasks for">
+          {(["today", "week"] as const).map((r) => (
+            <button key={r} aria-pressed={range === r} onClick={() => setRange(r)}>
+              {r === "today" ? "Today" : "7 days"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {groups.map(([g, ts]) => (
+        <div key={g ?? "all"}>
+          {g && <h3 className="dashboard-group">{GROUP_LABELS[g]}</h3>}
+          <ul className="dashboard-list">
+            {ts.map((t) => (
+              <TaskRow key={`${t.path}:${t.line}`} task={t} today={today} />
+            ))}
+          </ul>
+        </div>
+      ))}
+      {inScope(dailyPath, folder) && (
+        <QuickAdd
+          label="Add a task"
+          placeholder="Add a task to today's note…"
+          onAdd={(text) => addToDailyNote(today, `- [ ] ${text}`)}
+        />
+      )}
     </>
   );
 }
 
 function ScheduleWidget({ folder, data }: { folder: string; data: TodayData }) {
-  const { tasks, daily, today } = data;
+  const { tasks, today } = data;
+  const dailyCfg = useConfig((s) => s.config.dailyNotes);
+  const [offset, setOffset] = useState(0);
+  const day = addDays(today, offset);
+  const isToday = offset === 0;
+  const dailyPath = dailyNotePath(dateOf(day), dailyCfg);
+  const daily = useNote(dailyPath);
+  const now = useClock(isToday);
   const items = useMemo(
-    () => (tasks ? selectSchedule({ tasks, today, folder, daily }) : null),
-    [tasks, today, folder, daily],
+    () => (tasks ? selectSchedule({ tasks, today: day, folder, daily }) : null),
+    [tasks, day, folder, daily],
   );
-  if (!items) return <p className="muted dashboard-note">Loading…</p>;
+  const canAdd = inScope(dailyPath, folder);
+  const nowAt = isToday && items ? nowIndex(items, now) : -1;
+  const nowLine = (
+    <li key="now" className="dashboard-now" role="separator" aria-label={`Now, ${now}`}>
+      <span>{now}</span>
+    </li>
+  );
+
   return (
     <>
-      <p className="muted dashboard-note">{formatDate(new Date(), "dddd, MMMM D")}</p>
-      {items.length === 0 ? (
+      <div className="dashboard-note dashboard-row">
+        <span className="muted">{formatDate(dateOf(day), "dddd, MMMM D")}</span>
+        <div className="dashboard-day-nav">
+          <button
+            aria-label="Previous day"
+            title="Previous day"
+            onClick={() => setOffset(offset - 1)}
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <button disabled={isToday} onClick={() => setOffset(0)}>
+            Today
+          </button>
+          <button aria-label="Next day" title="Next day" onClick={() => setOffset(offset + 1)}>
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      </div>
+      {!items ? (
+        <p className="muted dashboard-note">Loading…</p>
+      ) : items.length === 0 ? (
         <div className="dashboard-hint muted">
-          {inScope(data.dailyPath, folder) ? (
-            <>
-              <p>
-                Nothing scheduled. Start a line in today&apos;s daily note with a time, like{" "}
-                <code>- 09:00 Standup</code>, or give a task due today a time.
-              </p>
-              <button className="pill" onClick={() => void openDailyNote()}>
-                <CalendarDays size={14} aria-hidden /> Open today&apos;s note
-              </button>
-            </>
+          {canAdd ? (
+            <p>
+              Nothing scheduled. Add a time below, or start a line in the daily note with one, like{" "}
+              <code>- 09:00 Standup</code>.
+            </p>
           ) : (
             <p>
-              Nothing scheduled. Give a task in this folder that&apos;s due today a time, like{" "}
-              <code>- [ ] 14:00 Lab 📅 {today}</code>.
+              Nothing scheduled. Give a task in this folder that&apos;s due that day a time, like{" "}
+              <code>- [ ] 14:00 Lab 📅 {day}</code>.
             </p>
+          )}
+          {canAdd && isToday && (
+            <button className="pill" onClick={() => void openDailyNote()}>
+              <CalendarDays size={14} aria-hidden /> Open today&apos;s note
+            </button>
           )}
         </div>
       ) : (
         <ol className="dashboard-list dashboard-schedule">
-          {items.map((it) => (
-            <li key={`${it.path}:${it.line}`} className={it.task?.done ? "done" : undefined}>
-              <time className="dashboard-time">
-                <Clock size={12} aria-hidden /> {it.start}
-                {it.end && `–${it.end}`}
-              </time>
-              {it.task && <TaskCheck task={it.task} today={today} />}
-              <span className="dashboard-text">
-                {it.rest || <span className="muted">(no title)</span>}
-              </span>
-              <SourceButton path={it.path} line={it.line} />
-            </li>
-          ))}
+          {items.flatMap((it, i) => {
+            const classes = [it.task?.done && "done", i < nowAt && "past"].filter(Boolean);
+            const row = (
+              <li key={`${it.path}:${it.line}`} className={classes.join(" ") || undefined}>
+                <time className="dashboard-time">
+                  <Clock size={12} aria-hidden /> {it.start}
+                  {it.end && `–${it.end}`}
+                </time>
+                {it.task && <TaskCheck task={it.task} today={today} />}
+                <span className="dashboard-text">
+                  {it.rest || <span className="muted">(no title)</span>}
+                </span>
+                <SourceButton path={it.path} line={it.line} />
+              </li>
+            );
+            return i === nowAt ? [nowLine, row] : [row];
+          })}
+          {nowAt === items.length && nowLine}
         </ol>
+      )}
+      {canAdd && (
+        <QuickAdd
+          label="Add to schedule"
+          placeholder={
+            isToday ? "Add to today…" : `Add to ${formatDate(dateOf(day), "ddd, MMM D")}…`
+          }
+          withTime
+          onAdd={(text, time) => addToDailyNote(day, `- ${time} ${text}`)}
+        />
       )}
     </>
   );
