@@ -128,6 +128,8 @@ interface Mounted {
   setForces(f: ForceSettings): void;
   /** Scatter the nodes and lay the graph out again, visibly. */
   animate(): void;
+  /** Frame every node again, after the user panned or zoomed away. */
+  fit(): void;
 }
 
 /**
@@ -143,6 +145,7 @@ async function mountSigma(
   forces: ForceSettings,
   positions: Map<string, { x: number; y: number }>,
   cancelled: () => boolean,
+  padding: number,
 ): Promise<Mounted | null> {
   const { Sigma, d3 } = await loadGraphLibs();
   // A newer graph replaced this one while loading: don't start a second renderer.
@@ -202,6 +205,8 @@ async function mountSigma(
     // A hidden or minimized window can mount the view at zero size; the resize observer
     // below draws it once it has room.
     allowInvalidContainer: true,
+    // Room around the outermost nodes, so their labels (drawn to the right) aren't cut off.
+    stagePadding: padding,
     renderEdgeLabels: false,
     labelColor: { color: fg },
     labelRenderedSizeThreshold: look().display.textFade,
@@ -354,6 +359,14 @@ async function mountSigma(
       renderer.getCamera().setState({ x: 0.5, y: 0.5, ratio: 1, angle: 0 });
       sim.alpha(1).restart();
     },
+    fit() {
+      // Measure the nodes where they are now, frame them, and keep that frame for drags.
+      renderer.setCustomBBox(null);
+      renderer.refresh();
+      if (frozen) renderer.setCustomBBox(renderer.getBBox());
+      const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      void renderer.getCamera().animatedReset({ duration: reduce ? 0 : 250 });
+    },
   };
 }
 
@@ -373,6 +386,8 @@ export interface SigmaOptions {
   icons?: Readonly<Record<string, FolderIcon>>;
   forces?: ForceSettings;
   groupColors?: Map<string, string>;
+  /** Pixels kept clear around the graph (sigma's default is 30). */
+  padding?: number;
 }
 
 const NO_GROUPS = new Map<string, string>();
@@ -385,7 +400,7 @@ export function useSigma(
   onClickNode: (id: string) => void,
   highlight?: string | null,
   options: SigmaOptions = {},
-): { animate: () => void } {
+): { animate: () => void; fit: () => void } {
   const onClick = useRef(onClickNode);
   const mounted = useRef<Mounted | null>(null);
   // Where each note was drawn, so a rebuilt graph (filter, theme) doesn't jump around.
@@ -401,6 +416,7 @@ export function useSigma(
   const display = options.display ?? DEFAULT_DISPLAY;
   const groupColors = options.groupColors ?? NO_GROUPS;
   const icons = options.icons ?? NO_ICONS;
+  const padding = useRef(options.padding ?? 30);
 
   useEffect(() => {
     onClick.current = onClickNode;
@@ -429,6 +445,7 @@ export function useSigma(
       forcesRef.current,
       positions.current,
       () => disposed,
+      padding.current,
     ).then(
       (m) => {
         if (!m) return;
@@ -445,5 +462,6 @@ export function useSigma(
   }, [container, graph]);
 
   const animate = useCallback(() => mounted.current?.animate(), []);
-  return { animate };
+  const fit = useCallback(() => mounted.current?.fit(), []);
+  return { animate, fit };
 }

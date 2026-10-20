@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
     graph: { order: number };
     handlers: Record<string, (e: { node: string }) => void>;
     resizes: number;
+    resets: number;
     settings: Record<string, unknown>;
     killed: boolean;
   }[],
@@ -29,6 +30,7 @@ vi.mock("./graphLibs", () => ({
     Sigma: class {
       handlers: Record<string, (e: { node: string }) => void> = {};
       resizes = 0;
+      resets = 0;
       killed = false;
       constructor(
         public graph: { order: number },
@@ -52,7 +54,12 @@ vi.mock("./graphLibs", () => ({
       }
       setCustomBBox() {}
       getCamera() {
-        return { setState() {} };
+        return {
+          setState() {},
+          animatedReset: async () => {
+            this.resets++;
+          },
+        };
       }
       viewportToGraph(p: { x: number; y: number }) {
         return p;
@@ -391,6 +398,15 @@ describe("graph views", () => {
     draw(ctx, label, font);
     expect(texts).toEqual([["A", 108]]);
     expect(h.sigmas.length).toBe(1);
+  });
+
+  it("leaves room for edge labels and fits the graph back into view", async () => {
+    render(<GraphView />);
+    await waitFor(() => expect(h.sigmas.length).toBeGreaterThan(0));
+    const sigma = h.sigmas.at(-1)!;
+    expect(sigma.settings.stagePadding).toBe(72);
+    fireEvent.click(screen.getByRole("button", { name: "Fit graph" }));
+    expect(sigma.resets).toBe(1);
   });
 
   it("closes back to the note", async () => {

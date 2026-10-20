@@ -90,6 +90,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-104 | 6     | Dashboard customizing: drag widgets and pinned cards (plus move buttons), normal/wide size, rename any widget, Recent file count | claude | merged      | agent/claude/T-104 | `src/features/dashboard/**` |
 | T-105 | 6     | Dashboard polish: [[links]] and formatting in task text (dashboard and Tasks view), one tree index per dashboard, real-app WDIO spec; e2e Close-button fix after T-093 | claude | merged      | agent/claude/T-105 | `src/lib/inlineMarkdown.ts`, `src/features/tasks/{InlineText,TasksView}.tsx`, `src/features/dashboard/**`, `src/features/daily/calendar.css`, `src/styles/app.css`, `e2e/{wdio.conf.ts,specs/{dashboard,ai,phase5}.e2e.ts}` |
 | T-106 | 6     | Folder dashboards show only their contents, as modules (a module per subfolder with its latest notes, one for the folder's own notes); untouched old folder dashboards switch over | claude | merged      | agent/claude/T-106 | `src/features/dashboard/**`, `e2e/specs/dashboard.e2e.ts` |
+| T-108 | 6     | Graph opens with every label in view (wider stage padding) and a Fit graph button | claude | merged      | agent/claude/T-108 | `src/features/graph/{useSigma.ts,GraphView.tsx,graph.test.tsx}` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
