@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../ipc/memoryBackend";
 import { useAppStore } from "./store";
 import { clampWidth, PANEL_WIDTH, useLayout } from "./layout";
@@ -186,5 +186,55 @@ describe("resizing side panels", () => {
     expect(clampWidth("left", 10)).toBe(PANEL_WIDTH.min);
     expect(clampWidth("right", 5000)).toBe(PANEL_WIDTH.max);
     expect(clampWidth("left", 300.4)).toBe(300);
+  });
+});
+
+describe("compact windows (side panels over the note)", () => {
+  beforeEach(() => useLayout.setState({ compact: true, overlay: null }));
+  afterEach(() => useLayout.setState({ compact: false, overlay: null }));
+
+  it("starts with both panels closed and opens one at a time over the note", () => {
+    const { container } = render(<App />);
+    const shell = container.querySelector(".shell")!;
+    expect(shell).toHaveClass("compact");
+    expect((shell as HTMLElement).style.gridTemplateColumns).toBe("0px minmax(0, 1fr) 0px");
+    expect(nav()).not.toBeInTheDocument();
+    expect(container.querySelector(".overlay-scrim")).toBeNull();
+
+    fireEvent.click(
+      within(container.querySelector("main")!).getByRole("button", { name: "Show left panel" }),
+    );
+    expect(nav()).toBeInTheDocument();
+    expect(container.querySelector(".overlay-scrim")).not.toBeNull();
+
+    // The right one replaces it rather than opening beside it.
+    fireEvent.click(
+      within(container.querySelector("main")!).getByRole("button", { name: "Show right panel" }),
+    );
+    expect(useLayout.getState().overlay).toBe("right");
+    expect(nav()).not.toBeInTheDocument();
+    // The docked layout the user chose is kept for a wide window.
+    expect(useLayout.getState()).toMatchObject({ left: true, right: true });
+  });
+
+  it("closes the panel on the scrim, on Escape and when a note opens from it", async () => {
+    const { container } = render(<App />);
+    act(() => useLayout.getState().setOverlay("left"));
+    fireEvent.mouseDown(container.querySelector(".overlay-scrim")!);
+    expect(useLayout.getState().overlay).toBeNull();
+
+    act(() => useLayout.getState().setOverlay("left"));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(useLayout.getState().overlay).toBeNull();
+
+    act(() => useLayout.getState().setOverlay("left"));
+    act(() => useAppStore.getState().openFile("Welcome.md"));
+    expect(useLayout.getState().overlay).toBeNull();
+  });
+
+  it("opens the left panel for search instead of docking it", () => {
+    render(<App />);
+    act(() => useAppStore.getState().search("tag:x"));
+    expect(useLayout.getState().overlay).toBe("left");
   });
 });

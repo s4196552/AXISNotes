@@ -7,6 +7,14 @@ const KEY = "axisnotes.layout";
 
 export type Side = "left" | "right";
 
+/**
+ * Below this width the side panels stop taking room beside the note and open over it
+ * instead (one at a time, closing when you pick something). DESIGN.md §3.
+ */
+export const COMPACT_QUERY = "(max-width: 1099px)";
+const compactNow = () =>
+  typeof window !== "undefined" && (window.matchMedia?.(COMPACT_QUERY).matches ?? false);
+
 /** Panel widths in CSS pixels: defaults, and the range a drag or arrow key can reach. */
 export const PANEL_WIDTH = {
   default: { left: 260, right: 280 },
@@ -51,6 +59,11 @@ function stored(): Saved {
 }
 
 interface LayoutState extends Saved {
+  /** The window is narrow: panels open as overlays (see COMPACT_QUERY). */
+  compact: boolean;
+  /** The panel open over the note while compact (not saved; starts closed). */
+  overlay: Side | null;
+  setOverlay(side: Side | null): void;
   setPanels(p: Partial<Pick<Saved, "left" | "right">>): void;
   /**
    * Set one panel's width (clamped). `save: false` applies it without writing local
@@ -70,6 +83,11 @@ function save(s: Saved) {
 
 export const useLayout = create<LayoutState>((set, get) => ({
   ...stored(),
+  compact: compactNow(),
+  overlay: null,
+  setOverlay(overlay) {
+    set({ overlay });
+  },
   setPanels(p) {
     set(p);
     save(get());
@@ -93,15 +111,37 @@ export const panelWidth = (side: Side) => useLayout.getState()[widthKey[side]];
 export const resetPanelWidth = (side: Side) =>
   useLayout.getState().setWidth(side, PANEL_WIDTH.default[side]);
 
+// Follow the window across the compact breakpoint; any open overlay closes.
+if (typeof window !== "undefined") {
+  window
+    .matchMedia?.(COMPACT_QUERY)
+    .addEventListener?.("change", (e) => useLayout.setState({ compact: e.matches, overlay: null }));
+}
+
+/** Whether a panel is showing: docked when the window is wide, as an overlay when compact. */
+export const isPanelOpen = (s: LayoutState, side: Side) =>
+  s.compact ? s.overlay === side : s[side];
+
 /** Hide both side panels, or bring both back if they're already hidden. */
 export function toggleSidePanels() {
-  const { left, right, setPanels } = useLayout.getState();
+  const { left, right, setPanels, compact, overlay, setOverlay } = useLayout.getState();
+  if (compact) return setOverlay(overlay ? null : "left");
   const show = !left && !right;
   setPanels({ left: show, right: show });
 }
 
-export const toggleLeftPanel = () =>
-  useLayout.getState().setPanels({ left: !useLayout.getState().left });
-export const toggleRightPanel = () =>
-  useLayout.getState().setPanels({ right: !useLayout.getState().right });
-export const showLeftPanel = () => useLayout.getState().setPanels({ left: true });
+function togglePanel(side: Side) {
+  const s = useLayout.getState();
+  if (s.compact) s.setOverlay(s.overlay === side ? null : side);
+  else s.setPanels({ [side]: !s[side] });
+}
+
+export const toggleLeftPanel = () => togglePanel("left");
+export const toggleRightPanel = () => togglePanel("right");
+export function showLeftPanel() {
+  const s = useLayout.getState();
+  if (s.compact) s.setOverlay("left");
+  else s.setPanels({ left: true });
+}
+/** Close the panel open over the note (compact windows). */
+export const closeOverlay = () => useLayout.getState().setOverlay(null);

@@ -450,3 +450,72 @@ input {
   color: var(--accent);
   text-decoration: underline dotted;
 }
+
+/* Compact windows (narrower than 1100 px, see COMPACT_QUERY in app/layout.ts): the side
+   panels open over the note, one at a time, and slide back out. */
+.shell.compact {
+  position: relative;
+}
+.shell.compact .sidebar-slot {
+  position: absolute;
+  top: 0;
+  bottom: 24px; /* the status bar stays visible */
+  z-index: 60;
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+.shell.compact .sidebar-slot.left {
+  left: 0;
+}
+.shell.compact .sidebar-slot.right {
+  right: 0;
+}
+.shell.compact .sidebar-slot.left > .sidebar {
+  width: min(var(--left-width, 260px), 86vw);
+}
+.shell.compact .sidebar-slot.right > .sidebar {
+  width: min(var(--right-width, 280px), 86vw);
+}
+.shell.compact .sidebar-slot > .sidebar {
+  box-shadow: var(--shadow-modal);
+}
+.shell.compact .sidebar-slot.left[data-closed] {
+  transform: translateX(-100%);
+}
+.shell.compact .sidebar-slot.right[data-closed] {
+  transform: translateX(100%);
+}
+.shell.compact .sidebar-slot[data-closed] {
+  transition:
+    transform 180ms cubic-bezier(0.2, 0, 0, 1),
+    visibility 0s linear 180ms;
+}
+.shell.compact .panel-resizer {
+  display: none;
+}
+.overlay-scrim {
+  position: absolute;
+  inset: 0 0 24px 0;
+  z-index: 55;
+  /* Darker than dialogs' scrim: the open panel has to stand off the note behind it. */
+  background: rgb(0 0 0 / 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .shell.compact .sidebar-slot,
+  .shell.compact .sidebar-slot[data-closed] {
+    transition: none;
+  }
+}
+
+/* Phones and very narrow windows: less padding around the note and dialogs nearer the top. */
+@media (max-width: 699px) {
+  .editor-header {
+    padding: 16px 14px 4px;
+  }
+  .editor-host .cm-content {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .modal-backdrop {
+    padding-top: 6vh;
+  }
+}

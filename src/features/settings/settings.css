@@ -227,3 +227,26 @@
   font-size: 12.5px;
   line-height: 1.5;
 }
+
+/* Phones: sections as a scrolling row above the content, and fields stacked. */
+@media (max-width: 699px) {
+  .settings {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    height: calc(100vh - 12vh);
+  }
+  .settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 6px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-nav button {
+    flex: none;
+  }
+  .settings-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+}
