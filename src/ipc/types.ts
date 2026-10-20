@@ -96,6 +96,8 @@ export interface SearchHit {
   title: string;
   /** Excerpt with matches wrapped in U+0001 � U+0002 (see `HL_START`/`HL_END`). */
   snippet: string;
+  /** The heading the first match sits under, if any (absent from older backends). */
+  heading?: string | null;
 }
 
 export const HL_START = "\u0001";

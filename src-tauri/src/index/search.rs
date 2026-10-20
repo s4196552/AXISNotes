@@ -31,6 +31,48 @@ pub struct SearchHit {
     pub title: String,
     /// Body excerpt with matches wrapped in U+0001 … U+0002; empty for filter-only queries.
     pub snippet: String,
+    /// The heading the first match sits under (the last one before it), if any.
+    pub heading: Option<String>,
+}
+
+/// The text of the last Markdown heading at or before byte `offset` of `body`, skipping
+/// code blocks. Mirrors `headingAt` in src/lib/searchText.ts.
+pub fn heading_at(body: &str, offset: usize) -> Option<String> {
+    let mut found = None;
+    let mut fence = false;
+    let mut pos = 0;
+    for line in body.split('\n') {
+        if pos > offset {
+            break;
+        }
+        let l = line.trim_end_matches('\r');
+        let t = l.trim_start();
+        if t.starts_with("```") || t.starts_with("~~~") {
+            fence = !fence;
+        } else if !fence {
+            let hashes = l.chars().take_while(|&c| c == '#').count();
+            let rest = &l[hashes..];
+            if (1..=6).contains(&hashes) && rest.starts_with([' ', '\t']) {
+                let text = rest.trim().trim_end_matches('#').trim_end();
+                if !text.is_empty() {
+                    found = Some(text.to_string());
+                }
+            }
+        }
+        pos += line.len() + 1;
+    }
+    found
+}
+
+/// Where the snippet's first highlighted word first appears in `body` (case-insensitive).
+fn first_match_offset(body: &str, snippet: &str) -> Option<usize> {
+    let start = snippet.find(HL_START)? + HL_START.len_utf8();
+    let end = start + snippet[start..].find(HL_END)?;
+    let word = snippet[start..end].to_lowercase();
+    if word.is_empty() {
+        return None;
+    }
+    body.to_lowercase().find(&word)
 }
 
 /// Split a query into terms, honoring double quotes (also in `prop:k="a b"`).
@@ -157,7 +199,7 @@ impl Index {
         let mut sql = String::from("SELECT n.path, coalesce(n.title, ''), ");
         if use_fts {
             sql.push_str(&format!(
-                "snippet(fts, 1, char({}), char({}), '…', 14) FROM notes n JOIN fts ON fts.rowid = n.id WHERE fts MATCH ?",
+                "snippet(fts, 1, char({}), char({}), '…', 14), fts.body FROM notes n JOIN fts ON fts.rowid = n.id WHERE fts MATCH ?",
                 HL_START as u32, HL_END as u32
             ));
             let mut expr = positive.join(" AND ");
@@ -166,7 +208,7 @@ impl Index {
             }
             args.insert(0, SqlValue::Text(expr));
         } else {
-            sql.push_str("'' FROM notes n WHERE 1");
+            sql.push_str("'', '' FROM notes n WHERE 1");
             for n in &negative {
                 // No positive words: exclude notes whose text contains the word.
                 filters.push("n.id NOT IN (SELECT rowid FROM fts WHERE fts MATCH ?)".into());
@@ -191,6 +233,9 @@ impl Index {
             .query_map(rusqlite::params_from_iter(args), |r| {
                 let path: String = r.get(0)?;
                 let title: String = r.get(1)?;
+                let snippet: String = r.get(2)?;
+                let body: String = r.get(3)?;
+                let heading = first_match_offset(&body, &snippet).and_then(|o| heading_at(&body, o));
                 Ok(SearchHit {
                     title: if title.is_empty() {
                         path.rsplit('/')
@@ -202,7 +247,8 @@ impl Index {
                         title
                     },
                     path,
-                    snippet: r.get(2)?,
+                    snippet,
+                    heading,
                 })
             })
             .map_err(db_err)?;
@@ -213,6 +259,18 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_the_heading_above_a_match() {
+        let body = "# Biology\n\nIntro\n\n## Cells\n\n```\n# not a heading\n```\nThe cell wall.\n";
+        let at = body.find("cell wall").unwrap();
+        assert_eq!(heading_at(body, at).as_deref(), Some("Cells"));
+        assert_eq!(heading_at(body, body.find("Intro").unwrap()).as_deref(), Some("Biology"));
+        assert_eq!(heading_at("No headings here", 3), None);
+        assert_eq!(heading_at("##NoSpace\ntext", 12), None);
+        let snippet = format!("The {HL_START}cell{HL_END} wall");
+        assert_eq!(first_match_offset("Intro. The Cell wall", &snippet), Some(11));
+    }
 
     #[test]
     fn parses_operators_and_quotes() {

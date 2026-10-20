@@ -8,6 +8,7 @@ import {
   splitFrontmatter,
   inlineProperties,
 } from "../lib/markdown";
+import { headingAt } from "../lib/searchText";
 import { compareTasks, findTasks } from "../lib/tasks";
 import { isImagePath } from "../lib/attachments";
 import { svgIsMonochrome } from "../lib/svgMonochrome";
@@ -320,6 +321,7 @@ export function createMemoryBackend(
           path: n.path,
           title: noteName(n.path),
           snippet: firstWord ? snippet(body, firstWord) : "",
+          heading: firstWord ? headingAt(body, hay.indexOf(firstWord)) : null,
         });
       }
     }
