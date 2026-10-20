@@ -1,0 +1,60 @@
+.view-header {
+  min-height: 46px;
+}
+.view-header-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 4px;
+}
+.view-header-title h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--heading);
+}
+/* The same icon chip as a dashboard's header, smaller. */
+.view-header-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-sidebar);
+  color: var(--accent);
+}
+.view-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.view-header-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.view-header-actions button:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.view-header-actions button[aria-pressed="true"] {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+.view-header-actions .view-back {
+  max-width: 220px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+.view-back span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

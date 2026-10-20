@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Crosshair, Maximize, Network, Settings2, Workflow, X } from "lucide-react";
+import { Crosshair, Maximize, Network, Settings2, Workflow } from "lucide-react";
+import { ViewHeader } from "../tabs/ViewHeader";
 import { backend, type GraphData } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
@@ -132,8 +133,28 @@ export function GraphView() {
 
   return (
     <div className="graph-view">
-      <header className="graph-toolbar">
-        <strong>Graph</strong>
+      <ViewHeader
+        icon={Network}
+        title="Graph"
+        actions={
+          isGraph ? (
+            <>
+              <button type="button" aria-label="Fit graph" title="Fit graph to view" onClick={fit}>
+                <Maximize size={16} />
+              </button>
+              <button
+                type="button"
+                aria-label="Graph settings"
+                aria-pressed={panelOpen}
+                title="Graph settings"
+                onClick={() => setPanelOpen((v) => !v)}
+              >
+                <Settings2 size={16} />
+              </button>
+            </>
+          ) : null
+        }
+      >
         <div className="graph-modes" role="radiogroup" aria-label="Layout">
           {MODES.map(({ mode, label, Icon }) => (
             <button
@@ -177,32 +198,7 @@ export function GraphView() {
         <span className="graph-count muted" aria-live="polite">
           {count}
         </span>
-        <div className="graph-actions">
-          {isGraph ? (
-            <button type="button" aria-label="Fit graph" title="Fit graph to view" onClick={fit}>
-              <Maximize size={16} />
-            </button>
-          ) : null}
-          {isGraph ? (
-            <button
-              type="button"
-              aria-label="Graph settings"
-              aria-pressed={panelOpen}
-              title="Graph settings"
-              onClick={() => setPanelOpen((v) => !v)}
-            >
-              <Settings2 size={16} />
-            </button>
-          ) : null}
-          <button
-            className="graph-close"
-            aria-label="Close graph"
-            onClick={() => setMainView("note")}
-          >
-            <X size={16} />
-          </button>
-        </div>
-      </header>
+      </ViewHeader>
       {isGraph ? (
         <div className="graph-stage">
           <div className="graph-canvas" ref={container} data-testid="graph-canvas" />

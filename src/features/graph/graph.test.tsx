@@ -409,9 +409,17 @@ describe("graph views", () => {
     expect(sigma.resets).toBe(1);
   });
 
-  it("closes back to the note", async () => {
+  it("goes back to the note the tab came from, and has no close button of its own", async () => {
     render(<GraphView />);
-    fireEvent.click(await screen.findByRole("button", { name: "Close graph" }));
+    expect(screen.getByRole("heading", { name: "Graph" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Close/ })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Back to A" }));
     expect(useAppStore.getState().mainView).toBe("note");
+  });
+
+  it("offers no way back when the tab has no note", async () => {
+    useAppStore.setState({ activePath: null });
+    render(<GraphView />);
+    expect(screen.queryByRole("button", { name: /Back to/ })).toBeNull();
   });
 });

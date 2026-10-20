@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { Clock } from "lucide-react";
+import { ViewHeader } from "../tabs/ViewHeader";
 import { backend, isBackendError, type TimeEntry } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { formatDate } from "../../lib/dates";
@@ -56,8 +57,7 @@ export function TimeReport() {
 
   return (
     <div className="time-view">
-      <header className="graph-toolbar">
-        <strong>Time</strong>
+      <ViewHeader icon={Clock} title="Time">
         <select
           aria-label="Date range"
           value={preset}
@@ -106,14 +106,7 @@ export function TimeReport() {
         <span className="graph-count" aria-live="polite">
           Total <strong aria-label="Total time">{formatDuration(data.totalMs)}</strong>
         </span>
-        <button
-          className="graph-close"
-          aria-label="Close time report"
-          onClick={() => useAppStore.getState().setMainView("note")}
-        >
-          <X size={16} />
-        </button>
-      </header>
+      </ViewHeader>
 
       <div className="time-body">
         {entries && data.rows.length === 0 && (
