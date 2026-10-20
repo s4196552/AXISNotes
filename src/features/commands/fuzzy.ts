@@ -25,3 +25,24 @@ export function fuzzyScore(query: string, text: string): number {
   }
   return Math.max(1, score);
 }
+
+/**
+ * Which characters of `text` matched `query` (the same rule as `fuzzyScore`: a direct
+ * substring if there is one, else the in-order subsequence), or null for no match.
+ */
+export function fuzzyIndices(query: string, text: string): number[] | null {
+  const q = query.toLowerCase();
+  const t = text.toLowerCase();
+  if (!q) return [];
+  const direct = t.indexOf(q);
+  if (direct !== -1) return Array.from(q, (_c, i) => direct + i);
+  const out: number[] = [];
+  let ti = 0;
+  for (const ch of q) {
+    const found = t.indexOf(ch, ti);
+    if (found === -1) return null;
+    out.push(found);
+    ti = found + 1;
+  }
+  return out;
+}

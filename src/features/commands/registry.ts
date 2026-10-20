@@ -33,6 +33,8 @@ export interface Command {
   shortcut?: Shortcut;
   /** Don't take the shortcut when focus is inside elements matching this selector. */
   ignoreIn?: string;
+  /** Hidden from the palette (and its shortcut does nothing) when this says no. */
+  available?(): boolean;
   run(): void;
 }
 
@@ -318,6 +320,7 @@ export function commandForEvent(e: KeyboardEvent): Command | undefined {
   return commands.find((c) => {
     const s = shortcutOf(c);
     if (s === undefined || !matches(s, e)) return false;
+    if (c.available && !c.available()) return false;
     return !(c.ignoreIn && e.target instanceof Element && e.target.closest(c.ignoreIn));
   });
 }

@@ -80,7 +80,9 @@ export const NoteTitle = forwardRef<HTMLInputElement, NoteTitleProps>(function N
       return false;
     }
     const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/") + 1) : "";
-    const to = `${dir}${next}.md`;
+    // A `.md` note's title hides the extension; other text notes (`.txt`) show their whole
+    // file name, so it is already in the draft.
+    const to = path.toLowerCase().endsWith(".md") ? `${dir}${next}.md` : `${dir}${next}`;
     const clash = store.notes.some(
       (n) => n.path.toLowerCase() === to.toLowerCase() && n.path !== path,
     );
