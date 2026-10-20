@@ -232,3 +232,35 @@ mark {
   cursor: col-resize !important;
   user-select: none !important;
 }
+
+/* Search: the heading a match is under, and operator examples under an empty box. */
+.search-heading {
+  font-weight: 400;
+}
+.search-help ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 8px;
+  list-style: none;
+}
+.search-help li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 4px;
+  font-size: 12px;
+}
+.search-op {
+  flex: none;
+  padding: 1px 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+.search-op:hover {
+  background: var(--bg-hover);
+}
+.search-op code {
+  color: var(--accent);
+}

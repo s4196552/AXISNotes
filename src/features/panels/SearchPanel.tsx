@@ -2,7 +2,17 @@ import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { backend, HL_END, HL_START, isBackendError, type SearchHit } from "../../ipc";
 import { useAppStore } from "../../app/store";
+import { cleanSnippet } from "../../lib/searchText";
 import { Highlighted } from "./Highlighted";
+
+/** Examples under an empty search box; clicking one adds it to the query. */
+const OPERATORS: { example: string; meaning: string }[] = [
+  { example: "tag:school", meaning: "notes with a tag (and its child tags)" },
+  { example: "path:Daily", meaning: "notes in a folder" },
+  { example: "prop:status=done", meaning: "a property with a value" },
+  { example: '"exact phrase"', meaning: "words together, in order" },
+  { example: "-word", meaning: "leave out notes with a word" },
+];
 
 const DEBOUNCE_MS = 150;
 
@@ -56,6 +66,31 @@ export function SearchPanel() {
           onChange={(e) => setQuery(e.target.value)}
         />
       </label>
+      {!query.trim() && (
+        <div className="search-help">
+          <p className="panel-note muted">
+            Search note text, titles and grid cells. Combine words with:
+          </p>
+          <ul aria-label="Search operators">
+            {OPERATORS.map((o) => (
+              <li key={o.example}>
+                <button
+                  className="search-op"
+                  onClick={() => {
+                    setQuery(o.example);
+                    document
+                      .querySelector<HTMLInputElement>('input[aria-label="Search notes"]')
+                      ?.focus();
+                  }}
+                >
+                  <code>{o.example}</code>
+                </button>
+                <span className="muted">{o.meaning}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {error && <p className="panel-note error">{error}</p>}
       {hits && (
         <p className="panel-note muted search-summary" aria-live="polite">
@@ -68,12 +103,20 @@ export function SearchPanel() {
       <ul className="panel-list" aria-label="Search results">
         {hits?.map((hit) => (
           <li key={hit.path}>
-            <button className="panel-item" onClick={() => openFile(hit.path)}>
-              <span className="panel-item-title">{hit.title}</span>
+            <button
+              className="panel-item"
+              onClick={() => openFile(hit.path, hit.heading ? { heading: hit.heading } : undefined)}
+            >
+              <span className="panel-item-title">
+                {hit.title}
+                {hit.heading && hit.heading !== hit.title && (
+                  <span className="search-heading muted"> › {hit.heading}</span>
+                )}
+              </span>
               <span className="panel-item-path muted">{hit.path}</span>
               {hit.snippet && (
                 <span className="panel-item-snippet">
-                  <Highlighted text={hit.snippet} start={HL_START} end={HL_END} />
+                  <Highlighted text={cleanSnippet(hit.snippet)} start={HL_START} end={HL_END} />
                 </span>
               )}
             </button>
