@@ -29,7 +29,35 @@ import {
   moveLink,
   placeLink,
   placeWidget,
+  indexTree,
 } from "./dashboardModel";
+
+describe("tree index", () => {
+  const file = (path: string, modifiedMs: number): VaultEntry =>
+    ({ path, name: path.split("/").pop()!, kind: "file", modifiedMs }) as VaultEntry;
+  const dir = (path: string, modifiedMs: number, children: VaultEntry[]): VaultEntry =>
+    ({ path, name: path.split("/").pop()!, kind: "dir", modifiedMs, children }) as VaultEntry;
+
+  it("counts files and finds the latest change for every folder in one walk", () => {
+    const tree = dir("", 1, [
+      dir("School", 5, [
+        file("School/A.md", 10),
+        dir("School/Old", 2, [file("School/Old/B.md", 30)]),
+      ]),
+      dir("Empty", 7, []),
+      file("Top.md", 3),
+    ]);
+    const { entries, folders } = indexTree(tree);
+    expect([...entries.keys()].sort()).toEqual(
+      ["Empty", "School", "School/A.md", "School/Old", "School/Old/B.md", "Top.md"].sort(),
+    );
+    expect(folders.get("School")).toEqual({ files: 2, latest: 30 });
+    expect(folders.get("School/Old")).toEqual({ files: 1, latest: 30 });
+    expect(folders.get("Empty")).toEqual({ files: 0, latest: 7 });
+    expect(folders.get("")).toEqual({ files: 3, latest: 30 });
+    expect(indexTree(null).entries.size).toBe(0);
+  });
+});
 
 describe("customizing", () => {
   const ws = (["calendar", "tasks", "schedule", "links"] as const).map((t) => ({

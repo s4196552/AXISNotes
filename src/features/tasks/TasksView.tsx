@@ -3,6 +3,8 @@ import { CalendarDays, X } from "lucide-react";
 import { backend, isBackendError, type TaskRef } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { formatDate } from "../../lib/dates";
+import { plainInline } from "../../lib/inlineMarkdown";
+import { InlineText } from "./InlineText";
 import { type Bucket, BUCKETS, bucketOf, matchesFilter, PRIORITY } from "./taskModel";
 import { toggleTask } from "./toggleTask";
 import { TaskTimerButton } from "../time/TimerControls";
@@ -110,11 +112,15 @@ export function TasksView() {
                         type="checkbox"
                         checked={t.done}
                         disabled={busy === key}
-                        aria-label={`${t.done ? "Reopen" : "Complete"}: ${t.text}`}
+                        aria-label={`${t.done ? "Reopen" : "Complete"}: ${plainInline(t.text)}`}
                         onChange={() => void toggle(t)}
                       />
                       <span className="tasks-text">
-                        {t.text || <span className="muted">(empty)</span>}
+                        {t.text ? (
+                          <InlineText text={t.text} from={t.path} />
+                        ) : (
+                          <span className="muted">(empty)</span>
+                        )}
                       </span>
                       {PRIORITY[t.priority] && (
                         <span

@@ -73,11 +73,12 @@
   margin-top: 4px;
   font-size: 12px;
 }
-/* Open tasks due that day (dashboard calendar). */
+/* Open tasks due that day (dashboard calendar), just right of the centred day number so
+   it stays beside it however wide the cell is. */
 .calendar-due {
   position: absolute;
   top: 0;
-  right: 2px;
+  left: calc(50% + 0.55em);
   min-width: 12px;
   padding: 0 3px;
   border-radius: 6px;

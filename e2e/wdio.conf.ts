@@ -80,6 +80,15 @@ const SEEDS: Record<string, (dir: string) => void> = {
     fs.writeFileSync(path.join(dir, "dot.png"), DOT_PNG);
     write(dir, "Paste here.md", "# Paste here\n\nScreenshot:");
   },
+  dashboard(dir) {
+    const now = new Date();
+    const today = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
+      .map((n) => String(n).padStart(2, "0"))
+      .join("-");
+    write(dir, "Welcome.md", "# Welcome\n\nHello from disk\n");
+    write(dir, "School/Biology.md", `# Biology\n\n- [ ] Read [[Welcome]] **now** 📅 ${today}\n`);
+    process.env.AXIS_E2E_TODAY = today;
+  },
   vault(dir) {
     write(dir, "Welcome.md", "# Welcome\n\nHello from disk\n");
     write(dir, "School/Biology.md", "# Biology\n\n- [ ] read ch. 1\n");
