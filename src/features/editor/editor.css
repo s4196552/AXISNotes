@@ -6,17 +6,20 @@
 
 .editor-header {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 12px;
   width: 100%;
   max-width: var(--editor-width);
   margin: 0 auto;
   padding: 28px 24px 4px;
 }
+/* Whatever follows the title (tools, save state) sits together at the right. */
+.editor-header > .editor-title + *,
+.editor-header > .editor-title-row + * {
+  margin-left: auto;
+}
 .editor-tool {
   flex: none;
-  margin-left: auto;
   padding: 3px 6px;
   border: none;
   background: transparent;
@@ -30,6 +33,25 @@
   background: var(--bg-active);
   color: var(--accent);
 }
+/* A note's tools: one quiet group that brightens while the header is in use. */
+.editor-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.editor-header:hover .editor-tools,
+.editor-tools:focus-within,
+.editor-tools:has(.active) {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .editor-tools {
+    transition: none;
+  }
+}
 .editor-title {
   color: var(--heading);
   margin: 0;
@@ -38,6 +60,54 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The note title is a text field that looks like the heading it replaces. */
+input.editor-title {
+  flex: 1;
+  min-width: 0;
+  padding: 0 4px;
+  margin-left: -4px;
+  font-family: inherit;
+  line-height: 1.25;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  outline: none;
+}
+input.editor-title:hover {
+  background: var(--bg-hover);
+}
+input.editor-title:focus {
+  background: transparent;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+input.editor-title::placeholder {
+  color: var(--fg-muted);
+}
+.editor-title-row {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+}
+.editor-title-row .editor-title {
+  margin-right: 8px;
+}
+.editor-day {
+  display: inline-grid;
+  place-items: center;
+}
+.editor-doc-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+}
+.editor-words {
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
 }
 .editor-status {
   flex: none;

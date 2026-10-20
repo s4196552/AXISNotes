@@ -300,6 +300,9 @@ input {
 .notice {
   color: var(--accent);
 }
+.statusbar-doc {
+  margin-left: auto;
+}
 
 /* Text for screen readers only. */
 .visually-hidden {

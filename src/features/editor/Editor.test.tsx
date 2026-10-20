@@ -52,7 +52,7 @@ describe("Editor", () => {
   it("loads the note and shows its title", async () => {
     const { view } = await open();
     expect(view.state.doc.toString()).toBe("# Title\n\nHello **world**");
-    expect(screen.getByRole("heading", { name: "Note" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Note title" })).toHaveValue("Note");
   });
 
   it("autosaves after the debounce, not before", async () => {
