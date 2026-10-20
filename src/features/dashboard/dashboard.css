@@ -198,6 +198,99 @@
 .dashboard-source:hover {
   color: var(--accent);
 }
+.dashboard-due {
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+/* A widget's status line with controls on the right (range, day navigation). */
+.dashboard-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dashboard-segmented,
+.dashboard-day-nav {
+  display: inline-flex;
+  gap: 2px;
+}
+.dashboard-segmented button,
+.dashboard-day-nav button {
+  padding: 2px 8px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.dashboard-day-nav button {
+  padding: 2px 6px;
+}
+.dashboard-segmented button:hover,
+.dashboard-day-nav button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.dashboard-segmented button[aria-pressed="true"] {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+.dashboard-day-nav button:disabled {
+  opacity: 0.5;
+}
+.dashboard-group {
+  margin: 10px 6px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+
+/* Day schedule: past items fade; a line marks the time now. */
+.dashboard-schedule li.past:not(:hover) {
+  opacity: 0.6;
+}
+.dashboard-list li.dashboard-now {
+  gap: 6px;
+  padding: 0 6px;
+  color: var(--danger);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.dashboard-list li.dashboard-now:hover {
+  background: transparent;
+}
+.dashboard-now::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+}
+
+/* Quick add: a slim input under a list. */
+.dashboard-quick-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.dashboard-quick-add input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+.dashboard-quick-add input[type="time"] {
+  flex: none;
+  width: 104px;
+}
+.dashboard-quick-add button {
+  flex: none;
+  padding: 4px 8px;
+}
 
 /* File and folder cards, like a notebook grid. */
 .dashboard-cards {
