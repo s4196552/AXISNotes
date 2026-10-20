@@ -2,6 +2,7 @@ import { type CSSProperties, Suspense, useEffect } from "react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
+import { openStartupPages } from "./app/startup";
 import {
   applyAppearance,
   applyTranslucency,
@@ -10,7 +11,6 @@ import {
 } from "./app/appearance";
 import { installZoom } from "./app/zoom";
 import { installFileDrops } from "./features/editor/media";
-import { openDailyNote } from "./features/commands/actions";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
 import { Editor } from "./features/editor";
@@ -87,7 +87,7 @@ export default function App() {
     if (vault && takeGettingStarted(vault.root)) useUi.getState().open({ kind: "getting-started" });
   }, [vault]);
 
-  // Load vault settings; optionally open today's daily note.
+  // Load vault settings; optionally open today's daily note and Home.
   useEffect(() => {
     if (!vault) return;
     let cancelled = false;
@@ -97,9 +97,7 @@ export default function App() {
       .then(async () => {
         if (cancelled) return;
         void useTimer.getState().restore();
-        if (!useConfig.getState().config.dailyNotes.openOnStartup) return;
-        await useAppStore.getState().refreshTree();
-        if (!cancelled && !useAppStore.getState().activePath) await openDailyNote();
+        await openStartupPages(() => cancelled);
       });
     return () => {
       cancelled = true;
