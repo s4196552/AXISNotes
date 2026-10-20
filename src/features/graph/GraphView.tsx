@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Crosshair, Maximize, Network, Settings2, Workflow } from "lucide-react";
 import { ViewHeader } from "../tabs/ViewHeader";
 import { backend, type GraphData } from "../../ipc";
@@ -359,7 +359,8 @@ function TreeControls(props: {
 }
 
 /** Neighborhood of the open note, in the right sidebar. */
-export function LocalGraph() {
+/** The open note's neighbourhood. `toggle` (the right panel's collapse button) replaces the label. */
+export function LocalGraph({ toggle }: { toggle?: ReactNode } = {}) {
   const data = useGraphData();
   const activePath = useAppStore((s) => s.activePath);
   const [depth, setDepth] = useState(1);
@@ -386,7 +387,7 @@ export function LocalGraph() {
   return (
     <section className="local-graph" aria-label="Local graph">
       <header className="local-graph-header">
-        <span>Local graph</span>
+        {toggle ?? <span>Local graph</span>}
         <select
           aria-label="Link depth"
           value={depth}
