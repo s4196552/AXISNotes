@@ -43,6 +43,7 @@ import {
 } from "./treeModel";
 import { rowColorProps, rowColors } from "./rowColorsModel";
 import { useExpanded } from "./useExpanded";
+import { ancestorsOf, useRevealRequest } from "./reveal";
 import "./filetree.css";
 
 interface MenuState {
@@ -240,6 +241,41 @@ export function FileTree() {
       window.removeEventListener("blur", close);
     };
   }, [menu]);
+
+  // Show a file: open the folders it is in, select it and scroll it into view. Selecting
+  // also moves the keyboard cursor, so only one row looks current.
+  const reveal = useCallback(
+    (path: string) => {
+      if (!findEntry(latest.current.tree, path)) return;
+      const parents = ancestorsOf(path);
+      updateExpanded((prev) =>
+        parents.every((p) => prev.has(p)) ? prev : new Set([...prev, ...parents]),
+      );
+      setSelected(path);
+      requestAnimationFrame(() =>
+        document.getElementById(rowId(path))?.scrollIntoView?.({ block: "nearest" }),
+      );
+    },
+    [updateExpanded],
+  );
+  // Follow the open file (Settings → Files & links can turn this off)…
+  useEffect(
+    () =>
+      useAppStore.subscribe((s, prev) => {
+        if (!s.activePath || s.activePath === prev.activePath) return;
+        if (useConfig.getState().config.fileTree.revealActiveFile) reveal(s.activePath);
+      }),
+    [reveal],
+  );
+  // …and show it on request ("Reveal open file in the file tree").
+  useEffect(
+    () =>
+      useRevealRequest.subscribe(() => {
+        const p = useAppStore.getState().activePath;
+        if (p) reveal(p);
+      }),
+    [reveal],
+  );
 
   // Keep the selected row in view during keyboard navigation.
   useEffect(() => {

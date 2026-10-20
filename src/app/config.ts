@@ -77,6 +77,8 @@ export interface AxisConfig {
    * root, "./" next to the note, "./name" a folder next to the note, else a vault folder.
    */
   attachments: { folder: string };
+  /** The file tree opens the open file's folders and selects it (T-111). */
+  fileTree: { revealActiveFile: boolean };
   /** Offline spellcheck; `words` is the vault's personal dictionary (lower-case). */
   spellcheck: { enabled: boolean; words: string[] };
   /** Remapped keyboard shortcuts by command id ("" = no shortcut). */
@@ -120,6 +122,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
   home: { openOnStartup: false, onLastTabClose: false },
   templatesFolder: "Templates",
   attachments: { folder: "Attachments" },
+  fileTree: { revealActiveFile: true },
   spellcheck: { enabled: true, words: [] },
   hotkeys: {},
   quickCommands: {

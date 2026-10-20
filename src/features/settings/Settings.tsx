@@ -430,6 +430,19 @@ function Files({ config, set }: SectionProps) {
           }
         />
       </Field>
+      <Field
+        label="Show the open file in the file tree"
+        hint="Opening a note opens its folders in the tree and selects it. Off: use “Reveal open file in the file tree” from Ctrl+P."
+      >
+        <input
+          type="checkbox"
+          aria-label="Show the open file in the file tree"
+          checked={config.fileTree.revealActiveFile}
+          onChange={(e) =>
+            set((c) => ({ ...c, fileTree: { ...c.fileTree, revealActiveFile: e.target.checked } }))
+          }
+        />
+      </Field>
     </>
   );
 }
