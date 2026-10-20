@@ -136,6 +136,147 @@ describe("Dashboard", () => {
     expect(await screen.findByRole("button", { name: "Add dashboard" })).toBeInTheDocument();
   });
 
+  it("quick-adds a task and a timed item to today's note, creating it from the template", async () => {
+    await setup({ "A.md": "" });
+    render(<Dashboard folder="" />);
+
+    const tasks = widget("Today's tasks");
+    const input = await within(tasks).findByRole("textbox", { name: "Add a task" });
+    fireEvent.change(input, { target: { value: "Buy milk" } });
+    fireEvent.submit(input.closest("form")!);
+    // The daily template's empty task is filled in.
+    await waitFor(() => expect(h.b.files()[dailyPath]).toContain("## Tasks\n\n- [ ] Buy milk\n"));
+    await within(tasks).findByText("Buy milk");
+    expect(input).toHaveValue("");
+
+    const schedule = widget("Day schedule");
+    fireEvent.change(within(schedule).getByLabelText("Time"), { target: { value: "09:30" } });
+    const what = within(schedule).getByRole("textbox", { name: "Add to schedule" });
+    fireEvent.change(what, { target: { value: "Standup" } });
+    fireEvent.submit(what.closest("form")!);
+    await waitFor(() => expect(h.b.files()[dailyPath]).toContain("- 09:30 Standup\n"));
+    await within(schedule).findByText("Standup");
+  });
+
+  it("looks a week ahead when asked, and remembers it", async () => {
+    const soon = formatDate(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3),
+      "YYYY-MM-DD",
+    );
+    await setup({ "Work.md": `- [ ] Essay 📅 ${soon}\n- [ ] Report 📅 ${today}\n` });
+    render(<Dashboard folder="" />);
+    const tasks = widget("Today's tasks");
+    await within(tasks).findByText("Report");
+    expect(within(tasks).queryByText("Essay")).toBeNull();
+
+    fireEvent.click(within(tasks).getByRole("button", { name: "7 days" }));
+    await within(tasks).findByText("Essay");
+    expect(within(tasks).getByRole("heading", { name: "Next 7 days" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        savedConfig().dashboards[""].widgets.find((w: { type: string }) => w.type === "tasks")
+          .options,
+      ).toEqual({ range: "week" }),
+    );
+  });
+
+  it("steps the schedule through days and marks task due dates on the calendar", async () => {
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    await setup({
+      [`Daily/${formatDate(tomorrow, "YYYY-MM-DD")}.md`]: "- 10:00 Dentist\n",
+      "Work.md": `- [ ] Report 📅 ${today}\n- [ ] Plan 📅 ${today}\n`,
+    });
+    render(<Dashboard folder="" />);
+    const schedule = widget("Day schedule");
+    expect(within(schedule).getByRole("button", { name: "Today" })).toBeDisabled();
+    fireEvent.click(within(schedule).getByRole("button", { name: "Next day" }));
+    await within(schedule).findByText("Dentist");
+    expect(within(schedule).getByText(formatDate(tomorrow, "dddd, MMMM D"))).toBeInTheDocument();
+    fireEvent.click(within(schedule).getByRole("button", { name: "Today" }));
+    await waitFor(() => expect(within(schedule).queryByText("Dentist")).toBeNull());
+
+    const calendar = widget("Calendar");
+    await within(calendar).findByRole("gridcell", { name: /, 2 tasks due$/ });
+  });
+
+  it("renames, resizes and drags widgets, and sets how many recent files show", async () => {
+    await setup({ "A.md": "", "B.md": "" });
+    render(<Dashboard folder="" />);
+    fireEvent.click(screen.getByRole("button", { name: "Customize" }));
+
+    // Any widget can be renamed now, not only Pinned.
+    const titles = screen.getAllByRole("textbox", { name: "Widget title" });
+    fireEvent.change(titles[1]!, { target: { value: "Must do" } });
+    fireEvent.blur(titles[1]!);
+    await screen.findByRole("region", { name: "Must do" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Make Calendar wide" }));
+    await waitFor(() => expect(widget("Calendar")).toHaveClass("wide"));
+
+    // Drag the Pinned widget's handle onto the calendar: it lands before it.
+    const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "" };
+    const grip = within(widget("Pinned")).getByTitle("Drag to move");
+    fireEvent.dragStart(grip, { dataTransfer });
+    fireEvent.dragOver(widget("Calendar"), { dataTransfer });
+    expect(widget("Calendar")).toHaveClass("drop-before");
+    fireEvent.drop(widget("Calendar"), { dataTransfer });
+    fireEvent.dragEnd(grip, { dataTransfer });
+    await waitFor(() =>
+      expect(savedConfig().dashboards[""].widgets.map((w: { type: string }) => w.type)).toEqual([
+        "links",
+        "calendar",
+        "tasks",
+        "schedule",
+      ]),
+    );
+    const saved = savedConfig().dashboards[""].widgets;
+    expect(saved[1]).toMatchObject({ type: "calendar", size: "wide" });
+    expect(saved[2]).toMatchObject({ type: "tasks", title: "Must do" });
+
+    fireEvent.click(within(widget("Add a widget")).getByRole("button", { name: /Recent/ }));
+    const show = await within(await screen.findByRole("region", { name: "Recent" })).findByRole(
+      "combobox",
+    );
+    fireEvent.change(show, { target: { value: "4" } });
+    await waitFor(() =>
+      expect(
+        savedConfig().dashboards[""].widgets.find((w: { type: string }) => w.type === "recent")
+          .options,
+      ).toEqual({ count: 4 }),
+    );
+  });
+
+  it("reorders pinned cards with buttons and by dragging", async () => {
+    await setup({ "A.md": "", "B.md": "", "C.md": "" });
+    useConfig.setState((s) => ({
+      config: {
+        ...s.config,
+        dashboards: {
+          "": {
+            enabled: true,
+            widgets: [{ id: "p", type: "links", links: ["A.md", "B.md", "C.md"] }],
+          },
+        },
+      },
+    }));
+    render(<Dashboard folder="" />);
+    const links = () => savedConfig().dashboards?.[""]?.widgets[0].links as string[] | undefined;
+    // Outside Customize, cards don't move.
+    expect(screen.queryByRole("button", { name: "Move C earlier" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Customize" }));
+    expect(screen.getByRole("button", { name: "Move A earlier" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Move C earlier" }));
+    await waitFor(() => expect(links()).toEqual(["A.md", "C.md", "B.md"]));
+
+    const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "" };
+    const card = (title: string) => screen.getByTitle(title).closest(".dashboard-card")!;
+    fireEvent.dragStart(card("B.md"), { dataTransfer });
+    fireEvent.dragOver(card("A.md"), { dataTransfer });
+    fireEvent.drop(card("A.md"), { dataTransfer });
+    await waitFor(() => expect(links()).toEqual(["B.md", "A.md", "C.md"]));
+  });
+
   it("restores a dashboard tab with the vault's other tabs", () => {
     const s = deserialize(
       JSON.stringify({ tabs: [{ path: "School", view: "dashboard" }], active: 0 }),

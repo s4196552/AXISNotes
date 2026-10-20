@@ -79,6 +79,12 @@ describe("config", () => {
     expect(c.theme).toBe("dark");
     expect(c.dailyNotes).toEqual({ ...DEFAULT_CONFIG.dailyNotes, folder: "Journal" });
     expect(c.quickCommands.custom).toHaveLength(1);
+    expect(c.home).toEqual({ openOnStartup: false, onLastTabClose: false });
+    expect(mergeConfig({ home: { openOnStartup: true, onLastTabClose: 1 } }).home).toEqual({
+      openOnStartup: true,
+      onLastTabClose: false,
+    });
+    expect(mergeConfig({ home: "on" }).home).toEqual(DEFAULT_CONFIG.home);
     expect(c.extra).toBe(1);
     expect(mergeConfig(null)).toEqual(DEFAULT_CONFIG);
   });

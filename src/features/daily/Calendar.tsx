@@ -9,7 +9,17 @@ import "./calendar.css";
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
-export function Calendar({ today = new Date() }: { today?: Date }) {
+/**
+ * The daily-note month view. `marks` (by `YYYY-MM-DD`) puts a count on days, e.g. open
+ * tasks due; the dashboard passes it and the sidebar doesn't.
+ */
+export function Calendar({
+  today = new Date(),
+  marks,
+}: {
+  today?: Date;
+  marks?: ReadonlyMap<string, number>;
+}) {
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const notes = useAppStore((s) => s.notes);
   const activePath = useAppStore((s) => s.activePath);
@@ -40,6 +50,7 @@ export function Calendar({ today = new Date() }: { today?: Date }) {
         ))}
         {days.map((d) => {
           const path = dailyNotePath(d, dailyCfg);
+          const due = marks?.get(formatDate(d, "YYYY-MM-DD")) ?? 0;
           const classes = [
             "calendar-day",
             d.getMonth() !== cursor.getMonth() && "outside",
@@ -54,10 +65,15 @@ export function Calendar({ today = new Date() }: { today?: Date }) {
               key={d.toISOString()}
               role="gridcell"
               className={classes}
-              aria-label={`${formatDate(d, "dddd, MMMM D, YYYY")}${existing.has(path) ? " (has note)" : ""}`}
+              aria-label={`${formatDate(d, "dddd, MMMM D, YYYY")}${existing.has(path) ? " (has note)" : ""}${due ? `, ${due} task${due === 1 ? "" : "s"} due` : ""}`}
               onClick={() => void openDailyNote(d)}
             >
               {d.getDate()}
+              {due > 0 && (
+                <span className="calendar-due" aria-hidden>
+                  {due}
+                </span>
+              )}
             </button>
           );
         })}

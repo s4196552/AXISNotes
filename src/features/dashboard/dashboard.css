@@ -198,6 +198,99 @@
 .dashboard-source:hover {
   color: var(--accent);
 }
+.dashboard-due {
+  font-size: 11px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+/* A widget's status line with controls on the right (range, day navigation). */
+.dashboard-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dashboard-segmented,
+.dashboard-day-nav {
+  display: inline-flex;
+  gap: 2px;
+}
+.dashboard-segmented button,
+.dashboard-day-nav button {
+  padding: 2px 8px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.dashboard-day-nav button {
+  padding: 2px 6px;
+}
+.dashboard-segmented button:hover,
+.dashboard-day-nav button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.dashboard-segmented button[aria-pressed="true"] {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+.dashboard-day-nav button:disabled {
+  opacity: 0.5;
+}
+.dashboard-group {
+  margin: 10px 6px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+
+/* Day schedule: past items fade; a line marks the time now. */
+.dashboard-schedule li.past:not(:hover) {
+  opacity: 0.6;
+}
+.dashboard-list li.dashboard-now {
+  gap: 6px;
+  padding: 0 6px;
+  color: var(--danger);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.dashboard-list li.dashboard-now:hover {
+  background: transparent;
+}
+.dashboard-now::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+}
+
+/* Quick add: a slim input under a list. */
+.dashboard-quick-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.dashboard-quick-add input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+.dashboard-quick-add input[type="time"] {
+  flex: none;
+  width: 104px;
+}
+.dashboard-quick-add button {
+  flex: none;
+  padding: 4px 8px;
+}
 
 /* File and folder cards, like a notebook grid. */
 .dashboard-cards {
@@ -333,6 +426,58 @@
 }
 .dashboard-add-item .muted {
   font-size: 11px;
+}
+
+/* Customizing: drag handles, where a drop lands, and per-widget options. */
+.dashboard-grip {
+  display: grid;
+  place-items: center;
+  margin-left: -6px;
+  color: var(--fg-muted);
+  cursor: grab;
+}
+.dashboard-grip:active {
+  cursor: grabbing;
+}
+.dashboard[data-editing] .dashboard-card {
+  cursor: grab;
+}
+.dashboard-widget.dragging,
+.dashboard-card.dragging {
+  opacity: 0.45;
+}
+.dashboard-widget.drop-before,
+.dashboard-card.drop-before {
+  box-shadow: -3px 0 0 var(--accent);
+}
+.dashboard-widget.drop-after,
+.dashboard-card.drop-after {
+  box-shadow: 3px 0 0 var(--accent);
+}
+/* A widget as wide as the row shows the drop above or below instead. */
+.dashboard-widget.drop-v.drop-before {
+  box-shadow: 0 -3px 0 var(--accent);
+}
+.dashboard-widget.drop-v.drop-after {
+  box-shadow: 0 3px 0 var(--accent);
+}
+.dashboard-widget-tools button[aria-pressed="true"] {
+  color: var(--accent);
+}
+.dashboard-card-tools button:disabled {
+  opacity: 0.35;
+}
+.dashboard-options {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -2px 0 10px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.dashboard-options select {
+  padding: 2px 6px;
+  font-size: 12px;
 }
 
 @media (max-width: 640px) {

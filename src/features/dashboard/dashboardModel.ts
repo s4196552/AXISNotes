@@ -6,13 +6,33 @@ import type { TaskRef, VaultEntry } from "../../ipc";
 
 export type WidgetType = "calendar" | "tasks" | "schedule" | "links" | "recent";
 
+/** How far ahead a tasks widget looks: today (and overdue), or the next 7 days too. */
+export type TaskRange = "today" | "week";
+
+export interface WidgetOptions {
+  /** Tasks widgets. Unset is "today". */
+  range?: TaskRange;
+  /** Recent widgets: how many files. Unset is 8. */
+  count?: number;
+}
+
+/** Choices for a recent widget's file count. */
+export const RECENT_COUNTS = [4, 8, 16, 24] as const;
+export const DEFAULT_RECENT_COUNT = 8;
+
+/** A widget's width: one grid column, or the whole row. */
+export type WidgetSize = "normal" | "wide";
+
 export interface Widget {
   id: string;
   type: WidgetType;
-  /** The user's own title (links widgets); unset shows the type's name. */
+  /** The user's own title; unset shows the type's name. */
   title?: string;
   /** Vault paths of pinned files and folders (links widgets). */
   links?: string[];
+  options?: WidgetOptions;
+  /** Unset follows the type: pinned and recent widgets are wide, the rest normal. */
+  size?: WidgetSize;
 }
 
 export interface Dashboard {
@@ -75,6 +95,9 @@ export function normalizeDashboard(raw: unknown): Dashboard | null {
     seen.add(id);
     const out: Widget = { id, type: w.type as WidgetType };
     if (typeof w.title === "string" && w.title) out.title = w.title;
+    const options = normalizeOptions(w.options);
+    if (options) out.options = options;
+    if (w.size === "normal" || w.size === "wide") out.size = w.size;
     if (w.type === "links") {
       out.links = Array.isArray(w.links)
         ? [...new Set(w.links.filter((l): l is string => typeof l === "string"))]
@@ -84,6 +107,20 @@ export function normalizeDashboard(raw: unknown): Dashboard | null {
   }
   return { enabled: raw.enabled !== false, widgets };
 }
+
+function normalizeOptions(raw: unknown): WidgetOptions | null {
+  if (!isObject(raw)) return null;
+  const out: WidgetOptions = {};
+  if (raw.range === "today" || raw.range === "week") out.range = raw.range;
+  if (typeof raw.count === "number" && Number.isInteger(raw.count)) {
+    if (raw.count >= 1 && raw.count <= 48) out.count = raw.count;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** Whether a widget spans the whole row. */
+export const isWide = (w: Widget) =>
+  w.size ? w.size === "wide" : w.type === "links" || w.type === "recent";
 
 /** The dashboard to show for `folder`: Home always has one; a folder only when added. */
 export function dashboardFor(map: Dashboards | undefined, folder: string): Dashboard | null {
@@ -123,16 +160,48 @@ export const addWidget = (widgets: Widget[], type: WidgetType) => [...widgets, m
 
 export const removeWidget = (widgets: Widget[], id: string) => widgets.filter((w) => w.id !== id);
 
-/** Move a widget `delta` places (−1 earlier, +1 later), stopping at the ends. */
-export function moveWidget(widgets: Widget[], id: string, delta: number): Widget[] {
-  const from = widgets.findIndex((w) => w.id === id);
-  const to = Math.max(0, Math.min(widgets.length - 1, from + delta));
-  if (from === -1 || from === to) return widgets;
-  const out = [...widgets];
-  const [w] = out.splice(from, 1);
-  out.splice(to, 0, w!);
+/** `list` with the item at `from` moved `delta` places, stopping at the ends. */
+function shift<T>(list: T[], from: number, delta: number): T[] {
+  const to = Math.max(0, Math.min(list.length - 1, from + delta));
+  if (from === -1 || from === to) return list;
+  const out = [...list];
+  const [item] = out.splice(from, 1);
+  out.splice(to, 0, item!);
   return out;
 }
+
+/** `list` with `item` moved to just before (or `after`) `target`; unchanged if either is missing. */
+function place<T>(list: T[], item: T, target: T, after: boolean): T[] {
+  if (item === target || !list.includes(item) || !list.includes(target)) return list;
+  const out = list.filter((x) => x !== item);
+  out.splice(out.indexOf(target) + (after ? 1 : 0), 0, item);
+  return out;
+}
+
+/** Move a widget `delta` places (−1 earlier, +1 later), stopping at the ends. */
+export const moveWidget = (widgets: Widget[], id: string, delta: number) =>
+  shift(
+    widgets,
+    widgets.findIndex((w) => w.id === id),
+    delta,
+  );
+
+/** A widget dropped on another: it goes just before it, or after when dropped on its far half. */
+export function placeWidget(widgets: Widget[], id: string, target: string, after: boolean) {
+  const ids = widgets.map((w) => w.id);
+  const next = place(ids, id, target, after);
+  if (next === ids) return widgets;
+  const byId = new Map(widgets.map((w) => [w.id, w]));
+  return next.map((i) => byId.get(i)!);
+}
+
+/** Move a pinned link `delta` places. */
+export const moveLink = (links: string[], path: string, delta: number) =>
+  shift(links, links.indexOf(path), delta);
+
+/** A pinned card dropped on another: just before it, or after on its far half. */
+export const placeLink = (links: string[], path: string, target: string, after: boolean) =>
+  place(links, path, target, after);
 
 export function updateWidget(widgets: Widget[], id: string, patch: Partial<Widget>): Widget[] {
   return widgets.map((w) => (w.id === id ? { ...w, ...patch, id: w.id, type: w.type } : w));
@@ -192,20 +261,32 @@ export function trashInDashboards(map: Dashboards, path: string): Dashboards | n
 
 // ---- Today's tasks ----
 
+/** `YYYY-MM-DD` `n` days after `day` (a local date, so DST changes don't shift it). */
+export function addDays(day: string, n: number): string {
+  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
+  const date = new Date(y, m - 1, d + n);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 /**
- * Today's tasks for a dashboard over `folder`: open tasks due today or earlier, every task
- * in today's daily note, and tasks due today that were ticked off (so a tick doesn't make
- * the row vanish). Overdue first, then by due date, priority and place.
+ * Today's tasks for a dashboard over `folder`: open tasks due by `horizon` (today unless
+ * given), every task in today's daily note, and tasks due today that were ticked off (so a
+ * tick doesn't make the row vanish). Overdue first, then by due date, priority and place.
  */
 export function selectDailyTasks(
   tasks: readonly TaskRef[],
-  opts: { today: string; folder: string; dailyPath: string },
+  opts: { today: string; folder: string; dailyPath: string; horizon?: string },
 ): TaskRef[] {
   const { today, folder, dailyPath } = opts;
+  const horizon = opts.horizon ?? today;
   return tasks
     .filter((t) => inScope(t.path, folder))
     .filter((t) =>
-      t.path === dailyPath ? true : t.done ? t.due === today : t.due !== null && t.due <= today,
+      t.path === dailyPath ? true : t.done ? t.due === today : t.due !== null && t.due <= horizon,
     )
     .sort(
       (a, b) =>
@@ -215,6 +296,25 @@ export function selectDailyTasks(
         a.path.localeCompare(b.path) ||
         a.line - b.line,
     );
+}
+
+export type TaskGroup = "overdue" | "today" | "upcoming";
+
+/** Which heading a task goes under in a week-long tasks widget. */
+export function taskGroup(t: TaskRef, today: string): TaskGroup {
+  if (t.due === null || t.due === today) return "today";
+  if (t.due < today) return t.done ? "today" : "overdue";
+  return "upcoming";
+}
+
+/** Open tasks in scope by due date, for marking days on the calendar. */
+export function dueCounts(tasks: readonly TaskRef[], folder: string): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const t of tasks) {
+    if (t.done || t.due === null || !inScope(t.path, folder)) continue;
+    out.set(t.due, (out.get(t.due) ?? 0) + 1);
+  }
+  return out;
 }
 
 // ---- Day schedule ----
@@ -298,9 +398,10 @@ function bodyLines(text: string): [string, number][] {
 }
 
 /**
- * Today's timed items (Notes has no calendar storage; see DECISIONS.md, T-100): lines in
- * today's daily note that start with a time (`- 09:00 Standup`, `- [ ] 14:00 Call`), plus
- * tasks anywhere in scope that are due today and start with a time. Sorted by time.
+ * A day's timed items (Notes has no calendar storage; see DECISIONS.md, T-100): lines in
+ * that day's daily note that start with a time (`- 09:00 Standup`, `- [ ] 14:00 Call`),
+ * plus tasks anywhere in scope that are due that day and start with a time. Sorted by time.
+ * `today` is the day shown, which needn't be the current date.
  */
 export function selectSchedule(opts: {
   tasks: readonly TaskRef[];
@@ -335,6 +436,60 @@ export function selectSchedule(opts: {
   return [...items.values()].sort(
     (a, b) => a.start.localeCompare(b.start) || a.path.localeCompare(b.path) || a.line - b.line,
   );
+}
+
+/** Where the "now" line goes in a day's schedule: before the first item that starts later. */
+export function nowIndex(items: readonly ScheduleItem[], now: string): number {
+  const i = items.findIndex((it) => it.start > now);
+  return i === -1 ? items.length : i;
+}
+
+// ---- Adding to a note ----
+
+const LIST_LINE = /^\s*(?:[-*+]|\d+[.)])\s/;
+const EMPTY_TASK = /^\s*[-*+]\s+\[ \]\s*$/;
+const isTimed = (line: string) => parseLeadingTime(line.replace(LIST_MARK, "")) !== null;
+
+/**
+ * `content` with `line` added where it belongs, for quick add from a dashboard:
+ * - a task replaces the template's empty `- [ ] ` or goes after the note's last task;
+ * - a timed line goes after the last timed line;
+ * - otherwise it goes after the last list item under the last heading, else at the end.
+ * Frontmatter and code blocks are skipped. Line endings follow the note's.
+ */
+export function appendToNote(content: string, line: string): string {
+  const eol = content.includes("\r\n") ? "\r\n" : "\n";
+  const lines = content.split("\n").map((l) => l.replace(/\r$/, ""));
+  const body = bodyLines(content);
+  const isTask = /^\s*[-*+]\s+\[[ xX]\]\s/.test(line);
+  const last = (test: (l: string) => boolean, from = 0) => {
+    for (let i = body.length - 1; i >= from; i--) if (test(body[i]![0])) return i;
+    return -1;
+  };
+
+  let at = -1;
+  if (isTask) {
+    const empty = last((l) => EMPTY_TASK.test(l));
+    if (empty !== -1) {
+      lines[body[empty]![1] - 1] = line;
+      return lines.join(eol);
+    }
+    at = last((l) => /^\s*[-*+]\s+\[[ xX]\]\s/.test(l));
+  } else if (isTimed(line)) {
+    at = last((l) => LIST_LINE.test(l) && isTimed(l));
+  }
+  if (at === -1) {
+    const heading = last((l) => /^#{1,6}\s/.test(l));
+    at = last((l) => LIST_LINE.test(l), Math.max(heading, 0));
+  }
+  if (at !== -1) {
+    lines.splice(body[at]![1], 0, line);
+    return lines.join(eol);
+  }
+  // At the end, after a blank line unless the note ends with one or is empty.
+  while (lines.length && lines[lines.length - 1] === "") lines.pop();
+  const head = lines.length ? [...lines, ""] : [];
+  return [...head, line, ""].join(eol);
 }
 
 // ---- Links and recent files ----

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { backend, isBackendError, type NoteRef, type VaultEntry, type VaultInfo } from "../ipc";
 import { parseWikilinkInner } from "../lib/markdown";
+import { useConfig } from "./config";
 import { markNewVault, rememberVault } from "./recentVaults";
 import { showLeftPanel } from "./layout";
 import * as T from "./tabs";
@@ -59,6 +60,11 @@ export interface AppState {
   openFile(path: string | null, target?: OpenTarget, opts?: OpenOptions): void;
   /** Show a folder's dashboard ("" = the vault's Home). */
   openDashboard(folder: string, opts?: OpenOptions): void;
+  /**
+   * Home as the start page: its tab if one is open, else the active tab if it's empty, else
+   * a new tab before the others. Never replaces a tab that shows something.
+   */
+  openHomeOnStartup(): void;
   newTab(): void;
   /** Close a tab (default: the active one). */
   closeTab(id?: string): void;
@@ -138,6 +144,19 @@ function pathsIn(tree: VaultEntry): Set<string> {
   return out;
 }
 
+const HOME = { path: "", view: "dashboard" } as const satisfies T.Loc;
+
+/**
+ * Call after closing tabs. When the close left only a fresh empty tab to show (the last tab
+ * went), Home takes its place if the vault is set to (Settings → Home & daily notes).
+ */
+function homeIfLastClosed(before: TabsState) {
+  const { tabs, openDashboard } = useAppStore.getState();
+  const tab = T.activeTab(tabs);
+  if (!T.isEmpty(tab) || before.list.some((t) => t.id === tab.id)) return;
+  if (useConfig.getState().config.home.onLastTabClose) openDashboard(HOME.path);
+}
+
 /** Set after restoring a vault's tabs: drop tabs for missing files once the tree is in. */
 let pruneRestoredTabs = false;
 
@@ -191,8 +210,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (pruneRestoredTabs) {
         pruneRestoredTabs = false;
         const paths = pathsIn(tree);
-        const tabs = T.dropPaths(get().tabs, (p) => paths.has(p));
-        if (tabs !== get().tabs) set(withTabs(tabs));
+        const before = get().tabs;
+        const tabs = T.dropPaths(before, (p) => paths.has(p));
+        if (tabs !== before) {
+          set(withTabs(tabs));
+          homeIfLastClosed(before);
+        }
       }
     } catch (e) {
       set({ error: describe(e) });
@@ -221,10 +244,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
+  openHomeOnStartup() {
+    const tabs = get().tabs;
+    const home = tabs.list.find((t) => t.view === HOME.view && t.path === HOME.path);
+    if (home) set({ ...withTabs(T.activate(tabs, home.id)), pendingTarget: null });
+    else if (T.isEmpty(T.activeTab(tabs))) get().openDashboard(HOME.path);
+    else {
+      const tab = T.makeTab(HOME);
+      const list = [tab, ...tabs.list];
+      set({ ...withTabs({ ...tabs, list, active: tab.id, selected: [] }), pendingTarget: null });
+    }
+  },
+
   newTab: () => set({ ...withTabs(T.newTab(get().tabs)), pendingTarget: null }),
   closeTab(id) {
     const tabs = get().tabs;
     set({ ...withTabs(T.closeTab(tabs, id ?? tabs.active)), pendingTarget: null });
+    homeIfLastClosed(tabs);
   },
   closeOtherTabs(id) {
     const tabs = get().tabs;
@@ -259,8 +295,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     set(withTabs(T.removeFromGroup(tabs, ids ?? T.selection(tabs))));
   },
   ungroupTabs: (groupId) => set(withTabs(T.ungroup(get().tabs, groupId))),
-  closeTabGroup: (groupId) =>
-    set({ ...withTabs(T.closeGroup(get().tabs, groupId)), pendingTarget: null }),
+  closeTabGroup(groupId) {
+    const tabs = get().tabs;
+    set({ ...withTabs(T.closeGroup(tabs, groupId)), pendingTarget: null });
+    homeIfLastClosed(tabs);
+  },
   updateTabGroup: (groupId, patch) => set({ tabs: T.updateGroup(get().tabs, groupId, patch) }),
   toggleTabGroup: (groupId) =>
     set({ ...withTabs(T.toggleGroup(get().tabs, groupId)), pendingTarget: null }),
@@ -334,6 +373,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...withTabs(T.removePath(tabs, path)),
       ...(loose && active && isSameOrInside(active, path) ? { activePath: null } : {}),
     });
+    homeIfLastClosed(tabs);
   },
 
   setError(message) {

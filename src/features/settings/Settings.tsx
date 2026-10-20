@@ -60,7 +60,7 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "packs", label: "Icon & image packs", icon: Images },
   { id: "spelling", label: "Spelling", icon: SpellCheck },
-  { id: "daily", label: "Daily notes", icon: CalendarDays },
+  { id: "daily", label: "Home & daily notes", icon: CalendarDays },
   { id: "templates", label: "Templates", icon: LayoutTemplate },
   { id: "files", label: "Files & links", icon: Paperclip },
   { id: "commands", label: "Quick commands", icon: SquareSlash },
@@ -438,6 +438,8 @@ function Daily({ config, set }: SectionProps) {
   const d = config.dailyNotes;
   const setDaily = (patch: Partial<AxisConfig["dailyNotes"]>) =>
     set((c) => ({ ...c, dailyNotes: { ...c.dailyNotes, ...patch } }));
+  const setHome = (patch: Partial<AxisConfig["home"]>) =>
+    set((c) => ({ ...c, home: { ...c.home, ...patch } }));
   return (
     <>
       <Field label="Folder">
@@ -465,12 +467,31 @@ function Daily({ config, set }: SectionProps) {
           onBlur={(e) => setDaily({ template: e.target.value.trim() })}
         />
       </Field>
-      <Field label="Open on startup">
+      <Field label="Open today's daily note on startup">
         <input
           type="checkbox"
           aria-label="Open daily note on startup"
           checked={d.openOnStartup}
           onChange={(e) => setDaily({ openOnStartup: e.target.checked })}
+        />
+      </Field>
+      <Field
+        label="Open Home when a vault opens"
+        hint="Your tabs from last time stay open. With the daily note on too, both open and Home shows."
+      >
+        <input
+          type="checkbox"
+          aria-label="Open Home when a vault opens"
+          checked={config.home.openOnStartup}
+          onChange={(e) => setHome({ openOnStartup: e.target.checked })}
+        />
+      </Field>
+      <Field label="Show Home when the last tab closes" hint="Instead of an empty new tab.">
+        <input
+          type="checkbox"
+          aria-label="Show Home when the last tab closes"
+          checked={config.home.onLastTabClose}
+          onChange={(e) => setHome({ onLastTabClose: e.target.checked })}
         />
       </Field>
     </>
