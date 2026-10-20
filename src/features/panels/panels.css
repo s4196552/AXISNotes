@@ -1,11 +1,30 @@
 .sidebar-tabs {
   display: flex;
-  gap: 2px;
-  padding: 4px 6px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
   border-bottom: 1px solid var(--border);
 }
+/* Files / Search / Tags: a segmented control, one of them always selected. */
+.sidebar-seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+/* Home, Graph, Tasks, Time: plain buttons after a divider. */
+.sidebar-views {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
 .sidebar-tabs button {
-  padding: 4px 8px;
+  display: inline-grid;
+  place-items: center;
+  padding: 4px 7px;
   border: none;
   background: transparent;
   color: var(--fg-muted);
@@ -181,11 +200,6 @@ mark {
   background: var(--bg-hover);
   color: var(--fg);
 }
-.sidebar-graph {
-  order: 9;
-  margin-left: auto;
-}
-
 /* Drag handle on a side panel's inner edge (see PanelResizer). It straddles the border,
    so the hit area is wider than the line it highlights. */
 .sidebar {
@@ -263,4 +277,30 @@ mark {
 }
 .search-op code {
   color: var(--accent);
+}
+
+/* A narrow left panel: tighter buttons, then the view buttons on their own line. */
+.sidebar:not(.sidebar-right) {
+  container: left-panel / inline-size;
+}
+@container left-panel (max-width: 250px) {
+  .sidebar-tabs {
+    gap: 4px;
+  }
+  .sidebar-tabs button {
+    padding: 4px 4px;
+  }
+  .sidebar-views {
+    padding-left: 4px;
+  }
+}
+@container left-panel (max-width: 220px) {
+  .sidebar-tabs {
+    flex-wrap: wrap;
+  }
+  .sidebar-views {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+  }
 }
