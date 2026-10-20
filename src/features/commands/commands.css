@@ -34,7 +34,7 @@
 }
 .picker-list li {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   padding: 7px 10px;
   border-radius: var(--radius);
@@ -65,6 +65,34 @@
 }
 .picker-empty {
   cursor: default;
+}
+.picker-list li.picker-section {
+  padding: 8px 10px 3px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+  cursor: default;
+}
+.picker-icon {
+  flex: none;
+  color: var(--fg-muted);
+}
+.picker-list li.selected .picker-icon {
+  color: var(--fg);
+}
+.picker-label mark {
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+}
+.picker-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 7px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
 }
 .prompt {
   display: flex;

@@ -688,6 +688,12 @@ export function createMemoryBackend(
       if (!nodes.has(p)) fail("NotFound", path);
       for (const k of [...nodes.keys()]) if (k === p || k.startsWith(p + "/")) nodes.delete(k);
     },
+    // A browser page has no file manager to show.
+    async revealEntry(path) {
+      requireVault();
+      if (normalize(path) !== "" && !nodes.has(normalize(path))) fail("NotFound", path);
+      fail("Io", "Showing files in the file manager needs the desktop app.");
+    },
     // The in-memory index is always up to date.
     onIndexProgress: async () => () => {},
     // The browser preview zooms with CSS; the desktop app zooms the webview itself.

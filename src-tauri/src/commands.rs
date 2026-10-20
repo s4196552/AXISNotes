@@ -460,6 +460,48 @@ pub fn trash_entry(state: State<AppState>, path: String) -> AppResult<()> {
     Ok(())
 }
 
+/// Show a vault entry in the system file manager, selected (`""` opens the vault folder).
+#[tauri::command]
+pub fn reveal_entry(state: State<AppState>, path: String) -> AppResult<()> {
+    let v = state.vault()?;
+    let abs = v.resolve(&path)?;
+    if !abs.exists() {
+        return Err(AppError::NotFound(path));
+    }
+    let select = abs != v.root();
+    let mut cmd;
+    if cfg!(windows) {
+        cmd = std::process::Command::new("explorer");
+        if select {
+            // explorer wants `/select,"C:\path"` as one argument, quotes included; Windows
+            // file names can't contain `"`, so the path can't break out of them.
+            #[cfg(windows)]
+            {
+                use std::os::windows::process::CommandExt;
+                cmd.raw_arg(format!("/select,\"{}\"", abs.display()));
+            }
+        } else {
+            cmd.arg(&abs);
+        }
+    } else if cfg!(target_os = "macos") {
+        cmd = std::process::Command::new("open");
+        if select {
+            cmd.arg("-R");
+        }
+        cmd.arg(&abs);
+    } else {
+        // No portable "select this file": open its folder.
+        cmd = std::process::Command::new("xdg-open");
+        cmd.arg(if select { abs.parent().unwrap_or(&abs) } else { &abs });
+    }
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| AppError::Io(format!("couldn't open the file manager: {e}")))?;
+    // explorer exits 1 even when it worked; only reap it.
+    std::thread::spawn(move || child.wait());
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn search(
     state: State<'_, AppState>,

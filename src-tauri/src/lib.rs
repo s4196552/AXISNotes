@@ -69,6 +69,7 @@ pub fn run() {
             commands::import_image,
             commands::rename_entry,
             commands::trash_entry,
+            commands::reveal_entry,
             commands::search,
             commands::list_tags,
             commands::list_property_keys,

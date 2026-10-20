@@ -14,6 +14,8 @@ export type Modal =
   | { kind: "ask"; path?: string; selection?: string }
   | { kind: "handwriting"; path: string }
   | { kind: "import" }
+  | { kind: "move"; path: string }
+  | { kind: "themes" }
   | { kind: "diagram"; path: string; selection?: string }
   | {
       kind: "fix";

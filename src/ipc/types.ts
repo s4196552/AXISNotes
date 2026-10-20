@@ -472,6 +472,8 @@ export interface Backend {
   renameEntry(from: string, to: string): Promise<VaultEntry>;
   /** Moves to the OS trash (never a hard delete). */
   trashEntry(path: string): Promise<void>;
+  /** Show an entry, selected, in the system file manager ("" opens the vault folder). */
+  revealEntry(path: string): Promise<void>;
   /** Subscribe to changes made outside the app. Returns an unsubscribe function. */
   onVaultChanged(cb: (changes: VaultChange[]) => void): Promise<() => void>;
   /** Progress of catching the index up after a vault opens (big vaults open first and are
