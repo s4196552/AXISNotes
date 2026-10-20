@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { type AiRule, backend, isBackendError } from "../ipc";
+import type { Dashboards } from "../features/dashboard/dashboardModel";
 
 // Per-vault settings in `.axisnotes/config.json`. Unknown keys are preserved on save.
 
@@ -53,6 +54,8 @@ export interface AxisConfig {
   folderIcons: Record<string, FolderIcon>;
   /** Background and text colours of file-tree rows, by vault path. */
   entryColors: Record<string, EntryColors>;
+  /** Dashboard layouts by folder path; "" is the vault's Home (see features/dashboard). */
+  dashboards: Dashboards;
   dailyNotes: {
     folder: string;
     /** Date format for the file name, e.g. `YYYY-MM-DD`. */
@@ -105,6 +108,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
   },
   folderIcons: {},
   entryColors: {},
+  dashboards: {},
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   templatesFolder: "Templates",
   attachments: { folder: "Attachments" },

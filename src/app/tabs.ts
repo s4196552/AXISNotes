@@ -1,13 +1,14 @@
-// Tabs in the main area, like Obsidian's: each tab shows a note (or the graph, tasks or time
-// report) and has its own back/forward history. Tabs can be selected together and gathered
-// into coloured groups that collapse and move as one, like Chrome's. Pure functions over
-// `TabsState`; the app store (store.ts) holds the state and mirrors the active tab into
-// `activePath`/`mainView`.
+// Tabs in the main area, like Obsidian's: each tab shows a note (or the graph, tasks, time
+// report or a dashboard) and has its own back/forward history. Tabs can be selected together
+// and gathered into coloured groups that collapse and move as one, like Chrome's. Pure
+// functions over `TabsState`; the app store (store.ts) holds the state and mirrors the active
+// tab into `activePath`/`mainView`.
 
-export type View = "note" | "graph" | "tasks" | "time";
+export type View = "note" | "graph" | "tasks" | "time" | "dashboard";
 
 /** What a tab shows. */
 export interface Loc {
+  /** The note; for a dashboard, its folder ("" = the vault's Home). */
   path: string | null;
   view: View;
 }
@@ -498,7 +499,7 @@ interface Saved {
   groups?: { name: string; color: GroupColor; collapsed?: boolean }[];
 }
 
-const VIEWS: readonly View[] = ["note", "graph", "tasks", "time"];
+const VIEWS: readonly View[] = ["note", "graph", "tasks", "time", "dashboard"];
 
 export function serialize(s: TabsState): string {
   const saved: Saved = {

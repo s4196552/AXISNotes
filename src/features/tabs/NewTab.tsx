@@ -1,4 +1,4 @@
-import { FilePlus, Search, X } from "lucide-react";
+import { FilePlus, House, Search, X } from "lucide-react";
 import { useAppStore } from "../../app/store";
 import { newNote } from "../commands/actions";
 import { useUi } from "../commands/ui";
@@ -13,6 +13,9 @@ export function NewTab() {
         </button>
         <button onClick={() => useUi.getState().open({ kind: "switcher" })}>
           <Search size={15} aria-hidden /> Open a note <kbd>Ctrl+O</kbd>
+        </button>
+        <button onClick={() => useAppStore.getState().openDashboard("")}>
+          <House size={15} aria-hidden /> Go to Home
         </button>
         <button onClick={() => useAppStore.getState().closeTab()}>
           <X size={15} aria-hidden /> Close tab <kbd>Ctrl+W</kbd>

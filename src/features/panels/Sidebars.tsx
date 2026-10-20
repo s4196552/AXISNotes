@@ -3,6 +3,7 @@ import {
   Clock,
   FolderTree,
   Hash,
+  House,
   ListChecks,
   Network,
   Search,
@@ -51,6 +52,14 @@ export function LeftSidebar() {
         </button>
       </header>
       <div className="sidebar-tabs" role="tablist" aria-label="Sidebar views">
+        <button
+          className="sidebar-graph"
+          aria-label="Home"
+          title="Home"
+          onClick={() => useAppStore.getState().openDashboard("")}
+        >
+          <House size={15} />
+        </button>
         <button
           className="sidebar-graph"
           aria-label="Graph view"

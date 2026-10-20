@@ -93,6 +93,12 @@ registerCommands([
     run: () => void newNote(),
   },
   {
+    id: "home",
+    label: "Go to Home",
+    shortcut: { key: "h", mod: true, shift: true },
+    run: () => useAppStore.getState().openDashboard(""),
+  },
+  {
     id: "tasks",
     label: "Open tasks",
     shortcut: { key: "t", mod: true, shift: true },

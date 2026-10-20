@@ -12,6 +12,7 @@ import {
   HardDrive,
   Film,
   Image,
+  LayoutDashboard,
   Lock,
   Shapes,
   Sheet,
@@ -24,6 +25,8 @@ import { useAppStore } from "../../app/store";
 import { type EntryColors, type FolderIcon, useConfig } from "../../app/config";
 import { useUi } from "../commands/ui";
 import { EntryIcon } from "../icons/EntryIcon";
+import { hasDashboard, renameInDashboards, trashInDashboards } from "../dashboard/dashboardModel";
+import { setDashboard } from "../dashboard/setDashboard";
 import {
   baseName,
   canMove,
@@ -75,16 +78,23 @@ function remapKeys<T>(map: Record<string, T>, from: string, to: string | null) {
   return out;
 }
 
-/** Move icon and colour settings along with a renamed entry (or drop them). */
+/**
+ * Move icon, colour and dashboard settings along with a renamed entry. When it was trashed
+ * (`to` null), icons and colours go; dashboards inside it are only switched off, so their
+ * layouts survive a restore, and pinned links to it show as missing.
+ */
 async function remapIcons(from: string, to: string | null) {
-  const { folderIcons, entryColors } = useConfig.getState().config;
+  const { folderIcons, entryColors, dashboards } = useConfig.getState().config;
+  const boards = (d: typeof dashboards) =>
+    to === null ? trashInDashboards(d, from) : renameInDashboards(d, from, to);
   const icons = remapKeys(folderIcons, from, to);
   const colors = remapKeys(entryColors, from, to);
-  if (!icons && !colors) return;
+  if (!icons && !colors && !boards(dashboards)) return;
   await useConfig.getState().update((c) => ({
     ...c,
     folderIcons: remapKeys(c.folderIcons, from, to) ?? c.folderIcons,
     entryColors: remapKeys(c.entryColors, from, to) ?? c.entryColors,
+    dashboards: boards(c.dashboards) ?? c.dashboards,
   }));
 }
 
@@ -97,6 +107,7 @@ export function FileTree() {
   const folderIcons = useConfig((s) => s.config.folderIcons);
   const entryColors = useConfig((s) => s.config.entryColors);
   const aiFolders = useConfig((s) => s.config.ai.folders);
+  const dashboards = useConfig((s) => s.config.dashboards);
   const activePath = useAppStore((s) => s.activePath);
   const { expanded, toggle, collapseAll, update: updateExpanded } = useExpanded(vault?.root ?? "");
 
@@ -372,6 +383,7 @@ export function FileTree() {
             customIcon={folderIcons[entry.path]}
             colors={entryColors[entry.path]}
             aiRule={aiFolders[entry.path]}
+            dashboard={entry.kind === "dir" && hasDashboard(dashboards, entry.path)}
             actions={actions}
           />
         ))}
@@ -404,6 +416,7 @@ export function FileTree() {
             onClick={() => void createFolder(menuDir)}
             close={setMenu}
           />
+          {menu.entry?.kind === "dir" && <DashboardItems path={menu.entry.path} close={setMenu} />}
           {menu.entry && (
             <>
               <AiRuleItems path={menu.entry.path} close={setMenu} />
@@ -433,6 +446,27 @@ export function FileTree() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Open, add or remove a folder's dashboard. */
+function DashboardItems({ path, close }: { path: string; close(v: null): void }) {
+  const has = useConfig((s) => hasDashboard(s.config.dashboards, path));
+  const open = () => useAppStore.getState().openDashboard(path);
+  return has ? (
+    <>
+      <MenuItem label="Open dashboard" onClick={open} close={close} />
+      <MenuItem label="Remove dashboard" onClick={() => setDashboard(path, false)} close={close} />
+    </>
+  ) : (
+    <MenuItem
+      label="Add dashboard"
+      onClick={() => {
+        setDashboard(path, true);
+        open();
+      }}
+      close={close}
+    />
   );
 }
 
@@ -496,6 +530,8 @@ interface TreeRowProps {
   customIcon?: FolderIcon;
   colors?: EntryColors;
   aiRule?: AiRule;
+  /** A folder with its own dashboard shows a button that opens it. */
+  dashboard?: boolean;
   actions: RowActions;
 }
 
@@ -510,6 +546,7 @@ const TreeRow = memo(function TreeRow({
   customIcon,
   colors,
   aiRule,
+  dashboard,
   actions,
 }: TreeRowProps) {
   const own = rowColorProps(rowColors(colors));
@@ -596,6 +633,19 @@ const TreeRow = memo(function TreeRow({
         <RenameInput entry={entry} actions={actions} />
       ) : (
         <span className="filetree-name">{displayName(entry)}</span>
+      )}
+      {dashboard && (
+        <span
+          className="filetree-dashboard"
+          title="Open dashboard"
+          onClick={(e) => {
+            e.stopPropagation();
+            useAppStore.getState().openDashboard(entry.path, { newTab: e.ctrlKey || e.metaKey });
+          }}
+        >
+          <LayoutDashboard size={12} aria-hidden />
+          <span className="visually-hidden">, has a dashboard</span>
+        </span>
       )}
       {aiRule && aiRule !== "any" && (
         <span

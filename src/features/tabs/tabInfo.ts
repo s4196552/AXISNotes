@@ -2,7 +2,9 @@ import {
   Clock,
   File,
   FileText,
+  House,
   Image,
+  LayoutDashboard,
   ListChecks,
   type LucideIcon,
   Network,
@@ -17,6 +19,9 @@ export function tabTitle(loc: Loc): string {
   if (loc.view === "graph") return "Graph view";
   if (loc.view === "tasks") return "Tasks";
   if (loc.view === "time") return "Time report";
+  if (loc.view === "dashboard") {
+    return loc.path ? loc.path.slice(loc.path.lastIndexOf("/") + 1) : "Home";
+  }
   if (loc.path === null) return "New tab";
   const name = loc.path.slice(loc.path.lastIndexOf("/") + 1);
   const ext = hiddenExt(name);
@@ -28,6 +33,7 @@ export function kindIcon(loc: Loc): LucideIcon | null {
   if (loc.view === "graph") return Network;
   if (loc.view === "tasks") return ListChecks;
   if (loc.view === "time") return Clock;
+  if (loc.view === "dashboard") return loc.path ? LayoutDashboard : House;
   if (loc.path === null) return null;
   switch (docKind(loc.path)) {
     case "grid":

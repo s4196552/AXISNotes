@@ -4,8 +4,7 @@ import { backend, isBackendError, type TaskRef } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { formatDate } from "../../lib/dates";
 import { type Bucket, BUCKETS, bucketOf, matchesFilter, PRIORITY } from "./taskModel";
-import { setTaskDone } from "../../lib/tasks";
-import { editNote } from "../files/editNote";
+import { toggleTask } from "./toggleTask";
 import { TaskTimerButton } from "../time/TimerControls";
 import "./tasks.css";
 
@@ -47,23 +46,9 @@ export function TasksView() {
     .reduce((n, [, list]) => n + list.length, 0);
 
   async function toggle(task: TaskRef) {
-    const key = `${task.path}:${task.line}`;
-    setBusy(key);
+    setBusy(`${task.path}:${task.line}`);
     try {
-      const changed = await editNote(task.path, (text) => {
-        const lines = text.split("\n");
-        const current = lines[task.line - 1];
-        if (current === undefined || current.replace(/\r$/, "") !== task.raw) return null;
-        const cr = current.endsWith("\r") ? "\r" : "";
-        lines[task.line - 1] = setTaskDone(task.raw, !task.done, today) + cr;
-        return lines.join("\n");
-      });
-      if (!changed) {
-        useAppStore.getState().notify("That task changed in its note; the list was refreshed.");
-        useAppStore.getState().bumpIndex();
-      }
-    } catch (e) {
-      useAppStore.getState().setError(isBackendError(e) ? e.message : String(e));
+      await toggleTask(task, today);
     } finally {
       setBusy(null);
     }

@@ -25,6 +25,7 @@ import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./a
 import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
 import { useLayout } from "./app/layout";
+import { activeTab } from "./app/tabs";
 
 // Views other than the note editor load on first use (grids also need the formula
 // function library before they render).
@@ -36,6 +37,7 @@ const Canvas = lazyNamed(() => import("./features/canvas/Canvas"), "Canvas");
 const GraphView = lazyNamed(() => import("./features/graph/GraphView"), "GraphView");
 const TasksView = lazyNamed(() => import("./features/tasks/TasksView"), "TasksView");
 const TimeReport = lazyNamed(() => import("./features/time/TimeReport"), "TimeReport");
+const Dashboard = lazyNamed(() => import("./features/dashboard/Dashboard"), "Dashboard");
 import { RunningTimer } from "./features/time/TimerControls";
 import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
@@ -50,6 +52,7 @@ export default function App() {
   const vault = useAppStore((s) => s.vault);
   const activePath = useAppStore((s) => s.activePath);
   const mainView = useAppStore((s) => s.mainView);
+  const tabPath = useAppStore((s) => activeTab(s.tabs).path);
   const error = useAppStore((s) => s.error);
   const notice = useAppStore((s) => s.notice);
   const indexing = useAppStore((s) => s.indexing);
@@ -204,6 +207,8 @@ export default function App() {
               <TasksView />
             ) : mainView === "time" ? (
               <TimeReport />
+            ) : mainView === "dashboard" ? (
+              <Dashboard key={tabPath ?? ""} folder={tabPath ?? ""} />
             ) : activePath && docKind(activePath) === "grid" ? (
               <Grid key={activePath} path={activePath} />
             ) : activePath && docKind(activePath) === "canvas" ? (
