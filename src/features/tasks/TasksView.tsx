@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, X } from "lucide-react";
+import { CalendarDays, ListChecks } from "lucide-react";
+import { ViewHeader } from "../tabs/ViewHeader";
 import { backend, isBackendError, type TaskRef } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { formatDate } from "../../lib/dates";
@@ -58,8 +59,7 @@ export function TasksView() {
 
   return (
     <div className="tasks-view">
-      <header className="graph-toolbar tasks-toolbar">
-        <strong>Tasks</strong>
+      <ViewHeader icon={ListChecks} title="Tasks">
         <input
           type="search"
           aria-label="Filter tasks"
@@ -78,14 +78,7 @@ export function TasksView() {
         <span className="graph-count muted" aria-live="polite">
           {tasks ? `${open} open` : "Loading…"}
         </span>
-        <button
-          className="graph-close"
-          aria-label="Close tasks"
-          onClick={() => useAppStore.getState().setMainView("note")}
-        >
-          <X size={16} />
-        </button>
-      </header>
+      </ViewHeader>
 
       <div className="tasks-body">
         {tasks && tasks.length === 0 && (
