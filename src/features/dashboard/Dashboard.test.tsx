@@ -199,6 +199,84 @@ describe("Dashboard", () => {
     await within(calendar).findByRole("gridcell", { name: /, 2 tasks due$/ });
   });
 
+  it("renames, resizes and drags widgets, and sets how many recent files show", async () => {
+    await setup({ "A.md": "", "B.md": "" });
+    render(<Dashboard folder="" />);
+    fireEvent.click(screen.getByRole("button", { name: "Customize" }));
+
+    // Any widget can be renamed now, not only Pinned.
+    const titles = screen.getAllByRole("textbox", { name: "Widget title" });
+    fireEvent.change(titles[1]!, { target: { value: "Must do" } });
+    fireEvent.blur(titles[1]!);
+    await screen.findByRole("region", { name: "Must do" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Make Calendar wide" }));
+    await waitFor(() => expect(widget("Calendar")).toHaveClass("wide"));
+
+    // Drag the Pinned widget's handle onto the calendar: it lands before it.
+    const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "" };
+    const grip = within(widget("Pinned")).getByTitle("Drag to move");
+    fireEvent.dragStart(grip, { dataTransfer });
+    fireEvent.dragOver(widget("Calendar"), { dataTransfer });
+    expect(widget("Calendar")).toHaveClass("drop-before");
+    fireEvent.drop(widget("Calendar"), { dataTransfer });
+    fireEvent.dragEnd(grip, { dataTransfer });
+    await waitFor(() =>
+      expect(savedConfig().dashboards[""].widgets.map((w: { type: string }) => w.type)).toEqual([
+        "links",
+        "calendar",
+        "tasks",
+        "schedule",
+      ]),
+    );
+    const saved = savedConfig().dashboards[""].widgets;
+    expect(saved[1]).toMatchObject({ type: "calendar", size: "wide" });
+    expect(saved[2]).toMatchObject({ type: "tasks", title: "Must do" });
+
+    fireEvent.click(within(widget("Add a widget")).getByRole("button", { name: /Recent/ }));
+    const show = await within(await screen.findByRole("region", { name: "Recent" })).findByRole(
+      "combobox",
+    );
+    fireEvent.change(show, { target: { value: "4" } });
+    await waitFor(() =>
+      expect(
+        savedConfig().dashboards[""].widgets.find((w: { type: string }) => w.type === "recent")
+          .options,
+      ).toEqual({ count: 4 }),
+    );
+  });
+
+  it("reorders pinned cards with buttons and by dragging", async () => {
+    await setup({ "A.md": "", "B.md": "", "C.md": "" });
+    useConfig.setState((s) => ({
+      config: {
+        ...s.config,
+        dashboards: {
+          "": {
+            enabled: true,
+            widgets: [{ id: "p", type: "links", links: ["A.md", "B.md", "C.md"] }],
+          },
+        },
+      },
+    }));
+    render(<Dashboard folder="" />);
+    const links = () => savedConfig().dashboards?.[""]?.widgets[0].links as string[] | undefined;
+    // Outside Customize, cards don't move.
+    expect(screen.queryByRole("button", { name: "Move C earlier" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Customize" }));
+    expect(screen.getByRole("button", { name: "Move A earlier" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Move C earlier" }));
+    await waitFor(() => expect(links()).toEqual(["A.md", "C.md", "B.md"]));
+
+    const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "" };
+    const card = (title: string) => screen.getByTitle(title).closest(".dashboard-card")!;
+    fireEvent.dragStart(card("B.md"), { dataTransfer });
+    fireEvent.dragOver(card("A.md"), { dataTransfer });
+    fireEvent.drop(card("A.md"), { dataTransfer });
+    await waitFor(() => expect(links()).toEqual(["B.md", "A.md", "C.md"]));
+  });
+
   it("restores a dashboard tab with the vault's other tabs", () => {
     const s = deserialize(
       JSON.stringify({ tabs: [{ path: "School", view: "dashboard" }], active: 0 }),
