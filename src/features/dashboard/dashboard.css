@@ -428,6 +428,58 @@
   font-size: 11px;
 }
 
+/* Customizing: drag handles, where a drop lands, and per-widget options. */
+.dashboard-grip {
+  display: grid;
+  place-items: center;
+  margin-left: -6px;
+  color: var(--fg-muted);
+  cursor: grab;
+}
+.dashboard-grip:active {
+  cursor: grabbing;
+}
+.dashboard[data-editing] .dashboard-card {
+  cursor: grab;
+}
+.dashboard-widget.dragging,
+.dashboard-card.dragging {
+  opacity: 0.45;
+}
+.dashboard-widget.drop-before,
+.dashboard-card.drop-before {
+  box-shadow: -3px 0 0 var(--accent);
+}
+.dashboard-widget.drop-after,
+.dashboard-card.drop-after {
+  box-shadow: 3px 0 0 var(--accent);
+}
+/* A widget as wide as the row shows the drop above or below instead. */
+.dashboard-widget.drop-v.drop-before {
+  box-shadow: 0 -3px 0 var(--accent);
+}
+.dashboard-widget.drop-v.drop-after {
+  box-shadow: 0 3px 0 var(--accent);
+}
+.dashboard-widget-tools button[aria-pressed="true"] {
+  color: var(--accent);
+}
+.dashboard-card-tools button:disabled {
+  opacity: 0.35;
+}
+.dashboard-options {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -2px 0 10px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.dashboard-options select {
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
 @media (max-width: 640px) {
   .dashboard {
     padding: 16px;

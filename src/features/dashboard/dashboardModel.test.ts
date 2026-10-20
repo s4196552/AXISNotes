@@ -24,7 +24,63 @@ import {
   dueCounts,
   nowIndex,
   taskGroup,
+  isWide,
+  makeWidget,
+  moveLink,
+  placeLink,
+  placeWidget,
 } from "./dashboardModel";
+
+describe("customizing", () => {
+  const ws = (["calendar", "tasks", "schedule", "links"] as const).map((t) => ({
+    ...makeWidget(t),
+    id: t,
+  }));
+  const ids = (list: { id: string }[]) => list.map((w) => w.id);
+
+  it("drops a widget before or after another", () => {
+    expect(ids(placeWidget(ws, "links", "tasks", false))).toEqual([
+      "calendar",
+      "links",
+      "tasks",
+      "schedule",
+    ]);
+    expect(ids(placeWidget(ws, "calendar", "schedule", true))).toEqual([
+      "tasks",
+      "schedule",
+      "calendar",
+      "links",
+    ]);
+    // Onto itself or an unknown widget: unchanged, and the same array.
+    expect(placeWidget(ws, "tasks", "tasks", true)).toBe(ws);
+    expect(placeWidget(ws, "tasks", "gone", false)).toBe(ws);
+  });
+
+  it("moves and drops pinned links", () => {
+    const links = ["a.md", "b.md", "c.md"];
+    expect(moveLink(links, "c.md", -1)).toEqual(["a.md", "c.md", "b.md"]);
+    expect(moveLink(links, "a.md", -1)).toBe(links);
+    expect(placeLink(links, "a.md", "c.md", true)).toEqual(["b.md", "c.md", "a.md"]);
+    expect(placeLink(links, "c.md", "a.md", false)).toEqual(["c.md", "a.md", "b.md"]);
+  });
+
+  it("sizes widgets by type unless the user chose, and keeps size and count through a save", () => {
+    expect(isWide(makeWidget("links"))).toBe(true);
+    expect(isWide(makeWidget("calendar"))).toBe(false);
+    expect(isWide({ ...makeWidget("links"), size: "normal" })).toBe(false);
+    const d = normalizeDashboard({
+      widgets: [
+        { id: "r", type: "recent", size: "normal", options: { count: 16 } },
+        { id: "s", type: "recent", size: "huge", options: { count: 2.5 } },
+        { id: "t", type: "recent", options: { count: 500 } },
+      ],
+    })!;
+    expect(d.widgets[0]).toMatchObject({ size: "normal", options: { count: 16 } });
+    expect(d.widgets[1]!.size).toBeUndefined();
+    expect(d.widgets[1]!.options).toBeUndefined();
+    expect(d.widgets[2]!.options).toBeUndefined();
+  });
+});
 
 const task = (path: string, line: number, text: string, extra: Partial<TaskRef> = {}): TaskRef => ({
   path,

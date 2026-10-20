@@ -1,19 +1,32 @@
-import { createElement, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  createElement,
+  type DragEvent,
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   CalendarDays,
   CalendarClock,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Columns2,
   Folder,
+  GripVertical,
   History,
   House,
   LayoutDashboard,
   ListChecks,
   Pin,
   Plus,
+  RectangleHorizontal,
   RotateCcw,
   Settings2,
   Trash2,
@@ -38,15 +51,21 @@ import {
   addWidget,
   appendToNote,
   dashboardFor,
+  DEFAULT_RECENT_COUNT,
   defaultDashboard,
   dueCounts,
   entriesByPath,
   fileCount,
   HOME,
   inScope,
+  isWide,
   linkCandidates,
+  moveLink,
   moveWidget,
   nowIndex,
+  placeLink,
+  placeWidget,
+  RECENT_COUNTS,
   recentFiles,
   removeWidget,
   selectDailyTasks,
@@ -74,6 +93,30 @@ const WIDGET_ICONS: Record<WidgetType, typeof Pin> = {
 };
 
 const errorText = (e: unknown) => (isBackendError(e) ? e.message : String(e));
+
+/** Where a dragged widget or card would land: before or after the one under the pointer. */
+interface DropAt {
+  target: string;
+  after: boolean;
+}
+
+/**
+ * Which half of `e`'s target the pointer is over: the far (right) half, or the lower half
+ * of an item much wider than tall (a full-row widget), where a drop lands above or below.
+ */
+function dropHalf(e: DragEvent<HTMLElement>): { after: boolean; vertical: boolean } {
+  const r = e.currentTarget.getBoundingClientRect();
+  const vertical = r.width > r.height * 2.5;
+  const after = vertical ? e.clientY > r.top + r.height / 2 : e.clientX > r.left + r.width / 2;
+  return { after, vertical };
+}
+
+/** Start an HTML5 drag; some engines only start one with data set. */
+function startDrag(e: DragEvent<HTMLElement>, id: string, image?: Element | null) {
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", id);
+  if (image) e.dataTransfer.setDragImage(image, 16, 16);
+}
 const noteName = (path: string) => path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
 
 const dayOf = (date: Date) => formatDate(date, "YYYY-MM-DD");
@@ -170,6 +213,8 @@ export function Dashboard({ folder }: { folder: string }) {
   const vault = useAppStore((s) => s.vault);
   const tree = useAppStore((s) => s.tree);
   const [editing, setEditing] = useState(false);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [drop, setDrop] = useState<DropAt | null>(null);
   const dashboard = useMemo(() => dashboardFor(saved, folder), [saved, folder]);
   const entries = useMemo(() => entriesByPath(tree), [tree]);
   const widgets = dashboard?.widgets ?? [];
@@ -254,6 +299,29 @@ export function Dashboard({ folder }: { folder: string }) {
               editing={editing}
               first={i === 0}
               last={i === widgets.length - 1}
+              drag={{
+                dragging: dragging === w.id,
+                dropSide: drop?.target === w.id ? (drop.after ? "after" : "before") : null,
+                onStart: () => setDragging(w.id),
+                onOver: (after) => {
+                  if (!dragging || dragging === w.id) return;
+                  setDrop((d) =>
+                    d?.target === w.id && d.after === after ? d : { target: w.id, after },
+                  );
+                },
+                onDrop: () => {
+                  if (dragging && drop) {
+                    const { target, after } = drop;
+                    saveWidgets(folder, (ws) => placeWidget(ws, dragging, target, after));
+                  }
+                  setDragging(null);
+                  setDrop(null);
+                },
+                onEnd: () => {
+                  setDragging(null);
+                  setDrop(null);
+                },
+              }}
             >
               <WidgetBody widget={w} folder={folder} editing={editing} today={today} />
             </WidgetFrame>
@@ -297,27 +365,79 @@ function NoDashboard({ folder, entry }: { folder: string; entry: VaultEntry | nu
   );
 }
 
+interface WidgetDrag {
+  dragging: boolean;
+  dropSide: "before" | "after" | null;
+  onStart(): void;
+  onOver(after: boolean): void;
+  onDrop(): void;
+  onEnd(): void;
+}
+
 function WidgetFrame(props: {
   widget: Widget;
   folder: string;
   editing: boolean;
   first: boolean;
   last: boolean;
+  drag: WidgetDrag;
   children: ReactNode;
 }) {
-  const { widget: w, folder, editing } = props;
+  const { widget: w, folder, editing, drag } = props;
   const Icon = WIDGET_ICONS[w.type];
   const label = widgetLabel(w);
-  const wide = w.type === "links" || w.type === "recent";
+  const wide = isWide(w);
+  const [vertical, setVertical] = useState(false);
+  const classes = [
+    "dashboard-widget",
+    `widget-${w.type}`,
+    wide && "wide",
+    drag.dragging && "dragging",
+    drag.dropSide && `drop-${drag.dropSide}`,
+    drag.dropSide && vertical && "drop-v",
+  ];
   return (
     <section
-      className={`dashboard-widget widget-${w.type}${wide ? " wide" : ""}`}
+      className={classes.filter(Boolean).join(" ")}
       aria-label={label}
+      onDragOver={
+        editing
+          ? (e) => {
+              e.preventDefault();
+              const half = dropHalf(e);
+              if (half.vertical !== vertical) setVertical(half.vertical);
+              drag.onOver(half.after);
+            }
+          : undefined
+      }
+      onDrop={
+        editing
+          ? (e) => {
+              e.preventDefault();
+              drag.onDrop();
+            }
+          : undefined
+      }
     >
       <header className="dashboard-widget-header">
+        {editing && (
+          <span
+            className="dashboard-grip"
+            draggable
+            title="Drag to move"
+            aria-hidden
+            onDragStart={(e) => {
+              startDrag(e, w.id, e.currentTarget.closest("section"));
+              drag.onStart();
+            }}
+            onDragEnd={drag.onEnd}
+          >
+            <GripVertical size={14} />
+          </span>
+        )}
         <h2 className="dashboard-widget-title">
           <Icon size={15} aria-hidden />
-          {editing && w.type === "links" ? (
+          {editing ? (
             <input
               className="dashboard-title-input"
               aria-label="Widget title"
@@ -339,6 +459,18 @@ function WidgetFrame(props: {
         </h2>
         {editing && (
           <div className="dashboard-widget-tools">
+            <button
+              aria-label={wide ? `Make ${label} narrow` : `Make ${label} wide`}
+              aria-pressed={wide}
+              title={wide ? "Make narrow" : "Make wide (full row)"}
+              onClick={() =>
+                saveWidgets(folder, (ws) =>
+                  updateWidget(ws, w.id, { size: wide ? "normal" : "wide" }),
+                )
+              }
+            >
+              {wide ? <Columns2 size={14} /> : <RectangleHorizontal size={14} />}
+            </button>
             <button
               aria-label={`Move ${label} earlier`}
               title="Move earlier"
@@ -365,8 +497,37 @@ function WidgetFrame(props: {
           </div>
         )}
       </header>
+      {editing && <WidgetOptionsRow widget={w} folder={folder} />}
       {props.children}
     </section>
+  );
+}
+
+/** Settings that only some widgets have, shown while customizing. */
+function WidgetOptionsRow({ widget: w, folder }: { widget: Widget; folder: string }) {
+  if (w.type !== "recent") return null;
+  const count = w.options?.count ?? DEFAULT_RECENT_COUNT;
+  return (
+    <label className="dashboard-options">
+      Show
+      <select
+        value={count}
+        onChange={(e) =>
+          saveWidgets(folder, (ws) =>
+            updateWidget(ws, w.id, { options: { ...w.options, count: Number(e.target.value) } }),
+          )
+        }
+      >
+        {[...new Set([...RECENT_COUNTS, count])]
+          .sort((a, b) => a - b)
+          .map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+      </select>
+      files
+    </label>
   );
 }
 
@@ -412,7 +573,7 @@ function WidgetBody(props: { widget: Widget; folder: string; editing: boolean; t
     case "links":
       return <LinksWidget widget={widget} folder={folder} editing={props.editing} />;
     case "recent":
-      return <RecentWidget folder={folder} />;
+      return <RecentWidget folder={folder} count={widget.options?.count ?? DEFAULT_RECENT_COUNT} />;
   }
 }
 
@@ -716,6 +877,8 @@ function LinksWidget(props: { widget: Widget; folder: string; editing: boolean }
         editing={editing}
         onRemove={(p) => setLinks((l) => l.filter((x) => x !== p))}
         onRelink={(p) => setPicking({ replace: p })}
+        onMove={(p, delta) => setLinks((l) => moveLink(l, p, delta))}
+        onPlace={(p, target, after) => setLinks((l) => placeLink(l, p, target, after))}
       >
         <button className="dashboard-card dashboard-card-add" onClick={() => setPicking({})}>
           <Plus size={18} aria-hidden />
@@ -742,11 +905,24 @@ function LinksWidget(props: { widget: Widget; folder: string; editing: boolean }
   );
 }
 
-function RecentWidget({ folder }: { folder: string }) {
+function RecentWidget({ folder, count }: { folder: string; count: number }) {
   const tree = useAppStore((s) => s.tree);
-  const files = useMemo(() => recentFiles(tree, folder), [tree, folder]);
+  const files = useMemo(() => recentFiles(tree, folder, count), [tree, folder, count]);
   if (!files.length) return <p className="muted dashboard-note">No files yet.</p>;
   return <CardGrid paths={files.map((f) => f.path)} />;
+}
+
+/** How a pinned card moves while customizing: arrow buttons, or drag and drop. */
+interface CardMove {
+  first: boolean;
+  last: boolean;
+  dragging: boolean;
+  dropSide: "before" | "after" | null;
+  onMove(delta: number): void;
+  onStart(): void;
+  onOver(after: boolean): void;
+  onDrop(): void;
+  onEnd(): void;
 }
 
 /** Cards for files and folders, like a notebook grid: icon, name, date · details. */
@@ -755,13 +931,23 @@ function CardGrid(props: {
   editing?: boolean;
   onRemove?(path: string): void;
   onRelink?(path: string): void;
+  onMove?(path: string, delta: number): void;
+  onPlace?(path: string, target: string, after: boolean): void;
   children?: ReactNode;
 }) {
   const tree = useAppStore((s) => s.tree);
   const entries = useMemo(() => entriesByPath(tree), [tree]);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [drop, setDrop] = useState<DropAt | null>(null);
+  const end = () => {
+    setDragging(null);
+    setDrop(null);
+  };
+  const { onMove, onPlace } = props;
+  const movable = props.editing && onMove && onPlace;
   return (
     <div className="dashboard-cards">
-      {props.paths.map((p) => (
+      {props.paths.map((p, i) => (
         <Card
           key={p}
           path={p}
@@ -769,6 +955,29 @@ function CardGrid(props: {
           editing={props.editing}
           onRemove={props.onRemove}
           onRelink={props.onRelink}
+          move={
+            movable
+              ? {
+                  first: i === 0,
+                  last: i === props.paths.length - 1,
+                  dragging: dragging === p,
+                  dropSide: drop?.target === p ? (drop.after ? "after" : "before") : null,
+                  onMove: (delta) => onMove(p, delta),
+                  onStart: () => setDragging(p),
+                  onOver: (after) => {
+                    if (!dragging || dragging === p) return;
+                    setDrop((d) =>
+                      d?.target === p && d.after === after ? d : { target: p, after },
+                    );
+                  },
+                  onDrop: () => {
+                    if (dragging && drop) onPlace(dragging, drop.target, drop.after);
+                    end();
+                  },
+                  onEnd: end,
+                }
+              : undefined
+          }
         />
       ))}
       {props.children}
@@ -786,8 +995,9 @@ function Card(props: {
   editing?: boolean;
   onRemove?(path: string): void;
   onRelink?(path: string): void;
+  move?: CardMove;
 }) {
-  const { path, entry } = props;
+  const { path, entry, move } = props;
   const customIcon = useConfig((s) => s.config.folderIcons[path]);
   const hasDashboard = useConfig(
     (s) => entry?.kind === "dir" && dashboardFor(s.config.dashboards, path) !== null,
@@ -816,8 +1026,42 @@ function Card(props: {
     else store.openFile(path, undefined, { newTab });
   };
 
+  const classes = [
+    "dashboard-card",
+    !entry && "missing",
+    move?.dragging && "dragging",
+    move?.dropSide && `drop-${move.dropSide}`,
+  ];
   return (
-    <div className={`dashboard-card${entry ? "" : " missing"}`}>
+    <div
+      className={classes.filter(Boolean).join(" ")}
+      draggable={move ? true : undefined}
+      onDragStart={
+        move
+          ? (e) => {
+              startDrag(e, path);
+              move.onStart();
+            }
+          : undefined
+      }
+      onDragEnd={move?.onEnd}
+      onDragOver={
+        move
+          ? (e) => {
+              e.preventDefault();
+              move.onOver(dropHalf(e).after);
+            }
+          : undefined
+      }
+      onDrop={
+        move
+          ? (e) => {
+              e.preventDefault();
+              move.onDrop();
+            }
+          : undefined
+      }
+    >
       <button
         className="dashboard-card-main"
         title={path}
@@ -841,6 +1085,28 @@ function Card(props: {
       </button>
       {props.onRemove && (
         <div className="dashboard-card-tools">
+          {move && (
+            <>
+              <button
+                aria-label={`Move ${name} earlier`}
+                title="Move earlier"
+                data-always=""
+                disabled={move.first}
+                onClick={() => move.onMove(-1)}
+              >
+                <ArrowLeft size={13} />
+              </button>
+              <button
+                aria-label={`Move ${name} later`}
+                title="Move later"
+                data-always=""
+                disabled={move.last}
+                onClick={() => move.onMove(1)}
+              >
+                <ArrowRight size={13} />
+              </button>
+            </>
+          )}
           {!entry && props.onRelink && (
             <button
               aria-label={`Relink ${name}`}
