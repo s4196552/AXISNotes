@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Pin, Plus, X } from "lucide-react";
+import { House, Pin, Plus, X } from "lucide-react";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import {
@@ -195,6 +195,14 @@ export function TabBar() {
       >
         {items}
       </div>
+      <button
+        className="tab-new"
+        aria-label="Go to Home"
+        title="Home (Ctrl+Shift+H)"
+        onClick={() => store().openDashboard("")}
+      >
+        <House size={15} aria-hidden />
+      </button>
       <button
         className="tab-new"
         aria-label="New tab"
