@@ -531,3 +531,39 @@ export function recentFiles(tree: VaultEntry | null, folder: string, limit = 8):
 export function fileCount(entry: VaultEntry): number {
   return (entry.children ?? []).reduce((n, c) => n + (c.children ? fileCount(c) : 1), 0);
 }
+
+export interface FolderStats {
+  /** Files inside, at any depth. */
+  files: number;
+  /** The latest change to the folder or anything in it (ms). */
+  latest: number;
+}
+
+export interface TreeIndex {
+  entries: Map<string, VaultEntry>;
+  /** By folder path ("" is the vault). */
+  folders: Map<string, FolderStats>;
+}
+
+/**
+ * Every file and folder by path, plus each folder's file count and latest change, from one
+ * walk of the tree. A dashboard builds this once per tree and its cards look things up.
+ */
+export function indexTree(tree: VaultEntry | null): TreeIndex {
+  const entries = new Map<string, VaultEntry>();
+  const folders = new Map<string, FolderStats>();
+  const walk = (e: VaultEntry): FolderStats => {
+    if (e.path) entries.set(e.path, e);
+    if (!e.children) return { files: 1, latest: e.modifiedMs };
+    const stats = { files: 0, latest: e.modifiedMs };
+    for (const c of e.children) {
+      const s = walk(c);
+      stats.files += s.files;
+      stats.latest = Math.max(stats.latest, s.latest);
+    }
+    folders.set(e.path, stats);
+    return stats;
+  };
+  if (tree) walk(tree);
+  return { entries, folders };
+}

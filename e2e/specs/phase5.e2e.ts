@@ -410,7 +410,7 @@ describe("Phase 5: AI features on the real app", () => {
     await expect($('.fix-text [role="alert"]')).toHaveText(
       expect.stringMatching(/^Not sent: .*AI: never/),
     );
-    await $('[aria-label="Close"]').click();
+    await $('.modal [aria-label="Close"]').click();
     await cursorAtEnd();
     await slash("handwr");
     await scribble();

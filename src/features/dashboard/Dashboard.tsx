@@ -1,8 +1,10 @@
 import {
+  createContext,
   createElement,
   type DragEvent,
   type FormEvent,
   type ReactNode,
+  useContext,
   useEffect,
   useMemo,
   useState,
@@ -36,11 +38,13 @@ import { backend, isBackendError, type TaskRef, type VaultEntry } from "../../ip
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { formatDate } from "../../lib/dates";
+import { plainInline } from "../../lib/inlineMarkdown";
 import { dailyNotePath, ensureDailyNote, openDailyNote } from "../commands/actions";
 import { editNote } from "../files/editNote";
 import { Picker, type PickerItem } from "../commands/Picker";
 import { Calendar } from "../daily/Calendar";
 import { EntryIcon } from "../icons/EntryIcon";
+import { InlineText } from "../tasks/InlineText";
 import { PRIORITY } from "../tasks/taskModel";
 import { toggleTask } from "../tasks/toggleTask";
 import { kindIcon } from "../tabs/tabInfo";
@@ -54,8 +58,9 @@ import {
   DEFAULT_RECENT_COUNT,
   defaultDashboard,
   dueCounts,
-  entriesByPath,
-  fileCount,
+  type FolderStats,
+  indexTree,
+  type TreeIndex,
   HOME,
   inScope,
   isWide,
@@ -93,6 +98,9 @@ const WIDGET_ICONS: Record<WidgetType, typeof Pin> = {
 };
 
 const errorText = (e: unknown) => (isBackendError(e) ? e.message : String(e));
+
+/** The vault tree indexed once per change (see `indexTree`), for the dashboard's cards. */
+const TreeIndexContext = createContext<TreeIndex>({ entries: new Map(), folders: new Map() });
 
 /** Where a dragged widget or card would land: before or after the one under the pointer. */
 interface DropAt {
@@ -216,7 +224,8 @@ export function Dashboard({ folder }: { folder: string }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [drop, setDrop] = useState<DropAt | null>(null);
   const dashboard = useMemo(() => dashboardFor(saved, folder), [saved, folder]);
-  const entries = useMemo(() => entriesByPath(tree), [tree]);
+  // One walk of the tree per change, shared by every card on the dashboard.
+  const index = useMemo(() => indexTree(tree), [tree]);
   const widgets = dashboard?.widgets ?? [];
   // The calendar marks days with tasks due, so it needs the tasks too.
   const needsToday = widgets.some(
@@ -226,7 +235,7 @@ export function Dashboard({ folder }: { folder: string }) {
 
   const isHome = folder === HOME;
   const title = isHome ? "Home" : folder.slice(folder.lastIndexOf("/") + 1);
-  const folderEntry = isHome ? tree : entries.get(folder);
+  const folderEntry = isHome ? tree : index.entries.get(folder);
 
   if (!loaded) return <div className="empty muted">Loading…</div>;
   if (!isHome && tree && !folderEntry) {
@@ -238,103 +247,107 @@ export function Dashboard({ folder }: { folder: string }) {
   }
 
   return (
-    <div className="dashboard" data-editing={editing ? "" : undefined}>
-      <header className="dashboard-header">
-        <span className="dashboard-title-icon" aria-hidden>
-          {isHome ? <House size={22} /> : <LayoutDashboard size={22} />}
-        </span>
-        <div className="dashboard-heading">
-          <h1>{title}</h1>
-          <span className="muted">{isHome ? vault?.name : folder}</span>
-        </div>
-        {dashboard && (
-          <div className="dashboard-actions">
-            {editing && (
-              <>
-                <button
-                  className="pill"
-                  title="Put back the default widgets"
-                  onClick={() => {
-                    if (window.confirm("Replace this dashboard's widgets with the default ones?")) {
-                      saveWidgets(folder, () => defaultDashboard().widgets);
-                    }
-                  }}
-                >
-                  <RotateCcw size={14} aria-hidden /> Reset
-                </button>
-                {!isHome && (
+    <TreeIndexContext.Provider value={index}>
+      <div className="dashboard" data-editing={editing ? "" : undefined}>
+        <header className="dashboard-header">
+          <span className="dashboard-title-icon" aria-hidden>
+            {isHome ? <House size={22} /> : <LayoutDashboard size={22} />}
+          </span>
+          <div className="dashboard-heading">
+            <h1>{title}</h1>
+            <span className="muted">{isHome ? vault?.name : folder}</span>
+          </div>
+          {dashboard && (
+            <div className="dashboard-actions">
+              {editing && (
+                <>
                   <button
                     className="pill"
-                    title="Remove this folder's dashboard (its layout is kept if you add it back)"
+                    title="Put back the default widgets"
                     onClick={() => {
-                      setEditing(false);
-                      setDashboard(folder, false);
+                      if (
+                        window.confirm("Replace this dashboard's widgets with the default ones?")
+                      ) {
+                        saveWidgets(folder, () => defaultDashboard().widgets);
+                      }
                     }}
                   >
-                    <Trash2 size={14} aria-hidden /> Remove dashboard
+                    <RotateCcw size={14} aria-hidden /> Reset
                   </button>
-                )}
-              </>
+                  {!isHome && (
+                    <button
+                      className="pill"
+                      title="Remove this folder's dashboard (its layout is kept if you add it back)"
+                      onClick={() => {
+                        setEditing(false);
+                        setDashboard(folder, false);
+                      }}
+                    >
+                      <Trash2 size={14} aria-hidden /> Remove dashboard
+                    </button>
+                  )}
+                </>
+              )}
+              <button
+                className={editing ? "pill primary" : "pill"}
+                aria-pressed={editing}
+                onClick={() => setEditing(!editing)}
+              >
+                <Settings2 size={14} aria-hidden /> {editing ? "Done" : "Customize"}
+              </button>
+            </div>
+          )}
+        </header>
+
+        {!dashboard ? (
+          <NoDashboard folder={folder} entry={folderEntry ?? null} />
+        ) : (
+          <div className="dashboard-grid">
+            {widgets.map((w, i) => (
+              <WidgetFrame
+                key={w.id}
+                widget={w}
+                folder={folder}
+                editing={editing}
+                first={i === 0}
+                last={i === widgets.length - 1}
+                drag={{
+                  dragging: dragging === w.id,
+                  dropSide: drop?.target === w.id ? (drop.after ? "after" : "before") : null,
+                  onStart: () => setDragging(w.id),
+                  onOver: (after) => {
+                    if (!dragging || dragging === w.id) return;
+                    setDrop((d) =>
+                      d?.target === w.id && d.after === after ? d : { target: w.id, after },
+                    );
+                  },
+                  onDrop: () => {
+                    if (dragging && drop) {
+                      const { target, after } = drop;
+                      saveWidgets(folder, (ws) => placeWidget(ws, dragging, target, after));
+                    }
+                    setDragging(null);
+                    setDrop(null);
+                  },
+                  onEnd: () => {
+                    setDragging(null);
+                    setDrop(null);
+                  },
+                }}
+              >
+                <WidgetBody widget={w} folder={folder} editing={editing} today={today} />
+              </WidgetFrame>
+            ))}
+            {widgets.length === 0 && !editing && (
+              <p className="dashboard-empty muted">
+                No widgets. Choose <strong>Customize</strong> to add some.
+              </p>
             )}
-            <button
-              className={editing ? "pill primary" : "pill"}
-              aria-pressed={editing}
-              onClick={() => setEditing(!editing)}
-            >
-              <Settings2 size={14} aria-hidden /> {editing ? "Done" : "Customize"}
-            </button>
+            {editing && <AddWidget folder={folder} />}
           </div>
         )}
-      </header>
-
-      {!dashboard ? (
-        <NoDashboard folder={folder} entry={folderEntry ?? null} />
-      ) : (
-        <div className="dashboard-grid">
-          {widgets.map((w, i) => (
-            <WidgetFrame
-              key={w.id}
-              widget={w}
-              folder={folder}
-              editing={editing}
-              first={i === 0}
-              last={i === widgets.length - 1}
-              drag={{
-                dragging: dragging === w.id,
-                dropSide: drop?.target === w.id ? (drop.after ? "after" : "before") : null,
-                onStart: () => setDragging(w.id),
-                onOver: (after) => {
-                  if (!dragging || dragging === w.id) return;
-                  setDrop((d) =>
-                    d?.target === w.id && d.after === after ? d : { target: w.id, after },
-                  );
-                },
-                onDrop: () => {
-                  if (dragging && drop) {
-                    const { target, after } = drop;
-                    saveWidgets(folder, (ws) => placeWidget(ws, dragging, target, after));
-                  }
-                  setDragging(null);
-                  setDrop(null);
-                },
-                onEnd: () => {
-                  setDragging(null);
-                  setDrop(null);
-                },
-              }}
-            >
-              <WidgetBody widget={w} folder={folder} editing={editing} today={today} />
-            </WidgetFrame>
-          ))}
-          {widgets.length === 0 && !editing && (
-            <p className="dashboard-empty muted">
-              No widgets. Choose <strong>Customize</strong> to add some.
-            </p>
-          )}
-          {editing && <AddWidget folder={folder} />}
-        </div>
-      )}
-    </div>
+      </div>
+    </TreeIndexContext.Provider>
   );
 }
 
@@ -342,12 +355,13 @@ export function Dashboard({ folder }: { folder: string }) {
 function NoDashboard({ folder, entry }: { folder: string; entry: VaultEntry | null }) {
   const tree = useAppStore((s) => s.tree);
   const files = useMemo(() => recentFiles(tree, folder, 24), [tree, folder]);
+  const stats = useContext(TreeIndexContext).folders.get(folder);
   return (
     <div className="dashboard-grid">
       <section className="dashboard-widget wide dashboard-offer">
         <p>
           This folder has no dashboard.{" "}
-          {entry?.children && <span className="muted">{fileCount(entry)} files inside.</span>}
+          {entry?.children && stats && <span className="muted">{stats.files} files inside.</span>}
         </p>
         <button className="pill primary" onClick={() => setDashboard(folder, true)}>
           <Plus size={14} aria-hidden /> Add dashboard
@@ -584,7 +598,7 @@ function TaskCheck({ task, today }: { task: TaskRef; today: string }) {
       type="checkbox"
       checked={task.done}
       disabled={busy}
-      aria-label={`${task.done ? "Reopen" : "Complete"}: ${task.text}`}
+      aria-label={`${task.done ? "Reopen" : "Complete"}: ${plainInline(task.text)}`}
       onChange={() => {
         setBusy(true);
         void toggleTask(task, today).finally(() => setBusy(false));
@@ -674,7 +688,13 @@ function TaskRow({ task: t, today }: { task: TaskRef; today: string }) {
   return (
     <li className={t.done ? "done" : undefined}>
       <TaskCheck task={t} today={today} />
-      <span className="dashboard-text">{t.text || <span className="muted">(empty)</span>}</span>
+      <span className="dashboard-text">
+        {t.text ? (
+          <InlineText text={t.text} from={t.path} />
+        ) : (
+          <span className="muted">(empty)</span>
+        )}
+      </span>
       {PRIORITY[t.priority] && (
         <span title={PRIORITY[t.priority]!.label} aria-label={PRIORITY[t.priority]!.label}>
           {PRIORITY[t.priority]!.mark}
@@ -825,7 +845,11 @@ function ScheduleWidget({ folder, data }: { folder: string; data: TodayData }) {
                 </time>
                 {it.task && <TaskCheck task={it.task} today={today} />}
                 <span className="dashboard-text">
-                  {it.rest || <span className="muted">(no title)</span>}
+                  {it.rest ? (
+                    <InlineText text={it.rest} from={it.path} />
+                  ) : (
+                    <span className="muted">(no title)</span>
+                  )}
                 </span>
                 <SourceButton path={it.path} line={it.line} />
               </li>
@@ -935,8 +959,7 @@ function CardGrid(props: {
   onPlace?(path: string, target: string, after: boolean): void;
   children?: ReactNode;
 }) {
-  const tree = useAppStore((s) => s.tree);
-  const entries = useMemo(() => entriesByPath(tree), [tree]);
+  const { entries, folders } = useContext(TreeIndexContext);
   const [dragging, setDragging] = useState<string | null>(null);
   const [drop, setDrop] = useState<DropAt | null>(null);
   const end = () => {
@@ -952,6 +975,7 @@ function CardGrid(props: {
           key={p}
           path={p}
           entry={entries.get(p) ?? null}
+          stats={folders.get(p)}
           editing={props.editing}
           onRemove={props.onRemove}
           onRelink={props.onRelink}
@@ -985,13 +1009,11 @@ function CardGrid(props: {
   );
 }
 
-function latestChange(e: VaultEntry): number {
-  return e.children ? Math.max(e.modifiedMs, ...e.children.map(latestChange)) : e.modifiedMs;
-}
-
 function Card(props: {
   path: string;
   entry: VaultEntry | null;
+  /** A folder's file count and latest change. */
+  stats?: FolderStats;
   editing?: boolean;
   onRemove?(path: string): void;
   onRelink?(path: string): void;
@@ -1012,8 +1034,8 @@ function Card(props: {
   let meta: string;
   if (!entry) meta = "Missing · relink or remove";
   else if (entry.kind === "dir") {
-    const n = fileCount(entry);
-    meta = `${formatDate(new Date(latestChange(entry)), "MMM D, YYYY")} · ${n} file${n === 1 ? "" : "s"}`;
+    const { files: n, latest } = props.stats ?? { files: 0, latest: entry.modifiedMs };
+    meta = `${formatDate(new Date(latest), "MMM D, YYYY")} · ${n} file${n === 1 ? "" : "s"}`;
   } else {
     const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
     meta = `${formatDate(new Date(entry.modifiedMs), "MMM D, YYYY")}${dir ? ` · ${dir}` : ""}`;

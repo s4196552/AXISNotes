@@ -428,3 +428,22 @@ input {
 .ask-ai-meta {
   font-size: 12px;
 }
+
+/* Note text shown outside the editor (task lists, dashboard): InlineText.tsx. */
+.inline-wikilink {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.inline-wikilink:hover {
+  text-decoration: underline;
+}
+.inline-weblink {
+  color: var(--accent);
+  text-decoration: underline dotted;
+}

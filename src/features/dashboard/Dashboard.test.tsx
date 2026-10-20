@@ -67,6 +67,23 @@ describe("Dashboard", () => {
     await waitFor(() => expect(h.b.files()["Work.md"]).toContain(`- [x] Report 📅 ${yesterday}`));
   });
 
+  it("shows task text with its Markdown styled and [[links]] that open the note", async () => {
+    await setup({
+      "Work.md": `- [ ] Read [[School/Bio|biology]] **first** 📅 ${today}\n`,
+      "School/Bio.md": "# Bio\n",
+    });
+    render(<Dashboard folder="" />);
+    const tasks = widget("Today's tasks");
+    const link = await within(tasks).findByRole("button", { name: "biology" });
+    expect(within(tasks).getByText("first").tagName).toBe("STRONG");
+    expect(within(tasks).queryByText(/\[\[/)).toBeNull();
+    // The checkbox is named by the text as read, without the Markdown.
+    expect(within(tasks).getByLabelText("Complete: Read biology first")).toBeInTheDocument();
+
+    fireEvent.click(link);
+    await waitFor(() => expect(useAppStore.getState().activePath).toBe("School/Bio.md"));
+  });
+
   it("adds, reorders and removes widgets, and the layout survives a reload", async () => {
     await setup({ "A.md": "" });
     const { unmount } = render(<Dashboard folder="" />);

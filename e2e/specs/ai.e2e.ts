@@ -162,7 +162,7 @@ describe("Phase 4: AI providers, privacy and keys on the real app", () => {
     expect(chat.body.stream).toBe(true);
     expect(JSON.stringify(chat.body.messages)).toContain("Mitochondria make ATP.");
     await snapshot("02-answer");
-    await $('[aria-label="Close"]').click();
+    await $('.modal [aria-label="Close"]').click();
   });
 
   it("blocks a note from an 'AI: never' folder before anything is sent", async () => {
@@ -189,7 +189,7 @@ describe("Phase 4: AI providers, privacy and keys on the real app", () => {
     });
     expect(direct.rejected?.code).toBe("Blocked");
     expect(seen).toHaveLength(0);
-    await $('[aria-label="Close"]').click();
+    await $('.modal [aria-label="Close"]').click();
   });
 
   it("keeps a metadata-only request log", async () => {
