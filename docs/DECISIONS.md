@@ -2,6 +2,23 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-20: Import from Notion, Obsidian, Evernote and Markdown (T-103)
+
+- **One "Import notes" dialog, one entry per app**, each saying in a sentence how to get the export out: Notion ("Markdown & CSV" `.zip`, or the unzipped folder), Obsidian (vault folder), Evernote (`.enex`, or a folder of them, one folder per notebook) and Markdown or HTML (a folder or `.zip`, which covers Bear, Logseq, Roam, Typora, Joplin and Simplenote). It replaces the Obsidian-only dialog and the `import_obsidian` command with `inspect_import(kind, source)` and `import_notes(kind, source, target, options)`.
+- **Always a new folder.** The default is `Imported/<App> <YYYY-MM-DD>`, and if that folder (or file) exists the import goes to `… 2`, `… 3`. Importing into the vault root is no longer offered. Inside the folder, names are made unique per folder, ignoring case. Nothing in the vault is overwritten: a file that somehow exists is skipped and listed. This supersedes T-032's "skip what exists, or import into the root".
+- **The work is in Rust** (`src-tauri/src/import/`). A preview lists counts and warnings before anything is written. The import reports `import://progress` events (at most ten a second) for a progress bar, then rescans the index once.
+- **Notion**:
+  - The 32-hex-character IDs are dropped from file and folder names. A page, its folder of subpages and its database keep one name, and pages left with the same title become `Untitled`, `Untitled 2`.
+  - Relative Markdown links, and `notion.so` addresses whose ID is in the export, become wikilinks with the full vault path (`[[Imported/Notion 2026-10-20/Home/Plan|Plan]]`). The full path can't resolve to a same-named note elsewhere, and renames still update it. Links to attachments keep Markdown syntax with a corrected relative path, which also works in other editors. Links to files missing from the export are left as written and counted in the summary.
+  - Databases: the full table (`_all.csv`) wins over the view CSV, and links to the view are redirected to it. Tables become `.axgrid` grids with a bold header row, or optionally Markdown tables whose first column links to the row pages. A row page's leading `Property: value` lines become YAML frontmatter, but only for names that are columns of its database, so ordinary text with a colon stays. `Tags` becomes a list.
+  - The opening `# Title` that only repeats the page name is dropped, because AXISNotes shows the file name as the title.
+  - Multi-part exports (a zip of `Part-N.zip`) are read part by part through a temporary copy of each inner zip. Entries are read straight from the zip, never unpacked under their long names, which can exceed Windows' path limit.
+- **Markdown/HTML**: `.md`, `.markdown` and `.txt` become notes, and HTML pages are converted to Markdown. Relative links to notes become wikilinks, and a zip's single wrapping folder is unwrapped. Logseq's `logseq/` folder (settings, backups) is left out, and so is `__MACOSX`. Names are cleaned only where Windows can't store them.
+- **Evernote**: each note keeps its title, and created/updated dates, tags, source URL and author become frontmatter. ENML becomes Markdown: `div` lines, bold and italic (including Evernote's `style` spans), to-dos (`- [ ]`), lists, tables, code and quotes. Attachments go to `Attachments/` beside the notes and are embedded where the note shows them. They're matched by MD5, as `<en-media hash>` requires, and an attachment the text doesn't show gets a link at the end.
+- **Obsidian** is unchanged in kind: notes are copied byte for byte, JSON Canvas files are converted, and template and daily-note settings are offered. It now also gets the new folder, progress and summary.
+- **No new dependencies.** HTML/ENML and the ENEX wrapper are read by a small forgiving tokenizer (`import/html.rs`). quick-xml (MIT) was already in the lockfile, but its strict parsing rejects HTML and its API changes between releases. CSV parsing and MD5 (used only to match Evernote hashes) are a few dozen lines each, and both are tested against RFC vectors. Zip reading reuses the `zip` crate (MIT) already used for packs.
+- **Deferred:** OneNote, Apple Notes, Google Keep (Takeout JSON), Roam/Logseq JSON and EDN exports, Joplin `.jex` and Bear `.textbundle` (TextBundle needs its `text.md` renamed after the bundle), and Evernote note-to-note links (`evernote:///` addresses carry no IDs that are in the export). Each needs its own parser and fixtures.
+
 ## 2026-10-20: Home and folder dashboards (T-100)
 
 - **Layouts live in the vault config, not in a new file format:** `.axisnotes/config.json` → `dashboards`, keyed by folder path (`""` is the vault's Home). Each holds `enabled` and an ordered list of widgets (`calendar`, `tasks`, `schedule`, `links` with pinned paths, `recent`). A per-folder file would have been a new storage format, which needs the human's approval (AXIS_BUILD_PROMPT.md), and path keys already work for folder icons and colours. Saved layouts are checked on read; unknown widgets and malformed links are dropped, so a hand-edited config can't break the view.
@@ -628,7 +645,7 @@ The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq,
 | notify                                         | 8.2        | CC0-1.0                  | File watching                           |
 | notify-debouncer-full                          | 0.6        | MIT OR Apache-2.0        | Event debouncing                        |
 | trash                                          | 5.2        | MIT                      | Move to OS trash                        |
-| zip (+ typed-path, zopfli)                     | 7.4        | MIT (Apache-2.0 deps)    | Icon/image packs from .zip files        |
+| zip (+ typed-path, zopfli)                     | 7.4        | MIT (Apache-2.0 deps)    | Packs and note imports from .zip files  |
 | thiserror                                      | 2.0        | MIT OR Apache-2.0        | Error types                             |
 | dunce                                          | 1.0        | CC0 / MIT-0 / Apache-2.0 | Windows paths without the `\\?\` prefix |
 | serde / serde_json                             | 1.0        | MIT OR Apache-2.0        | Serialization                           |

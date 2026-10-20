@@ -34,8 +34,9 @@ yours: open them in any editor, sync them however you like, and they still work.
   (Ctrl+J), grammar fixes, handwriting to text and the diagram maker. Folders can be
   marked "AI: never".
 - **Web clipper**: save pages from your browser. Settings → Web clipper.
-- **Coming from Obsidian?** Ctrl+P → "Import from Obsidian…", or just open your Obsidian
-  vault in AXISNotes.
+- **Coming from another app?** Ctrl+P → "Import notes…" brings in a Notion export, an
+  Obsidian vault, Evernote notebooks or a folder of Markdown. (An Obsidian vault also opens
+  as it is.)
 
 > [!tip] Make it yours
 > Themes, fonts, folder icons and keyboard shortcuts are in Settings (Ctrl+,).
