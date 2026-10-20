@@ -14,6 +14,7 @@ import { installFileDrops } from "./features/editor/media";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
 import { Editor } from "./features/editor";
+import { setStatusSlot } from "./features/editor/statusSlot";
 import { lazyNamed } from "./app/lazy";
 import { loadFunctions } from "./lib/formula/functions";
 import { ImageView, UnsupportedView } from "./features/files/ImageView";
@@ -252,6 +253,8 @@ export default function App() {
             {error}
           </span>
         )}
+        {/* The open note puts its word count and save state here (see Editor). */}
+        <span ref={setStatusSlot} className="statusbar-doc" />
       </footer>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ListTree, Sparkles, WandSparkles } from "lucide-react";
 import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
@@ -30,11 +31,17 @@ import { livePreview } from "./livePreview";
 import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { PageHeader } from "./PageHeader";
+import { NoteTitle } from "./NoteTitle";
+import { DAILY_TITLE_FORMAT, startBelowTitle, titleHeading, titleOf } from "./titleHeading";
+import { takeEditorFocus } from "./focusRequest";
+import { countWords, wordCount } from "./wordCount";
+import { useStatusSlot } from "./statusSlot";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { listAutoformat } from "./listAutoformat";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
-import { followLink, openAskAi, openFixText } from "../commands/actions";
+import { dailyDateOf, followLink, openAskAi, openFixText } from "../commands/actions";
+import { formatDate } from "../../lib/dates";
 import { allCommands } from "../commands/registry";
 import { configuredSpellcheck, recheck } from "../spellcheck";
 import { mermaidBlocks } from "../diagrams/mermaidBlocks";
@@ -108,14 +115,11 @@ const STATUS_TEXT: Record<SaveStatus, string> = {
   error: "Save failed",
 };
 
+const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
+
 function pageStyle(props: Props): string {
   const s = props[PAGE_STYLE_PROP];
   return typeof s === "string" && (PAGE_STYLES as readonly string[]).includes(s) ? s : "plain";
-}
-
-function titleOf(path: string) {
-  const name = path.slice(path.lastIndexOf("/") + 1);
-  return name.toLowerCase().endsWith(".md") ? name.slice(0, -3) : name;
 }
 
 export function Editor({ path }: EditorProps) {
@@ -139,6 +143,30 @@ export function Editor({ path }: EditorProps) {
   const outlineOn = useEditorPrefs((s) => s.outlineView);
   const toggleOutline = useEditorPrefs((s) => s.toggleOutlineView);
   const propsJson = useRef("{}");
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  // Word count for the status bar (of the selection too, when there is one), counted a
+  // moment after typing stops so long notes don't recount on every key.
+  const [words, setWords] = useState<{ total: number; selected: number } | null>(null);
+  const countTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countNow = useCallback((state: EditorState) => {
+    const sel = state.selection.ranges
+      .filter((r) => !r.empty)
+      .reduce((n, r) => n + countWords(state.sliceDoc(r.from, r.to)), 0);
+    setWords({ total: wordCount(state.doc.toString()), selected: sel });
+  }, []);
+  const scheduleCount = useCallback(
+    (state: EditorState) => {
+      if (countTimer.current) clearTimeout(countTimer.current);
+      countTimer.current = setTimeout(() => countNow(state), 200);
+    },
+    [countNow],
+  );
+  useEffect(() => () => void (countTimer.current && clearTimeout(countTimer.current)), []);
+
+  // The save state and word count sit in the app's status bar when there is one (the
+  // editor alone, as in tests, keeps them in its header).
+  const statusSlot = useStatusSlot((s) => s.el);
 
   const syncProps = useCallback((state: EditorState) => {
     const head = state.sliceDoc(0, Math.min(state.doc.length, 20_000));
@@ -265,83 +293,96 @@ export function Editor({ path }: EditorProps) {
         const pending = store().pendingTarget?.path === path;
         const saved = pending ? undefined : viewStates.get(path);
         const len = file.content.length;
+        const daily = dailyDateOf(path);
+        const initial = EditorState.create({
+          doc: file.content,
+          // Else start below the frontmatter so it shows as the properties chip.
+          selection: saved
+            ? EditorSelection.single(Math.min(saved.anchor, len), Math.min(saved.head, len))
+            : EditorSelection.cursor(splitFrontmatter(file.content).length),
+          extensions: [
+            titleHeading(
+              daily ? [formatDate(daily, DAILY_TITLE_FORMAT), titleOf(path)] : [titleOf(path)],
+            ),
+            history(),
+            drawSelection(),
+            search({ top: true }),
+            highlightSelectionMatches(),
+            autocompletion({
+              override: [
+                anchorCompletions,
+                wikilinkCompletions,
+                slashCompletions,
+                emojiCompletions,
+                mentionCompletions,
+                blockCompletions,
+                propertyCompletions,
+                templateCompletions,
+              ],
+              addToOptions: commandMenuRender,
+            }),
+            commandMenuAnchor,
+            embeds(path),
+            mediaInput,
+            quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
+            outlinerKeys,
+            listAutoformat,
+            outlineCompartment.current.of(useEditorPrefs.getState().outlineView ? outlineView : []),
+            EditorView.lineWrapping,
+            yamlFrontmatter({
+              content: markdown({ base: markdownLanguage, codeLanguages: languages }),
+            }),
+            livePreview,
+            obsidianSyntax,
+            toggles,
+            mermaidBlocks,
+            math,
+            spellCompartment.current.of(configuredSpellcheck()),
+            links({
+              openLink: (inner, newTab) => void followLink(inner, path, { newTab }),
+              openTag: (tag) => store().search(`tag:${tag}`),
+              isKnown: (target) => isKnownTarget(store().notes, target),
+              notes: () => store().notes,
+            }),
+            axisTheme,
+            // Ctrl+/ is the command menu (a remappable app command), not "toggle comment".
+            keymap.of([
+              ...defaultKeymap.filter((k) => k.key !== "Mod-/"),
+              ...historyKeymap,
+              ...searchKeymap,
+              indentWithTab,
+            ]),
+            EditorView.contentAttributes.of({ "aria-label": `Note ${titleOf(path)}` }),
+            EditorView.updateListener.of((u) => {
+              if (u.docChanged) syncProps(u.state);
+              if (u.docChanged || u.selectionSet) scheduleCount(u.state);
+              if (u.docChanged && !u.transactions.some((tr) => tr.annotation(fromDisk))) {
+                dirty.current = true;
+                setStatus("dirty");
+                scheduleSave();
+              }
+              if (u.focusChanged && !u.view.hasFocus) void save();
+            }),
+          ],
+        });
+        // A note opened fresh starts below a hidden title heading, so it stays hidden.
+        const head = initial.selection.main.head;
+        const start = saved ? head : startBelowTitle(initial, head);
         created = new EditorView({
           parent: host.current,
-          state: EditorState.create({
-            doc: file.content,
-            // Else start below the frontmatter so it shows as the properties chip.
-            selection: saved
-              ? EditorSelection.single(Math.min(saved.anchor, len), Math.min(saved.head, len))
-              : EditorSelection.cursor(splitFrontmatter(file.content).length),
-            extensions: [
-              history(),
-              drawSelection(),
-              search({ top: true }),
-              highlightSelectionMatches(),
-              autocompletion({
-                override: [
-                  anchorCompletions,
-                  wikilinkCompletions,
-                  slashCompletions,
-                  emojiCompletions,
-                  mentionCompletions,
-                  blockCompletions,
-                  propertyCompletions,
-                  templateCompletions,
-                ],
-                addToOptions: commandMenuRender,
-              }),
-              commandMenuAnchor,
-              embeds(path),
-              mediaInput,
-              quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
-              outlinerKeys,
-              listAutoformat,
-              outlineCompartment.current.of(
-                useEditorPrefs.getState().outlineView ? outlineView : [],
-              ),
-              EditorView.lineWrapping,
-              yamlFrontmatter({
-                content: markdown({ base: markdownLanguage, codeLanguages: languages }),
-              }),
-              livePreview,
-              obsidianSyntax,
-              toggles,
-              mermaidBlocks,
-              math,
-              spellCompartment.current.of(configuredSpellcheck()),
-              links({
-                openLink: (inner, newTab) => void followLink(inner, path, { newTab }),
-                openTag: (tag) => store().search(`tag:${tag}`),
-                isKnown: (target) => isKnownTarget(store().notes, target),
-                notes: () => store().notes,
-              }),
-              axisTheme,
-              // Ctrl+/ is the command menu (a remappable app command), not "toggle comment".
-              keymap.of([
-                ...defaultKeymap.filter((k) => k.key !== "Mod-/"),
-                ...historyKeymap,
-                ...searchKeymap,
-                indentWithTab,
-              ]),
-              EditorView.contentAttributes.of({ "aria-label": `Note ${titleOf(path)}` }),
-              EditorView.updateListener.of((u) => {
-                if (u.docChanged) syncProps(u.state);
-                if (u.docChanged && !u.transactions.some((tr) => tr.annotation(fromDisk))) {
-                  dirty.current = true;
-                  setStatus("dirty");
-                  scheduleSave();
-                }
-                if (u.focusChanged && !u.view.hasFocus) void save();
-              }),
-            ],
-          }),
+          state: start === head ? initial : initial.update({ selection: { anchor: start } }).state,
         });
         view.current = created;
         setActiveEditor(created, path);
         syncProps(created.state);
+        countNow(created.state);
         setStatus("saved");
         setReady(true);
+        const want = takeEditorFocus(path);
+        if (want === "title" && titleRef.current) {
+          titleRef.current.focus();
+          titleRef.current.select();
+        } else if (want) created.focus();
         if (saved) {
           const v = created;
           v.requestMeasure({
@@ -382,7 +423,7 @@ export function Editor({ path }: EditorProps) {
       view.current = null;
       setActiveEditor(null);
     };
-  }, [path, save, scheduleSave, syncProps]);
+  }, [path, save, scheduleSave, syncProps, scheduleCount, countNow]);
 
   // Once the note is scrolled, the page header shrinks so the cover doesn't take space.
   const [scrolled, setScrolled] = useState(false);
@@ -476,43 +517,64 @@ export function Editor({ path }: EditorProps) {
     };
   }, [path, reloadFromDisk, setBanner]);
 
+  const docStatus = (
+    <span className="editor-doc-status">
+      {words && (
+        <span className="editor-words">
+          {words.selected
+            ? `${words.selected.toLocaleString()} of ${plural(words.total, "word")}`
+            : plural(words.total, "word")}
+        </span>
+      )}
+      <span className={`editor-status status-${status}`} role="status" aria-live="polite">
+        {STATUS_TEXT[status]}
+      </span>
+    </span>
+  );
+
   return (
     <div className="editor">
       {/* Shown while loading too, so the title doesn't jump when the note arrives. */}
       <PageHeader path={path} props={props} onChange={changeProps} compact={scrolled} />
       <header className="editor-header">
-        <h1 className="editor-title">{titleOf(path)}</h1>
-        <button
-          className={`editor-tool${outlineOn ? " active" : ""}`}
-          aria-label="Outline view"
-          aria-pressed={outlineOn}
-          title="Outline view: fold gutter and drag handles (Alt+↑/↓ moves, Tab indents)"
-          onClick={toggleOutline}
-        >
-          <ListTree size={15} />
-        </button>
-        <button
-          className="editor-tool"
-          aria-label="Ask AI"
-          title="Ask AI about this note (Ctrl+J)"
-          onClick={openAskAi}
-        >
-          <Sparkles size={15} />
-        </button>
-        <button
-          className="editor-tool"
-          aria-label="Fix writing"
-          title="Fix grammar and clarity with AI (Ctrl+Shift+G)"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={openFixText}
-        >
-          <WandSparkles size={15} />
-        </button>
-        <TimerButton path={path} />
-        <span className={`editor-status status-${status}`} role="status" aria-live="polite">
-          {STATUS_TEXT[status]}
-        </span>
+        <NoteTitle
+          ref={titleRef}
+          path={path}
+          beforeRename={async () => (await flush()) === null}
+          focusBody={() => view.current?.focus()}
+        />
+        <div className="editor-tools">
+          <button
+            className={`editor-tool${outlineOn ? " active" : ""}`}
+            aria-label="Outline view"
+            aria-pressed={outlineOn}
+            title="Outline view: fold gutter and drag handles (Alt+↑/↓ moves, Tab indents)"
+            onClick={toggleOutline}
+          >
+            <ListTree size={15} />
+          </button>
+          <button
+            className="editor-tool"
+            aria-label="Ask AI"
+            title="Ask AI about this note (Ctrl+J)"
+            onClick={openAskAi}
+          >
+            <Sparkles size={15} />
+          </button>
+          <button
+            className="editor-tool"
+            aria-label="Fix writing"
+            title="Fix grammar and clarity with AI (Ctrl+Shift+G)"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={openFixText}
+          >
+            <WandSparkles size={15} />
+          </button>
+          <TimerButton path={path} />
+        </div>
+        {!statusSlot && docStatus}
       </header>
+      {statusSlot && createPortal(docStatus, statusSlot)}
 
       {banner === "conflict" && (
         <div className="editor-banner" role="alert">

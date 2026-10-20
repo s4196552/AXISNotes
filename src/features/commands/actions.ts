@@ -14,6 +14,7 @@ import { CANVAS_EXT, GRID_EXT } from "../../lib/fileKinds";
 import { emptyCanvas, serializeCanvas } from "../../lib/canvas";
 import { emptySheet, serializeSheet } from "../../lib/formula/sheet";
 import { getActiveEditor } from "../editor/activeEditor";
+import { requestEditorFocus } from "../editor/focusRequest";
 import { minimalChange } from "../editor/targets";
 import {
   BUILTIN_TEMPLATES,
@@ -61,6 +62,9 @@ export async function newNote(title = "Untitled", folder = currentFolder()) {
   try {
     const path = await createUniqueNote(folder, title, "");
     await useAppStore.getState().refreshTree();
+    // An unnamed note opens with its title selected, so typing names it; a named one
+    // (e.g. from the quick switcher) opens ready for its text.
+    requestEditorFocus(path, title === "Untitled" ? "title" : "body");
     useAppStore.getState().openFile(path);
   } catch (e) {
     report(e);
