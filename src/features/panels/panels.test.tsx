@@ -131,4 +131,25 @@ describe("LeftSidebar", () => {
     expect(await screen.findByRole("list", { name: "Tags" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Tags" })).toHaveAttribute("aria-selected", "true");
   });
+
+  it("keeps the panel tabs apart from the buttons that open views", () => {
+    render(<LeftSidebar />);
+    const tabs = within(screen.getByRole("tablist", { name: "Sidebar panels" }));
+    expect(tabs.getAllByRole("tab").map((t) => t.getAttribute("aria-label"))).toEqual([
+      "Files",
+      "Search",
+      "Tags",
+    ]);
+    const views = within(screen.getByRole("toolbar", { name: "Open a view" }));
+    expect(views.getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Home",
+      "Graph view",
+      "Tasks",
+      "Time report",
+    ]);
+    fireEvent.click(views.getByRole("button", { name: "Tasks" }));
+    expect(useAppStore.getState().mainView).toBe("tasks");
+    // Opening a view doesn't change which panel looks selected.
+    expect(tabs.getByRole("tab", { name: "Files" })).toHaveAttribute("aria-selected", "true");
+  });
 });

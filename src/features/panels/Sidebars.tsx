@@ -32,6 +32,34 @@ const TABS: { id: LeftPanel; label: string; Icon: typeof Search }[] = [
   { id: "tags", label: "Tags", Icon: Hash },
 ];
 
+/** Views that open in a tab of the main area (not side panels, so never shown as selected). */
+const VIEWS: { label: string; title: string; Icon: typeof Search; open(): void }[] = [
+  {
+    label: "Home",
+    title: "Home (Ctrl+Shift+H)",
+    Icon: House,
+    open: () => useAppStore.getState().openDashboard(""),
+  },
+  {
+    label: "Graph view",
+    title: "Graph view (Ctrl+G)",
+    Icon: Network,
+    open: () => useAppStore.getState().setMainView("graph"),
+  },
+  {
+    label: "Tasks",
+    title: "Tasks (Ctrl+Shift+T)",
+    Icon: ListChecks,
+    open: () => useAppStore.getState().setMainView("tasks"),
+  },
+  {
+    label: "Time report",
+    title: "Time report",
+    Icon: Clock,
+    open: () => useAppStore.getState().setMainView("time"),
+  },
+];
+
 export function LeftSidebar() {
   const vault = useAppStore((s) => s.vault);
   const panel = useAppStore((s) => s.leftPanel);
@@ -50,52 +78,30 @@ export function LeftSidebar() {
           <SettingsIcon size={15} />
         </button>
       </header>
-      <div className="sidebar-tabs" role="tablist" aria-label="Sidebar views">
-        <button
-          className="sidebar-graph"
-          aria-label="Home"
-          title="Home"
-          onClick={() => useAppStore.getState().openDashboard("")}
-        >
-          <House size={15} />
-        </button>
-        <button
-          className="sidebar-graph"
-          aria-label="Graph view"
-          title="Graph view (Ctrl+G)"
-          onClick={() => useAppStore.getState().setMainView("graph")}
-        >
-          <Network size={15} />
-        </button>
-        <button
-          className="sidebar-graph"
-          aria-label="Tasks"
-          title="Tasks (Ctrl+Shift+T)"
-          onClick={() => useAppStore.getState().setMainView("tasks")}
-        >
-          <ListChecks size={15} />
-        </button>
-        <button
-          className="sidebar-graph"
-          aria-label="Time report"
-          title="Time report"
-          onClick={() => useAppStore.getState().setMainView("time")}
-        >
-          <Clock size={15} />
-        </button>
-        {TABS.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            role="tab"
-            aria-selected={panel === id}
-            aria-label={label}
-            title={label}
-            className={panel === id ? "active" : undefined}
-            onClick={() => setPanel(id)}
-          >
-            <Icon size={15} />
-          </button>
-        ))}
+      {/* Panel tabs on the left; buttons that open a view in a tab after a divider. */}
+      <div className="sidebar-tabs">
+        <div className="sidebar-seg" role="tablist" aria-label="Sidebar panels">
+          {TABS.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={panel === id}
+              aria-label={label}
+              title={label}
+              className={panel === id ? "active" : undefined}
+              onClick={() => setPanel(id)}
+            >
+              <Icon size={15} />
+            </button>
+          ))}
+        </div>
+        <div className="sidebar-views" role="toolbar" aria-label="Open a view">
+          {VIEWS.map(({ label, title, Icon, open }) => (
+            <button key={label} aria-label={label} title={title} onClick={open}>
+              <Icon size={15} />
+            </button>
+          ))}
+        </div>
       </div>
       <div className="sidebar-body" role="tabpanel">
         {panel === "files" && <FileTree />}
