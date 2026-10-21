@@ -248,12 +248,12 @@ function MovePicker({ path }: { path: string }) {
     };
     walk(tree);
     const here = folderOf(path) ?? "";
-    return [
-      { id: "", label: "Vault folder (top level)" },
-      ...dirs.map((d) => ({ id: d, label: d })),
-    ]
-      .filter((i) => i.id !== here)
-      .map((i) => ({ ...i, icon: FolderInput }));
+    return (
+      [{ id: "", label: "Vault folder (top level)" }, ...dirs.map((d) => ({ id: d, label: d }))]
+        // Not where it is now, and a folder not into itself.
+        .filter((i) => i.id !== here && i.id !== path && !i.id.startsWith(path + "/"))
+        .map((i) => ({ ...i, icon: FolderInput }))
+    );
   }, [tree, path]);
   return (
     <Picker

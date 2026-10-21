@@ -3,7 +3,11 @@ import type { VaultEntry } from "../../ipc";
 import {
   canMove,
   displayName,
+  dropSide,
   findEntry,
+  orderedChildren,
+  placeName,
+  remapOrder,
   remapPaths,
   renamedName,
   uniqueName,
@@ -85,5 +89,57 @@ describe("treeModel", () => {
   it("remaps expanded paths after a folder rename", () => {
     const out = remapPaths(["School", "School/Math", "Schoolwork", "Other"], "School", "Uni");
     expect([...out].sort()).toEqual(["Other", "Schoolwork", "Uni", "Uni/Math"]);
+  });
+
+  it("puts items in the custom order, unlisted ones after", () => {
+    const rows = visibleRows(tree, new Set(["School"]), {
+      "": ["Ideas.md", "Gone.md"],
+      School: ["Bio.md"],
+    });
+    expect(rows.map((r) => r.entry.path)).toEqual([
+      "Ideas.md",
+      "School",
+      "School/Bio.md",
+      "School/Math",
+    ]);
+    // A hand-edited order that isn't a list is ignored.
+    expect(orderedChildren(tree.children!, "Ideas.md")).toBe(tree.children);
+  });
+
+  it("drops into the middle of a folder, otherwise before or after", () => {
+    expect(dropSide(101, 100, 20, true)).toBe("before");
+    expect(dropSide(110, 100, 20, true)).toBe("into");
+    expect(dropSide(119, 100, 20, true)).toBe("after");
+    expect(dropSide(109, 100, 20, false)).toBe("before");
+    expect(dropSide(111, 100, 20, false)).toBe("after");
+  });
+
+  it("places a name before or after another", () => {
+    expect(placeName(["A", "B", "C"], "C", "A", "before")).toEqual(["C", "A", "B"]);
+    expect(placeName(["A", "B", "C"], "A", "C", "after")).toEqual(["B", "C", "A"]);
+    expect(placeName(["A", "B"], "New", "B", "before")).toEqual(["A", "New", "B"]);
+    expect(placeName(["A"], "New", "Missing", "after")).toEqual(["A", "New"]);
+  });
+
+  it("keeps the order through renames, moves and deletes", () => {
+    const order = { "": ["School", "Ideas.md"], School: ["Bio.md", "Math"], "School/Math": ["x"] };
+    // Renamed in place: the new name keeps its place.
+    expect(remapOrder(order, "Ideas.md", "Thoughts.md")).toEqual({
+      ...order,
+      "": ["School", "Thoughts.md"],
+    });
+    // A folder renamed: its lists follow it.
+    expect(remapOrder(order, "School", "Uni")).toEqual({
+      "": ["Uni", "Ideas.md"],
+      Uni: ["Bio.md", "Math"],
+      "Uni/Math": ["x"],
+    });
+    // Moved elsewhere or deleted: it leaves its old list.
+    expect(remapOrder(order, "School/Bio.md", "Bio.md")?.School).toEqual(["Math"]);
+    expect(remapOrder(order, "School/Math", null)).toEqual({
+      "": ["School", "Ideas.md"],
+      School: ["Bio.md"],
+    });
+    expect(remapOrder(order, "Other.md", "New.md")).toBeNull();
   });
 });
