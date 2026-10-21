@@ -2,7 +2,12 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
-import { recentVaults, rememberVault, takeGettingStarted } from "../../app/recentVaults";
+import {
+  recentVaults,
+  rememberVault,
+  reopenLast,
+  takeGettingStarted,
+} from "../../app/recentVaults";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { GettingStarted } from "./GettingStarted";
 import { STARTER_NOTES } from "./starterNotes";
@@ -47,6 +52,16 @@ describe("welcome and onboarding", () => {
     expect(list).not.toHaveTextContent("Work");
     fireEvent.click(screen.getByRole("button", { name: /^School/ }));
     await waitFor(() => expect(useAppStore.getState().vault?.root).toBe("/old/School"));
+  });
+
+  it("stays on the welcome screen at start unless reopening is chosen", () => {
+    expect(reopenLast()).toBe(false);
+    rememberVault({ root: "/old/Work", name: "Work" });
+    render(<WelcomeScreen />);
+    const box = screen.getByLabelText("Reopen the last vault when AXISNotes starts");
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    expect(reopenLast()).toBe(true);
   });
 
   it("the example notes link to each other", () => {
