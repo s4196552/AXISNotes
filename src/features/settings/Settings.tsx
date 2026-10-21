@@ -270,7 +270,7 @@ function Appearance({ config, set }: SectionProps) {
       {config.theme === "axis:translucent" && <Translucency a={a} setA={setA} />}
       <Field
         label="Zoom"
-        hint="Everything gets bigger or smaller. Also Ctrl + = / Ctrl + − / Ctrl + 0, or Ctrl + mouse wheel."
+        hint="Everything gets bigger or smaller. Also Ctrl + = / Ctrl + − / Ctrl + 0. Ctrl + mouse wheel zooms only the part of the window under the pointer (a side panel, the tabs or the main view); Ctrl + 0 resets those too."
       >
         <span className="zoom-control">
           <button aria-label="Zoom out" onClick={zoomOut} disabled={zoom <= ZOOM_STEPS[0]!}>

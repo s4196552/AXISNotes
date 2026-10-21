@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { applyTypography, fontStack } from "../../app/appearance";
-import { installZoom, stepZoom, useZoom } from "../../app/zoom";
+import { installZoom, stepZoom, useAreaZoom, useAreaZoomProps, useZoom } from "../../app/zoom";
 import { useAppStore } from "../../app/store";
 import { commandForEvent } from "../commands/registry";
 import { Settings } from "./Settings";
@@ -36,6 +36,7 @@ beforeEach(async () => {
   await h.b.openVault("/v");
   useConfig.setState({ config: structuredClone(DEFAULT_CONFIG) });
   useZoom.setState({ zoom: 1 });
+  useAreaZoom.setState({ areas: {} });
   document.documentElement.removeAttribute("style");
 });
 
@@ -66,17 +67,18 @@ describe("zoom", () => {
     expect(commandForEvent(key("=", inside))).toBeUndefined();
   });
 
-  it("zooms with Ctrl + mouse wheel and the number-pad +", () => {
+  it("zooms with the number-pad +, and on the welcome screen with Ctrl + mouse wheel", () => {
     const stop = installZoom();
     expect(h.zooms).toEqual([1]); // the saved zoom is applied at start
-    window.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, ctrlKey: true }));
-    expect(useZoom.getState().zoom).toBe(1.1);
-    window.dispatchEvent(new WheelEvent("wheel", { deltaY: 100 })); // no Ctrl: scrolling
-    expect(useZoom.getState().zoom).toBe(1.1);
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "+", ctrlKey: true }));
-    expect(useZoom.getState().zoom).toBe(1.25);
-    // On the welcome screen (no vault), Ctrl + − / 0 work without the command shortcuts.
+    expect(useZoom.getState().zoom).toBe(1.1);
+    // On the welcome screen (no vault), the wheel and Ctrl + − / 0 zoom it all, without
+    // the command shortcuts.
     useAppStore.setState({ vault: null });
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, ctrlKey: true }));
+    expect(useZoom.getState().zoom).toBe(1.25);
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: 100 })); // no Ctrl: scrolling
+    expect(useZoom.getState().zoom).toBe(1.25);
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "-", ctrlKey: true }));
     expect(useZoom.getState().zoom).toBe(1.1);
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "0", ctrlKey: true }));
@@ -85,6 +87,50 @@ describe("zoom", () => {
     useAppStore.setState({ vault: { root: "/v", name: "v" } });
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "-", ctrlKey: true }));
     expect(useZoom.getState().zoom).toBe(1);
+    stop();
+  });
+
+  it("zooms only the part of the window under the pointer with Ctrl + mouse wheel", () => {
+    function Part({ area }: { area: "left" | "main" }) {
+      return (
+        <div {...useAreaZoomProps(area)}>
+          <p>{area} text</p>
+        </div>
+      );
+    }
+    render(
+      <>
+        <Part area="left" />
+        <Part area="main" />
+        <p>status bar</p>
+      </>,
+    );
+    const stop = installZoom();
+    const wheel = (el: Element, deltaY: number) => {
+      const e = new WheelEvent("wheel", { deltaY, ctrlKey: true, bubbles: true, cancelable: true });
+      act(() => void el.dispatchEvent(e));
+      return e.defaultPrevented;
+    };
+    const main = screen.getByText("main text");
+    expect(wheel(main, -100)).toBe(true);
+    wheel(main, -100);
+    expect(main.parentElement!.style.getPropertyValue("--area-zoom")).toBe("1.25");
+    const zoomOf = (el: HTMLElement) => el.parentElement!.style.getPropertyValue("--area-zoom");
+    expect(zoomOf(screen.getByText("left text"))).toBe("");
+    expect(useZoom.getState().zoom).toBe(1); // the rest of the app stays as it was
+    expect(useAppStore.getState().notice).toBe("Main view 125% (Ctrl + 0 resets)");
+    expect(JSON.parse(localStorage.getItem("axisnotes.areaZoom")!)).toEqual({ main: 1.25 });
+
+    wheel(screen.getByText("left text"), 100);
+    expect(useAreaZoom.getState().areas).toEqual({ main: 1.25, left: 0.9 });
+    // Outside those parts nothing zooms, but the browser's page zoom is still kept away.
+    expect(wheel(screen.getByText("status bar"), -100)).toBe(true);
+    expect(useZoom.getState().zoom).toBe(1);
+
+    // Ctrl + 0 puts everything back.
+    act(() => commandForEvent(key("0"))!.run());
+    expect(useAreaZoom.getState().areas).toEqual({});
+    expect(zoomOf(main)).toBe("");
     stop();
   });
 });
