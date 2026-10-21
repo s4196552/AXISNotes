@@ -40,6 +40,23 @@ const savedConfig = () => JSON.parse(h.b.files()[CONFIG_PATH] ?? "{}");
 
 beforeEach(() => localStorage.clear());
 
+/** A pointer drag from `from` onto the left half of `to` (jsdom has no layout: `to`'s box
+ *  and the element under the pointer are given). Released unless told not to. */
+function pointerDrag(from: Element, to: Element, { release: up = true } = {}) {
+  const box = { left: 0, top: 0, width: 100, height: 100, right: 100, bottom: 100, x: 0, y: 0 };
+  vi.spyOn(to, "getBoundingClientRect").mockReturnValue(box as DOMRect);
+  document.elementFromPoint = () => to;
+  fireEvent.pointerDown(from, { button: 0, clientX: 300, clientY: 300 });
+  fireEvent.pointerMove(window, { clientX: 20, clientY: 50 });
+  if (up) fireEvent.pointerUp(window, { clientX: 20, clientY: 50 });
+}
+
+/** End the drag; the click it makes is ignored until the next tick. */
+async function release() {
+  fireEvent.pointerUp(window, { clientX: 20, clientY: 50 });
+  await act(() => new Promise((r) => setTimeout(r, 0)));
+}
+
 describe("Dashboard", () => {
   it("shows today's tasks, the day schedule and ticks a task off in its note", async () => {
     await setup({
@@ -250,13 +267,10 @@ describe("Dashboard", () => {
     await waitFor(() => expect(widget("Calendar")).toHaveClass("wide"));
 
     // Drag the Pinned widget's handle onto the calendar: it lands before it.
-    const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "" };
     const grip = within(widget("Pinned")).getByTitle("Drag to move");
-    fireEvent.dragStart(grip, { dataTransfer });
-    fireEvent.dragOver(widget("Calendar"), { dataTransfer });
+    pointerDrag(grip, widget("Calendar"), { release: false });
     expect(widget("Calendar")).toHaveClass("drop-before");
-    fireEvent.drop(widget("Calendar"), { dataTransfer });
-    fireEvent.dragEnd(grip, { dataTransfer });
+    await release();
     await waitFor(() =>
       expect(savedConfig().dashboards[""].widgets.map((w: { type: string }) => w.type)).toEqual([
         "links",
@@ -305,11 +319,9 @@ describe("Dashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Move C earlier" }));
     await waitFor(() => expect(links()).toEqual(["A.md", "C.md", "B.md"]));
 
-    const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: "" };
     const card = (title: string) => screen.getByTitle(title).closest(".dashboard-card")!;
-    fireEvent.dragStart(card("B.md"), { dataTransfer });
-    fireEvent.dragOver(card("A.md"), { dataTransfer });
-    fireEvent.drop(card("A.md"), { dataTransfer });
+    pointerDrag(card("B.md"), card("A.md"));
+    await release();
     await waitFor(() => expect(links()).toEqual(["B.md", "A.md", "C.md"]));
   });
 

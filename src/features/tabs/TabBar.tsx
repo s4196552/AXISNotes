@@ -1,6 +1,7 @@
 import {
   createElement,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useEffect,
   useRef,
@@ -10,6 +11,7 @@ import { House, Pin, Plus, X } from "lucide-react";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { useAreaZoomProps } from "../../app/zoom";
+import { usePointerDrag } from "../../app/usePointerDrag";
 import {
   findGroup,
   GROUP_COLORS,
@@ -20,7 +22,6 @@ import {
   type TabGroup,
 } from "../../app/tabs";
 import { groupLabel, kindIcon, TAB_PANEL_ID, tabTitle } from "./tabInfo";
-import { PATH_MIME } from "../../lib/fileKinds";
 import { EntryIcon } from "../icons/EntryIcon";
 import "./tabs.css";
 
@@ -40,8 +41,6 @@ export function TabBar() {
   const store = useAppStore.getState;
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [editor, setEditor] = useState<{ x: number; y: number; id: string } | null>(null);
-  const [dragging, setDragging] = useState<Drag | null>(null);
-  const [dropAt, setDropAt] = useState<Drop | null>(null);
   const bar = useRef<HTMLDivElement>(null);
 
   // Keep the active tab in view when the row scrolls.
@@ -101,27 +100,45 @@ export function TabBar() {
     requestAnimationFrame(() => document.getElementById(tabDomId(id))?.focus());
   };
 
-  const endDrag = () => {
-    setDragging(null);
-    setDropAt(null);
-  };
+  const atEnd: Drop = { index: tabs.list.length, group: null, mark: "end", side: "after" };
 
-  const drop = (at: Drop) => {
-    if (dragging?.kind === "tab") {
-      const from = tabs.list.findIndex((t) => t.id === dragging.id);
-      // Dropping after itself moves it one less to the right.
-      store().moveTab(dragging.id, from < at.index ? at.index - 1 : at.index, at.group);
-    } else if (dragging?.kind === "group") {
-      store().moveTabGroup(dragging.id, at.index);
+  /** Where a dragged tab or group lands with the pointer at x, y. */
+  const dropFor = (x: number, y: number): Drop | null => {
+    const el = document.elementFromPoint(x, y);
+    if (!bar.current || !el || !bar.current.contains(el)) return null;
+    const tabEl = el.closest<HTMLElement>('[role="tab"]');
+    const i = tabEl ? tabs.list.findIndex((t) => tabDomId(t.id) === tabEl.id) : -1;
+    if (tabEl && i !== -1) {
+      const r = tabEl.getBoundingClientRect();
+      const after = x > r.left + r.width / 2;
+      // A tab dropped next to a grouped tab joins its group.
+      return {
+        index: after ? i + 1 : i,
+        group: tabs.list[i]!.group,
+        mark: tabEl.id,
+        side: after ? "after" : "before",
+      };
     }
-    endDrag();
+    // Dropped on a group's chip: just before that group, never inside it.
+    const chip = el.closest<HTMLElement>(".tab-group-chip");
+    const first = chip ? tabs.list.findIndex((t) => t.group && chipDomId(t.group) === chip.id) : -1;
+    if (chip && first !== -1) return { index: first, group: null, mark: chip.id, side: "before" };
+    return atEnd;
   };
 
-  const dragOver = (e: { preventDefault(): void }, at: Drop) => {
-    if (!dragging) return;
-    e.preventDefault();
-    setDropAt(at);
-  };
+  const {
+    press,
+    dragging,
+    target: dropAt,
+  } = usePointerDrag<Drag, Drop>(dropFor, (drag, at) => {
+    if (drag.kind === "tab") {
+      const from = tabs.list.findIndex((t) => t.id === drag.id);
+      // Dropping after itself moves it one less to the right.
+      store().moveTab(drag.id, from < at.index ? at.index - 1 : at.index, at.group);
+    } else {
+      store().moveTabGroup(drag.id, at.index);
+    }
+  });
 
   const marker = (mark: string) =>
     dropAt?.mark === mark && dragging ? `drop-${dropAt.side}` : undefined;
@@ -139,12 +156,7 @@ export function TabBar() {
           count={count}
           marker={marker(chipDomId(group.id))}
           onEdit={() => openEditor(group.id)}
-          onDragStart={() => setDragging({ kind: "group", id: group.id })}
-          onDragEnd={endDrag}
-          // Dropped on a chip: just before that group, never inside it.
-          onDragOver={(e) =>
-            dragOver(e, { index: i, group: null, mark: chipDomId(group.id), side: "before" })
-          }
+          onPress={(e) => press(e, { kind: "group", id: group.id })}
         />,
       );
     }
@@ -159,23 +171,12 @@ export function TabBar() {
         selected={tabs.selected.includes(tab.id)}
         marker={marker(tabDomId(tab.id))}
         onMenu={(x, y) => setMenu({ x, y, id: tab.id })}
-        onDragStart={() => setDragging({ kind: "tab", id: tab.id })}
-        onDragEnd={endDrag}
-        // A tab dropped next to a grouped tab joins its group.
-        onDragOverHalf={(e, after) =>
-          dragOver(e, {
-            index: after ? i + 1 : i,
-            group: tab.group,
-            mark: tabDomId(tab.id),
-            side: after ? "after" : "before",
-          })
-        }
+        onPress={(e) => press(e, { kind: "tab", id: tab.id })}
       />,
     );
   });
 
   const zoomProps = useAreaZoomProps("tabs");
-  const atEnd: Drop = { index: tabs.list.length, group: null, mark: "end", side: "after" };
 
   return (
     // The row is the window's title bar: its empty part moves the window (see WindowControls).
@@ -188,12 +189,6 @@ export function TabBar() {
         aria-multiselectable
         onKeyDown={onKeyDown}
         onDoubleClick={(e) => e.target === e.currentTarget && store().newTab()}
-        onDragOver={(e) => e.target === e.currentTarget && dragOver(e, atEnd)}
-        onDrop={(e) => {
-          if (!dragging) return;
-          e.preventDefault();
-          drop(dropAt ?? atEnd);
-        }}
       >
         {items}
       </div>
@@ -244,9 +239,7 @@ function TabItem({
   selected,
   marker,
   onMenu,
-  onDragStart,
-  onDragEnd,
-  onDragOverHalf,
+  onPress,
 }: {
   tab: Tab;
   group: TabGroup | undefined;
@@ -255,9 +248,8 @@ function TabItem({
   selected: boolean;
   marker: string | undefined;
   onMenu(x: number, y: number): void;
-  onDragStart(): void;
-  onDragEnd(): void;
-  onDragOverHalf(e: { preventDefault(): void }, after: boolean): void;
+  /** A press that may become a drag. */
+  onPress(e: ReactPointerEvent): void;
 }) {
   const custom = useConfig((s) =>
     tab.path !== null && tab.view === "note" ? s.config.folderIcons[tab.path] : undefined,
@@ -296,7 +288,7 @@ function TabItem({
       ]
         .filter(Boolean)
         .join(" ")}
-      draggable
+      onPointerDown={onPress}
       // Ctrl/Cmd+click and Shift+click select tabs (for grouping); a plain click opens one.
       onClick={(e) => {
         if (e.ctrlKey || e.metaKey) store().selectTab(tab.id, "toggle");
@@ -321,18 +313,6 @@ function TabItem({
           e.preventDefault();
           close();
         }
-      }}
-      onDragStart={(e) => {
-        // The app's own path type only (a canvas takes it as a note card); plain text would
-        // drop the file path into a note.
-        if (tab.path) e.dataTransfer?.setData(PATH_MIME, tab.path);
-        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-        onDragStart();
-      }}
-      onDragEnd={onDragEnd}
-      onDragOver={(e) => {
-        const r = e.currentTarget.getBoundingClientRect();
-        onDragOverHalf(e, e.clientX > r.left + r.width / 2);
       }}
     >
       {custom ? <EntryIcon icon={custom} size={14} fallback={kind} /> : kind}
@@ -377,17 +357,14 @@ function GroupChip({
   count,
   marker,
   onEdit,
-  onDragStart,
-  onDragEnd,
-  onDragOver,
+  onPress,
 }: {
   group: TabGroup;
   count: number;
   marker: string | undefined;
   onEdit(): void;
-  onDragStart(): void;
-  onDragEnd(): void;
-  onDragOver(e: { preventDefault(): void }): void;
+  /** A press that may become a drag. */
+  onPress(e: ReactPointerEvent): void;
 }) {
   const label = groupLabel(group);
   const tabsText = `${count} ${count === 1 ? "tab" : "tabs"}`;
@@ -401,21 +378,12 @@ function GroupChip({
       aria-expanded={!group.collapsed}
       aria-label={`${label}, ${tabsText}`}
       title={`${label}: ${tabsText}. Click to ${group.collapsed ? "expand" : "collapse"}; right-click to edit.`}
-      draggable
+      onPointerDown={onPress}
       onClick={() => useAppStore.getState().toggleTabGroup(group.id)}
       onContextMenu={(e) => {
         e.preventDefault();
         onEdit();
       }}
-      onDragStart={(e) => {
-        if (e.dataTransfer) {
-          e.dataTransfer.setData("application/x-axis-tab-group", group.id);
-          e.dataTransfer.effectAllowed = "move";
-        }
-        onDragStart();
-      }}
-      onDragEnd={onDragEnd}
-      onDragOver={onDragOver}
     >
       {group.name ? (
         <span className="tab-group-name">{group.name}</span>

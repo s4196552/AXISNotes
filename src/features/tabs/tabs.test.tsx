@@ -204,25 +204,29 @@ describe("tab groups", () => {
     expect(bar()).toEqual(["Alpha", "Beta"]);
   });
 
-  it("drags a group by its chip, and drags tabs into and out of groups", () => {
+  it("drags a group by its chip, and drags tabs into and out of groups", async () => {
     render(<TabBar />);
     openThree();
     act(() => void store().groupTabs([store().tabs.list[2]!.id]));
     expect(bar()).toEqual(["Alpha", "Beta", "[Grey group, 1 tab]", "Sheet"]);
-    // jsdom's drag events carry no position, so each drop lands on a tab's left half.
-    const drag = (from: Element, to: Element) => {
-      fireEvent.dragStart(from);
-      fireEvent.dragOver(to);
-      fireEvent.drop(to);
-      fireEvent.dragEnd(from);
+    // A pointer drag onto the left half of `to` (jsdom has no layout: its box is given).
+    const drag = async (from: Element, to: Element) => {
+      const box = { left: 0, top: 0, width: 100, height: 30, right: 100, bottom: 30, x: 0, y: 0 };
+      vi.spyOn(to, "getBoundingClientRect").mockReturnValue(box as DOMRect);
+      document.elementFromPoint = () => to;
+      fireEvent.pointerDown(from, { button: 0, clientX: 200, clientY: 10 });
+      fireEvent.pointerMove(window, { clientX: 20, clientY: 10 });
+      fireEvent.pointerUp(window, { clientX: 20, clientY: 10 });
+      // The click that ends a drag is ignored only until the next tick.
+      await act(() => new Promise((r) => setTimeout(r, 0)));
     };
-    drag(screen.getByRole("button", { name: "Grey group, 1 tab" }), tab("Alpha"));
+    await drag(screen.getByRole("button", { name: "Grey group, 1 tab" }), tab("Alpha"));
     expect(bar()).toEqual(["[Grey group, 1 tab]", "Sheet", "Alpha", "Beta"]);
     // Next to a grouped tab: joins the group.
-    drag(tab("Beta"), tab("Sheet"));
+    await drag(tab("Beta"), tab("Sheet"));
     expect(bar()).toEqual(["[Grey group, 2 tabs]", "Beta", "Sheet", "Alpha"]);
     // Onto a group's chip: just before the group, out of it.
-    drag(tab("Beta"), screen.getByRole("button", { name: "Grey group, 2 tabs" }));
+    await drag(tab("Beta"), screen.getByRole("button", { name: "Grey group, 2 tabs" }));
     expect(bar()).toEqual(["Beta", "[Grey group, 1 tab]", "Sheet", "Alpha"]);
   });
 });
