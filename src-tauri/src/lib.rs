@@ -9,6 +9,7 @@ mod import;
 mod index;
 mod migrate;
 mod packs;
+mod updater;
 mod updates;
 mod updates_commands;
 mod vault;
@@ -21,6 +22,12 @@ const OPEN_VAULT_ENV: &str = "AXIS_OPEN_VAULT";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let context = tauri::generate_context!();
+    // Started by an update to install it (see updater.rs): only the update window.
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(job) = updater::job_from_args(&args) {
+        return updater::run(context, job);
+    }
     // Before any window opens, so the webview finds its storage under the new name.
     migrate::legacy_app_dirs();
     tauri::Builder::default()
@@ -108,6 +115,6 @@ pub fn run() {
             updates_commands::updates_check,
             updates_commands::updates_install,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running AXISNotes");
 }
