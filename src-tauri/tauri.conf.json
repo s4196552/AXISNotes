@@ -50,6 +50,13 @@
     "resources": {
       "../dist-extension/": "extension/"
     },
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "sidebarImage": "installer/sidebar.bmp",
+        "headerImage": "installer/header.bmp"
+      }
+    },
     "macOS": {
       "minimumSystemVersion": "10.15"
     },

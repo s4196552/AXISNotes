@@ -2,6 +2,13 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-21: AXISNotes's own update window and branded installer (T-119)
+
+- **Updates install in our own window**, not the NSIS installer's passive progress window. The app can't show it itself (the installer replaces its files), so `updates_install` copies the running executable to `%TEMP%\AXISNotes-update\AXISNotes-updater.exe`, writes a job file (installer, app to reopen, versions, notes) and starts the copy with `--axis-updater <job>`, then quits. In that mode `run()` builds only the update window (the same embedded pages, `window.__AXIS_UPDATER__` set, its own WebView2 data folder), which runs the verified installer with `/S /UPDATE` and then reopens the app. The copy has a different name from `axisnotes.exe`, which the installer closes if still running. If the window can't start, the old passive installer (`/P /UPDATE /R`) runs instead. A failed install says so and offers Open AXISNotes or Close.
+- **Always the dark palette** in the update window: it shows before any vault (so any theme) is open, and the pearl logo is drawn for dark backgrounds.
+- **Installer artwork** (`src-tauri/installer/{sidebar,header}.bmp`, plus the app icon) for fresh installs, made by `scripts/installer-art.py` from the app icon and the dark theme tokens. That script uses **Pillow** (HPND/MIT-CMU licence), a development tool only; nothing from it ships in the app.
+- The first update to show the new window is the one after the version that adds it: an update is installed by the version already running.
+
 ## 2026-10-20: Import from Notion, Obsidian, Evernote and Markdown (T-103)
 
 - **One "Import notes" dialog, one entry per app**, each saying in a sentence how to get the export out: Notion ("Markdown & CSV" `.zip`, or the unzipped folder), Obsidian (vault folder), Evernote (`.enex`, or a folder of them, one folder per notebook) and Markdown or HTML (a folder or `.zip`, which covers Bear, Logseq, Roam, Typora, Joplin and Simplenote). It replaces the Obsidian-only dialog and the `import_obsidian` command with `inspect_import(kind, source)` and `import_notes(kind, source, target, options)`.
