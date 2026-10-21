@@ -1,7 +1,0 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "updater",
-  "description": "The update window (src/updater.rs): it only moves itself; its commands are its own",
-  "windows": ["updater"],
-  "permissions": ["core:default", "core:window:allow-start-dragging"]
-}
