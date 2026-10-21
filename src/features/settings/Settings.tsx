@@ -166,7 +166,7 @@ function Translucency(p: {
         label="Window opacity"
         hint={
           can
-            ? "How much of your desktop shows through. Menus and dialogs stay solid."
+            ? `How much of your desktop shows through. Menus and dialogs ${effect.id === "liquid" ? "are glass" : "stay solid"}.`
             : "See-through windows need Windows for now; here Translucent stays solid."
         }
       >

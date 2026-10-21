@@ -182,6 +182,12 @@ export const WINDOW_EFFECTS: readonly {
     os: "acrylic",
   },
   {
+    id: "liquid",
+    label: "Liquid glass",
+    note: "Like Apple's Liquid Glass: floating panes with bright edges, and menus that bend what's under them.",
+    os: "acrylic",
+  },
+  {
     id: "mica",
     label: "Mica",
     note: "Only a soft tint of your wallpaper, like Windows 11's own apps. Windows 11 only.",
@@ -197,7 +203,44 @@ export const WINDOW_EFFECTS: readonly {
 
 /** The effect saved in the config; anything unknown gets the default, Frosted. */
 export function windowEffectInfo(id: string) {
-  return WINDOW_EFFECTS.find((e) => e.id === id) ?? WINDOW_EFFECTS[2]!;
+  return WINDOW_EFFECTS.find((e) => e.id === id) ?? WINDOW_EFFECTS.find((e) => e.id === "frosted")!;
+}
+
+const LENS_ID = "axis-liquid-lens";
+
+/** A displacement map stretched over the glass: `channel` ramps across `axis` near the edges. */
+function lensMap(channel: "#f00" | "#0f0", axis: "x2" | "y2"): string {
+  const half = channel === "#f00" ? "#800000" : "#008000";
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none">` +
+    `<linearGradient id="g" ${axis}="1"><stop offset="0" stop-color="${channel}"/>` +
+    `<stop offset=".16" stop-color="${half}"/><stop offset=".84" stop-color="${half}"/>` +
+    `<stop offset="1" stop-color="#000"/></linearGradient>` +
+    `<rect width="100" height="100" fill="url(#g)"/></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * The SVG filter Liquid glass menus and dialogs refract their backdrop through
+ * (`backdrop-filter: url(#axis-liquid-lens)`): what's under the middle shows as it is, and
+ * near the edges it bends inwards, like the rim of a lens. Sized to each surface.
+ */
+function ensureLiquidLens() {
+  if (document.getElementById(LENS_ID)) return;
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("width", "0");
+  svg.setAttribute("height", "0");
+  svg.style.position = "absolute";
+  svg.innerHTML =
+    `<filter id="${LENS_ID}" x="0" y="0" width="1" height="1" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB">` +
+    `<feImage href="${lensMap("#f00", "x2")}" x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="dx"/>` +
+    `<feImage href="${lensMap("#0f0", "y2")}" x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="dy"/>` +
+    `<feComposite in="dx" in2="dy" operator="arithmetic" k2="1" k3="1" result="map"/>` +
+    `<feDisplacementMap in="SourceGraphic" in2="map" scale="0.06" xChannelSelector="R" yChannelSelector="G"/>` +
+    `</filter>`;
+  document.body.appendChild(svg);
 }
 
 /** True when Windows' "Transparency effects" are off: only Clear shows the desktop then. */
@@ -234,7 +277,14 @@ export async function applyTranslucency(
     Math.max(WINDOW_OPACITY.min, Math.round(a.windowOpacity) || WINDOW_OPACITY.max),
   );
   const alpha = on ? pct / 100 : 1;
-  document.documentElement.style.setProperty("--tl-alpha", String(alpha));
+  const root = document.documentElement;
+  root.style.setProperty("--tl-alpha", String(alpha));
+  // Liquid glass is also a look inside the window, so it shows even where it can't be
+  // see-through (themes.css).
+  if (theme === "axis:translucent" && windowEffectInfo(a.windowEffect).id === "liquid") {
+    ensureLiquidLens();
+    root.dataset.glass = "liquid";
+  } else delete root.dataset.glass;
   const effect =
     on && alpha < 1 && !transparencyEffectsOff() ? windowEffectInfo(a.windowEffect).os : null;
   if (effect === sentEffect) return;

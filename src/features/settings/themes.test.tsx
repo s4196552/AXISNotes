@@ -118,6 +118,7 @@ describe("Translucent", () => {
       ["mica", "mica"],
       ["micaAlt", "tabbed"],
       ["clear", null],
+      ["liquid", "acrylic"],
       ["frosted", "acrylic"],
     ] as const) {
       await applyTranslucency("axis:translucent", { ...look, windowEffect: id });
@@ -141,6 +142,25 @@ describe("Translucent", () => {
     await applyTranslucency("axis:glass", look);
     expect(alpha()).toBe("1");
     expect(fx).toHaveBeenLastCalledWith(null);
+  });
+
+  it("Liquid glass marks the page for its glass styles and adds the lens filter once", async () => {
+    const root = document.documentElement;
+    const liquid = { ...look, windowEffect: "liquid" as const };
+    // Also where the window can't be see-through: the glass panes are a look of their own.
+    h.b.canBeTranslucent = () => false;
+    await applyTranslucency("axis:translucent", liquid);
+    expect(root.dataset.glass).toBe("liquid");
+    await applyTranslucency("axis:translucent", liquid);
+    const lens = document.querySelectorAll("#axis-liquid-lens");
+    expect(lens).toHaveLength(1);
+    expect(lens[0]!.querySelector("feDisplacementMap")).not.toBeNull();
+    await applyTranslucency("axis:translucent", look);
+    expect(root.dataset.glass).toBeUndefined();
+    await applyTranslucency("axis:glass", liquid);
+    expect(root.dataset.glass).toBeUndefined();
+    // The styles reference the filter by the id appearance.ts gives it.
+    expect(readFileSync("src/styles/themes.css", "utf8")).toContain("url(#axis-liquid-lens)");
   });
 
   it("sends effect changes one at a time, in order, however fast they come", async () => {
@@ -200,7 +220,7 @@ describe("Translucent", () => {
       // Clear needs nothing from Windows.
       fireEvent.change(slider, { target: { value: "0" } });
       expect(screen.queryByText(/needs Windows' transparency effects/)).toBeNull();
-      fireEvent.change(slider, { target: { value: "3" } });
+      fireEvent.change(slider, { target: { value: "4" } });
       expect(screen.getByText(/Mica needs Windows' transparency effects/)).toBeInTheDocument();
       // Turned on in Windows while Settings is open: the hint goes right away.
       reduce(false);
@@ -263,7 +283,7 @@ describe("Translucent", () => {
     expect(screen.getByText(/soft blur of what's behind/)).toBeInTheDocument();
     // The names under the slider pick an effect too.
     fireEvent.click(screen.getByText("Mica Alt"));
-    expect(effect).toHaveValue("4");
+    expect(effect).toHaveValue("5");
     await waitFor(async () => {
       const saved = JSON.parse((await h.b.readFile(".axisnotes/config.json")).content);
       expect(saved.theme).toBe("axis:translucent");

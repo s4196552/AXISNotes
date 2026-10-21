@@ -32,7 +32,7 @@ export const isHexColor = (v: unknown): v is string =>
 export type EditorWidth = "narrow" | "medium" | "wide" | "full";
 
 /** What Windows draws behind the see-through window (Translucent theme). */
-export type WindowEffect = "clear" | "blur" | "frosted" | "mica" | "micaAlt";
+export type WindowEffect = "clear" | "blur" | "frosted" | "liquid" | "mica" | "micaAlt";
 
 export interface AxisConfig {
   /** Per-folder AI access, enforced by the Rust AI layer (`src-tauri/src/ai/privacy.rs`). */

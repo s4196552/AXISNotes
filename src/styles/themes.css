@@ -5,7 +5,8 @@
    Darker         near-black OLED surfaces, soft violet accent
    Minimal        warm white, monochrome ink, hairlines only
    Glass          frosted, translucent floating panels over a soft wallpaper (light + dark)
-   Translucent    the window itself is see-through, with an opacity setting (light + dark)
+   Translucent    the window itself is see-through, with an opacity setting (light + dark);
+                  its Liquid glass effect adds Apple-style glass panes, capsules and lenses
    High contrast  black, white and yellow; strong edges and focus rings (WCAG AAA text)
    Retro          cream paper, ink lines, hard offset shadows, typewriter type */
 
@@ -253,6 +254,213 @@
   background: var(--bg);
 }
 :root[data-theme="translucent"] .content :is(.cm-editor, .graph-canvas) {
+  background: transparent;
+}
+
+/* Liquid glass: Translucent's Effect → Liquid glass, after Apple's Liquid Glass (macOS 26).
+   The panes float in the window with rounder corners; a bright rim catches the light at
+   their top-left and bottom-right; tabs and the selected segment are glass capsules; and
+   menus, dialogs and editor popups are clear glass that blurs, brightens and bends what's
+   under them through the lens filter `ensureLiquidLens` adds (app/appearance.ts). With
+   Windows' transparency effects off (Apple's Reduce Transparency) they turn frosted and
+   solid. Panes never get `backdrop-filter` themselves (see Glass, above). */
+:root[data-theme="translucent"][data-glass="liquid"] {
+  --font-ui:
+    "SF Pro Text", "Segoe UI Variable Text", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --lg-gap: 8px;
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --accent: #007aff;
+  --selection: rgba(0, 122, 255, 0.22);
+  --bg-active: rgba(0, 122, 255, 0.13);
+  --lg-pane: linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.12));
+  --lg-rim: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.95),
+    rgba(255, 255, 255, 0.18) 24%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.18) 76%,
+    rgba(255, 255, 255, 0.7)
+  );
+  --lg-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 10px 30px rgba(0, 0, 0, 0.12);
+  --lg-fill: rgba(255, 255, 255, 0.52);
+  --lg-lens: url(#axis-liquid-lens) blur(10px) saturate(190%) brightness(1.06);
+  --lg-well: rgba(0, 0, 0, 0.06);
+  --lg-control: rgba(255, 255, 255, 0.72);
+  --lg-control-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.3),
+    0 0 0 0.5px rgba(0, 0, 0, 0.07), 0 2px 6px rgba(0, 0, 0, 0.1);
+  --shadow-pop:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 0 0 0.5px rgba(0, 0, 0, 0.1),
+    0 14px 36px rgba(0, 0, 0, 0.16);
+  --shadow-modal: 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 30px 80px rgba(0, 0, 0, 0.24);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="translucent"][data-glass="liquid"] {
+    --accent: #0a84ff;
+    --accent-fg: #ffffff;
+    --selection: rgba(10, 132, 255, 0.34);
+    --bg-active: rgba(10, 132, 255, 0.24);
+    --lg-pane: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035));
+    --lg-rim: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.5),
+      rgba(255, 255, 255, 0.1) 24%,
+      rgba(255, 255, 255, 0.04) 50%,
+      rgba(255, 255, 255, 0.1) 76%,
+      rgba(255, 255, 255, 0.32)
+    );
+    --lg-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 10px 30px rgba(0, 0, 0, 0.35);
+    --lg-fill: rgba(36, 37, 44, 0.5);
+    --lg-well: rgba(0, 0, 0, 0.24);
+    --lg-control: rgba(255, 255, 255, 0.14);
+    --lg-control-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+      0 0 0 0.5px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --shadow-pop:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 0 0 0.5px rgba(0, 0, 0, 0.6),
+      0 14px 36px rgba(0, 0, 0, 0.45);
+    --shadow-modal: 0 0 0 0.5px rgba(0, 0, 0, 0.6), 0 30px 80px rgba(0, 0, 0, 0.55);
+  }
+}
+/* Reduce Transparency: frosted, nearly solid glass with no lens. */
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-theme="translucent"][data-glass="liquid"] {
+    --lg-fill: var(--bg-elevated);
+    --lg-lens: blur(20px);
+  }
+}
+
+/* Floating panes, inset from the window and from each other. A hidden panel's column is
+   0 px, so the space beside the note comes from the note's margin, not the grid's gap. */
+:root[data-glass="liquid"] .shell {
+  padding: var(--lg-gap) var(--lg-gap) 0;
+}
+:root[data-glass="liquid"] .shell:not(.compact) .content:not(.left-hidden) {
+  margin-left: var(--lg-gap);
+}
+:root[data-glass="liquid"] .shell:not(.compact) .content:not(.right-hidden) {
+  margin-right: var(--lg-gap);
+}
+:root[data-glass="liquid"] :is(.sidebar, .content) {
+  position: relative;
+  border: none;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--lg-shadow);
+  overflow: hidden;
+}
+:root[data-glass="liquid"] .sidebar {
+  background: var(--lg-pane);
+}
+/* The rim: a 1 px gradient ring over the pane's edge, light from the top left. A pseudo-
+   element, so the pane itself stays free of masks and stacking contexts. */
+:root[data-glass="liquid"] :is(.sidebar, .content, .modal)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--lg-rim);
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+/* The window buttons sit in the floating title bar's corner. */
+:root[data-glass="liquid"] .window-controls {
+  top: var(--lg-gap);
+  right: var(--lg-gap);
+  overflow: hidden;
+  border-top-right-radius: var(--radius-lg);
+}
+:root[data-glass="liquid"] :is(.tabbar-row, .sidebar-header, .sidebar-right-head, .statusbar) {
+  border-color: transparent;
+  background: transparent;
+}
+/* Compact windows: the panel over the note frosts what it covers. */
+:root[data-glass="liquid"] .shell.compact .sidebar-slot {
+  top: var(--lg-gap);
+}
+:root[data-glass="liquid"] .shell.compact .sidebar-slot.left {
+  left: var(--lg-gap);
+}
+:root[data-glass="liquid"] .shell.compact .sidebar-slot.right {
+  right: var(--lg-gap);
+}
+:root[data-glass="liquid"] .shell.compact .sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--lg-fill);
+  backdrop-filter: blur(24px) saturate(180%);
+  pointer-events: none;
+}
+
+/* Capsules: tabs, the Files/Search/Tags segments, the view buttons and primary buttons. */
+:root[data-glass="liquid"] .tab,
+:root[data-glass="liquid"] .tab.active {
+  height: 28px;
+  margin-bottom: 5px;
+  border: none;
+  border-radius: 999px;
+}
+:root[data-glass="liquid"] .tab.active,
+:root[data-glass="liquid"] .sidebar-seg button.active {
+  background: var(--lg-control);
+  box-shadow: var(--lg-control-shadow);
+}
+:root[data-glass="liquid"] .sidebar-seg {
+  border: none;
+  border-radius: 999px;
+  background: var(--lg-well);
+}
+:root[data-glass="liquid"] .sidebar-tabs button {
+  border-radius: 999px;
+}
+:root[data-glass="liquid"] button.primary {
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 1px 3px rgba(0, 0, 0, 0.18);
+}
+/* Rows are rounded pills inside the pane, as in Finder's sidebar. */
+:root[data-glass="liquid"] .filetree-row {
+  margin: 0 6px;
+  border-radius: var(--radius);
+}
+
+/* Glass you look through: menus and editor popups refract their backdrop directly (they're
+   fixed and hold nothing fixed). Dialogs keep it on a layer behind them, like Glass. */
+:root[data-glass="liquid"]
+  :is(.filetree-menu, .vault-menu, .hw-menu, .cm-spell-menu, .cm-tooltip-autocomplete) {
+  border-color: transparent;
+  background: var(--lg-fill);
+  backdrop-filter: var(--lg-lens);
+}
+:root[data-glass="liquid"] .modal {
+  position: relative;
+  border-color: transparent;
+  background: transparent;
+}
+:root[data-glass="liquid"] .modal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--lg-fill);
+  backdrop-filter: var(--lg-lens);
+  pointer-events: none;
+}
+:root[data-glass="liquid"] .modal-backdrop {
   background: transparent;
 }
 
