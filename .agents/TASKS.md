@@ -102,6 +102,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-114 | 6     | One header for Graph, Tasks and Time (icon chip, title, filters, actions); the misleading ✕ became "Back to ‹note›" | claude | merged      | agent/claude/T-114 | `src/features/tabs/{ViewHeader.tsx,viewHeader.css}`, `src/features/{graph/GraphView,tasks/TasksView,time/TimeReport}.tsx`, `src/features/graph/graph.test.tsx` |
 | T-115 | 6     | Right panel fits the open view: outline, local graph and links for notes, links for grids/canvases, no calendar on Home; foldable sections | claude | merged      | agent/claude/T-115 | `src/features/panels/{Sidebars.tsx,OutlinePanel.tsx,panels.css,rightPanel.test.tsx}`, `src/lib/headings.ts`, `src/features/graph/GraphView.tsx` |
 | T-116 | 6     | Small windows (<1100 px) open the side panels over the note, one at a time with a scrim; phone widths (<700 px) get tighter padding and a stacked Settings | claude | merged      | agent/claude/T-116 | `src/app/{layout.ts,layout.test.tsx}`, `src/App.tsx`, `src/features/panels/PanelToggle.tsx`, `src/styles/app.css`, `src/features/settings/settings.css` |
+| T-118 | 6     | Start on the welcome screen; reopening the last vault at start is opt-in (welcome-screen checkbox) | claude | merged      | agent/claude/T-118 | `src/app/recentVaults.ts`, `src/app/startup.test.tsx`, `src/App.tsx`, `src/features/vault/onboarding.test.tsx` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

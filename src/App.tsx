@@ -84,8 +84,8 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [overlay]);
 
-  // Restore a vault the backend already has open (e.g. after a webview reload), or
-  // reopen the last one used on this device.
+  // Restore a vault the backend already has open (e.g. after a webview reload), or, if
+  // chosen on the welcome screen, reopen the last one used on this device.
   useEffect(() => {
     void backend.currentVault().then(async (v) => {
       if (v) {

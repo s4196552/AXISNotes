@@ -1,10 +1,11 @@
 import type { VaultInfo } from "../ipc";
 
 // Recently opened vaults (this device only; safe to lose), and whether to reopen the
-// last one when AXISNotes starts.
+// last one when AXISNotes starts (off unless chosen: the welcome screen comes first).
 
 const KEY = "axis:recent-vaults";
-const REOPEN_KEY = "axis:reopen-last-vault";
+// Renamed when the default became off, so an old untouched default doesn't carry over.
+const REOPEN_KEY = "axis:reopen-last-vault-v2";
 const MAX = 8;
 
 export interface RecentVault {
@@ -47,9 +48,9 @@ export function forgetVault(root: string) {
 
 export function reopenLast(): boolean {
   try {
-    return localStorage.getItem(REOPEN_KEY) !== "false";
+    return localStorage.getItem(REOPEN_KEY) === "true";
   } catch {
-    return true;
+    return false;
   }
 }
 
