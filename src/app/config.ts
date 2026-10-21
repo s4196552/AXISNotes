@@ -54,6 +54,9 @@ export interface AxisConfig {
   folderIcons: Record<string, FolderIcon>;
   /** Background and text colours of file-tree rows, by vault path. */
   entryColors: Record<string, EntryColors>;
+  /** File-tree order set by dragging, by folder path ("" = the vault's top level): the
+   *  names of its items in order. Items not listed follow, A–Z. */
+  fileOrder: Record<string, string[]>;
   /** Dashboard layouts by folder path; "" is the vault's Home (see features/dashboard). */
   dashboards: Dashboards;
   dailyNotes: {
@@ -117,6 +120,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
   },
   folderIcons: {},
   entryColors: {},
+  fileOrder: {},
   dashboards: {},
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   home: { openOnStartup: false, onLastTabClose: false },

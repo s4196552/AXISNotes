@@ -2,6 +2,7 @@ import { backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { renameInDashboards, trashInDashboards } from "../dashboard/dashboardModel";
+import { remapOrder } from "../filetree/treeModel";
 
 /** Re-key path-keyed settings for a renamed entry (or drop them when `to` is null). */
 export function remapKeys<T>(map: Record<string, T>, from: string, to: string | null) {
@@ -17,21 +18,24 @@ export function remapKeys<T>(map: Record<string, T>, from: string, to: string | 
 }
 
 /**
- * Move icon, colour and dashboard settings along with a renamed entry. When it was trashed
- * (`to` null), icons and colours go; dashboards inside it are only switched off, so their
- * layouts survive a restore, and pinned links to it show as missing.
+ * Move icon, colour, file-tree order and dashboard settings along with a renamed entry.
+ * When it was trashed (`to` null), icons, colours and its place in the order go; dashboards
+ * inside it are only switched off, so their layouts survive a restore, and pinned links to
+ * it show as missing.
  */
 export async function remapIcons(from: string, to: string | null) {
-  const { folderIcons, entryColors, dashboards } = useConfig.getState().config;
+  const { folderIcons, entryColors, fileOrder, dashboards } = useConfig.getState().config;
   const boards = (d: typeof dashboards) =>
     to === null ? trashInDashboards(d, from) : renameInDashboards(d, from, to);
   const icons = remapKeys(folderIcons, from, to);
   const colors = remapKeys(entryColors, from, to);
-  if (!icons && !colors && !boards(dashboards)) return;
+  const order = remapOrder(fileOrder, from, to);
+  if (!icons && !colors && !order && !boards(dashboards)) return;
   await useConfig.getState().update((c) => ({
     ...c,
     folderIcons: remapKeys(c.folderIcons, from, to) ?? c.folderIcons,
     entryColors: remapKeys(c.entryColors, from, to) ?? c.entryColors,
+    fileOrder: remapOrder(c.fileOrder, from, to) ?? c.fileOrder,
     dashboards: boards(c.dashboards) ?? c.dashboards,
   }));
 }

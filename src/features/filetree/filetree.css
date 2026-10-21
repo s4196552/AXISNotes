@@ -63,6 +63,55 @@
   background: var(--bg-active);
   box-shadow: inset 0 0 0 2px var(--accent);
 }
+/* Dragging between rows: a line where the item will go. */
+.filetree-row.drop-before,
+.filetree-row.drop-after {
+  position: relative;
+}
+.filetree-row.drop-before::after,
+.filetree-row.drop-after::after {
+  content: "";
+  position: absolute;
+  left: var(--drop-indent, 6px);
+  right: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.filetree-row.drop-before::after {
+  top: -1px;
+}
+.filetree-row.drop-after::after {
+  bottom: -1px;
+}
+.filetree-row.dragged {
+  opacity: 0.45;
+}
+/* The name that follows the pointer while dragging. */
+.filetree-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  max-width: 240px;
+  padding: 3px 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-shadow: var(--shadow-pop);
+  pointer-events: none;
+}
+body.filetree-dragging,
+body.filetree-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
 .filetree-row.dimmed {
   color: var(--fg-muted);
   opacity: 0.6;

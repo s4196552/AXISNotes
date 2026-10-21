@@ -8,17 +8,92 @@ export interface Row {
   depth: number;
 }
 
-/** Visible rows in display order, skipping children of collapsed folders. */
-export function visibleRows(tree: VaultEntry | null, expanded: ReadonlySet<string>): Row[] {
+/** Visible rows in display order, skipping children of collapsed folders. `order` is the
+ *  custom order by folder (config `fileOrder`). */
+export function visibleRows(
+  tree: VaultEntry | null,
+  expanded: ReadonlySet<string>,
+  order: Readonly<Record<string, readonly string[]>> = {},
+): Row[] {
   const rows: Row[] = [];
-  const walk = (entries: VaultEntry[] | undefined, depth: number) => {
-    for (const entry of entries ?? []) {
+  const walk = (dir: string, entries: VaultEntry[] | undefined, depth: number) => {
+    for (const entry of orderedChildren(entries ?? [], order[dir])) {
       rows.push({ entry, depth });
-      if (entry.kind === "dir" && expanded.has(entry.path)) walk(entry.children, depth + 1);
+      if (entry.kind === "dir" && expanded.has(entry.path))
+        walk(entry.path, entry.children, depth + 1);
     }
   };
-  walk(tree?.children, 1);
+  walk("", tree?.children, 1);
   return rows;
+}
+
+// ---- Custom order (dragging between items) ----
+
+/** `entries` (folders first, A–Z, as listed) with the names in `order` first, in that
+ *  order; the rest follow as they were. */
+export function orderedChildren(entries: VaultEntry[], order: unknown): VaultEntry[] {
+  if (!Array.isArray(order) || order.length === 0) return entries;
+  const rank = new Map<string, number>();
+  order.forEach((name, i) => typeof name === "string" && !rank.has(name) && rank.set(name, i));
+  const listed = entries.filter((e) => rank.has(e.name));
+  if (listed.length === 0) return entries;
+  listed.sort((a, b) => rank.get(a.name)! - rank.get(b.name)!);
+  return [...listed, ...entries.filter((e) => !rank.has(e.name))];
+}
+
+/** Where a drop lands relative to a row: before or after it, or into it (a folder). */
+export type DropSide = "before" | "after" | "into";
+
+/** The drop side for a pointer at `y` over a row spanning `top`–`top + height`: the
+ *  middle half of a folder drops into it, the edges between rows. */
+export function dropSide(y: number, top: number, height: number, isDir: boolean): DropSide {
+  const f = height > 0 ? (y - top) / height : 0.5;
+  if (isDir) return f < 0.25 ? "before" : f > 0.75 ? "after" : "into";
+  return f < 0.5 ? "before" : "after";
+}
+
+/** `names` with `name` taken out and put before or after `target`. */
+export function placeName(
+  names: readonly string[],
+  name: string,
+  target: string,
+  side: "before" | "after",
+): string[] {
+  const out = names.filter((n) => n !== name);
+  const i = out.indexOf(target);
+  if (i === -1) return [...out, name];
+  out.splice(side === "before" ? i : i + 1, 0, name);
+  return out;
+}
+
+/**
+ * The custom order after `from` was renamed or moved to `to` (or deleted, `to` null): its
+ * own and its subfolders' lists follow it, and its name changes in (or leaves) its old
+ * folder's list. Returns null when nothing changes.
+ */
+export function remapOrder(
+  order: Readonly<Record<string, readonly string[]>>,
+  from: string,
+  to: string | null,
+): Record<string, string[]> | null {
+  let changed = false;
+  const out: Record<string, string[]> = {};
+  for (const [dir, names] of Object.entries(order)) {
+    if (dir === from || dir.startsWith(from + "/")) {
+      changed = true;
+      if (to !== null) out[to + dir.slice(from.length)] = [...names];
+    } else out[dir] = [...names];
+  }
+  const dir = parentPath(from);
+  const list = out[dir];
+  if (list?.includes(baseName(from))) {
+    changed = true;
+    out[dir] =
+      to !== null && parentPath(to) === dir
+        ? list.map((n) => (n === baseName(from) ? baseName(to) : n))
+        : list.filter((n) => n !== baseName(from));
+  }
+  return changed ? out : null;
 }
 
 export function findEntry(tree: VaultEntry | null, path: string): VaultEntry | null {

@@ -31,6 +31,30 @@ async function setup(files: Record<string, string>) {
 const row = (name: string) => screen.getByRole("treeitem", { name });
 const queryRow = (name: string) => screen.queryByRole("treeitem", { name });
 
+/**
+ * Drag `src` with the pointer to `target` (null: the empty area under the rows), landing at
+ * `at` (0 top – 1 bottom) of the target row. jsdom has no layout, so the target's box and
+ * the element under the pointer are given here.
+ */
+async function drag(
+  src: HTMLElement,
+  target: HTMLElement | null,
+  at = 0.5,
+  { release = true } = {},
+) {
+  const box = { top: 100, height: 20, bottom: 120, left: 0, right: 200, width: 200, x: 0, y: 100 };
+  if (target) vi.spyOn(target, "getBoundingClientRect").mockReturnValue(box as DOMRect);
+  document.elementFromPoint = () => target ?? screen.getByRole("tree");
+  fireEvent.pointerDown(src, { button: 0, clientX: 10, clientY: 10 });
+  fireEvent.pointerMove(window, { clientX: 10, clientY: 60 });
+  fireEvent.pointerMove(window, { clientX: 10, clientY: 100 + 20 * at });
+  if (!release) return;
+  fireEvent.pointerUp(window, { clientX: 10, clientY: 100 + 20 * at });
+  fireEvent.click(target ?? screen.getByRole("tree"));
+  // A later click is a click again.
+  await act(() => new Promise((r) => setTimeout(r, 0)));
+}
+
 beforeEach(() => {
   localStorage.clear();
   useConfig.setState({ config: DEFAULT_CONFIG });
@@ -119,24 +143,86 @@ describe("FileTree", () => {
     await waitFor(() => expect(h.b.files()).toEqual({ "Thoughts.md": "x" }));
   });
 
-  it("moves entries by drag and drop, rejecting a folder into itself", async () => {
+  it("moves entries by dragging, rejecting a folder into itself", async () => {
     await setup({ "Ideas.md": "i", "School/Math/Calc.md": "c" });
-    fireEvent.dragStart(row("Ideas"));
-    fireEvent.dragOver(row("School"));
-    fireEvent.drop(row("School"));
+    await drag(row("Ideas"), row("School"));
     await waitFor(() => expect(h.b.files()).toHaveProperty(["School/Ideas.md"], "i"));
 
     fireEvent.click(row("School"));
-    fireEvent.dragStart(row("School"));
-    fireEvent.drop(row("Math"));
+    await drag(row("School"), row("Math"));
     // Dropping a folder into its own child is ignored.
     expect(h.b.files()).toEqual({ "School/Ideas.md": "i", "School/Math/Calc.md": "c" });
 
-    // Dropping on empty space moves to the root.
+    // Dropping on empty space moves to the top level.
     fireEvent.click(row("Math"));
-    fireEvent.dragStart(row("Calc"));
-    fireEvent.drop(screen.getByRole("tree"));
+    await drag(row("Calc"), null);
     await waitFor(() => expect(h.b.files()).toHaveProperty(["Calc.md"], "c"));
+  });
+
+  it("shows where a drag will land, and Escape cancels it", async () => {
+    await setup({ "A.md": "", "B.md": "" });
+    await drag(row("B"), row("A"), 0.2, { release: false });
+    expect(row("A")).toHaveClass("drop-before");
+    expect(row("B")).toHaveClass("dragged");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(row("A")).not.toHaveClass("drop-before");
+    fireEvent.pointerUp(window);
+    expect(useConfig.getState().config.fileOrder).toEqual({});
+  });
+
+  it("orders items by dragging between them, and keeps the order", async () => {
+    await setup({ "A.md": "", "B.md": "", "C.md": "", "School/X.md": "", "School/Y.md": "" });
+    const names = () => screen.getAllByRole("treeitem").map((r) => r.textContent);
+    expect(names()).toEqual(["School", "A", "B", "C"]);
+    await drag(row("C"), row("A"), 0.2); // the top edge of A: before it
+    await waitFor(() => expect(names()).toEqual(["School", "C", "A", "B"]));
+    expect(useConfig.getState().config.fileOrder[""]).toEqual(["School", "C.md", "A.md", "B.md"]);
+    // The click ending the drag doesn't open what's under the pointer.
+    expect(useAppStore.getState().activePath).toBeNull();
+
+    // Between two items in another folder: moved there, in that place.
+    fireEvent.click(row("School"));
+    await drag(row("B"), row("X"), 0.8); // the bottom edge of X: after it
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["School/B.md"]));
+    await waitFor(() => expect(names()).toEqual(["School", "X", "B", "Y", "C", "A"]));
+    expect(useConfig.getState().config.fileOrder).toEqual({
+      "": ["School", "C.md", "A.md"],
+      School: ["X.md", "B.md", "Y.md"],
+    });
+
+    // A rename keeps its place.
+    fireEvent.click(row("C"));
+    fireEvent.keyDown(screen.getByRole("tree"), { key: "F2" });
+    const input = screen.getByRole("textbox", { name: "New name" });
+    fireEvent.change(input, { target: { value: "Zed" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(names()).toEqual(["School", "X", "B", "Y", "Zed", "A"]));
+  });
+
+  it("moves items up and down with Alt + arrows and the menu, and sorts A–Z again", async () => {
+    await setup({ "A.md": "", "B.md": "", "C.md": "" });
+    const names = () => screen.getAllByRole("treeitem").map((r) => r.textContent);
+    fireEvent.click(row("C"));
+    fireEvent.keyDown(screen.getByRole("tree"), { key: "ArrowUp", altKey: true });
+    await waitFor(() => expect(names()).toEqual(["A", "C", "B"]));
+
+    fireEvent.contextMenu(row("A"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move down" }));
+    await waitFor(() => expect(names()).toEqual(["C", "A", "B"]));
+
+    // On the empty area (the top level), the menu offers A–Z again.
+    fireEvent.contextMenu(screen.getByRole("tree"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Sort A–Z" }));
+    await waitFor(() => expect(names()).toEqual(["A", "B", "C"]));
+    fireEvent.contextMenu(screen.getByRole("tree"));
+    expect(screen.queryByRole("menuitem", { name: "Sort A–Z" })).not.toBeInTheDocument();
+  });
+
+  it("offers Move to… for files and folders", async () => {
+    await setup({ "School/Bio.md": "" });
+    fireEvent.contextMenu(row("School"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move to…" }));
+    expect(useUi.getState().modal).toEqual({ kind: "move", path: "School" });
   });
 
   it("moves a folder to the trash only after confirmation", async () => {

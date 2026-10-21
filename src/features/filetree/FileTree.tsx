@@ -1,4 +1,13 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -18,7 +27,7 @@ import {
   Sheet,
 } from "lucide-react";
 import { type AiRule, backend, isBackendError, type VaultEntry } from "../../ipc";
-import { CANVAS_EXT, docKind, GRID_EXT, PATH_MIME } from "../../lib/fileKinds";
+import { CANVAS_EXT, docKind, GRID_EXT } from "../../lib/fileKinds";
 import { emptySheet, serializeSheet } from "../../lib/formula/sheet";
 import { emptyCanvas, serializeCanvas } from "../../lib/canvas";
 import { useAppStore } from "../../app/store";
@@ -32,10 +41,14 @@ import {
   baseName,
   canMove,
   displayName,
+  type DropSide,
+  dropSide,
   findEntry,
   isOpenable,
   joinPath,
+  orderedChildren,
   parentPath,
+  placeName,
   remapPaths,
   renamedName,
   uniqueName,
@@ -53,6 +66,17 @@ interface MenuState {
   entry: VaultEntry | null;
 }
 
+/** Where a dragged item would land: before, after or into a row ("" into = top level). */
+interface DropAt {
+  path: string;
+  side: DropSide;
+}
+
+/** Pointer travel (px) before a press on a row becomes a drag. */
+const DRAG_START = 5;
+/** Hovering over a closed folder this long (ms) while dragging opens it. */
+const OPEN_DELAY = 600;
+
 /** Everything a row can trigger. Kept in one stable object so rows can be memoized. */
 interface RowActions {
   select(path: string): void;
@@ -62,9 +86,9 @@ interface RowActions {
   openMenu(e: React.MouseEvent, entry: VaultEntry | null): void;
   commitRename(entry: VaultEntry, input: string): void;
   cancelRename(): void;
-  dragStart(path: string): void;
-  dragOver(e: React.DragEvent, dir: string): void;
-  drop(e: React.DragEvent, dir: string): void;
+  /** A press that may become a drag. Pointer events, not HTML drag and drop, which the
+   *  desktop app's webview swallows on Windows. */
+  press(e: React.PointerEvent, path: string): void;
 }
 
 const errorMessage = (e: unknown) => (isBackendError(e) ? e.message : String(e));
@@ -77,23 +101,25 @@ export function FileTree() {
   const entryColors = useConfig((s) => s.config.entryColors);
   const aiFolders = useConfig((s) => s.config.ai.folders);
   const dashboards = useConfig((s) => s.config.dashboards);
+  const fileOrder = useConfig((s) => s.config.fileOrder);
   const activePath = useAppStore((s) => s.activePath);
   const { expanded, toggle, collapseAll, update: updateExpanded } = useExpanded(vault?.root ?? "");
 
   const [selected, setSelected] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
-  const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const dragging = useRef<string | null>(null);
+  /** The item being dragged, where it would land, and the pointer. */
+  const [drag, setDrag] = useState<{ path: string; over: DropAt | null; x: number; y: number }>();
+  const pressed = useRef<{ path: string; x: number; y: number } | null>(null);
   const treeRef = useRef<HTMLDivElement>(null);
 
-  const rows = useMemo(() => visibleRows(tree, expanded), [tree, expanded]);
+  const rows = useMemo(() => visibleRows(tree, expanded, fileOrder), [tree, expanded, fileOrder]);
 
   // Latest state for the stable action callbacks below.
-  const latest = useRef({ tree, selected });
+  const latest = useRef({ tree, selected, fileOrder, expanded });
   useLayoutEffect(() => {
-    latest.current = { tree, selected };
-  }, [tree, selected]);
+    latest.current = { tree, selected, fileOrder, expanded };
+  }, [tree, selected, fileOrder, expanded]);
 
   const run = useCallback(async (op: () => Promise<void>) => {
     try {
@@ -178,6 +204,162 @@ export function FileTree() {
     [run],
   );
 
+  /** Names in `dir`, in the order shown. */
+  const shownNames = useCallback((dir: string) => {
+    const { tree: t, fileOrder: order } = latest.current;
+    return orderedChildren(findEntry(t, dir)?.children ?? [], order[dir]).map((c) => c.name);
+  }, []);
+
+  const saveOrder = useCallback(
+    (dir: string, names: string[]) =>
+      useConfig.getState().update((c) => ({ ...c, fileOrder: { ...c.fileOrder, [dir]: names } })),
+    [],
+  );
+
+  /** Put `src` before or after `target`, moving it into `target`'s folder first if needed. */
+  const place = useCallback(
+    (src: string, target: string, side: "before" | "after") =>
+      run(async () => {
+        const dir = parentPath(target);
+        const name = baseName(src);
+        const names = shownNames(dir);
+        if (parentPath(src) !== dir) {
+          if (names.some((n) => n.toLowerCase() === name.toLowerCase())) {
+            const where = dir ? `"${baseName(dir)}"` : "the top level";
+            useAppStore.getState().setError(`"${name}" already exists in ${where}.`);
+            return;
+          }
+          await move(src, joinPath(dir, name));
+        }
+        await saveOrder(dir, placeName(names, name, baseName(target), side));
+        setSelected(joinPath(dir, name));
+      }),
+    [run, move, shownNames, saveOrder],
+  );
+
+  /** Move an item one place up (-1) or down (1) among its neighbours. */
+  const nudge = useCallback(
+    (path: string, by: -1 | 1) => {
+      const dir = parentPath(path);
+      const names = shownNames(dir);
+      const i = names.indexOf(baseName(path));
+      const j = i + by;
+      if (i === -1 || j < 0 || j >= names.length) return;
+      const order = placeName(names, names[i]!, names[j]!, by < 0 ? "before" : "after");
+      void run(() => saveOrder(dir, order));
+    },
+    [run, shownNames, saveOrder],
+  );
+
+  /** Back to A–Z (folders first) in `dir`. */
+  const resetOrder = useCallback(
+    (dir: string) =>
+      run(() =>
+        useConfig.getState().update((c) => {
+          const fileOrder = { ...c.fileOrder };
+          delete fileOrder[dir];
+          return { ...c, fileOrder };
+        }),
+      ),
+    [run],
+  );
+
+  // ---- Dragging rows ----
+
+  /** Where `src` would land with the pointer at x, y, or null if it can't go there. */
+  const dropAt = useCallback((src: string, x: number, y: number): DropAt | null => {
+    const body = treeRef.current;
+    const el = document.elementFromPoint(x, y);
+    if (!body || !el || !body.contains(el)) return null;
+    const rowEl = el.closest<HTMLElement>("[role=treeitem]");
+    // Empty space below the rows: the top level.
+    if (!rowEl) return canMove(src, "") ? { path: "", side: "into" } : null;
+    const path = rowEl.dataset.path ?? "";
+    const isDir = findEntry(latest.current.tree, path)?.kind === "dir";
+    const r = rowEl.getBoundingClientRect();
+    const side = dropSide(y, r.top, r.height, isDir);
+    if (side === "into") return canMove(src, path) ? { path, side } : null;
+    const dir = parentPath(path);
+    // Not next to itself, nor anywhere inside itself.
+    if (path === src || dir === src || dir.startsWith(src + "/")) return null;
+    return { path, side };
+  }, []);
+
+  useEffect(() => {
+    let current: { path: string; over: DropAt | null } | null = null;
+    let opening: { path: string; timer: ReturnType<typeof setTimeout> } | null = null;
+    const stopOpening = () => {
+      if (opening) clearTimeout(opening.timer);
+      opening = null;
+    };
+    const end = () => {
+      stopOpening();
+      pressed.current = null;
+      current = null;
+      document.body.classList.remove("filetree-dragging");
+      setDrag(undefined);
+    };
+    const onMove = (e: PointerEvent) => {
+      const p = pressed.current;
+      if (!p) return;
+      if (!current) {
+        if (Math.hypot(e.clientX - p.x, e.clientY - p.y) < DRAG_START) return;
+        current = { path: p.path, over: null };
+        document.body.classList.add("filetree-dragging");
+        setMenu(null);
+      }
+      e.preventDefault();
+      // Scroll when near the top or bottom edge.
+      const body = treeRef.current;
+      if (body) {
+        const r = body.getBoundingClientRect();
+        if (e.clientY < r.top + 24) body.scrollTop -= 12;
+        else if (e.clientY > r.bottom - 24) body.scrollTop += 12;
+      }
+      const over = dropAt(current.path, e.clientX, e.clientY);
+      // Hovering over a closed folder opens it after a moment.
+      const folder = over?.side === "into" && over.path !== "" ? over.path : null;
+      if (folder !== (opening?.path ?? null)) {
+        stopOpening();
+        if (folder && !latest.current.expanded.has(folder))
+          opening = { path: folder, timer: setTimeout(() => toggle(folder, true), OPEN_DELAY) };
+      }
+      current.over = over;
+      setDrag({ path: current.path, over, x: e.clientX, y: e.clientY });
+    };
+    const onUp = () => {
+      const done = current;
+      end();
+      if (!done) return;
+      // The click that ends a drag doesn't also open the row under the pointer.
+      const swallow = (ev: MouseEvent) => ev.stopPropagation();
+      window.addEventListener("click", swallow, true);
+      setTimeout(() => window.removeEventListener("click", swallow, true), 0);
+      const { path: src, over } = done;
+      if (!over) return;
+      if (over.side === "into") void move(src, joinPath(over.path, baseName(src)));
+      else void place(src, over.path, over.side);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      end();
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", end);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      stopOpening();
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", end);
+      window.removeEventListener("keydown", onKey, true);
+      document.body.classList.remove("filetree-dragging");
+    };
+  }, [dropAt, move, place, toggle]);
+
   const actions = useMemo<RowActions>(
     () => ({
       select: setSelected,
@@ -204,24 +386,9 @@ export function FileTree() {
         setRenaming(null);
         treeRef.current?.focus();
       },
-      dragStart(path) {
-        dragging.current = path;
-      },
-      dragOver(e, dir) {
-        const src = dragging.current;
-        if (src !== null && canMove(src, dir)) {
-          e.preventDefault();
-          e.stopPropagation();
-          setDropTarget(dir);
-        }
-      },
-      drop(e, dir) {
-        e.preventDefault();
-        e.stopPropagation();
-        const src = dragging.current;
-        dragging.current = null;
-        setDropTarget(null);
-        if (src !== null && canMove(src, dir)) void move(src, joinPath(dir, baseName(src)));
+      press(e, path) {
+        if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+        pressed.current = { path, x: e.clientX, y: e.clientY };
       },
     }),
     [toggle, move],
@@ -290,6 +457,13 @@ export function FileTree() {
     const selectAt = (i: number) =>
       setSelected(rows[Math.max(0, Math.min(rows.length - 1, i))]!.entry.path);
 
+    // Alt + ↑ / ↓ moves the item among its neighbours.
+    if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      if (current) nudge(current.path, e.key === "ArrowUp" ? -1 : 1);
+      e.preventDefault();
+      return;
+    }
+
     switch (e.key) {
       case "ArrowDown":
         selectAt(index + 1);
@@ -330,6 +504,8 @@ export function FileTree() {
 
   if (!tree) return null;
 
+  const dragged = drag ? findEntry(tree, drag.path) : null;
+
   const menuDir = menu
     ? menu.entry === null
       ? ""
@@ -358,20 +534,13 @@ export function FileTree() {
 
       <div
         ref={treeRef}
-        className={`filetree-body${dropTarget === "" ? " drop-target" : ""}`}
+        className={`filetree-body${drag?.over?.path === "" ? " drop-target" : ""}`}
         role="tree"
         aria-label="Vault files"
         tabIndex={0}
         aria-activedescendant={selected !== null ? rowId(selected) : undefined}
         onKeyDown={onKeyDown}
         onContextMenu={(e) => actions.openMenu(e, null)}
-        onDragOver={(e) => actions.dragOver(e, "")}
-        onDragLeave={() => setDropTarget(null)}
-        onDrop={(e) => actions.drop(e, "")}
-        onDragEnd={() => {
-          dragging.current = null;
-          setDropTarget(null);
-        }}
       >
         {rows.length === 0 && <p className="filetree-empty muted">No notes yet</p>}
         {rows.map(({ entry, depth }) => (
@@ -383,7 +552,8 @@ export function FileTree() {
             selected={entry.path === selected}
             active={entry.path === activePath}
             renaming={entry.path === renaming}
-            dropTarget={entry.path === dropTarget}
+            drop={drag?.over?.path === entry.path ? drag.over.side : undefined}
+            dragged={drag?.path === entry.path}
             customIcon={folderIcons[entry.path]}
             colors={entryColors[entry.path]}
             aiRule={aiFolders[entry.path]}
@@ -392,6 +562,16 @@ export function FileTree() {
           />
         ))}
       </div>
+
+      {drag && (
+        <div
+          className="filetree-ghost"
+          aria-hidden
+          style={{ transform: `translate(${drag.x + 12}px, ${drag.y + 8}px)` }}
+        >
+          {dragged ? displayName(dragged) : baseName(drag.path)}
+        </div>
+      )}
 
       {menu && (
         <div
@@ -421,12 +601,30 @@ export function FileTree() {
             close={setMenu}
           />
           {menu.entry?.kind === "dir" && <DashboardItems path={menu.entry.path} close={setMenu} />}
+          {menu.entry?.kind !== "file" && fileOrder[menuDir] && (
+            <MenuItem label="Sort A–Z" onClick={() => void resetOrder(menuDir)} close={setMenu} />
+          )}
           {menu.entry && (
             <>
               <AiRuleItems path={menu.entry.path} close={setMenu} />
               <MenuItem
                 label="Rename"
                 onClick={() => setRenaming(menu.entry!.path)}
+                close={setMenu}
+              />
+              <MenuItem
+                label="Move to…"
+                onClick={() => useUi.getState().open({ kind: "move", path: menu.entry!.path })}
+                close={setMenu}
+              />
+              <MenuItem
+                label="Move up"
+                onClick={() => nudge(menu.entry!.path, -1)}
+                close={setMenu}
+              />
+              <MenuItem
+                label="Move down"
+                onClick={() => nudge(menu.entry!.path, 1)}
                 close={setMenu}
               />
               <MenuItem
@@ -530,7 +728,10 @@ interface TreeRowProps {
   selected: boolean;
   active: boolean;
   renaming: boolean;
-  dropTarget: boolean;
+  /** Where a dragged item would land relative to this row. */
+  drop?: DropSide;
+  /** This row is being dragged. */
+  dragged: boolean;
   customIcon?: FolderIcon;
   colors?: EntryColors;
   aiRule?: AiRule;
@@ -546,7 +747,8 @@ const TreeRow = memo(function TreeRow({
   selected,
   active,
   renaming,
-  dropTarget,
+  drop,
+  dragged,
   customIcon,
   colors,
   aiRule,
@@ -575,7 +777,10 @@ const TreeRow = memo(function TreeRow({
     "filetree-row",
     selected && "selected",
     active && "active",
-    dropTarget && "drop-target",
+    drop === "into" && "drop-target",
+    drop === "before" && "drop-before",
+    drop === "after" && "drop-after",
+    dragged && "dragged",
     !isDir && !openable && "dimmed",
     own.className,
   ]
@@ -592,8 +797,14 @@ const TreeRow = memo(function TreeRow({
       aria-current={active ? "page" : undefined}
       data-path={entry.path}
       className={classes}
-      style={{ ...own.style, paddingLeft: 6 + (depth - 1) * 14 }}
-      draggable={!renaming}
+      style={
+        {
+          ...own.style,
+          paddingLeft: 6 + (depth - 1) * 14,
+          // The drop line starts where the row's icon does.
+          "--drop-indent": `${24 + (depth - 1) * 14}px`,
+        } as CSSProperties
+      }
       // Ctrl/Cmd+click or middle-click opens in a new tab, as in Obsidian.
       onClick={(e) => actions.activate(entry, e.ctrlKey || e.metaKey)}
       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
@@ -603,13 +814,7 @@ const TreeRow = memo(function TreeRow({
         actions.activate(entry, true);
       }}
       onContextMenu={(e) => actions.openMenu(e, entry)}
-      onDragStart={(e) => {
-        e.dataTransfer?.setData("text/plain", entry.path);
-        e.dataTransfer?.setData(PATH_MIME, entry.path);
-        actions.dragStart(entry.path);
-      }}
-      onDragOver={isDir ? (e) => actions.dragOver(e, entry.path) : undefined}
-      onDrop={isDir ? (e) => actions.drop(e, entry.path) : undefined}
+      onPointerDown={renaming ? undefined : (e) => actions.press(e, entry.path)}
     >
       <span
         className="filetree-chevron"
