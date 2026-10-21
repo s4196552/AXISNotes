@@ -2,6 +2,13 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-22: Updates run the installer directly again (T-123)
+
+- **The update window from T-119 is gone.** On the human's machine every update after 0.3.20 failed with the installer's "Error opening file for writing: …\AXISNotes\axisnotes.exe": the installed exe and the update window's temp copy both refused writes (Windows error 5, not 32 "in use"), with no process holding them, while `uninstall.exe` beside it and fresh copies of the same exe were writable. Bitdefender's behaviour monitor (ATC) is running there; an unsigned app copying itself to `%TEMP%`, running the copy and that starting an installer is a dropper pattern. Bitdefender's own logs weren't readable, so this is the likely cause rather than a proven one. 0.3.19 → 0.3.20 (installer started directly) had worked.
+- **Human decision:** go back to the installer's own passive window (`/P /UPDATE /R`), which keeps the AXISNotes artwork (header, sidebar, icon) from T-119.
+- `updates_install` also clears the staging folder first (old installers, the update window's leftovers); files it can't remove are left.
+- A copy of 0.3.20–0.3.22 still runs its own update window when updating _from_ those versions; a machine where that was blocked needs the new installer run by hand once.
+
 ## 2026-10-21: AXISNotes's own update window and branded installer (T-119)
 
 - **Updates install in our own window**, not the NSIS installer's passive progress window. The app can't show it itself (the installer replaces its files), so `updates_install` copies the running executable to `%TEMP%\AXISNotes-update\AXISNotes-updater.exe`, writes a job file (installer, app to reopen, versions, notes) and starts the copy with `--axis-updater <job>`, then quits. In that mode `run()` builds only the update window (the same embedded pages, `window.__AXIS_UPDATER__` set, its own WebView2 data folder), which runs the verified installer with `/S /UPDATE` and then reopens the app. The copy has a different name from `axisnotes.exe`, which the installer closes if still running. If the window can't start, the old passive installer (`/P /UPDATE /R`) runs instead. A failed install says so and offers Open AXISNotes or Close.

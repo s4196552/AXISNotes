@@ -172,6 +172,23 @@ fn sha256_hex(path: &Path) -> AppResult<String> {
         .collect())
 }
 
+/// Clears out the staging folder: installers from earlier updates, and the files 0.3.20–
+/// 0.3.22 left there for their update window. Anything that can't be removed (in use, or
+/// held by antivirus software) is left alone.
+pub fn tidy_staging(staging: &Path) {
+    let Ok(entries) = fs::read_dir(staging) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let _ = if path.is_dir() {
+            fs::remove_dir_all(&path)
+        } else {
+            fs::remove_file(&path)
+        };
+    }
+}
+
 /// Copies the installer for `version` into `staging` and checks it against the manifest.
 /// Returns the verified copy, which is the file to run. Checking the copy (not the
 /// original) means a file changed in the folder after the check is never run.
@@ -291,6 +308,19 @@ mod tests {
         assert!(check(dir.path(), "0.1.0", PLATFORM).is_err());
         fs::write(dir.path().join(MANIFEST), r#"{"version":"soon"}"#).unwrap();
         assert!(check(dir.path(), "0.1.0", PLATFORM).is_err());
+    }
+
+    #[test]
+    fn tidy_staging_clears_old_downloads() {
+        let staging = tempfile::tempdir().unwrap();
+        fs::write(staging.path().join("AXISNotes_0.1.0_x64-setup.exe"), b"old").unwrap();
+        fs::write(staging.path().join("update-job.json"), b"{}").unwrap();
+        fs::create_dir(staging.path().join("updater-webview")).unwrap();
+        fs::write(staging.path().join("updater-webview").join("x"), b"x").unwrap();
+        tidy_staging(staging.path());
+        assert_eq!(fs::read_dir(staging.path()).unwrap().count(), 0);
+        // A folder that doesn't exist yet is fine.
+        tidy_staging(&staging.path().join("missing"));
     }
 
     #[test]

@@ -6,7 +6,6 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::error::{AppError, AppResult};
-use crate::updater;
 use crate::updates::{self, Available, UpdateSettings};
 
 /// Same override as the AI and clipper settings (E2E tests use a throwaway folder). It also
@@ -112,8 +111,8 @@ pub fn updates_check(app: AppHandle) -> AppResult<Option<Available>> {
     )
 }
 
-/// Verifies the installer for `version`, opens the update window that installs it (it
-/// closes this app, installs over it and reopens it) and quits.
+/// Verifies the installer for `version`, starts it (it closes this app, installs over it
+/// and reopens it) and quits.
 #[tauri::command]
 pub fn updates_install(app: AppHandle, version: String) -> AppResult<()> {
     if cfg!(debug_assertions) {
@@ -126,32 +125,25 @@ pub fn updates_install(app: AppHandle, version: String) -> AppResult<()> {
             "Installing updates from a folder is only supported on Windows so far.".into(),
         ));
     }
-    let folder = folder(&app)?;
-    let current = app.package_info().version.to_string();
     let staging = std::env::temp_dir().join("AXISNotes-update");
-    let installer = updates::prepare(&folder, &current, &updates::platform(), &version, &staging)?;
-    let notes = updates::check(&folder, &current, &updates::platform())
-        .ok()
-        .flatten()
-        .map(|a| a.notes)
-        .unwrap_or_default();
-    let job = updater::Job {
-        installer: installer.clone(),
-        relaunch: std::env::current_exe().map_err(|e| AppError::Io(e.to_string()))?,
-        from_version: current,
-        to_version: version,
-        notes,
-    };
-    if let Err(e) = updater::start(&staging, &job) {
-        // The installer's own window instead: passive (progress only), update mode (keeps
-        // the user's shortcut choices) and relaunch when done. Arguments, never a shell
-        // string.
-        eprintln!("update window: {e}");
-        std::process::Command::new(&installer)
-            .args(["/P", "/UPDATE", "/R"])
-            .spawn()
-            .map_err(|e| AppError::Io(format!("couldn’t start the installer: {e}")))?;
-    }
+    // Earlier downloads (and 0.3.20–0.3.22's update-window files) only take up space.
+    updates::tidy_staging(&staging);
+    let installer = updates::prepare(
+        &folder(&app)?,
+        &app.package_info().version.to_string(),
+        &updates::platform(),
+        &version,
+        &staging,
+    )?;
+    // The installer runs itself, in its own (AXISNotes-branded) window: passive (progress
+    // only), update mode (keeps the user's shortcut choices) and relaunch when done.
+    // AXISNotes doesn't run a copy of itself to do it: copying the app to the temp folder
+    // and starting the copy looks like malware to antivirus software, which then blocked
+    // the install (T-123). Arguments, never a shell string.
+    std::process::Command::new(&installer)
+        .args(["/P", "/UPDATE", "/R"])
+        .spawn()
+        .map_err(|e| AppError::Io(format!("couldn’t start the installer: {e}")))?;
     app.exit(0);
     Ok(())
 }
