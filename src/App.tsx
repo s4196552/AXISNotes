@@ -9,7 +9,7 @@ import {
   applyTypography,
   onTransparencyEffectsChange,
 } from "./app/appearance";
-import { installZoom } from "./app/zoom";
+import { installZoom, useAreaZoomProps } from "./app/zoom";
 import { installFileDrops } from "./features/editor/media";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
@@ -178,6 +178,11 @@ export default function App() {
     };
   }, []);
 
+  // Ctrl + mouse wheel zooms each of these on its own (see app/zoom.ts).
+  const leftZoom = useAreaZoomProps("left");
+  const mainZoom = useAreaZoomProps("main");
+  const rightZoom = useAreaZoomProps("right");
+
   if (!vault)
     return (
       <>
@@ -205,6 +210,7 @@ export default function App() {
       {/* Kept mounted while hidden, so the file tree and search keep their state. */}
       <div
         className="sidebar-slot left"
+        {...leftZoom}
         data-closed={showLeft ? undefined : ""}
         aria-hidden={showLeft ? undefined : true}
         inert={!showLeft}
@@ -220,7 +226,7 @@ export default function App() {
         {!showLeft && <PanelToggle side="left" className="side-panels-toggle left" />}
         <PanelToggle side="right" className="side-panels-toggle" />
         <TabBar />
-        <div className="tab-panel" id={TAB_PANEL_ID} role="tabpanel">
+        <div className="tab-panel" id={TAB_PANEL_ID} role="tabpanel" {...mainZoom}>
           <Suspense fallback={<div className="empty muted">Loading…</div>}>
             {mainView === "graph" ? (
               <GraphView />
@@ -251,6 +257,7 @@ export default function App() {
       {rightMounted && (
         <div
           className="sidebar-slot right"
+          {...rightZoom}
           data-closed={showRight ? undefined : ""}
           aria-hidden={showRight ? undefined : true}
           inert={!showRight}

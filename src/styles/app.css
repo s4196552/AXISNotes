@@ -226,11 +226,18 @@ input {
   grid-column: 3;
   align-items: flex-start;
 }
+/* A zoomed panel (Ctrl + mouse wheel, see app/zoom.ts) keeps its width on screen. */
 .sidebar-slot.left > .sidebar {
-  width: var(--left-width, 260px);
+  width: calc(var(--left-width, 260px) / var(--area-zoom, 1));
 }
 .sidebar-slot.right > .sidebar {
-  width: var(--right-width, 280px);
+  width: calc(var(--right-width, 280px) / var(--area-zoom, 1));
+}
+/* The canvas and the graphs have their own zoom: a zoomed part of the window doesn't
+   scale them too (their pointer maths assumes it doesn't). */
+[data-zoom-area]
+  :is(.excalidraw, .graph-canvas, [data-testid="graph-canvas"], .local-graph-canvas) {
+  zoom: calc(1 / var(--area-zoom, 1));
 }
 .sidebar-slot > .sidebar {
   flex: 1;
