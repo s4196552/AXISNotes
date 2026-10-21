@@ -226,6 +226,12 @@ input {
   grid-column: 3;
   align-items: flex-start;
 }
+/* While dragging a tab, widget or card (app/usePointerDrag.ts). */
+body.pointer-dragging,
+body.pointer-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
 /* A zoomed panel (Ctrl + mouse wheel, see app/zoom.ts) keeps its width on screen. */
 .sidebar-slot.left > .sidebar {
   width: calc(var(--left-width, 260px) / var(--area-zoom, 1));

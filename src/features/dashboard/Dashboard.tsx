@@ -1,12 +1,13 @@
 import {
   createContext,
   createElement,
-  type DragEvent,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -38,6 +39,7 @@ import {
 import { backend, isBackendError, type TaskRef, type VaultEntry } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
+import { type DropBeside, dropBeside, usePointerDrag } from "../../app/usePointerDrag";
 import { formatDate } from "../../lib/dates";
 import { plainInline } from "../../lib/inlineMarkdown";
 import { dailyNotePath, ensureDailyNote, openDailyNote } from "../commands/actions";
@@ -107,29 +109,6 @@ const errorText = (e: unknown) => (isBackendError(e) ? e.message : String(e));
 /** The vault tree indexed once per change (see `indexTree`), for the dashboard's cards. */
 const TreeIndexContext = createContext<TreeIndex>({ entries: new Map(), folders: new Map() });
 
-/** Where a dragged widget or card would land: before or after the one under the pointer. */
-interface DropAt {
-  target: string;
-  after: boolean;
-}
-
-/**
- * Which half of `e`'s target the pointer is over: the far (right) half, or the lower half
- * of an item much wider than tall (a full-row widget), where a drop lands above or below.
- */
-function dropHalf(e: DragEvent<HTMLElement>): { after: boolean; vertical: boolean } {
-  const r = e.currentTarget.getBoundingClientRect();
-  const vertical = r.width > r.height * 2.5;
-  const after = vertical ? e.clientY > r.top + r.height / 2 : e.clientX > r.left + r.width / 2;
-  return { after, vertical };
-}
-
-/** Start an HTML5 drag; some engines only start one with data set. */
-function startDrag(e: DragEvent<HTMLElement>, id: string, image?: Element | null) {
-  e.dataTransfer.effectAllowed = "move";
-  e.dataTransfer.setData("text/plain", id);
-  if (image) e.dataTransfer.setDragImage(image, 16, 16);
-}
 const noteName = (path: string) => path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
 
 const dayOf = (date: Date) => formatDate(date, "YYYY-MM-DD");
@@ -226,9 +205,13 @@ export function Dashboard({ folder }: { folder: string }) {
   const vault = useAppStore((s) => s.vault);
   const tree = useAppStore((s) => s.tree);
   const [editing, setEditing] = useState(false);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [drop, setDrop] = useState<DropAt | null>(null);
   const dashboard = useMemo(() => dashboardFor(saved, folder), [saved, folder]);
+  // Widgets move by their grip while customizing (pointer drags; see usePointerDrag).
+  const grid = useRef<HTMLDivElement>(null);
+  const widgetDrag = usePointerDrag<string, DropBeside>(
+    (x, y, id) => dropBeside(grid.current, "data-widget-id", x, y, id),
+    (id, at) => saveWidgets(folder, (ws) => placeWidget(ws, id, at.target, at.after)),
+  );
   // One walk of the tree per change, shared by every card on the dashboard.
   const index = useMemo(() => indexTree(tree), [tree]);
   const widgets = dashboard?.widgets ?? [];
@@ -307,7 +290,7 @@ export function Dashboard({ folder }: { folder: string }) {
         {!dashboard ? (
           <NoDashboard folder={folder} entry={folderEntry ?? null} />
         ) : (
-          <div className="dashboard-grid">
+          <div className="dashboard-grid" ref={grid}>
             {widgets.map((w, i) => (
               <WidgetFrame
                 key={w.id}
@@ -317,27 +300,9 @@ export function Dashboard({ folder }: { folder: string }) {
                 first={i === 0}
                 last={i === widgets.length - 1}
                 drag={{
-                  dragging: dragging === w.id,
-                  dropSide: drop?.target === w.id ? (drop.after ? "after" : "before") : null,
-                  onStart: () => setDragging(w.id),
-                  onOver: (after) => {
-                    if (!dragging || dragging === w.id) return;
-                    setDrop((d) =>
-                      d?.target === w.id && d.after === after ? d : { target: w.id, after },
-                    );
-                  },
-                  onDrop: () => {
-                    if (dragging && drop) {
-                      const { target, after } = drop;
-                      saveWidgets(folder, (ws) => placeWidget(ws, dragging, target, after));
-                    }
-                    setDragging(null);
-                    setDrop(null);
-                  },
-                  onEnd: () => {
-                    setDragging(null);
-                    setDrop(null);
-                  },
+                  dragging: widgetDrag.dragging === w.id,
+                  drop: widgetDrag.target?.target === w.id ? widgetDrag.target : null,
+                  onPress: (e) => widgetDrag.press(e, w.id),
                 }}
               >
                 <WidgetBody widget={w} folder={folder} editing={editing} today={today} />
@@ -386,11 +351,10 @@ function NoDashboard({ folder, entry }: { folder: string; entry: VaultEntry | nu
 
 interface WidgetDrag {
   dragging: boolean;
-  dropSide: "before" | "after" | null;
-  onStart(): void;
-  onOver(after: boolean): void;
-  onDrop(): void;
-  onEnd(): void;
+  /** Where the dragged widget would land, when it's beside this one. */
+  drop: DropBeside | null;
+  /** A press on the grip, which may become a drag. */
+  onPress(e: ReactPointerEvent): void;
 }
 
 function WidgetFrame(props: {
@@ -406,50 +370,24 @@ function WidgetFrame(props: {
   const Icon = WIDGET_ICONS[w.type];
   const label = widgetLabel(w);
   const wide = isWide(w);
-  const [vertical, setVertical] = useState(false);
+  const drop = drag.drop;
   const classes = [
     "dashboard-widget",
     `widget-${w.type}`,
     wide && "wide",
     drag.dragging && "dragging",
-    drag.dropSide && `drop-${drag.dropSide}`,
-    drag.dropSide && vertical && "drop-v",
+    drop && `drop-${drop.after ? "after" : "before"}`,
+    drop?.vertical && "drop-v",
   ];
   return (
-    <section
-      className={classes.filter(Boolean).join(" ")}
-      aria-label={label}
-      onDragOver={
-        editing
-          ? (e) => {
-              e.preventDefault();
-              const half = dropHalf(e);
-              if (half.vertical !== vertical) setVertical(half.vertical);
-              drag.onOver(half.after);
-            }
-          : undefined
-      }
-      onDrop={
-        editing
-          ? (e) => {
-              e.preventDefault();
-              drag.onDrop();
-            }
-          : undefined
-      }
-    >
+    <section className={classes.filter(Boolean).join(" ")} aria-label={label} data-widget-id={w.id}>
       <header className="dashboard-widget-header">
         {editing && (
           <span
             className="dashboard-grip"
-            draggable
             title="Drag to move"
             aria-hidden
-            onDragStart={(e) => {
-              startDrag(e, w.id, e.currentTarget.closest("section"));
-              drag.onStart();
-            }}
-            onDragEnd={drag.onEnd}
+            onPointerDown={drag.onPress}
           >
             <GripVertical size={14} />
           </span>
@@ -1078,10 +1016,8 @@ interface CardMove {
   dragging: boolean;
   dropSide: "before" | "after" | null;
   onMove(delta: number): void;
-  onStart(): void;
-  onOver(after: boolean): void;
-  onDrop(): void;
-  onEnd(): void;
+  /** A press on the card, which may become a drag. */
+  onPress(e: ReactPointerEvent): void;
 }
 
 /** Cards for files and folders, like a notebook grid: icon, name, date · details. */
@@ -1095,16 +1031,16 @@ function CardGrid(props: {
   children?: ReactNode;
 }) {
   const { entries, folders } = useContext(TreeIndexContext);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [drop, setDrop] = useState<DropAt | null>(null);
-  const end = () => {
-    setDragging(null);
-    setDrop(null);
-  };
   const { onMove, onPlace } = props;
   const movable = props.editing && onMove && onPlace;
+  const cards = useRef<HTMLDivElement>(null);
+  const cardDrag = usePointerDrag<string, DropBeside>(
+    (x, y, path) => dropBeside(cards.current, "data-card-path", x, y, path),
+    (path, at) => onPlace?.(path, at.target, at.after),
+  );
+  const drop = cardDrag.target;
   return (
-    <div className="dashboard-cards">
+    <div className="dashboard-cards" ref={cards}>
       {props.paths.map((p, i) => (
         <Card
           key={p}
@@ -1119,21 +1055,10 @@ function CardGrid(props: {
               ? {
                   first: i === 0,
                   last: i === props.paths.length - 1,
-                  dragging: dragging === p,
+                  dragging: cardDrag.dragging === p,
                   dropSide: drop?.target === p ? (drop.after ? "after" : "before") : null,
                   onMove: (delta) => onMove(p, delta),
-                  onStart: () => setDragging(p),
-                  onOver: (after) => {
-                    if (!dragging || dragging === p) return;
-                    setDrop((d) =>
-                      d?.target === p && d.after === after ? d : { target: p, after },
-                    );
-                  },
-                  onDrop: () => {
-                    if (dragging && drop) onPlace(dragging, drop.target, drop.after);
-                    end();
-                  },
-                  onEnd: end,
+                  onPress: (e) => cardDrag.press(e, p),
                 }
               : undefined
           }
@@ -1192,32 +1117,8 @@ function Card(props: {
   return (
     <div
       className={classes.filter(Boolean).join(" ")}
-      draggable={move ? true : undefined}
-      onDragStart={
-        move
-          ? (e) => {
-              startDrag(e, path);
-              move.onStart();
-            }
-          : undefined
-      }
-      onDragEnd={move?.onEnd}
-      onDragOver={
-        move
-          ? (e) => {
-              e.preventDefault();
-              move.onOver(dropHalf(e).after);
-            }
-          : undefined
-      }
-      onDrop={
-        move
-          ? (e) => {
-              e.preventDefault();
-              move.onDrop();
-            }
-          : undefined
-      }
+      data-card-path={path}
+      onPointerDown={move?.onPress}
     >
       <button
         className="dashboard-card-main"
