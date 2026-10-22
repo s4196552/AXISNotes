@@ -179,9 +179,10 @@ export default function App() {
   }, []);
 
   // Ctrl + mouse wheel zooms each of these on its own (see app/zoom.ts).
-  const leftZoom = useAreaZoomProps("left");
+  // The side panels zoom their content, not their header and toolbars.
+  const leftZoom = useAreaZoomProps("left", { content: true });
   const mainZoom = useAreaZoomProps("main");
-  const rightZoom = useAreaZoomProps("right");
+  const rightZoom = useAreaZoomProps("right", { content: true });
 
   if (!vault)
     return (
