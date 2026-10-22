@@ -111,14 +111,17 @@ export const useAreaZoom = create<AreaZoomState>((set, get) => {
   };
 });
 
-/** Props for a part of the window that zooms on its own: its marker and, when zoomed, the
- *  CSS zoom (and `--area-zoom`, which places with their own zoom use to undo it). */
-export function useAreaZoomProps(area: ZoomArea) {
+/**
+ * Props for a part of the window that zooms on its own: its marker and, when zoomed,
+ * `--area-zoom` with the CSS zoom. With `content`, the part itself keeps its size and look
+ * and only `--area-zoom` is set; CSS zooms the content inside (the side panels, see
+ * app.css). Places with their own zoom (the canvas, the graph) use it to undo the zoom.
+ */
+export function useAreaZoomProps(area: ZoomArea, { content = false } = {}) {
   const z = useAreaZoom((s) => s.areas[area] ?? 1);
-  return {
-    "data-zoom-area": area,
-    style: (z === 1 ? undefined : { zoom: z, "--area-zoom": z }) as CSSProperties | undefined,
-  };
+  const style =
+    z === 1 ? undefined : content ? { "--area-zoom": z } : { zoom: z, "--area-zoom": z };
+  return { "data-zoom-area": area, style: style as CSSProperties | undefined };
 }
 
 /** Zoom the part of the window under the pointer one step in (`dir` = 1) or out. */

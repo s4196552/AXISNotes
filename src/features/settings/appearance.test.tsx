@@ -90,6 +90,23 @@ describe("zoom", () => {
     stop();
   });
 
+  it("zooms a side panel's content, not the panel itself", () => {
+    let props: ReturnType<typeof useAreaZoomProps> | undefined;
+    let main: ReturnType<typeof useAreaZoomProps> | undefined;
+    function Probe() {
+      props = useAreaZoomProps("left", { content: true });
+      main = useAreaZoomProps("main");
+      return null;
+    }
+    render(<Probe />);
+    expect(props).toEqual({ "data-zoom-area": "left", style: undefined });
+    act(() => useAreaZoom.getState().setArea("left", 1.5));
+    act(() => useAreaZoom.getState().setArea("main", 1.25));
+    // The panel keeps its size; CSS zooms its content by --area-zoom.
+    expect(props!.style).toEqual({ "--area-zoom": 1.5 });
+    expect(main!.style).toEqual({ zoom: 1.25, "--area-zoom": 1.25 });
+  });
+
   it("zooms only the part of the window under the pointer with Ctrl + mouse wheel", () => {
     function Part({ area }: { area: "left" | "main" }) {
       return (

@@ -109,6 +109,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-121 | 6     | File tree: drag with pointer events (HTML drag was swallowed on Windows), custom order by dragging between items, Move to… / Move up / Move down / Sort A–Z, Alt + arrows | claude | merged      | agent/claude/T-121 | `src/features/filetree/**`, `src/features/files/renameEntry.ts`, `src/app/config.ts`, `src/features/commands/Modals.tsx` |
 | T-122 | 6     | Tabs, dashboard widgets and pinned cards drag with pointer events (shared usePointerDrag hook) | claude | merged      | agent/claude/T-122 | `src/app/usePointerDrag{.ts,.test.tsx}`, `src/features/tabs/{TabBar.tsx,tabs.test.tsx}`, `src/features/dashboard/{Dashboard.tsx,Dashboard.test.tsx}`, `src/styles/app.css` |
 | T-123 | 6     | Updates run the installer directly again (T-119's self-copying update window removed after it was blocked, likely by Bitdefender); staging folder tidied | claude | merged      | agent/claude/T-123 | `src-tauri/src/{lib.rs,updates.rs,updates_commands.rs}`, `src/main.tsx`, `src/features/updates/**`, `docs/DECISIONS.md` |
+| T-124 | 6     | Ctrl + wheel over a side panel zooms its content (files, search, tags, calendar, outline, links); its header, toolbars and width stay | claude | merged      | agent/claude/T-124 | `src/app/zoom.ts`, `src/App.tsx`, `src/styles/app.css`, `src/features/settings/appearance.test.tsx` |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
