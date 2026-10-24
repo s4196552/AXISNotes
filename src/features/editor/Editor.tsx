@@ -28,6 +28,7 @@ import { anchorCompletions, embeds } from "./embeds";
 import { mediaInput } from "./media";
 import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
+import { tables } from "./tables";
 import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { PageHeader } from "./PageHeader";
@@ -333,6 +334,7 @@ export function Editor({ path }: EditorProps) {
               content: markdown({ base: markdownLanguage, codeLanguages: languages }),
             }),
             livePreview,
+            tables,
             obsidianSyntax,
             toggles,
             mermaidBlocks,

@@ -2,46 +2,60 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "axis-T-120",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", "A:/M. PROJECTS/axis-T-120", "exec", "vite", "--port", "1820"],
+      "port": 1820
+    },
+    {
+      "name": "axis-T-118",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", "A:/M. PROJECTS/axis-T-118", "exec", "vite", "--port", "1718"],
+      "port": 1718
+    },
+    {
+      "name": "axis-T-117",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", "A:/M. PROJECTS/axis-T-117", "exec", "vite", "--port", "1717"],
+      "port": 1717
+    },
+    {
       "name": "axis-web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev"],
       "port": 1420
     },
     {
-      "name": "axis-T-067",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["-C", "../axis-T-067", "exec", "vite", "--port", "1467"],
-      "port": 1467
-    },
-    {
       "name": "axis-T-068",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["-C", "../axis-T-068", "exec", "vite", "--port", "1468"],
+      "runtimeArgs": ["-C", "A:/M. PROJECTS/axis-T-068", "exec", "vite", "--port", "1468"],
       "port": 1468
-    },
-    {
-      "name": "axis-T-069",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["-C", "../axis-T-069", "exec", "vite", "--port", "1469"],
-      "port": 1469
     },
     {
       "name": "axis-T-070",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["-C", "../axis-T-070", "exec", "vite", "--port", "1470"],
+      "runtimeArgs": ["-C", "A:/M. PROJECTS/axis-T-070", "exec", "vite", "--port", "1470"],
       "port": 1470
     },
     {
-      "name": "axis-T-071",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["-C", "../axis-T-071", "exec", "vite", "--port", "1471"],
-      "port": 1471
+      "name": "axisnotes-main",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "pnpm -C 'A:/M. PROJECTS/AXIS' tauri dev --config 'A:/M. PROJECTS/AXIS/.claude/tauri-dev-1491.json'"
+      ],
+      "port": 1491
     },
     {
-      "name": "axis-T-072",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["-C", "../axis-T-072", "exec", "vite", "--port", "1472"],
-      "port": 1472
+      "name": "axisnotes-dev",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "pnpm -C 'A:/M. PROJECTS/axis-release-0.3.0' tauri dev --config 'A:/M. PROJECTS/AXIS/.claude/tauri-dev-1490.json'"
+      ],
+      "port": 1490
     }
   ]
 }

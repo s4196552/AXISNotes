@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { EditorView } from "@codemirror/view";
+import { EditorState } from "@codemirror/state";
+import { undo } from "@codemirror/commands";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
@@ -11,6 +13,8 @@ import { pastedMedia } from "./media";
 import { SLASH_COMMANDS } from "./quickCommands";
 import { PATH_MIME } from "../../lib/fileKinds";
 import { Settings } from "../settings/Settings";
+import { readImageLayout } from "../../lib/imageLayout";
+import { embeds } from "./embeds";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -107,6 +111,79 @@ describe("embedded images, video and audio", () => {
     const line = view.state.doc.lineAt(view.state.selection.main.head);
     expect(line.text).toBe("![[cell.mp4|400]]");
     await waitFor(() => expect(screen.queryByTitle("cell.mp4")).toBeNull()); // shown as text
+  });
+});
+
+describe("editing embedded images", () => {
+  beforeEach(() =>
+    setup({
+      "Note.md": 'Intro\n\n![Cell|300x200](photo.png "Caption")\n',
+      "photo.png": "original image bytes",
+    }),
+  );
+  it("honours both Obsidian dimensions and saves a reversible crop with the note", async () => {
+    const view = await open("Note.md");
+    const image = await screen.findByAltText("Cell");
+    expect(image.closest(".cm-image-frame")).toHaveStyle({ width: "300px", aspectRatio: "1.5" });
+    fireEvent.click(screen.getByRole("button", { name: "Edit image" }));
+    fireEvent.input(screen.getByLabelText("Width (px)"), { target: { value: "480" } });
+    fireEvent.input(screen.getByLabelText("Height (px)"), { target: { value: "240" } });
+    fireEvent.input(screen.getByLabelText("Left crop (%)"), { target: { value: "10" } });
+    fireEvent.input(screen.getByLabelText("Right crop (%)"), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply image changes" }));
+    expect(readImageLayout(view.state.doc.line(3).text).layout).toEqual({
+      width: 480,
+      height: 240,
+      crop: [10, 0, 20, 0],
+    });
+    expect(text(view)).toContain('photo.png "Caption"');
+    await act(() => saveAll());
+    expect(h.b.files()["Note.md"]).toBe(text(view));
+    expect(h.b.files()["photo.png"]).toBe("original image bytes");
+    expect(undo(view)).toBe(true);
+    expect(text(view)).toBe('Intro\n\n![Cell|300x200](photo.png "Caption")\n');
+  });
+  it("cancels previews, rejects empty crops and resets transforms explicitly", async () => {
+    const view = await open("Note.md");
+    const source = text(view);
+    fireEvent.click(screen.getByRole("button", { name: "Edit image" }));
+    fireEvent.input(screen.getByLabelText("Left crop (%)"), { target: { value: "60" } });
+    fireEvent.input(screen.getByLabelText("Right crop (%)"), { target: { value: "60" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply image changes" }));
+    expect(text(view)).toBe(source);
+    expect(screen.getByText(/leave some image visible/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByAltText("Cell").closest(".cm-image-frame")).toHaveStyle({
+      width: "300px",
+      aspectRatio: "1.5",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Edit image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset size and crop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply image changes" }));
+    expect(text(view)).toBe('Intro\n\n![Cell](photo.png "Caption")\n');
+  });
+  it("keeps source editing available and disables image changes when read-only", async () => {
+    const view = await open("Note.md");
+    fireEvent.click(screen.getByRole("button", { name: "Edit link" }));
+    expect(view.state.doc.lineAt(view.state.selection.main.head).number).toBe(3);
+    expect(screen.queryByAltText("Cell")).toBeNull();
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const readonly = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: "Intro\n\n![[photo.png]]\n",
+        extensions: [embeds("Note.md"), EditorState.readOnly.of(true)],
+      }),
+    });
+    try {
+      expect(parent.querySelector<HTMLButtonElement>(".cm-image-tools button")!.disabled).toBe(
+        true,
+      );
+    } finally {
+      readonly.destroy();
+      parent.remove();
+    }
   });
 });
 
