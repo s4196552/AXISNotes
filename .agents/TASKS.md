@@ -111,6 +111,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-123 | 6     | Updates run the installer directly again (T-119's self-copying update window removed after it was blocked, likely by Bitdefender); staging folder tidied | claude | merged      | agent/claude/T-123 | `src-tauri/src/{lib.rs,updates.rs,updates_commands.rs}`, `src/main.tsx`, `src/features/updates/**`, `docs/DECISIONS.md` |
 | T-125 | 6 | Obsidian Markdown tables and reversible image size/crop controls | codex | in-review | agent/codex/T-125 | `src/lib/{markdownTables,imageLayout}*`, `src/features/editor/{tables,imageEditor,Editor,embeds,editor.css,media.test}*`, `.claude/launch.json`, `e2e/specs/media-tables.e2e.ts`, task coordination |
 | T-124 | 6     | Ctrl + wheel over a side panel zooms its content (files, search, tags, calendar, outline, links); its header, toolbars and width stay | claude | merged      | agent/claude/T-124 | `src/app/zoom.ts`, `src/App.tsx`, `src/styles/app.css`, `src/features/settings/appearance.test.tsx` |
+| T-126 | 6 | Fix Markdown table column layout using supplied support-plan example | codex | in-review | agent/codex/T-126 | src/features/editor/{tables.ts,tables.test.ts,editor.css}, e2e/specs/media-tables.e2e.ts |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

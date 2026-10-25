@@ -157,8 +157,22 @@ class TableController {
     }
     const scroll = document.createElement("div");
     scroll.className = "cm-table-scroll";
+    scroll.tabIndex = 0;
+    scroll.setAttribute("role", "region");
+    scroll.setAttribute("aria-label", "Scrollable Markdown table");
     const element = document.createElement("table");
     element.setAttribute("aria-label", "Markdown table");
+    // Fixed tracks keep a long cell from taking all the space from adjacent
+    // columns. On small screens the table scrolls instead of crushing its text.
+    element.style.minWidth = `${table.alignment.length * 140 + (this.editing ? 100 : 0)}px`;
+    const tracks = document.createElement("colgroup");
+    table.alignment.forEach(() => tracks.append(document.createElement("col")));
+    if (this.editing) {
+      const actions = document.createElement("col");
+      actions.style.width = "100px";
+      tracks.append(actions);
+    }
+    element.append(tracks);
     const head = element.createTHead();
     const body = element.createTBody();
     table.rows.forEach((row, r) => {
@@ -196,7 +210,12 @@ class TableController {
         } else inline(cell, value, this.view);
         tr.append(cell);
       });
-      if (this.editing && r > 0) {
+      if (this.editing && r === 0) {
+        const cell = document.createElement("th");
+        cell.scope = "col";
+        cell.textContent = "Row actions";
+        tr.append(cell);
+      } else if (this.editing) {
         const cell = tr.insertCell();
         const remove = document.createElement("button");
         remove.type = "button";

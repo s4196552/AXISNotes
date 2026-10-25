@@ -48,6 +48,64 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     await $(".cm-table-tools").$("button=Show table").click();
     await expect($(".cm-markdown-table table")).toExist();
   });
+  it("keeps the supplied plan columns aligned and scrolls them inside a narrow note (T-126)", async () => {
+    const plans = `| **Plan**           | **Best For**         | **Support Access**                     | **Min. Cost** | **Response Time** |
+| ------------------ | -------------------- | -------------------------------------- | ------------- | ----------------- |
+| **Basic**              | Early Learning       | 24/7 self-service & billing            | Free          | N/A               |
+| **Business Support +** | Production Workloads | 24/7 AI-first & expert chat/phone      | $29/mo        | < 30 mins         |
+| **Enterprise Support** | Business-Critical    | Designated TAM & White-glove concierge | $5,000/mo     | < 15 mins         |
+| **Unified Operations** | Mission-Critical     | Designated team & managed Incident ops | $50,000/mo    | < 5 mins          |`;
+    fs.writeFileSync(file("Plans.md"), plans);
+    await open("Plans");
+    await expect($$(".cm-markdown-table th")).toBeElementsArrayOfSize(5);
+    await expect($(".cm-markdown-table table")).toHaveText(expect.stringContaining("< 30 mins"));
+    expect(fs.readFileSync(file("Plans.md"), "utf8")).toBe(plans);
+    const originalSize = await browser.getWindowSize();
+    try {
+      await browser.setWindowSize(720, 820);
+      const measure = () =>
+        browser.execute(() => {
+          const scroll = document.querySelector<HTMLElement>(".cm-table-scroll")!;
+          const editor = document.querySelector<HTMLElement>(".cm-scroller")!;
+          const rows = [...scroll.querySelectorAll("tr")].map((row) =>
+            [...row.cells].map((cell) => cell.getBoundingClientRect().width),
+          );
+          return {
+            contained:
+              scroll.getBoundingClientRect().right <= document.documentElement.clientWidth + 1,
+            scrolls: scroll.scrollWidth > scroll.clientWidth,
+            noteFits: editor.scrollWidth <= editor.clientWidth + 1,
+            aligned: rows.every((row) =>
+              row.every((width, i) => Math.abs(width - rows[0]![i]!) < 1),
+            ),
+          };
+        });
+      await browser.waitUntil(async () => (await measure()).scrolls);
+      expect(await measure()).toEqual({
+        contained: true,
+        scrolls: true,
+        aligned: true,
+        noteFits: true,
+      });
+      await $(".cm-markdown-table").$("button=Edit cells").click();
+      await expect($$(".cm-markdown-table th")).toBeElementsArrayOfSize(6);
+      expect((await measure()).aligned).toBe(true);
+      await $('textarea[aria-label="Row 2, column 4"]').setValue("$39/mo");
+      await browser.waitUntil(() => fs.readFileSync(file("Plans.md"), "utf8").includes("$39/mo"));
+      await $(".cm-markdown-table").$("button=Done editing").click();
+      const dir = path.resolve(".agents/qa/T-126");
+      fs.mkdirSync(dir, { recursive: true });
+      await browser.saveScreenshot(path.join(dir, "plans-narrow.png"));
+    } finally {
+      await browser.setWindowSize(originalSize.width, originalSize.height);
+    }
+    await open("Costs");
+    await open("Plans");
+    await expect($(".cm-markdown-table table")).toHaveText(expect.stringContaining("$39/mo"));
+    const dir = path.resolve(".agents/qa/T-126");
+    fs.mkdirSync(dir, { recursive: true });
+    await browser.saveScreenshot(path.join(dir, "plans-wide.png"));
+  });
   it("saves image size/crop, preserves original bytes and restores on reopen", async () => {
     const original = fs.readFileSync(file("dot.png"));
     await open("Media");

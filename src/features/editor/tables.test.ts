@@ -15,6 +15,12 @@ const COSTS = `|Category|Hardware/Software|Administration|Facilities cost|
 |3. Network Costs|Network hardware: LAN switches, load balancer bandwidth costs|Network administration costs|Space, Power, Cooling|
 |4. IT Labor Costs|—|Server administration costs|—|`;
 const views: EditorView[] = [];
+const PLANS = `| **Plan**           | **Best For**         | **Support Access**                     | **Min. Cost** | **Response Time** |
+| ------------------ | -------------------- | -------------------------------------- | ------------- | ----------------- |
+| **Basic**              | Early Learning       | 24/7 self-service & billing            | Free          | N/A               |
+| **Business Support +** | Production Workloads | 24/7 AI-first & expert chat/phone      | $29/mo        | < 30 mins         |
+| **Enterprise Support** | Business-Critical    | Designated TAM & White-glove concierge | $5,000/mo     | < 15 mins         |
+| **Unified Operations** | Mission-Critical     | Designated team & managed Incident ops | $50,000/mo    | < 5 mins          |`;
 function open(doc: string, readOnly = false) {
   const parent = document.createElement("div");
   document.body.append(parent);
@@ -40,6 +46,34 @@ afterEach(() => {
   });
 });
 describe("Obsidian Markdown tables", () => {
+  it("renders the supplied five-column plans with literal prices, times and bold text", () => {
+    const view = open(PLANS);
+    const ui = within(view.dom);
+    expect(ui.getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
+      "Plan",
+      "Best For",
+      "Support Access",
+      "Min. Cost",
+      "Response Time",
+    ]);
+    expect(ui.getAllByRole("row")).toHaveLength(5);
+    expect(ui.getByText("< 30 mins")).toBeInTheDocument();
+    expect(ui.getByText("$50,000/mo")).toBeInTheDocument();
+    expect(ui.getByText("Business Support +").tagName).toBe("STRONG");
+    expect(ui.getByRole("table").style.minWidth).toBe("700px");
+    expect(ui.getByRole("region", { name: "Scrollable Markdown table" })).toHaveAttribute(
+      "tabindex",
+      "0",
+    );
+    expect(view.state.doc.toString()).toBe(PLANS);
+    fireEvent.click(ui.getByRole("button", { name: "Edit cells" }));
+    expect(ui.getAllByRole("row").every((row) => row.children.length === 6)).toBe(true);
+    fireEvent.input(ui.getByLabelText("Row 1, column 4"), { target: { value: "$1/mo" } });
+    expect(parseTable(view.state.doc.toString().split("\n"))?.rows[1]?.[3]).toBe("$1/mo");
+    fireEvent.click(ui.getByRole("button", { name: "Done editing" }));
+    expect(ui.getAllByRole("row").every((row) => row.children.length === 5)).toBe(true);
+    expect(ui.getByText("$1/mo")).toBeInTheDocument();
+  });
   it("renders the supplied costs table without modifying its source", () => {
     const view = open(COSTS);
     expect(within(view.dom).getAllByRole("columnheader")).toHaveLength(4);
