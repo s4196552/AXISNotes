@@ -15,3 +15,6 @@ src-tauri/gen/
 extension/vendor/
 extension/icons/
 /dist-extension/
+
+# Local isolated task checkouts
+/.worktrees/
