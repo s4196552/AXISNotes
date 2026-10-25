@@ -25,6 +25,9 @@ import {
 import { linkHost } from "./links";
 import { livePreview } from "./livePreview";
 import { axisTheme } from "./theme";
+import { tables } from "./tables";
+import { imageTools } from "./imageEditor";
+import { readImageLayout } from "../../lib/imageLayout";
 
 // Note/section/block embeds (`![[Note]]`, `![[Note#Heading]]`, `![[Note#^id]]`) rendered as
 // editable mini-editors. Edits are written back into the source note, after checking the
@@ -176,6 +179,7 @@ class EmbedController {
           keymap.of([...defaultKeymap, ...historyKeymap]),
           markdown({ base: markdownLanguage }),
           livePreview,
+          tables,
           EditorView.lineWrapping,
           axisTheme,
           EditorState.readOnly.of(readOnly),
@@ -403,6 +407,7 @@ class EmbedWidget extends WidgetType {
 }
 
 type MediaShown = MediaKind | "player";
+const imageCleanups = new WeakMap<HTMLElement, () => void>();
 
 /** What a media embed's target shows as: a web video player, or by its extension. */
 function shownAs(target: string): MediaShown {
@@ -430,6 +435,8 @@ class MediaWidget extends WidgetType {
     readonly width: number | null,
     readonly label: string,
     readonly from: string,
+    readonly source: string,
+    readonly readOnly: boolean,
   ) {
     super();
     this.shown = shownAs(target);
@@ -439,7 +446,9 @@ class MediaWidget extends WidgetType {
       other.target === this.target &&
       other.width === this.width &&
       other.label === this.label &&
-      other.from === this.from
+      other.from === this.from &&
+      other.source === this.source &&
+      other.readOnly === this.readOnly
     );
   }
   toDOM(view: EditorView) {
@@ -473,15 +482,11 @@ class MediaWidget extends WidgetType {
       const img = document.createElement("img");
       img.src = url;
       img.alt = name;
-      img.title = `${path ?? url} (click to edit the link)`;
+      img.title = `${path ?? url} — Edit image to resize or crop`;
       if (this.width) img.width = this.width;
       img.addEventListener("load", () => view.requestMeasure());
       img.addEventListener("error", failed);
-      wrap.appendChild(img);
-      wrap.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        editLink();
-      });
+      imageCleanups.set(wrap, imageTools(view, wrap, img, this.source, editLink));
       return wrap;
     }
     let media: HTMLElement;
@@ -520,8 +525,11 @@ class MediaWidget extends WidgetType {
     return wrap;
   }
   ignoreEvent() {
-    // Images hand clicks to the editor (to edit the link); players keep theirs.
-    return this.shown !== "image";
+    return true;
+  }
+  destroy(dom: HTMLElement) {
+    imageCleanups.get(dom)?.();
+    imageCleanups.delete(dom);
   }
   get estimatedHeight() {
     return this.shown === "audio" ? 54 : this.shown === "image" ? 200 : 300;
@@ -529,18 +537,19 @@ class MediaWidget extends WidgetType {
 }
 
 /** The widget for a line that is only an embed (`![[…]]` or `![…](…)`), if it is one. */
-function embedWidgetFor(text: string, from: string): WidgetType | null {
-  const wiki = EMBED_LINE_RE.exec(text);
+function embedWidgetFor(text: string, from: string, readOnly: boolean): WidgetType | null {
+  const { embed } = readImageLayout(text);
+  const wiki = EMBED_LINE_RE.exec(embed);
   if (wiki) {
     const { target, width } = parseImageEmbed(wiki[1]!);
     return mediaKind(target)
-      ? new MediaWidget(target, width, "", from)
+      ? new MediaWidget(target, width, "", from, text, readOnly)
       : new EmbedWidget(wiki[1]!, from);
   }
-  const md = parseMarkdownEmbed(text);
+  const md = parseMarkdownEmbed(embed);
   // A Markdown image of a note or other file stays as text.
   if (md && (isWebUrl(md.src) || mediaKind(md.src)))
-    return new MediaWidget(md.src, md.width, md.alt, from);
+    return new MediaWidget(md.src, md.width, md.alt, from, text, readOnly);
   return null;
 }
 
@@ -558,7 +567,7 @@ function embedDecorations(state: EditorState): DecorationSet {
     const line = doc.line(n);
     if (/^[ \t]*(```|~~~)/.test(line.text)) inFence = !inFence;
     if (inFence || active.has(n)) continue;
-    const widget = embedWidgetFor(line.text, from);
+    const widget = embedWidgetFor(line.text, from, state.readOnly);
     if (widget) out.push(Decoration.replace({ widget, block: true }).range(line.from, line.to));
   }
   return Decoration.set(out);
@@ -566,7 +575,8 @@ function embedDecorations(state: EditorState): DecorationSet {
 
 const embedField = StateField.define<DecorationSet>({
   create: embedDecorations,
-  update: (deco, tr) => (tr.docChanged || tr.selection ? embedDecorations(tr.state) : deco),
+  update: (deco, tr) =>
+    tr.docChanged || tr.selection || tr.reconfigured ? embedDecorations(tr.state) : deco,
   provide: (f) => EditorView.decorations.from(f),
 });
 
