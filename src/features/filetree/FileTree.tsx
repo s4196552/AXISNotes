@@ -23,6 +23,7 @@ import {
   Image,
   LayoutDashboard,
   Lock,
+  Pencil,
   Shapes,
   Sheet,
 } from "lucide-react";
@@ -124,8 +125,10 @@ export function FileTree() {
   const run = useCallback(async (op: () => Promise<void>) => {
     try {
       await op();
+      return true;
     } catch (e) {
       useAppStore.getState().setError(errorMessage(e));
+      return false;
     }
   }, []);
 
@@ -229,7 +232,7 @@ export function FileTree() {
             useAppStore.getState().setError(`"${name}" already exists in ${where}.`);
             return;
           }
-          await move(src, joinPath(dir, name));
+          if (!(await move(src, joinPath(dir, name)))) return;
         }
         await saveOrder(dir, placeName(names, name, baseName(target), side));
         setSelected(joinPath(dir, name));
@@ -327,7 +330,7 @@ export function FileTree() {
       current.over = over;
       setDrag({ path: current.path, over, x: e.clientX, y: e.clientY });
     };
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
       const done = current;
       end();
       if (!done) return;
@@ -335,7 +338,10 @@ export function FileTree() {
       const swallow = (ev: MouseEvent) => ev.stopPropagation();
       window.addEventListener("click", swallow, true);
       setTimeout(() => window.removeEventListener("click", swallow, true), 0);
-      const { path: src, over } = done;
+      // A final move event is not guaranteed before release (or a hover-open
+      // folder may have changed the rows). Hit-test the actual drop position.
+      const src = done.path;
+      const over = dropAt(src, e.clientX, e.clientY);
       if (!over) return;
       if (over.side === "into") void move(src, joinPath(over.path, baseName(src)));
       else void place(src, over.path, over.side);
@@ -529,6 +535,14 @@ export function FileTree() {
         </button>
         <button aria-label="Collapse all" title="Collapse all" onClick={collapseAll}>
           <ChevronsDownUp size={16} />
+        </button>
+        <button
+          aria-label="Rename selected item"
+          title="Rename selected file or folder (F2)"
+          disabled={!selected || !findEntry(tree, selected) || renaming !== null}
+          onClick={() => selected && setRenaming(selected)}
+        >
+          <Pencil size={16} />
         </button>
       </div>
 
@@ -796,6 +810,7 @@ const TreeRow = memo(function TreeRow({
       aria-expanded={isDir ? expanded : undefined}
       aria-current={active ? "page" : undefined}
       data-path={entry.path}
+      title={`${entry.path}\nDrag to move or reorder. Select and press F2 to rename.`}
       className={classes}
       style={
         {

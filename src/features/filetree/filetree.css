@@ -21,6 +21,10 @@
   background: var(--bg-hover);
   color: var(--fg);
 }
+.filetree-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 .filetree-body {
   flex: 1;
