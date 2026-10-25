@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
+import { initialTabs } from "../../app/tabs";
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { useUi } from "../commands/ui";
 import { FileTree } from "./FileTree";
@@ -22,6 +23,9 @@ async function setup(files: Record<string, string>) {
     vault: { root: "/vault", name: "Vault" },
     tree: null,
     activePath: null,
+    tabs: initialTabs(),
+    mainView: "note",
+    pendingTarget: null,
     error: null,
   });
   await act(() => useAppStore.getState().refreshTree());
@@ -141,6 +145,67 @@ describe("FileTree", () => {
     fireEvent.change(input, { target: { value: "Thoughts" } });
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(h.b.files()).toEqual({ "Thoughts.md": "x" }));
+  });
+
+  it("renames folders and files from the visible toolbar, preserving contents and extensions", async () => {
+    await setup({ "School/Bio.md": "biology", "Ideas.md": "ideas" });
+    const rename = screen.getByRole("button", { name: "Rename selected item" });
+    expect(rename).toBeDisabled();
+    fireEvent.click(row("School"));
+    fireEvent.click(rename);
+    let input = screen.getByRole("textbox", { name: "New name" });
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: "Studies" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["Studies/Bio.md"], "biology"));
+    expect(row("Bio")).toBeInTheDocument();
+    fireEvent.click(row("Ideas"));
+    fireEvent.click(rename);
+    input = screen.getByRole("textbox", { name: "New name" });
+    fireEvent.change(input, { target: { value: "Thoughts" } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["Thoughts.md"], "ideas"));
+    expect(useAppStore.getState().activePath).toBe("Thoughts.md");
+  });
+
+  it("drops at the release location and rejects releases outside the sidebar", async () => {
+    await setup({ "Ideas.md": "ideas", "A/One.md": "", "B/Two.md": "" });
+    const destination = row("B");
+    vi.spyOn(destination, "getBoundingClientRect").mockReturnValue({
+      top: 100,
+      height: 20,
+    } as DOMRect);
+    await drag(row("Ideas"), row("A"), 0.5, { release: false });
+    document.elementFromPoint = () => destination;
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 110 });
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["B/Ideas.md"], "ideas"));
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+
+    await drag(row("A"), row("B"), 0.5, { release: false });
+    document.elementFromPoint = () => document.body;
+    fireEvent.pointerUp(window, { clientX: 500, clientY: 110 });
+    expect(h.b.files()).toHaveProperty(["A/One.md"]);
+    expect(h.b.files()).not.toHaveProperty(["B/A/One.md"]);
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+  });
+
+  it("moves a folder and its contents into another folder", async () => {
+    await setup({ "A/Nested/Note.md": "keep me", "B/Other.md": "" });
+    await drag(row("A"), row("B"));
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["B/A/Nested/Note.md"], "keep me"));
+    expect(h.b.files()).not.toHaveProperty(["A/Nested/Note.md"]);
+  });
+
+  it("does not reorder or select a nonexistent item when a cross-folder move fails", async () => {
+    await setup({ "Ideas.md": "ideas", "School/Bio.md": "biology" });
+    fireEvent.click(row("School"));
+    fireEvent.click(row("Ideas"));
+    vi.spyOn(h.b, "renameEntry").mockRejectedValueOnce({ code: "Io", message: "Move refused" });
+    await drag(row("Ideas"), row("Bio"), 0.8);
+    await waitFor(() => expect(useAppStore.getState().error).toBe("Move refused"));
+    expect(useConfig.getState().config.fileOrder).toEqual({});
+    expect(row("Ideas")).toHaveAttribute("aria-selected", "true");
+    expect(h.b.files()).toEqual({ "Ideas.md": "ideas", "School/Bio.md": "biology" });
   });
 
   it("moves entries by dragging, rejecting a folder into itself", async () => {

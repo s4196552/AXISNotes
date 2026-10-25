@@ -113,6 +113,8 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 | T-124 | 6     | Ctrl + wheel over a side panel zooms its content (files, search, tags, calendar, outline, links); its header, toolbars and width stay | claude | merged      | agent/claude/T-124 | `src/app/zoom.ts`, `src/App.tsx`, `src/styles/app.css`, `src/features/settings/appearance.test.tsx` |
 | T-126 | 6 | Fix Markdown table column layout using supplied support-plan example | codex | merged | agent/codex/T-126 | src/features/editor/{tables.ts,tables.test.ts,editor.css}, e2e/specs/media-tables.e2e.ts |
 
+| T-127 | 6 | Sidebar file/folder rename and reliable drag/drop | codex | in-review | agent/codex/T-127 | src/features/filetree/{FileTree.tsx,FileTree.test.tsx,filetree.css}, e2e/specs/sidebar.e2e.ts |
+
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
 _Codex could not run commands (Windows sandbox provisioning failed: `helper_sandbox_lock_failed`). From Phase 6 the user dropped Codex entirely: Claude builds and verifies every task, and no Codex reviews are owed._
