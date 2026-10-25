@@ -179,6 +179,7 @@ input {
   grid-template-rows: 1fr 24px;
   height: 100%;
   /* A side panel sliding out reaches past the window edge; clip it without scrolling. */
+  padding: var(--pane-inset) var(--pane-inset) 0;
   overflow: clip;
   /* Side panels slide in and out, and glide to a new width (keyboard, double-click
      reset). Quick, with a soft landing. Matches SLIDE_MS in panels/presence.ts. It plays
@@ -195,7 +196,9 @@ input {
   flex-direction: column;
   min-height: 0;
   background: var(--bg-sidebar);
-  border-right: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--pane-radius);
+  overflow: hidden;
 }
 .sidebar-header {
   /* Level with the tab row, which is the window's title bar. */
@@ -271,6 +274,14 @@ body.pointer-dragging * {
   /* Tabs on top, the active tab's view below (see features/tabs/tabs.css). */
   display: flex;
   flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--pane-radius);
+}
+.shell:not(.compact) .content:not(.left-hidden) {
+  margin-left: var(--pane-gap);
+}
+.shell:not(.compact) .content:not(.right-hidden) {
+  margin-right: var(--pane-gap);
 }
 
 /* The hide/show right panel button at the right end of the tab row, and (while the left
@@ -479,16 +490,18 @@ body.pointer-dragging * {
 }
 .shell.compact .sidebar-slot {
   position: absolute;
-  top: 0;
+  /* Overlays are positioned against the shell, not an already-inset grid cell. */
+  grid-area: auto;
+  top: var(--pane-inset);
   bottom: 24px; /* the status bar stays visible */
   z-index: 60;
   transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 .shell.compact .sidebar-slot.left {
-  left: 0;
+  left: var(--pane-inset);
 }
 .shell.compact .sidebar-slot.right {
-  right: 0;
+  right: var(--pane-inset);
 }
 .shell.compact .sidebar-slot.left > .sidebar {
   width: min(var(--left-width, 260px), 86vw);

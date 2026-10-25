@@ -24,6 +24,9 @@ export const PANEL_WIDTH = {
   contentMin: 320,
 } as const;
 
+/** Shared pane geometry; App exposes these as CSS variables on the shell. */
+export const PANE_LAYOUT = { inset: 8, gap: 8, radius: 18 } as const;
+
 const widthKey = { left: "leftWidth", right: "rightWidth" } as const;
 
 interface Saved {
@@ -103,7 +106,8 @@ export function maxWidth(side: Side, windowWidth = window.innerWidth): number {
   const s = useLayout.getState();
   const other: Side = side === "left" ? "right" : "left";
   const otherWidth = s[other] ? s[widthKey[other]] : 0;
-  const room = windowWidth - otherWidth - PANEL_WIDTH.contentMin;
+  const paneSpace = 2 * PANE_LAYOUT.inset + PANE_LAYOUT.gap * (1 + Number(s[other]));
+  const room = windowWidth - otherWidth - PANEL_WIDTH.contentMin - paneSpace;
   return Math.max(PANEL_WIDTH.min, Math.min(PANEL_WIDTH.max, room));
 }
 
