@@ -213,7 +213,9 @@ describe("FileTree", () => {
     await drag(row("Ideas"), row("School"));
     await waitFor(() => expect(h.b.files()).toHaveProperty(["School/Ideas.md"], "i"));
 
-    fireEvent.click(row("School"));
+    // The destination opens so the moved item remains visible and selected.
+    expect(row("School")).toHaveAttribute("aria-expanded", "true");
+    expect(row("Ideas")).toHaveAttribute("aria-selected", "true");
     await drag(row("School"), row("Math"));
     // Dropping a folder into its own child is ignored.
     expect(h.b.files()).toEqual({ "School/Ideas.md": "i", "School/Math/Calc.md": "c" });
@@ -233,6 +235,51 @@ describe("FileTree", () => {
     expect(row("A")).not.toHaveClass("drop-before");
     fireEvent.pointerUp(window);
     expect(useConfig.getState().config.fileOrder).toEqual({});
+  });
+
+  it("cancels a drag when the window loses focus", async () => {
+    await setup({ "Ideas.md": "keep", "School/Bio.md": "" });
+    await drag(row("Ideas"), row("School"), 0.5, { release: false });
+    expect(row("Ideas")).toHaveClass("dragged");
+    fireEvent.blur(window);
+    expect(row("Ideas")).not.toHaveClass("dragged");
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 110 });
+    expect(h.b.files()).toHaveProperty(["Ideas.md"], "keep");
+    expect(h.b.files()).not.toHaveProperty(["School/Ideas.md"]);
+  });
+
+  it("moves a nested file to the explicit vault-root target", async () => {
+    await setup({ "School/Ideas.md": "keep", "School/Bio.md": "" });
+    fireEvent.click(row("School"));
+    await drag(row("Ideas"), row("Bio"), 0.5, { release: false });
+    const root = screen.getByLabelText("Move to vault root");
+    document.elementFromPoint = () => root;
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 20 });
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["Ideas.md"], "keep"));
+    expect(h.b.files()).not.toHaveProperty(["School/Ideas.md"]);
+    expect(screen.queryByLabelText("Move to vault root")).not.toBeInTheDocument();
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+  });
+
+  it("ignores other pointers and cancels when the captured pointer is interrupted", async () => {
+    await setup({ "Ideas.md": "keep", "School/Bio.md": "" });
+    const target = row("School");
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue({ top: 100, height: 20 } as DOMRect);
+    document.elementFromPoint = () => target;
+    fireEvent.pointerDown(row("Ideas"), { button: 0, pointerId: 7, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(window, { pointerId: 7, clientX: 10, clientY: 110 });
+    expect(row("Ideas")).toHaveClass("dragged");
+    fireEvent.pointerUp(window, { pointerId: 8, clientX: 10, clientY: 110 });
+    expect(row("Ideas")).toHaveClass("dragged");
+    fireEvent.pointerCancel(window, { pointerId: 8 });
+    expect(row("Ideas")).toHaveClass("dragged");
+    fireEvent.lostPointerCapture(row("Ideas"), { pointerId: 7, buttons: 1 });
+    expect(row("Ideas")).toHaveClass("dragged");
+    fireEvent.lostPointerCapture(row("Ideas"), { pointerId: 7 });
+    expect(row("Ideas")).not.toHaveClass("dragged");
+    fireEvent.pointerUp(window, { pointerId: 7, clientX: 10, clientY: 110 });
+    expect(h.b.files()).toHaveProperty(["Ideas.md"], "keep");
+    expect(h.b.files()).not.toHaveProperty(["School/Ideas.md"]);
   });
 
   it("orders items by dragging between them, and keeps the order", async () => {

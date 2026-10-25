@@ -111,8 +111,15 @@ export function FileTree() {
   const [menu, setMenu] = useState<MenuState | null>(null);
   /** The item being dragged, where it would land, and the pointer. */
   const [drag, setDrag] = useState<{ path: string; over: DropAt | null; x: number; y: number }>();
-  const pressed = useRef<{ path: string; x: number; y: number } | null>(null);
+  const pressed = useRef<{
+    path: string;
+    x: number;
+    y: number;
+    pointerId: number;
+    element: Element;
+  } | null>(null);
   const treeRef = useRef<HTMLDivElement>(null);
+  const rootDropRef = useRef<HTMLDivElement>(null);
 
   const rows = useMemo(() => visibleRows(tree, expanded, fileOrder), [tree, expanded, fileOrder]);
 
@@ -182,7 +189,11 @@ export function FileTree() {
     (from: string, to: string) =>
       run(async () => {
         await backend.renameEntry(from, to);
-        updateExpanded((prev) => remapPaths(prev, from, to));
+        updateExpanded((prev) => {
+          const next = remapPaths(prev, from, to);
+          for (const folder of ancestorsOf(to)) next.add(folder);
+          return next;
+        });
         await remapIcons(from, to);
         const store = useAppStore.getState();
         await store.refreshTree();
@@ -273,6 +284,8 @@ export function FileTree() {
   const dropAt = useCallback((src: string, x: number, y: number): DropAt | null => {
     const body = treeRef.current;
     const el = document.elementFromPoint(x, y);
+    if (el && rootDropRef.current?.contains(el))
+      return canMove(src, "") ? { path: "", side: "into" } : null;
     if (!body || !el || !body.contains(el)) return null;
     const rowEl = el.closest<HTMLElement>("[role=treeitem]");
     // Empty space below the rows: the top level.
@@ -289,37 +302,29 @@ export function FileTree() {
   }, []);
 
   useEffect(() => {
-    let current: { path: string; over: DropAt | null } | null = null;
+    let current: { path: string; over: DropAt | null; x: number; y: number } | null = null;
     let opening: { path: string; timer: ReturnType<typeof setTimeout> } | null = null;
+    let frame: number | undefined;
+    let lastFrame = 0;
     const stopOpening = () => {
       if (opening) clearTimeout(opening.timer);
       opening = null;
     };
     const end = () => {
       stopOpening();
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      frame = undefined;
+      lastFrame = 0;
+      const p = pressed.current;
       pressed.current = null;
       current = null;
+      if (p?.element.hasPointerCapture?.(p.pointerId)) p.element.releasePointerCapture(p.pointerId);
       document.body.classList.remove("filetree-dragging");
       setDrag(undefined);
     };
-    const onMove = (e: PointerEvent) => {
-      const p = pressed.current;
-      if (!p) return;
-      if (!current) {
-        if (Math.hypot(e.clientX - p.x, e.clientY - p.y) < DRAG_START) return;
-        current = { path: p.path, over: null };
-        document.body.classList.add("filetree-dragging");
-        setMenu(null);
-      }
-      e.preventDefault();
-      // Scroll when near the top or bottom edge.
-      const body = treeRef.current;
-      if (body) {
-        const r = body.getBoundingClientRect();
-        if (e.clientY < r.top + 24) body.scrollTop -= 12;
-        else if (e.clientY > r.bottom - 24) body.scrollTop += 12;
-      }
-      const over = dropAt(current.path, e.clientX, e.clientY);
+    const updateTarget = () => {
+      if (!current) return;
+      const over = dropAt(current.path, current.x, current.y);
       // Hovering over a closed folder opens it after a moment.
       const folder = over?.side === "into" && over.path !== "" ? over.path : null;
       if (folder !== (opening?.path ?? null)) {
@@ -327,11 +332,57 @@ export function FileTree() {
         if (folder && !latest.current.expanded.has(folder))
           opening = { path: folder, timer: setTimeout(() => toggle(folder, true), OPEN_DELAY) };
       }
+      const changed = over?.path !== current.over?.path || over?.side !== current.over?.side;
       current.over = over;
-      setDrag({ path: current.path, over, x: e.clientX, y: e.clientY });
+      if (changed) setDrag({ ...current });
+    };
+    // Keep scrolling and re-hit-testing while held at an edge, even without another
+    // pointermove. Re-hit-testing also follows folders that open under a still pointer.
+    const tick = (time: number) => {
+      if (!current) return;
+      const dt = lastFrame ? Math.min(time - lastFrame, 32) : 16;
+      lastFrame = time;
+      const body = treeRef.current;
+      if (body) {
+        const r = body.getBoundingClientRect();
+        const { x, y } = current;
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+          const edge = Math.min(28, r.height / 3);
+          const direction = y < r.top + edge ? -1 : y > r.bottom - edge ? 1 : 0;
+          // scrollTop is in unzoomed units; pointer coordinates are in viewport units.
+          const scale = body.offsetHeight > 0 ? r.height / body.offsetHeight : 1;
+          body.scrollTop += (direction * dt * 0.5) / (scale || 1);
+        }
+      }
+      updateTarget();
+      frame = requestAnimationFrame(tick);
+    };
+    const onMove = (e: PointerEvent) => {
+      const p = pressed.current;
+      if (!p || e.pointerId !== p.pointerId) return;
+      if (e.pointerType === "mouse" && (e.buttons & 1) === 0) {
+        end();
+        return;
+      }
+      if (!current) {
+        if (Math.hypot(e.clientX - p.x, e.clientY - p.y) < DRAG_START) return;
+        current = { path: p.path, over: null, x: e.clientX, y: e.clientY };
+        document.body.classList.add("filetree-dragging");
+        setMenu(null);
+        frame = requestAnimationFrame(tick);
+      }
+      e.preventDefault();
+      current.x = e.clientX;
+      current.y = e.clientY;
+      updateTarget();
+      setDrag({ ...current });
     };
     const onUp = (e: PointerEvent) => {
+      if (!pressed.current || e.pointerId !== pressed.current.pointerId) return;
       const done = current;
+      // Hit-test while the drag-only root target is still mounted and before
+      // releasing pointer capture can dispatch another event and flush a render.
+      const over = done ? dropAt(done.path, e.clientX, e.clientY) : null;
       end();
       if (!done) return;
       // The click that ends a drag doesn't also open the row under the pointer.
@@ -341,7 +392,6 @@ export function FileTree() {
       // A final move event is not guaranteed before release (or a hover-open
       // folder may have changed the rows). Hit-test the actual drop position.
       const src = done.path;
-      const over = dropAt(src, e.clientX, e.clientY);
       if (!over) return;
       if (over.side === "into") void move(src, joinPath(over.path, baseName(src)));
       else void place(src, over.path, over.side);
@@ -352,19 +402,30 @@ export function FileTree() {
       e.stopPropagation();
       end();
     };
+    const onCancel = (e: PointerEvent) => {
+      if (e.pointerId === pressed.current?.pointerId) end();
+    };
+    const onLostCapture = (e: PointerEvent) => {
+      // Losing capture alone need not end a held gesture. Keep tracking it through
+      // the window listeners; pointercancel, blur or a released button still cancels.
+      if ((e.buttons & 1) === 0) onCancel(e);
+    };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", end);
+    window.addEventListener("pointercancel", onCancel);
+    window.addEventListener("lostpointercapture", onLostCapture);
+    window.addEventListener("blur", end);
     window.addEventListener("keydown", onKey, true);
     return () => {
-      stopOpening();
+      end();
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", end);
+      window.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("lostpointercapture", onLostCapture);
+      window.removeEventListener("blur", end);
       window.removeEventListener("keydown", onKey, true);
-      document.body.classList.remove("filetree-dragging");
     };
-  }, [dropAt, move, place, toggle]);
+  }, [dropAt, move, place, toggle, vault?.root]);
 
   const actions = useMemo<RowActions>(
     () => ({
@@ -393,8 +454,21 @@ export function FileTree() {
         treeRef.current?.focus();
       },
       press(e, path) {
-        if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
-        pressed.current = { path, x: e.clientX, y: e.clientY };
+        if (pressed.current || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey)
+          return;
+        // Keep this gesture in our pointer-based drag path (including touch/stylus),
+        // rather than allowing the webview to start text/image dragging or panning.
+        e.preventDefault();
+        setMenu(null);
+        treeRef.current?.focus({ preventScroll: true });
+        pressed.current = {
+          path,
+          x: e.clientX,
+          y: e.clientY,
+          pointerId: e.pointerId,
+          element: e.currentTarget,
+        };
+        e.currentTarget.setPointerCapture?.(e.pointerId);
       },
     }),
     [toggle, move],
@@ -576,6 +650,17 @@ export function FileTree() {
           />
         ))}
       </div>
+
+      {drag && (
+        <div
+          ref={rootDropRef}
+          className={`filetree-root-drop${drag.over?.path === "" ? " drop-target" : ""}`}
+          aria-label="Move to vault root"
+        >
+          <FolderOpen size={14} aria-hidden />
+          Move to vault root
+        </div>
+      )}
 
       {drag && (
         <div
@@ -830,6 +915,7 @@ const TreeRow = memo(function TreeRow({
       }}
       onContextMenu={(e) => actions.openMenu(e, entry)}
       onPointerDown={renaming ? undefined : (e) => actions.press(e, entry.path)}
+      onDragStart={(e) => e.preventDefault()}
     >
       <span
         className="filetree-chevron"
