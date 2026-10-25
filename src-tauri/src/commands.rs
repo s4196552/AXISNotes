@@ -5,7 +5,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -56,6 +56,23 @@ pub struct FilesDropped {
 
 type SharedIndex = Arc<Mutex<Option<Index>>>;
 
+/// The index is derived data: an interrupted update must not abort later saves or IPC.
+fn lock_index(index: &SharedIndex) -> AppResult<MutexGuard<'_, Option<Index>>> {
+    index.lock().map_err(|_| {
+        AppError::Io(
+            "Search is unavailable because its index was interrupted. Reopen this vault to rebuild it."
+                .into(),
+        )
+    })
+}
+
+/// Never reuse a connection left behind by a panic. Clear poison only after replacing it.
+fn replace_index(index: &SharedIndex, fresh: Index) {
+    let mut guard = index.lock().unwrap_or_else(|error| error.into_inner());
+    *guard = Some(fresh);
+    index.clear_poison();
+}
+
 #[derive(Default)]
 pub struct AppState {
     vault: Mutex<Option<Vault>>,
@@ -81,7 +98,13 @@ struct VaultChangedPayload {
 
 /// Apply watcher changes to the index. Index errors are logged, never fatal: it's a cache.
 fn apply_to_index(index: &SharedIndex, vault: &Vault, changes: &[VaultChange]) {
-    let mut guard = index.lock().unwrap();
+    let mut guard = match lock_index(index) {
+        Ok(guard) => guard,
+        Err(error) => {
+            eprintln!("index update skipped: {error}");
+            return;
+        }
+    };
     let Some(idx) = guard.as_mut() else { return };
     for c in changes {
         let result = match c.kind {
@@ -126,7 +149,7 @@ impl AppState {
     }
 
     fn with_index<T>(&self, f: impl FnOnce(&mut Index) -> AppResult<T>) -> AppResult<T> {
-        let mut guard = self.index.lock().unwrap();
+        let mut guard = lock_index(&self.index)?;
         f(guard.as_mut().ok_or(AppError::NoVault)?)
     }
 
@@ -191,7 +214,7 @@ impl AppState {
         );
         // Open straight away; catching the index up happens in the background, so a big
         // vault opens at once and fills in as it's read.
-        *self.index.lock().unwrap() = Some(Index::open_unsynced(&vault)?);
+        replace_index(&self.index, Index::open_unsynced(&vault)?);
         let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
         spawn_index_sync(
             app.clone(),
@@ -386,7 +409,10 @@ pub async fn pick_attachments(
         .add_filter("Images, video and audio", attachments::MEDIA_EXTS)
         .blocking_pick_files()
         .unwrap_or_default();
-    let files: Vec<PathBuf> = picked.into_iter().filter_map(|f| f.into_path().ok()).collect();
+    let files: Vec<PathBuf> = picked
+        .into_iter()
+        .filter_map(|f| f.into_path().ok())
+        .collect();
     state.import_files(&files, &dir, vault_root.as_deref())
 }
 
@@ -428,7 +454,7 @@ pub async fn rename_entry(
     state.touch(&v, &from)?;
     state.touch(&v, &to)?;
     let outcome = {
-        let mut guard = state.index.lock().unwrap();
+        let mut guard = lock_index(&state.index)?;
         match guard.as_mut() {
             Some(idx) => rename::rename_with_links(&v, idx, &from, &to, |p| {
                 if let Ok(abs) = v.resolve(p) {
@@ -492,7 +518,11 @@ pub fn reveal_entry(state: State<AppState>, path: String) -> AppResult<()> {
     } else {
         // No portable "select this file": open its folder.
         cmd = std::process::Command::new("xdg-open");
-        cmd.arg(if select { abs.parent().unwrap_or(&abs) } else { &abs });
+        cmd.arg(if select {
+            abs.parent().unwrap_or(&abs)
+        } else {
+            &abs
+        });
     }
     let mut child = cmd
         .spawn()
@@ -709,6 +739,64 @@ mod vault_binding_tests {
         assert!(ensure_vault(&va, Some(&va.info().root)).is_ok());
         let err = ensure_vault(&va, Some(&vb.info().root)).unwrap_err();
         assert!(matches!(err, AppError::Io(m) if m.contains("no longer the open vault")));
+    }
+}
+
+#[cfg(test)]
+mod index_failure_tests {
+    use super::*;
+    use std::panic::{catch_unwind, AssertUnwindSafe};
+
+    fn poison(index: &SharedIndex) {
+        let failed = catch_unwind(AssertUnwindSafe(|| {
+            let _guard = index.lock().unwrap();
+            panic!("simulated interrupted cache update");
+        }));
+        assert!(failed.is_err());
+        assert!(index.is_poisoned());
+    }
+
+    #[test]
+    fn poisoned_index_does_not_abort_after_a_successful_file_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Vault::open(dir.path()).unwrap();
+        let state = AppState::default();
+        *state.index.lock().unwrap() = Some(Index::open(&vault).unwrap());
+        poison(&state.index);
+        vault.write_file("Saved.md", "Keep my edit", None).unwrap();
+        state.reindex(&vault, change(ChangeKind::Modified, &["Saved.md"]));
+        assert_eq!(vault.read_file("Saved.md").unwrap().content, "Keep my edit");
+    }
+
+    #[test]
+    fn poisoned_index_queries_return_an_error_instead_of_panicking() {
+        let state = AppState::default();
+        poison(&state.index);
+        let result = state.with_index(|_| Ok(()));
+        assert!(matches!(result, Err(AppError::Io(message)) if message.contains("Reopen")));
+    }
+
+    #[test]
+    fn reopening_replaces_a_poisoned_index_and_resumes_indexing() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = Vault::open(dir.path()).unwrap();
+        vault.write_file("Saved.md", "Keep my edit", None).unwrap();
+        let state = AppState::default();
+        *state.index.lock().unwrap() = Some(Index::open(&vault).unwrap());
+        poison(&state.index);
+        replace_index(&state.index, Index::open(&vault).unwrap());
+        assert!(!state.index.is_poisoned());
+        vault
+            .write_file("Saved.md", "Updated after recovery", None)
+            .unwrap();
+        state.reindex(&vault, change(ChangeKind::Modified, &["Saved.md"]));
+        assert_eq!(
+            state
+                .with_index(|idx| idx.search("recovery", 10))
+                .unwrap()
+                .len(),
+            1
+        );
     }
 }
 

@@ -127,15 +127,21 @@ pub fn note_name(path_or_target: &str) -> String {
 }
 
 pub(crate) fn strip_md(s: &str) -> &str {
-    if s.len() >= 3 && s[s.len() - 3..].eq_ignore_ascii_case(".md") {
-        &s[..s.len() - 3]
+    let split = s.len().saturating_sub(3);
+    if s.get(split..)
+        .is_some_and(|suffix| suffix.eq_ignore_ascii_case(".md"))
+    {
+        &s[..split]
     } else {
         s
     }
 }
 
 fn has_ext(name: &str, ext: &str) -> bool {
-    name.len() > ext.len() && name[name.len() - ext.len()..].eq_ignore_ascii_case(ext)
+    name.len() > ext.len()
+        && name
+            .get(name.len() - ext.len()..)
+            .is_some_and(|suffix| suffix.eq_ignore_ascii_case(ext))
 }
 
 /// Markdown notes: parsed for links, tags and properties.

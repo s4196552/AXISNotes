@@ -11,6 +11,39 @@ fn vault_with(files: &[(&str, &str)]) -> (tempfile::TempDir, Vault, Index) {
 }
 
 #[test]
+fn unicode_link_names_do_not_split_utf8_when_checking_extensions() {
+    for name in ["😀", "日本", "éé", "中文名", "学😀", "目录/📚"] {
+        assert_eq!(strip_md(name), name);
+        assert_eq!(
+            note_name(name),
+            name.rsplit('/').next().unwrap().to_lowercase()
+        );
+    }
+    assert_eq!(strip_md("😀é.MD"), "😀é");
+}
+
+#[test]
+fn unicode_files_and_links_survive_indexing_and_updates() {
+    let (_dir, vault, mut index) = vault_with(&[
+        ("😀é.md", "# Unicode\n\nKeep this note\n"),
+        ("Link.md", "See [[😀é]] and [[📚]]\n"),
+        ("😀.png", "not an indexed document"),
+        ("中文.txt", "not an indexed document"),
+    ]);
+    assert_eq!(
+        index.resolve("😀é", "Link.md").unwrap().as_deref(),
+        Some("😀é.md")
+    );
+    assert_eq!(index.backlinks("😀é.md").unwrap().len(), 1);
+    index.update_path(&vault, "😀.png").unwrap();
+    vault
+        .write_file("😀é.md", "# Unicode\n\nSaved again\n", None)
+        .unwrap();
+    index.update_path(&vault, "😀é.md").unwrap();
+    assert_eq!(index.search("Saved again", 10).unwrap().len(), 1);
+}
+
+#[test]
 fn resolves_by_name_path_folder_and_alias() {
     let (_d, _v, idx) = vault_with(&[
         ("Plan.md", ""),

@@ -13,7 +13,9 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const exe = process.platform === "win32" ? "axisnotes.exe" : "axisnotes";
-const application = path.join(root, "src-tauri", "target", "debug", exe);
+// A release candidate can run the same regressions before it is published.
+const application =
+  process.env.AXIS_E2E_APP || path.join(root, "src-tauri", "target", "debug", exe);
 /** The web clipper's port in E2E runs (specs read it from AXIS_CLIPPER_PORT). */
 const CLIPPER_PORT = 38499;
 
