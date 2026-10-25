@@ -16,13 +16,19 @@ async function rename(name: string) {
   await browser.keys(Key.Enter);
 }
 
-async function drag(from: string, to: string | null, side = 0.5, cancel = false) {
+async function drag(
+  from: string,
+  to: string | null,
+  side = 0.5,
+  cancel = false,
+  handle = ".filetree-name",
+) {
   await row(from).scrollIntoView();
   const points = await browser.execute(
-    (src, dst, fraction) => {
+    (src, dst, fraction, handleSelector) => {
       const source = document.querySelector<HTMLElement>(`.filetree-row[data-path="${src}"]`)!;
       const body = document.querySelector<HTMLElement>(".filetree-body")!;
-      const a = source.getBoundingClientRect();
+      const a = (source.querySelector(handleSelector) ?? source).getBoundingClientRect();
       const b =
         dst === null
           ? body.getBoundingClientRect()
@@ -40,6 +46,7 @@ async function drag(from: string, to: string | null, side = 0.5, cancel = false)
     from,
     to,
     side,
+    handle,
   );
   await browser
     .action("pointer", { id: "sidebar-drag", parameters: { pointerType: "mouse" } })
@@ -73,6 +80,8 @@ describe("Sidebar file and folder editing (T-127)", () => {
     );
     expect(fs.existsSync(file("Projects"))).toBe(false);
     await row("Draft.md").click();
+    await expect($('input[aria-label="Note title"]')).toHaveValue("Draft");
+    await $(".cm-content").waitForDisplayed();
     await rename("Plan");
     await row("Plan.md").waitForDisplayed();
     expect(fs.readFileSync(file("Plan.md"), "utf8")).toBe("Keep note contents\n");
@@ -112,5 +121,129 @@ describe("Sidebar file and folder editing (T-127)", () => {
     const dir = path.resolve(".agents/qa/T-127");
     fs.mkdirSync(dir, { recursive: true });
     await browser.saveScreenshot(path.join(dir, "sidebar-rename-and-drag.png"));
+  });
+
+  it("drags names and icons at regional zoom and uses the explicit vault-root target", async () => {
+    fs.mkdirSync(file("00 Destination"), { recursive: true });
+    fs.mkdirSync(file("00 Source/Nested"), { recursive: true });
+    fs.writeFileSync(file("00 Source/Nested/Keep.md"), "Folder contents\n");
+    fs.writeFileSync(file("Move me.md"), "Move this note\n");
+    await row("Move me.md").waitForDisplayed();
+    try {
+      await browser.execute(() => {
+        for (let i = 0; i < 2; i++)
+          document.querySelector(".filetree-body")!.dispatchEvent(
+            new WheelEvent("wheel", {
+              ctrlKey: true,
+              deltaY: -100,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+      });
+      await browser.waitUntil(async () =>
+        browser.execute(
+          () => getComputedStyle(document.querySelector(".filetree-body")!).zoom === "1.25",
+        ),
+      );
+      await drag("Move me.md", "00 Destination");
+      await browser.waitUntil(() => fs.existsSync(file("00 Destination/Move me.md")));
+      await drag("00 Source", "00 Destination", 0.5, false, ".filetree-icon");
+      await browser.waitUntil(() => fs.existsSync(file("00 Destination/00 Source/Nested/Keep.md")));
+      if ((await row("00 Destination").getAttribute("aria-expanded")) !== "true")
+        await row("00 Destination").click();
+      const source = row("00 Destination/Move me.md");
+      await source.scrollIntoView();
+      const r = await browser.execute(() => {
+        const rect = document
+          .querySelector('.filetree-row[data-path="00 Destination/Move me.md"]')!
+          .getBoundingClientRect();
+        return { x: rect.left, y: rect.top };
+      });
+      await browser
+        .action("pointer", { id: "sidebar-drag", parameters: { pointerType: "mouse" } })
+        .move({ x: Math.round(r.x + 80), y: Math.round(r.y + 12), duration: 0 })
+        .down({ button: 0 })
+        .move({ x: Math.round(r.x + 90), y: Math.round(r.y + 12), duration: 100 })
+        .perform(true);
+      await $(".filetree-root-drop").waitForDisplayed();
+      await expect($(".filetree-ghost")).toHaveText("Move me");
+      const target = await browser.execute(() => {
+        const rect = document.querySelector(".filetree-root-drop")!.getBoundingClientRect();
+        return { x: rect.left, y: rect.top };
+      });
+      await browser
+        .action("pointer", { id: "sidebar-drag", parameters: { pointerType: "mouse" } })
+        .move({ x: Math.round(target.x + 80), y: Math.round(target.y + 14), duration: 200 })
+        .perform(true);
+      await expect($(".filetree-root-drop")).toHaveElementClass("drop-target");
+      const dir = path.resolve(".agents/qa/T-130");
+      fs.mkdirSync(dir, { recursive: true });
+      await browser.saveScreenshot(path.join(dir, "sidebar-root-drop-zoom.png"));
+      await browser
+        .action("pointer", { id: "sidebar-drag", parameters: { pointerType: "mouse" } })
+        .up({ button: 0 })
+        .perform();
+      await browser.waitUntil(() => fs.existsSync(file("Move me.md")));
+      expect(fs.readFileSync(file("Move me.md"), "utf8")).toBe("Move this note\n");
+      expect(fs.readFileSync(file("00 Destination/00 Source/Nested/Keep.md"), "utf8")).toBe(
+        "Folder contents\n",
+      );
+    } finally {
+      await browser.keys(Key.Escape);
+      await browser
+        .action("pointer", { id: "sidebar-drag", parameters: { pointerType: "mouse" } })
+        .up({ button: 0 })
+        .perform();
+      await browser.keys([Key.Ctrl, "0"]);
+    }
+  });
+
+  it("keeps scrolling a long tree while the dragged pointer rests near the edge", async () => {
+    for (let i = 0; i < 75; i++) {
+      fs.mkdirSync(file("Scrolling"), { recursive: true });
+      fs.writeFileSync(file(`Scrolling/Note ${String(i).padStart(2, "0")}.md`), `Note ${i}\n`);
+    }
+    await row("Scrolling").waitForDisplayed();
+    await row("Scrolling").click();
+    await row("Scrolling/Note 00.md").scrollIntoView();
+    const points = await browser.execute(() => {
+      const source = document
+        .querySelector<HTMLElement>(
+          '.filetree-row[data-path="Scrolling/Note 00.md"] .filetree-name',
+        )!
+        .getBoundingClientRect();
+      const body = document.querySelector<HTMLElement>(".filetree-body")!.getBoundingClientRect();
+      return {
+        start: { x: Math.round(source.left + 12), y: Math.round(source.top + source.height / 2) },
+        end: { x: Math.round(body.left + 80), y: Math.round(body.bottom - 8) },
+      };
+    });
+    try {
+      await browser
+        .action("pointer", { id: "sidebar-drag", parameters: { pointerType: "mouse" } })
+        .move({ ...points.start, duration: 0 })
+        .down({ button: 0 })
+        .move({ ...points.end, duration: 200 })
+        .perform(true);
+      const initial = await browser.execute(
+        () => document.querySelector<HTMLElement>(".filetree-body")!.scrollTop,
+      );
+      await browser.waitUntil(
+        async () =>
+          (await browser.execute(
+            () => document.querySelector<HTMLElement>(".filetree-body")!.scrollTop,
+          )) >
+          initial + 100,
+        { timeout: 3000, timeoutMsg: "The held drag stopped scrolling at the sidebar edge" },
+      );
+    } finally {
+      await browser.keys(Key.Escape);
+      await browser
+        .action("pointer", { id: "sidebar-drag", parameters: { pointerType: "mouse" } })
+        .up({ button: 0 })
+        .perform();
+    }
+    expect(fs.readFileSync(file("Scrolling/Note 00.md"), "utf8")).toBe("Note 0\n");
   });
 });
