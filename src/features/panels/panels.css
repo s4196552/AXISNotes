@@ -43,10 +43,6 @@
   flex: 1;
   min-height: 0;
 }
-.sidebar-right {
-  border-right: none;
-  border-left: 1px solid var(--border);
-}
 
 .panel {
   flex: 1;
@@ -200,8 +196,7 @@ mark {
   background: var(--bg-hover);
   color: var(--fg);
 }
-/* Drag handle on a side panel's inner edge (see PanelResizer). It straddles the border,
-   so the hit area is wider than the line it highlights. */
+/* Keep the complete resize hit area inside the rounded pane's clipped edge. */
 .sidebar {
   position: relative;
 }
@@ -215,10 +210,10 @@ mark {
   touch-action: none;
 }
 .panel-resizer.left {
-  right: -4px;
+  right: 0;
 }
 .panel-resizer.right {
-  left: -4px;
+  left: 0;
 }
 .panel-resizer::after {
   content: "";

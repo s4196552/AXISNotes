@@ -27,6 +27,13 @@
   background: transparent;
   color: var(--fg-muted);
 }
+/* Keep controls in the rounded pane's top-right corner; welcome stays unchanged. */
+.shell .window-controls {
+  top: calc(var(--pane-inset) + 1px);
+  right: calc(var(--pane-inset) + 1px);
+  overflow: hidden;
+  border-top-right-radius: calc(var(--pane-radius) - 1px);
+}
 .window-controls button:hover {
   background: var(--bg-hover);
   color: var(--fg);

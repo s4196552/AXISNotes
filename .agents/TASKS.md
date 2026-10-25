@@ -115,6 +115,8 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 
 | T-127 | 6 | Sidebar file/folder rename and reliable drag/drop | codex | merged | agent/codex/T-127 | src/features/filetree/{FileTree.tsx,FileTree.test.tsx,filetree.css}, e2e/specs/sidebar.e2e.ts |
 
+| T-128 | 6 | Rounded modular pane layout across themes | codex | in-review | agent/codex/T-128 | src/App.tsx, src/app/layout*, src/styles/{app,themes}.css, panels/window CSS, e2e/specs/panes.e2e.ts |
+
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
 _Codex could not run commands (Windows sandbox provisioning failed: `helper_sandbox_lock_failed`). From Phase 6 the user dropped Codex entirely: Claude builds and verifies every task, and no Codex reviews are owed._

@@ -25,7 +25,7 @@ import { guardWindowClose } from "./features/files/closeGuard";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
 import { docKind } from "./lib/fileKinds";
-import { closeOverlay, isPanelOpen, useLayout } from "./app/layout";
+import { closeOverlay, isPanelOpen, PANE_LAYOUT, useLayout } from "./app/layout";
 import { activeTab } from "./app/tabs";
 
 // Views other than the note editor load on first use (grids also need the formula
@@ -205,6 +205,9 @@ export default function App() {
             : `${showLeft ? leftWidth : 0}px minmax(0, 1fr) ${showRight ? rightWidth : 0}px`,
           "--left-width": `${leftWidth}px`,
           "--right-width": `${rightWidth}px`,
+          "--pane-inset": `${PANE_LAYOUT.inset}px`,
+          "--pane-gap": `${PANE_LAYOUT.gap}px`,
+          "--pane-radius": `${PANE_LAYOUT.radius}px`,
         } as CSSProperties
       }
     >

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../ipc/memoryBackend";
 import { useAppStore } from "./store";
-import { clampWidth, PANEL_WIDTH, useLayout } from "./layout";
+import { clampWidth, maxWidth, PANE_LAYOUT, PANEL_WIDTH, useLayout } from "./layout";
 import { commandForEvent } from "../features/commands/registry";
 import { DEFAULT_CONFIG, useConfig } from "./config";
 import App from "../App";
@@ -127,8 +127,8 @@ describe("resizing side panels", () => {
     drag(handle("left"), 260, 0);
     expect(columns(container)).toBe(`${PANEL_WIDTH.min}px minmax(0, 1fr) 280px`);
     fireEvent.pointerMove(handle("left"), { clientX: 2000, pointerId: 1 });
-    // jsdom's window is 1024 px wide: 1024 − 280 (right panel) − 320 (note area).
-    expect(columns(container)).toBe("424px minmax(0, 1fr) 280px");
+    // 1024 − 280 (right pane) − 320 (main pane) − 16 (outer inset) − 16 (two gaps).
+    expect(columns(container)).toBe("392px minmax(0, 1fr) 280px");
     fireEvent.pointerUp(handle("left"), { pointerId: 1 });
   });
 
@@ -186,6 +186,18 @@ describe("resizing side panels", () => {
     expect(clampWidth("left", 10)).toBe(PANEL_WIDTH.min);
     expect(clampWidth("right", 5000)).toBe(PANEL_WIDTH.max);
     expect(clampWidth("left", 300.4)).toBe(300);
+  });
+
+  it("reserves only visible-pane gaps and exposes shared geometry without changing settings", () => {
+    const { container } = render(<App />);
+    const shell = container.querySelector<HTMLElement>(".shell")!;
+    expect(shell.style.getPropertyValue("--pane-inset")).toBe(`${PANE_LAYOUT.inset}px`);
+    expect(shell.style.getPropertyValue("--pane-radius")).toBe(`${PANE_LAYOUT.radius}px`);
+    expect(maxWidth("left", 1024)).toBe(392);
+    act(() => useLayout.getState().setPanels({ right: false }));
+    expect(maxWidth("left", 1024)).toBe(PANEL_WIDTH.max);
+    expect(maxWidth("left", 800)).toBe(456);
+    expect(useConfig.getState().config).toEqual(DEFAULT_CONFIG);
   });
 });
 
