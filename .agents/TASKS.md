@@ -119,7 +119,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 
 | T-129 | 6 | Publish Windows update 0.3.25 | codex | merged | agent/codex/T-129 | package.json, src-tauri version manifests and Cargo.lock, release records |
 
-| T-130 | 6 | Reliable sidebar file/folder dragging, autoscroll and root target | codex | approved | agent/codex/T-130 | src/features/filetree/{FileTree.tsx,FileTree.test.tsx,filetree.css}, e2e/specs/sidebar.e2e.ts, version manifests, task coordination |
+| T-130 | 6 | Reliable sidebar file/folder dragging, autoscroll and root target | codex | merged | agent/codex/T-130 | src/features/filetree/{FileTree.tsx,FileTree.test.tsx,filetree.css}, e2e/specs/sidebar.e2e.ts, version manifests, task coordination |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
