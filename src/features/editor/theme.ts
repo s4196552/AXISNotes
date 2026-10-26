@@ -126,11 +126,31 @@ const highlight = HighlightStyle.define([
   { tag: [t.link, t.url], color: "var(--link)" },
   { tag: [t.processingInstruction, t.meta, t.contentSeparator], color: "var(--fg-muted)" },
   { tag: t.monospace, fontFamily: "var(--font-mono)" },
-  // Code inside fenced blocks
-  { tag: [t.keyword, t.operatorKeyword, t.modifier], color: "var(--accent)" },
-  { tag: [t.string, t.special(t.string)], color: "var(--fg-muted)", fontStyle: "italic" },
-  { tag: [t.comment, t.lineComment, t.blockComment], color: "var(--fg-muted)" },
-  { tag: [t.number, t.bool, t.null], color: "var(--danger)" },
+  // Token variables can also be overridden by a vault's custom CSS theme.
+  {
+    tag: [t.keyword, t.operatorKeyword, t.modifier],
+    class: "cm-code-keyword",
+    color: "var(--syntax-keyword)",
+  },
+  {
+    tag: [t.string, t.special(t.string), t.regexp],
+    class: "cm-code-string",
+    color: "var(--syntax-string)",
+  },
+  { tag: t.comment, class: "cm-code-comment", color: "var(--syntax-comment)", fontStyle: "italic" },
+  { tag: [t.number, t.bool, t.null], class: "cm-code-number", color: "var(--syntax-number)" },
+  {
+    tag: [t.function(t.variableName), t.function(t.propertyName)],
+    class: "cm-code-function",
+    color: "var(--syntax-function)",
+  },
+  {
+    tag: [t.typeName, t.className, t.namespace],
+    class: "cm-code-type",
+    color: "var(--syntax-type)",
+  },
+  { tag: [t.operator, t.punctuation], color: "var(--fg)" },
+  { tag: [t.tagName, t.attributeName], color: "var(--syntax-type)" },
 ]);
 
 export const axisTheme = [editorTheme, syntaxHighlighting(highlight)];
