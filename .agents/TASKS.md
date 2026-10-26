@@ -123,11 +123,11 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 
 | T-131 | 6 | Fix native Ctrl+/ command-menu crash | codex | merged | agent/codex/T-131 | commands/editor sources and tests, native host if required, E2E, version manifests, task coordination |
 
-| T-132 | 6 | Scroll note cover, icon, title and properties away with the document | codex | in-review | agent/codex/T-132 | src/features/editor/{Editor.tsx,PageHeader.tsx,editor.css,pageHeader.css,pageHeader.test.tsx}, e2e/specs/scroll-header.e2e.ts, task coordination |
+| T-132 | 6 | Scroll note cover, icon, title and properties away with the document | codex | approved | agent/codex/T-132 | src/features/editor/{Editor.tsx,PageHeader.tsx,editor.css,pageHeader.css,pageHeader.test.tsx}, e2e/specs/scroll-header.e2e.ts, task coordination |
 
-| T-133 | 6 | Default Markdown heading folding and shared hierarchy with toggle headings | codex | in-review | agent/codex/T-133 | src/features/editor/{headingSections*,outliner.ts,outliner.test.ts,toggles*,editor.css}, e2e/specs/heading-folding.e2e.ts, task coordination |
+| T-133 | 6 | Default Markdown heading folding and shared hierarchy with toggle headings | codex | approved | agent/codex/T-133 | src/features/editor/{headingSections*,outliner.ts,outliner.test.ts,toggles*,editor.css}, e2e/specs/heading-folding.e2e.ts, task coordination |
 
-| T-136 | 6 | Merge and publish Windows 0.3.30 with scrolling and heading folding | codex | in-progress | agent/codex/T-136 | release manifests, CI formatting cleanup, task coordination, existing local Windows update output |
+| T-136 | 6 | Merge and publish Windows 0.3.30 with scrolling and heading folding | codex | approved | agent/codex/T-136 | release manifests, CI formatting cleanup, task coordination, existing local Windows update output |
 
 | T-134 | 6 | Direct table cell editing without reformatting the table | codex | merged | agent/codex/T-134 | src/lib/markdownTables.ts, src/features/editor/{tables.ts,tables.test.ts,editor.css}, e2e/specs/media-tables.e2e.ts, version manifests, task coordination |
 
