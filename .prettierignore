@@ -5,5 +5,9 @@ src-tauri/gen
 pnpm-lock.yaml
 .agents
 
+# Human-owned design snapshots are preserved byte-for-byte, outside app formatting.
+DESIGN.md
+design/
+
 # Recorded provider responses: kept byte-for-byte as recorded.
 src-tauri/src/ai/fixtures/

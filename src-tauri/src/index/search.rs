@@ -235,7 +235,8 @@ impl Index {
                 let title: String = r.get(1)?;
                 let snippet: String = r.get(2)?;
                 let body: String = r.get(3)?;
-                let heading = first_match_offset(&body, &snippet).and_then(|o| heading_at(&body, o));
+                let heading =
+                    first_match_offset(&body, &snippet).and_then(|o| heading_at(&body, o));
                 Ok(SearchHit {
                     title: if title.is_empty() {
                         path.rsplit('/')
@@ -265,11 +266,17 @@ mod tests {
         let body = "# Biology\n\nIntro\n\n## Cells\n\n```\n# not a heading\n```\nThe cell wall.\n";
         let at = body.find("cell wall").unwrap();
         assert_eq!(heading_at(body, at).as_deref(), Some("Cells"));
-        assert_eq!(heading_at(body, body.find("Intro").unwrap()).as_deref(), Some("Biology"));
+        assert_eq!(
+            heading_at(body, body.find("Intro").unwrap()).as_deref(),
+            Some("Biology")
+        );
         assert_eq!(heading_at("No headings here", 3), None);
         assert_eq!(heading_at("##NoSpace\ntext", 12), None);
         let snippet = format!("The {HL_START}cell{HL_END} wall");
-        assert_eq!(first_match_offset("Intro. The Cell wall", &snippet), Some(11));
+        assert_eq!(
+            first_match_offset("Intro. The Cell wall", &snippet),
+            Some(11)
+        );
     }
 
     #[test]

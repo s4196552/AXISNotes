@@ -127,7 +127,7 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 
 | T-133 | 6 | Default Markdown heading folding and shared hierarchy with toggle headings | codex | in-review | agent/codex/T-133 | src/features/editor/{headingSections*,outliner.ts,outliner.test.ts,toggles*,editor.css}, e2e/specs/heading-folding.e2e.ts, task coordination |
 
-| T-136 | 6 | Merge and publish Windows 0.3.28 with scrolling and heading folding | codex | in-progress | agent/codex/T-136 | package.json, src-tauri/{Cargo.toml,Cargo.lock,tauri.conf.json}, task coordination, existing local Windows update output |
+| T-136 | 6 | Merge and publish Windows 0.3.30 with scrolling and heading folding | codex | in-progress | agent/codex/T-136 | release manifests, CI formatting cleanup, task coordination, existing local Windows update output |
 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 

@@ -58,7 +58,11 @@ pub fn reserve(vault: &Vault, dir: &str, file_name: &str) -> AppResult<String> {
 /// Fill the file `reserve` claimed at `rel`: `write` puts the content in a temporary file
 /// of this call's own, which then replaces the empty reservation. If anything fails, both
 /// are removed, so no empty or half-written attachment is left behind.
-pub fn fill(vault: &Vault, rel: &str, write: impl FnOnce(&Path) -> io::Result<()>) -> AppResult<()> {
+pub fn fill(
+    vault: &Vault,
+    rel: &str,
+    write: impl FnOnce(&Path) -> io::Result<()>,
+) -> AppResult<()> {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let abs = vault.resolve(rel)?;
     let name = abs.file_name().unwrap_or_default().to_string_lossy();
@@ -116,9 +120,15 @@ mod tests {
         let (_d, v) = vault();
         let name = "Pasted image 20261013211845.png";
         assert_eq!(reserve(&v, "", name).unwrap(), name);
-        assert_eq!(reserve(&v, "/", name).unwrap(), "Pasted image 20261013211845 1.png");
+        assert_eq!(
+            reserve(&v, "/", name).unwrap(),
+            "Pasted image 20261013211845 1.png"
+        );
         assert_eq!(reserve(&v, "Media/", "clip.mp4").unwrap(), "Media/clip.mp4");
-        assert_eq!(reserve(&v, "Media", "clip.mp4").unwrap(), "Media/clip 1.mp4");
+        assert_eq!(
+            reserve(&v, "Media", "clip.mp4").unwrap(),
+            "Media/clip 1.mp4"
+        );
         assert_eq!(reserve(&v, "Media", "README").unwrap(), "Media/README");
         assert!(reserve(&v, "../out", "a.png").is_err());
         assert!(reserve(&v, "", "  ").is_err());
@@ -149,8 +159,14 @@ mod tests {
             .map(|n| fs::read_to_string(v.resolve(n).unwrap()).unwrap())
             .collect();
         contents.sort();
-        assert_eq!(contents, (0..8).map(|i| format!("clip {i}")).collect::<Vec<_>>());
-        assert_eq!(fs::read_dir(v.resolve("Media").unwrap()).unwrap().count(), 8);
+        assert_eq!(
+            contents,
+            (0..8).map(|i| format!("clip {i}")).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            fs::read_dir(v.resolve("Media").unwrap()).unwrap().count(),
+            8
+        );
     }
 
     #[test]
@@ -164,7 +180,10 @@ mod tests {
         fill(&v, &rel, |tmp| fs::copy(&src, tmp).map(|_| ())).unwrap();
         let copied = v.resolve("Attachments/holiday.jpg").unwrap();
         assert_eq!(fs::read(&copied).unwrap(), b"jpeg bytes");
-        assert_eq!(in_vault(&v, &copied).as_deref(), Some("Attachments/holiday.jpg"));
+        assert_eq!(
+            in_vault(&v, &copied).as_deref(),
+            Some("Attachments/holiday.jpg")
+        );
         // A failed copy leaves neither the reservation nor a temporary file behind.
         let rel = reserve(&v, "Attachments", "gone.jpg").unwrap();
         let missing = outside.path().join("gone.jpg");
@@ -174,7 +193,10 @@ mod tests {
 
     #[test]
     fn decodes_percent_escapes() {
-        assert_eq!(percent_decode("Pasted%20image%20%C3%A9.png"), "Pasted image é.png");
+        assert_eq!(
+            percent_decode("Pasted%20image%20%C3%A9.png"),
+            "Pasted image é.png"
+        );
         assert_eq!(percent_decode("100%"), "100%");
         assert_eq!(percent_decode("%zz%4"), "%zz%4");
     }

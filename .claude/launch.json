@@ -106,204 +106,97 @@
     {
       "name": "axis-web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "dev"
-      ],
+      "runtimeArgs": ["dev"],
       "port": 1420
     },
     {
       "name": "axis-T-067",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-067",
-        "exec",
-        "vite",
-        "--port",
-        "1467"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-067", "exec", "vite", "--port", "1467"],
       "port": 1467
     },
     {
       "name": "axis-T-068",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-068",
-        "exec",
-        "vite",
-        "--port",
-        "1468"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-068", "exec", "vite", "--port", "1468"],
       "port": 1468
     },
     {
       "name": "axis-T-069",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-069",
-        "exec",
-        "vite",
-        "--port",
-        "1469"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-069", "exec", "vite", "--port", "1469"],
       "port": 1469
     },
     {
       "name": "axis-T-070",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-070",
-        "exec",
-        "vite",
-        "--port",
-        "1470"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-070", "exec", "vite", "--port", "1470"],
       "port": 1470
     },
     {
       "name": "axis-T-071",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-071",
-        "exec",
-        "vite",
-        "--port",
-        "1471"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-071", "exec", "vite", "--port", "1471"],
       "port": 1471
     },
     {
       "name": "axis-T-072",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-072",
-        "exec",
-        "vite",
-        "--port",
-        "1472"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-072", "exec", "vite", "--port", "1472"],
       "port": 1472
     },
     {
       "name": "axis-T-076",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-076",
-        "exec",
-        "vite",
-        "--port",
-        "1476"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-076", "exec", "vite", "--port", "1476"],
       "port": 1476
     },
     {
       "name": "axis-T-082",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-082",
-        "exec",
-        "vite",
-        "--port",
-        "1482"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-082", "exec", "vite", "--port", "1482"],
       "port": 1482
     },
     {
       "name": "axis-T-083",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-083",
-        "exec",
-        "vite",
-        "--port",
-        "1483"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-083", "exec", "vite", "--port", "1483"],
       "port": 1483
     },
     {
       "name": "axis-T-084",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-084",
-        "exec",
-        "vite",
-        "--port",
-        "1484"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-084", "exec", "vite", "--port", "1484"],
       "port": 1484
     },
     {
       "name": "axis-T-085",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-085",
-        "exec",
-        "vite",
-        "--port",
-        "1485"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-085", "exec", "vite", "--port", "1485"],
       "port": 1485
     },
     {
       "name": "axis-T-086",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-086",
-        "exec",
-        "vite",
-        "--port",
-        "1486"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-086", "exec", "vite", "--port", "1486"],
       "port": 1486
     },
     {
       "name": "axis-T-087",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-087",
-        "exec",
-        "vite",
-        "--port",
-        "1487"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-087", "exec", "vite", "--port", "1487"],
       "port": 1487
     },
     {
       "name": "axis-T-088",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-088",
-        "exec",
-        "vite",
-        "--port",
-        "1488"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-088", "exec", "vite", "--port", "1488"],
       "port": 1488
     },
     {
       "name": "axis-T-091",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-091",
-        "exec",
-        "vite",
-        "--port",
-        "1591"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-091", "exec", "vite", "--port", "1591"],
       "port": 1591
     },
     {
@@ -319,79 +212,37 @@
     {
       "name": "axis-T-095",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-095",
-        "exec",
-        "vite",
-        "--port",
-        "1695"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-095", "exec", "vite", "--port", "1695"],
       "port": 1695
     },
     {
       "name": "axis-T-096",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-096",
-        "exec",
-        "vite",
-        "--port",
-        "1696"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-096", "exec", "vite", "--port", "1696"],
       "port": 1696
     },
     {
       "name": "axis-T-099",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-099",
-        "exec",
-        "vite",
-        "--port",
-        "1699"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-099", "exec", "vite", "--port", "1699"],
       "port": 1699
     },
     {
       "name": "axis-T-098",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-098",
-        "exec",
-        "vite",
-        "--port",
-        "1698"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-098", "exec", "vite", "--port", "1698"],
       "port": 1698
     },
     {
       "name": "axis-T-097",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-097",
-        "exec",
-        "vite",
-        "--port",
-        "1697"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-097", "exec", "vite", "--port", "1697"],
       "port": 1697
     },
     {
       "name": "axis-T-092",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-092",
-        "exec",
-        "vite",
-        "--port",
-        "1592"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-092", "exec", "vite", "--port", "1592"],
       "port": 1592
     },
     {
@@ -447,40 +298,19 @@
     {
       "name": "axis-T-100",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-100",
-        "exec",
-        "vite",
-        "--port",
-        "1698"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-100", "exec", "vite", "--port", "1698"],
       "port": 1698
     },
     {
       "name": "axis-T-102",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-102",
-        "exec",
-        "vite",
-        "--port",
-        "1702"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-102", "exec", "vite", "--port", "1702"],
       "port": 1702
     },
     {
       "name": "axis-T-103",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "-C",
-        "../axis-T-103",
-        "exec",
-        "vite",
-        "--port",
-        "1703"
-      ],
+      "runtimeArgs": ["-C", "../axis-T-103", "exec", "vite", "--port", "1703"],
       "port": 1703
     }
   ]

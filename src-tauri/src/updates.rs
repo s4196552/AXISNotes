@@ -380,7 +380,11 @@ mod tests {
     fn settings_saved_before_auto_install_existed_turn_it_on() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("updates.json");
-        fs::write(&path, r#"{ "checkOnLaunch": false, "folder": "D:/Builds" }"#).unwrap();
+        fs::write(
+            &path,
+            r#"{ "checkOnLaunch": false, "folder": "D:/Builds" }"#,
+        )
+        .unwrap();
         let s = UpdateSettings::load(&path);
         assert!(!s.check_on_launch);
         assert!(s.auto_install);
