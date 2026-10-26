@@ -143,6 +143,29 @@ input.editor-title::placeholder {
   min-height: 0;
 }
 
+/* One scroll surface for the cover, icon, title, properties and writing. Keep the
+   metadata outside .cm-content so it never becomes editable Markdown. Preserve
+   CodeMirror's required flex layout; wrap the full-width metadata onto its own row. */
+.editor-host .cm-editor > .note-scroller {
+  flex-wrap: wrap;
+  align-content: flex-start;
+}
+.editor-page-top {
+  flex: 0 0 100%;
+  min-width: 0;
+  font-family: var(--font-ui);
+  line-height: 1.5;
+}
+.note-scroller > .cm-content {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.editor-host .note-scroller > .cm-gutters {
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+}
+
 /* Live preview */
 .cm-lp-h {
   font-weight: 700;

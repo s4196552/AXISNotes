@@ -48,6 +48,17 @@ async function open(path = "Trip.md") {
 }
 
 describe("page cover", () => {
+  it("keeps page metadata in the note scroller and outside the editable document", async () => {
+    const { container, view } = await open();
+    const pageTop = container.querySelector(".editor-page-top")!;
+    expect(pageTop.parentElement).toBe(view.scrollDOM);
+    expect(pageTop.querySelector(".page-header")).not.toBeNull();
+    expect(pageTop.querySelector(".editor-title")).not.toBeNull();
+    expect(pageTop.querySelector(".props")).not.toBeNull();
+    expect(view.contentDOM.contains(pageTop)).toBe(false);
+    expect(view.state.doc.toString()).toBe("# Trip\n\nNotes");
+  });
+
   it("adds a gradient cover, kept in the frontmatter and out of the properties chip", async () => {
     const { props, container } = await open();
     fireEvent.click(screen.getByRole("button", { name: "Add cover" }));

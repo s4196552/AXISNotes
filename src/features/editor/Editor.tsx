@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ListTree, Sparkles, WandSparkles } from "lucide-react";
 import { autocompletion } from "@codemirror/autocomplete";
@@ -125,6 +125,13 @@ function pageStyle(props: Props): string {
 
 export function Editor({ path }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
+  // Keep React-owned metadata outside the editable document, but inside its scroller.
+  // A stable portal target preserves title/picker state when the editor loads.
+  const [pageTopHost] = useState(() => {
+    const node = document.createElement("div");
+    node.className = "editor-page-top";
+    return node;
+  });
   const view = useRef<EditorView | null>(null);
   const mtime = useRef<number | undefined>(undefined);
   const dirty = useRef(false);
@@ -278,6 +285,19 @@ export function Editor({ path }: EditorProps) {
     setStatus("saved");
   }, [path]);
 
+  useEffect(() => {
+    host.current?.prepend(pageTopHost);
+  }, [pageTopHost, path]);
+
+  // Capture before React removes the scrolling header or detaches the editor. A
+  // passive cleanup sees the clamped/reset offset after that layout has gone away.
+  useLayoutEffect(
+    () => () => {
+      if (view.current) rememberViewState(path, view.current);
+    },
+    [path],
+  );
+
   // Create the editor once the note has loaded.
   useEffect(() => {
     let cancelled = false;
@@ -374,6 +394,8 @@ export function Editor({ path }: EditorProps) {
           parent: host.current,
           state: start === head ? initial : initial.update({ selection: { anchor: start } }).state,
         });
+        created.scrollDOM.classList.add("note-scroller");
+        created.scrollDOM.prepend(pageTopHost);
         view.current = created;
         setActiveEditor(created, path);
         syncProps(created.state);
@@ -420,22 +442,11 @@ export function Editor({ path }: EditorProps) {
           await backend.writeFile(path, content, mtime.current, vault ?? undefined);
         });
       }
-      if (created) rememberViewState(path, created);
       created?.destroy();
       view.current = null;
       setActiveEditor(null);
     };
-  }, [path, save, scheduleSave, syncProps, scheduleCount, countNow]);
-
-  // Once the note is scrolled, the page header shrinks so the cover doesn't take space.
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const el = view.current?.scrollDOM;
-    if (!ready || !el) return;
-    const onScroll = () => setScrolled(el.scrollTop > 24);
-    el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, [ready]);
+  }, [path, save, scheduleSave, syncProps, scheduleCount, countNow, pageTopHost]);
 
   // Jump to a heading/block/line requested by the link that opened this note.
   const pendingTarget = useAppStore((s) => s.pendingTarget);
@@ -534,10 +545,10 @@ export function Editor({ path }: EditorProps) {
     </span>
   );
 
-  return (
-    <div className="editor">
+  const pageTop = (
+    <>
       {/* Shown while loading too, so the title doesn't jump when the note arrives. */}
-      <PageHeader path={path} props={props} onChange={changeProps} compact={scrolled} />
+      <PageHeader path={path} props={props} onChange={changeProps} />
       <header className="editor-header">
         <NoteTitle
           ref={titleRef}
@@ -576,6 +587,13 @@ export function Editor({ path }: EditorProps) {
         </div>
         {!statusSlot && docStatus}
       </header>
+      {ready && <PropertiesPanel props={props} onChange={changeProps} />}
+    </>
+  );
+
+  return (
+    <div className="editor">
+      {createPortal(pageTop, pageTopHost)}
       {statusSlot && createPortal(docStatus, statusSlot)}
 
       {banner === "conflict" && (
@@ -614,8 +632,6 @@ export function Editor({ path }: EditorProps) {
           </button>
         </div>
       )}
-
-      {ready && <PropertiesPanel props={props} onChange={changeProps} />}
 
       <div ref={host} className={`editor-host page-${pageStyle(props)}`} />
     </div>

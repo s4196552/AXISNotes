@@ -123,6 +123,8 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 
 | T-131 | 6 | Fix native Ctrl+/ command-menu crash | codex | merged | agent/codex/T-131 | commands/editor sources and tests, native host if required, E2E, version manifests, task coordination |
 
+| T-132 | 6 | Scroll note cover, icon, title and properties away with the document | codex | in-review | agent/codex/T-132 | src/features/editor/{Editor.tsx,PageHeader.tsx,editor.css,pageHeader.css,pageHeader.test.tsx}, e2e/specs/scroll-header.e2e.ts, task coordination |
+
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
 _Codex could not run commands (Windows sandbox provisioning failed: `helper_sandbox_lock_failed`). From Phase 6 the user dropped Codex entirely: Claude builds and verifies every task, and no Codex reviews are owed._
