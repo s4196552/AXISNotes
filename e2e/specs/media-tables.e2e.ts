@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { $, $$, browser, expect } from "@wdio/globals";
+import { Key } from "webdriverio";
 
 const vault = process.env.AXIS_E2E_VAULT!;
 const file = (name: string) => path.join(vault, name);
@@ -34,12 +35,36 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     await snapshot("01-costs-table");
   });
   it("edits a cell, saves Markdown, and switches between source and preview", async () => {
-    await $(".cm-markdown-table").$("button=Edit cells").click();
-    await $('textarea[aria-label="Row 1, column 3"]').setValue("Reviewed administration");
+    const widths = () =>
+      browser.execute(() =>
+        [...document.querySelectorAll(".cm-markdown-table tr:first-child > *")].map(
+          (cell) => cell.getBoundingClientRect().width,
+        ),
+      );
+    const before = await widths();
+    await $('.cm-markdown-table td[aria-label="Row 1, column 3"]').click();
+    await expect($$(".cm-markdown-table textarea")).toBeElementsArrayOfSize(1);
+    expect(await widths()).toEqual(before);
+    await expect($$(".cm-markdown-table th")).toBeElementsArrayOfSize(4);
+    await expect($('textarea[aria-label="Row 1, column 3"]')).toBeFocused();
+    // WebDriver clearElement blurs the input. Use the user's actual selection/
+    // typing sequence for an editor that intentionally closes on blur.
+    await browser.keys([Key.Ctrl, "a"]);
+    await browser.keys(Key.Ctrl);
+    await browser.keys("Reviewed administration");
     await browser.waitUntil(() =>
       fs.readFileSync(file("Costs.md"), "utf8").includes("Reviewed administration"),
     );
-    await $(".cm-markdown-table").$("button=Done editing").click();
+    expect(fs.readFileSync(file("Costs.md"), "utf8")).toBe(
+      costs.replace("|—|Space", "|Reviewed administration|Space"),
+    );
+    const dir = path.resolve(".agents/qa/T-134");
+    fs.mkdirSync(dir, { recursive: true });
+    await browser.saveScreenshot(path.join(dir, "direct-cell-edit.png"));
+    await browser.keys("Tab");
+    await expect($('textarea[aria-label="Row 1, column 4"]')).toBeFocused();
+    await browser.keys("Enter");
+    await expect($$(".cm-markdown-table textarea")).toBeElementsArrayOfSize(0);
     await expect($(".cm-markdown-table table")).toHaveText(
       expect.stringContaining("Reviewed administration"),
     );
@@ -47,6 +72,11 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     await expect($(".cm-markdown-table table")).not.toExist();
     await $(".cm-table-tools").$("button=Show table").click();
     await expect($(".cm-markdown-table table")).toExist();
+    await open("Media");
+    await open("Costs");
+    await expect($(".cm-markdown-table table")).toHaveText(
+      expect.stringContaining("Reviewed administration"),
+    );
   });
   it("keeps the supplied plan columns aligned and scrolls them inside a narrow note (T-126)", async () => {
     const plans = `| **Plan**           | **Best For**         | **Support Access**                     | **Min. Cost** | **Response Time** |
