@@ -5,6 +5,7 @@ import { tokenizeInline } from "../../lib/inlineMarkdown";
 import {
   formatTable,
   parseTable,
+  replaceTableCell,
   tableCellSource,
   type MarkdownTable,
 } from "../../lib/markdownTables";
@@ -67,6 +68,7 @@ function inline(parent: HTMLElement, source: string, view: EditorView) {
 
 class TableController {
   editing = false;
+  activeCell: HTMLTableCellElement | null = null;
   constructor(
     public widget: TableWidget,
     readonly root: HTMLElement,
@@ -78,7 +80,7 @@ class TableController {
     const previous = this.widget;
     this.widget = widget;
     if (
-      this.editing &&
+      (this.editing || this.activeCell) &&
       previous.table.rows.length === widget.table.rows.length &&
       previous.table.alignment.length === widget.table.alignment.length &&
       previous.readOnly === widget.readOnly
@@ -86,24 +88,88 @@ class TableController {
       this.root.querySelectorAll<HTMLTextAreaElement>("textarea").forEach((input) => {
         const value = widget.table.rows[Number(input.dataset.row)]![Number(input.dataset.column)]!;
         // Keep the caret during typing, but show undo/redo and external changes even
-        // when this cell still has focus.
-        if (tableCellSource(input.value) !== value) input.value = value;
+        // when this cell still has focus. Parsed values omit edge padding: retain
+        // draft spaces so typing the next word does not join it to the previous one.
+        if (tableCellSource(input.value).trim() !== value) input.value = value;
+      });
+      this.root.querySelectorAll<HTMLElement>(".cm-table-cell-preview").forEach((preview) => {
+        const cell = preview.parentElement!;
+        const row = Number(cell.dataset.row);
+        const column = Number(cell.dataset.column);
+        const value = widget.table.rows[row]![column]!;
+        cell.style.textAlign = widget.table.alignment[column] ?? "left";
+        if (previous.table.rows[row]![column] === value) return;
+        preview.replaceChildren();
+        inline(preview, value, this.view);
       });
     } else this.render();
   }
-  change(edit: (table: MarkdownTable) => void) {
+  write(insert: string) {
     if (this.view.state.readOnly) return;
     const start = this.view.state.doc.lineAt(this.view.posAtDOM(this.root)).from;
     const end = start + this.widget.source.length;
-    // A widget must never apply its edits to a different or externally changed table.
     if (this.view.state.sliceDoc(start, end) !== this.widget.source) return;
-    const next = structuredClone(this.widget.table);
-    edit(next);
-    const insert = formatTable(next);
     if (insert !== this.widget.source)
       this.view.dispatch({ changes: { from: start, to: end, insert } });
   }
+  editCell(row: number, column: number, value: string) {
+    this.write(replaceTableCell(this.widget.source, row, column, value));
+  }
+  finish(cell: HTMLTableCellElement) {
+    if (this.activeCell !== cell) return;
+    this.activeCell = null;
+    cell.querySelector("textarea")?.remove();
+    cell.classList.remove("cm-table-cell-active");
+    const preview = cell.querySelector<HTMLElement>(".cm-table-cell-preview")!;
+    preview.replaceChildren();
+    inline(
+      preview,
+      this.widget.table.rows[Number(cell.dataset.row)]![Number(cell.dataset.column)]!,
+      this.view,
+    );
+    this.view.requestMeasure();
+  }
+  activate(cell: HTMLTableCellElement) {
+    if (this.view.state.readOnly || this.editing || this.activeCell === cell) return;
+    if (this.activeCell) this.finish(this.activeCell);
+    this.activeCell = cell;
+    const row = Number(cell.dataset.row);
+    const column = Number(cell.dataset.column);
+    const input = document.createElement("textarea");
+    input.className = "cm-table-cell-input";
+    input.value = this.widget.table.rows[row]![column]!;
+    input.dataset.row = String(row);
+    input.dataset.column = String(column);
+    input.setAttribute("aria-label", cell.getAttribute("aria-label")!);
+    input.addEventListener("input", () => this.editCell(row, column, input.value));
+    input.addEventListener("blur", () => this.finish(cell));
+    input.addEventListener("keydown", (event) => {
+      if (event.isComposing) return;
+      if (event.key === "Escape" || (event.key === "Enter" && !event.shiftKey)) {
+        event.preventDefault();
+        this.finish(cell);
+        cell.focus();
+      } else if (event.key === "Tab") {
+        const cells = [...this.root.querySelectorAll<HTMLTableCellElement>("[data-table-cell]")];
+        const next = cells[cells.indexOf(cell) + (event.shiftKey ? -1 : 1)];
+        if (next) {
+          event.preventDefault();
+          this.activate(next);
+        }
+      }
+    });
+    cell.classList.add("cm-table-cell-active");
+    cell.append(input);
+    input.focus();
+  }
+  change(edit: (table: MarkdownTable) => void) {
+    if (this.view.state.readOnly) return;
+    const next = structuredClone(this.widget.table);
+    edit(next);
+    this.write(formatTable(next));
+  }
   render() {
+    this.activeCell = null;
     const { table, readOnly } = this.widget;
     const toolbar = document.createElement("div");
     toolbar.className = "cm-table-tools";
@@ -188,11 +254,7 @@ class TableController {
           input.dataset.row = String(r);
           input.dataset.column = String(c);
           input.setAttribute("aria-label", `${r === 0 ? "Header" : `Row ${r}`}, column ${c + 1}`);
-          input.addEventListener("input", () =>
-            this.change((t) => {
-              t.rows[r]![c] = tableCellSource(input.value);
-            }),
-          );
+          input.addEventListener("input", () => this.editCell(r, c, input.value));
           cell.append(input);
           if (r === 0 && table.alignment.length > 1) {
             const remove = document.createElement("button");
@@ -207,7 +269,30 @@ class TableController {
             );
             cell.append(remove);
           }
-        } else inline(cell, value, this.view);
+        } else {
+          const preview = document.createElement("span");
+          preview.className = "cm-table-cell-preview";
+          inline(preview, value, this.view);
+          cell.append(preview);
+          cell.dataset.row = String(r);
+          cell.dataset.column = String(c);
+          if (!readOnly) {
+            cell.dataset.tableCell = "";
+            cell.tabIndex = 0;
+            cell.setAttribute("aria-label", `${r === 0 ? "Header" : `Row ${r}`}, column ${c + 1}`);
+            cell.title = "Click to edit · Tab: next cell · Enter: finish · Shift+Enter: new line";
+            cell.addEventListener("click", (event) => {
+              if ((event.target as HTMLElement).closest("a, button, textarea")) return;
+              this.activate(cell);
+            });
+            cell.addEventListener("keydown", (event) => {
+              if (event.target === cell && (event.key === "Enter" || event.key === "F2")) {
+                event.preventDefault();
+                this.activate(cell);
+              }
+            });
+          }
+        }
         tr.append(cell);
       });
       if (this.editing && r === 0) {

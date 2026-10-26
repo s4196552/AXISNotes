@@ -4,7 +4,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { fireEvent, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { formatTable, parseTable, tableCells } from "../../lib/markdownTables";
+import { formatTable, parseTable, replaceTableCell, tableCells } from "../../lib/markdownTables";
 import { tables } from "./tables";
 
 // Exact Obsidian table supplied by the human (compact syntax and long cells).
@@ -46,6 +46,102 @@ afterEach(() => {
   });
 });
 describe("Obsidian Markdown tables", () => {
+  it("edits one rendered cell directly without changing the layout or surrounding source", () => {
+    const view = open(PLANS);
+    const ui = within(view.dom.querySelector<HTMLElement>(".cm-markdown-table")!);
+    const cell = ui.getByRole("cell", { name: "Row 2, column 4" });
+    fireEvent.click(cell);
+    const input = ui.getByRole("textbox", { name: "Row 2, column 4" });
+    expect(ui.getAllByRole("textbox")).toHaveLength(1);
+    expect(ui.getAllByRole("columnheader")).toHaveLength(5);
+    expect(ui.getByRole("table").style.minWidth).toBe("700px");
+    expect(ui.getByText("Business Support +").tagName).toBe("STRONG");
+    fireEvent.input(input, { target: { value: "$39/mo" } });
+    expect(view.state.doc.toString()).toBe(PLANS.replace("$29/mo", "$39/mo"));
+    expect(document.activeElement).toBe(input);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(ui.queryByRole("textbox")).toBeNull();
+    expect(ui.getByText("$39/mo")).toBeInTheDocument();
+    expect(document.activeElement).toBe(cell);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(PLANS);
+    expect(ui.getByText("$29/mo")).toBeInTheDocument();
+  });
+  it("supports keyboard editing, tabbing, multiline content, and undo while focused", () => {
+    const view = open(COSTS);
+    const ui = within(view.dom.querySelector<HTMLElement>(".cm-markdown-table")!);
+    fireEvent.keyDown(ui.getByRole("cell", { name: "Row 1, column 3" }), { key: "Enter" });
+    const input = ui.getByRole("textbox", { name: "Row 1, column 3" });
+    fireEvent.input(input, { target: { value: "New | estimate\nReviewed" } });
+    expect(view.state.doc.toString()).toBe(
+      COSTS.replace("|—|Space", "|New \\| estimate<br>Reviewed|Space"),
+    );
+    expect(undo(view)).toBe(true);
+    expect(input).toHaveValue("—");
+    fireEvent.keyDown(input, { key: "Tab" });
+    expect(ui.getAllByRole("textbox")).toHaveLength(1);
+    const next = ui.getByRole("textbox", { name: "Row 1, column 4" });
+    expect(document.activeElement).toBe(next);
+    fireEvent.keyDown(next, { key: "Tab", shiftKey: true });
+    fireEvent.keyDown(ui.getByRole("textbox", { name: "Row 1, column 3" }), { key: "Escape" });
+    expect(ui.queryByRole("textbox")).toBeNull();
+  });
+  it("retains typed spaces between individual keystrokes without accumulating source padding", () => {
+    const view = open(COSTS);
+    const ui = within(view.dom.querySelector<HTMLElement>(".cm-markdown-table")!);
+    fireEvent.click(ui.getByRole("cell", { name: "Row 1, column 3" }));
+    const input = ui.getByRole("textbox") as HTMLTextAreaElement;
+    let typed = "";
+    for (const character of "Reviewed administration") {
+      typed += character;
+      fireEvent.input(input, { target: { value: typed } });
+      expect(input.value).toBe(typed);
+    }
+    expect(view.state.doc.toString()).toBe(
+      COSTS.replace("|—|Space", "|Reviewed administration|Space"),
+    );
+  });
+  it("preserves cell markup, unedited whitespace, optional borders and missing cells", () => {
+    const source =
+      "  A | B | C  \n :--- | ---: | :---: \n **bold** | `x|y` | [[Note|Alias]] \n short";
+    expect(replaceTableCell(source, 1, 1, "`a|b` and [[Other|Label]]")).toBe(
+      source.replace("`x|y`", "`a|b` and [[Other|Label]]"),
+    );
+    const edited = replaceTableCell(source, 2, 2, "added | value");
+    expect(parseTable(edited.split("\n"))?.rows[2]).toEqual(["short", "", "added \\| value"]);
+    expect(edited.split("\n").slice(0, 3)).toEqual(source.split("\n").slice(0, 3));
+    const view = open(PLANS);
+    const ui = within(view.dom.querySelector<HTMLElement>(".cm-markdown-table")!);
+    fireEvent.click(ui.getByRole("cell", { name: "Row 1, column 1" }));
+    fireEvent.input(ui.getByRole("textbox"), { target: { value: "**Basic Plus**" } });
+    fireEvent.blur(ui.getByRole("textbox"));
+    expect(ui.getByText("Basic Plus").tagName).toBe("STRONG");
+    expect(view.state.doc.toString()).toBe(PLANS.replace("**Basic**", "**Basic Plus**"));
+  });
+  it("keeps borderless header cells editable when cleared and fills padded cells", () => {
+    const source = "A | B | C\n--- | --- | ---\none | two\nlast | row | end";
+    const view = open(source);
+    const ui = within(view.dom.querySelector<HTMLElement>(".cm-markdown-table")!);
+    fireEvent.click(ui.getByRole("columnheader", { name: "Header, column 1" }));
+    const header = ui.getByRole("textbox");
+    fireEvent.input(header, { target: { value: "" } });
+    expect(ui.getByRole("textbox")).toBe(header);
+    expect(ui.getAllByRole("columnheader")).toHaveLength(3);
+    fireEvent.input(header, { target: { value: "New header" } });
+    fireEvent.keyDown(header, { key: "Enter" });
+    fireEvent.click(ui.getByRole("cell", { name: "Row 1, column 3" }));
+    fireEvent.input(ui.getByRole("textbox"), { target: { value: "added" } });
+    expect(parseTable(view.state.doc.toString().split("\n"))?.rows[1]).toEqual([
+      "one",
+      "two",
+      "added",
+    ]);
+    expect(replaceTableCell(source, 0, 2, "").split("\n")[0]).toBe("A | B | |");
+    const irregular = "| A | B |\n| --- | ---: |\n| one | two | extra |";
+    expect(
+      parseTable(replaceTableCell(irregular, 0, 2, "New column").split("\n"))?.rows[0],
+    ).toEqual(["A", "B", "New column"]);
+  });
   it("renders the supplied five-column plans with literal prices, times and bold text", () => {
     const view = open(PLANS);
     const ui = within(view.dom);
@@ -140,6 +236,8 @@ describe("Obsidian Markdown tables", () => {
     expect(within(view.dom).getByRole("button", { name: "Edit cells" })).toBeDisabled();
     expect(within(view.dom).getByRole("button", { name: "Format table" })).toBeDisabled();
     expect(view.state.doc.toString()).toBe(COSTS);
+    fireEvent.click(within(view.dom).getByText("Storage administration costs"));
+    expect(view.dom.querySelector("textarea")).toBeNull();
   });
   it("returns from source mode even when the note contains only a table", () => {
     const view = open(COSTS);

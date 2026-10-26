@@ -129,6 +129,8 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 
 | T-136 | 6 | Merge and publish Windows 0.3.30 with scrolling and heading folding | codex | in-progress | agent/codex/T-136 | release manifests, CI formatting cleanup, task coordination, existing local Windows update output |
 
+| T-134 | 6 | Direct table cell editing without reformatting the table | codex | in-review | agent/codex/T-134 | src/lib/markdownTables.ts, src/features/editor/{tables.ts,tables.test.ts,editor.css}, e2e/specs/media-tables.e2e.ts, task coordination |
+
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
 _Codex could not run commands (Windows sandbox provisioning failed: `helper_sandbox_lock_failed`). From Phase 6 the user dropped Codex entirely: Claude builds and verifies every task, and no Codex reviews are owed._
