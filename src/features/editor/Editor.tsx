@@ -78,6 +78,7 @@ function quickConfig(): QuickCommandConfig {
         ?.run(),
   };
 }
+import { codeLanguageCompletions } from "./code";
 import { axisTheme } from "./theme";
 import "./editor.css";
 
@@ -311,6 +312,7 @@ export function Editor({ path }: EditorProps) {
             highlightSelectionMatches(),
             autocompletion({
               override: [
+                codeLanguageCompletions,
                 anchorCompletions,
                 wikilinkCompletions,
                 slashCompletions,

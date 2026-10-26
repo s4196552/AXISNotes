@@ -126,3 +126,5 @@ See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains 
 _T-002 was folded into T-001: the Rust vault core was built together with the contract so that the Codex tasks have a real backend to target._
 
 _Codex could not run commands (Windows sandbox provisioning failed: `helper_sandbox_lock_failed`). From Phase 6 the user dropped Codex entirely: Claude builds and verifies every task, and no Codex reviews are owed._
+
+| T-135 | 6 | Inline code and fenced code commands, language suggestions and syntax colours | codex | approved | agent/codex/T-135 | `src/features/editor/{code*,Editor.tsx,quickCommands.ts,theme.ts}`, `src/features/commands/{registry,commandIcons}.ts`, `src/styles/theme.css`, `e2e/specs/code.e2e.ts`, `docs/CODE_SYNTAX.md`, version manifests, task coordination |

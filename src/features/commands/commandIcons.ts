@@ -36,6 +36,7 @@ import {
   Settings,
   Shapes,
   Sheet,
+  SquareCode,
   SquareSlash,
   Square,
   Sparkles,
@@ -50,6 +51,8 @@ import {
 
 /** The Lucide icon the command palette shows beside each command. */
 export const COMMAND_ICONS: Record<string, LucideIcon> = {
+  "insert-inline-code": SquareCode,
+  "insert-code-block": SquareCode,
   "command-menu": SquareSlash,
   switcher: Search,
   "new-note": FilePlus,

@@ -18,6 +18,7 @@ import { useUi } from "./ui";
 import { effectiveShortcut, formatHotkey, matches, type Shortcut } from "./hotkeys";
 import { useEditorPrefs } from "../editor/prefs";
 import { getActiveEditor } from "../editor/activeEditor";
+import { insertCode } from "../editor/code";
 import { openCommandMenu } from "../editor/quickCommands";
 import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { useUpdates } from "../updates/updates";
@@ -63,6 +64,15 @@ export function shortcutOf(c: Command): Shortcut | undefined {
 }
 
 registerCommands([
+  ...([false, true] as const).map((block): Command => ({
+    id: block ? "insert-code-block" : "insert-inline-code",
+    label: block ? "Insert code block" : "Insert inline code",
+    available: () => !!getActiveEditor(),
+    run: () => {
+      const editor = getActiveEditor();
+      if (editor) insertCode(editor.view, block);
+    },
+  })),
   {
     id: "palette",
     label: "Open command palette",
