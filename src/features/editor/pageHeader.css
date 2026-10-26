@@ -9,15 +9,6 @@
   background: var(--bg-hover);
   overflow: hidden;
   outline: none;
-  transition: height 160ms ease-out;
-}
-/* Scrolled into the note: a thin strip of the cover, no icon row. */
-.page-header.compact .page-cover:not(.repositioning) {
-  height: 28px;
-}
-.page-header.compact .page-cover:not(.repositioning) > :not(img),
-.page-header.compact .page-meta {
-  display: none;
 }
 .page-cover img {
   display: block;

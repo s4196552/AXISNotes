@@ -1,12 +1,12 @@
 import { foldService } from "@codemirror/language";
 import type { EditorState, Line, TransactionSpec } from "@codemirror/state";
+import { headingSectionAt } from "./headingSections";
 
 // Outliner operations on plain Markdown: list items (with their nested children) and
 // heading sections can be indented, outdented, moved among siblings, folded and dragged.
 // Everything is computed from line text, so the file stays ordinary Markdown.
 
 const LIST_RE = /^([ \t]*)([-*+]|\d+[.)])([ \t]+|$)/;
-const HEADING_RE = /^(#{1,6})[ \t]/;
 
 /** Visual width of leading whitespace (tabs count as 4). */
 function indentWidth(text: string): number {
@@ -82,23 +82,10 @@ export function enclosingListItem(state: EditorState, lineNo: number): ListItem 
 
 /** The heading section starting on `lineNo` (until the next heading of the same or higher level). */
 export function sectionAt(state: EditorState, lineNo: number): Section | null {
-  const m = HEADING_RE.exec(state.doc.line(lineNo).text);
-  if (!m) return null;
-  const level = m[1]!.length;
-  let last = state.doc.lines;
-  let inFence = false;
-  for (let n = lineNo + 1; n <= state.doc.lines; n++) {
-    const text = state.doc.line(n).text;
-    if (/^\s*(```|~~~)/.test(text)) inFence = !inFence;
-    const h = !inFence && HEADING_RE.exec(text);
-    if (h && h[1]!.length <= level) {
-      last = n - 1;
-      break;
-    }
-  }
-  // Trailing blank lines stay with the next section.
-  while (last > lineNo && isBlank(state.doc.line(last))) last--;
-  return { kind: "heading", first: lineNo, last, level };
+  const heading = headingSectionAt(state, lineNo);
+  return heading
+    ? { kind: "heading", first: heading.first, last: heading.last, level: heading.level }
+    : null;
 }
 
 export function blockAt(state: EditorState, lineNo: number): Block | null {
@@ -275,6 +262,8 @@ export function moveBlockTo(
 /** Folding: list items with children and heading sections. */
 export const outlineFolding = foldService.of((state, lineStart) => {
   const line = state.doc.lineAt(lineStart);
+  const heading = headingSectionAt(state, line.number);
+  if (heading) return heading.bodyTo > heading.to ? { from: heading.to, to: heading.bodyTo } : null;
   const block = blockAt(state, line.number);
   if (!block || block.last <= block.first) return null;
   return { from: line.to, to: state.doc.line(block.last).to };

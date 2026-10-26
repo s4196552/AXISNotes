@@ -36,13 +36,10 @@ export function PageHeader({
   path,
   props,
   onChange,
-  compact = false,
 }: {
   path: string;
   props: Props;
   onChange(next: Props): void;
-  /** The note is scrolled: show the cover as a thin strip and hide the icon row. */
-  compact?: boolean;
 }) {
   const icon = useConfig((s) => s.config.folderIcons[path]);
   const cover = parseCover(props[COVER_KEY]);
@@ -60,11 +57,7 @@ export function PageHeader({
   };
 
   return (
-    <div
-      className={`page-header${cover ? " has-cover" : ""}${icon ? " has-icon" : ""}${
-        compact && cover && !picking ? " compact" : ""
-      }`}
-    >
+    <div className={`page-header${cover ? " has-cover" : ""}${icon ? " has-icon" : ""}`}>
       {cover && (
         <CoverBanner
           path={path}
