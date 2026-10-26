@@ -93,3 +93,22 @@
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar) transparent;
 }
+
+/* Override these tokens in a custom theme to customise programming colours. */
+:root,
+[data-theme-preview] {
+  --syntax-keyword: light-dark(#8250df, #c4a7ff);
+  --syntax-string: light-dark(#116329, #9ece8b);
+  --syntax-comment: var(--fg-muted);
+  --syntax-number: light-dark(#953800, #f5b97b);
+  --syntax-function: light-dark(#0550ae, #82baff);
+  --syntax-type: light-dark(#8a4600, #e5c07b);
+}
+:root[data-theme="contrast"],
+[data-theme-preview="contrast"] {
+  --syntax-keyword: #ffff00;
+  --syntax-string: #7fff7f;
+  --syntax-number: #ffc080;
+  --syntax-function: #80dfff;
+  --syntax-type: #ffb3ff;
+}

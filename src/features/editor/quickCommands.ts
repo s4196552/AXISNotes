@@ -53,6 +53,7 @@ import { formatDate } from "../../lib/dates";
 import { splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { PAGE_STYLE_PROP, type PageStyle } from "../templates/templates";
 import { lucideSvg } from "./lucideSvg";
+import { CODE_LANGUAGES, codeFence } from "./code";
 import { minimalChange } from "./targets";
 import { pickAndEmbed } from "./media";
 
@@ -328,10 +329,26 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "code",
     label: "Code block",
     icon: SquareCode,
-    description: "A block of code",
+    description: "Code with optional language highlighting",
     markdown: "```",
-    block: (t) => ["```\n" + t, "\n```"],
+    block: (t) => codeFence(t),
   },
+  {
+    id: "inline-code",
+    label: "Inline code",
+    icon: SquareCode,
+    description: "Code within a sentence",
+    markdown: "`code`",
+    run: (v, f, t) => insert(v, f, t, "`|`"),
+  },
+  ...CODE_LANGUAGES.map(([name, language]): SlashCommand => ({
+    id: `code-${language}`,
+    label: `${name} code block`,
+    icon: SquareCode,
+    description: `A code block highlighted as ${name}`,
+    markdown: "```" + language,
+    block: (text) => codeFence(text, language),
+  })),
   {
     id: "table",
     label: "Table",
@@ -576,6 +593,8 @@ export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
       "quote",
       "callout",
       "code",
+      "inline-code",
+      ...CODE_LANGUAGES.map(([, language]) => `code-${language}`),
       "table",
       "divider",
       "toggle-h1",
