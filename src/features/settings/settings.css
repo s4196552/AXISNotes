@@ -250,3 +250,56 @@
     gap: 6px;
   }
 }
+
+/* Settings → Appearance → Fold arrows (FoldArrowPicker.tsx): each tile shows its style
+   closed and open, from the --fold-* variables the tile sets. */
+.fold-arrow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+.fold-arrow-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+}
+.fold-arrow-tile:hover {
+  background: var(--bg-hover);
+}
+.fold-arrow-tile input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.fold-arrow-tile:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.fold-arrow-tile:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.fold-arrow-sample {
+  display: flex;
+  gap: 10px;
+  color: var(--fg-muted);
+}
+.fold-arrow-icon {
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: var(--fold-closed) center / contain no-repeat;
+}
+.fold-arrow-icon.fold-arrow-open {
+  mask-image: var(--fold-open, var(--fold-closed));
+  transform: rotate(var(--fold-turn, 90deg));
+}

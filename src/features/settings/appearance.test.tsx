@@ -1,8 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
-import { applyTypography, fontStack } from "../../app/appearance";
+import { applyTypography, FOLD_ARROWS, foldArrowVars, fontStack } from "../../app/appearance";
 import { installZoom, stepZoom, useAreaZoom, useAreaZoomProps, useZoom } from "../../app/zoom";
 import { useAppStore } from "../../app/store";
 import { commandForEvent } from "../commands/registry";
@@ -160,15 +160,28 @@ describe("text size, fonts and editor width", () => {
       noteFont: 'Ge"orgia',
       uiFont: "Verdana",
       editorWidth: "full",
+      foldArrow: "plus",
     });
     expect(style.getPropertyValue("--note-font-size")).toBe("20px");
     expect(style.getPropertyValue("--editor-width")).toBe("none");
+    // Plus and minus: a different open icon, and no turn.
+    expect(style.getPropertyValue("--fold-closed")).toBe(FOLD_ARROWS.plus.closed);
+    expect(style.getPropertyValue("--fold-open")).toBe(FOLD_ARROWS.plus.open);
+    expect(style.getPropertyValue("--fold-turn")).toBe("0deg");
     expect(style.getPropertyValue("--font-note")).toBe('"Georgia", var(--font-ui)');
     expect(style.getPropertyValue("--font-ui")).toMatch(/^"Verdana", "Segoe UI"/);
     // Back to the defaults; sizes stay in range.
-    applyTypography({ noteFontSize: 99, noteFont: "", uiFont: "", editorWidth: "medium" });
+    applyTypography({
+      noteFontSize: 99,
+      noteFont: "",
+      uiFont: "",
+      editorWidth: "medium",
+      foldArrow: "triangle",
+    });
     expect(style.getPropertyValue("--note-font-size")).toBe("32px");
     expect(style.getPropertyValue("--editor-width")).toBe("760px");
+    expect(style.getPropertyValue("--fold-open")).toBe(FOLD_ARROWS.triangle.closed);
+    expect(style.getPropertyValue("--fold-turn")).toBe("90deg");
     expect(style.getPropertyValue("--font-ui")).toBe("");
     expect(fontStack("", "serif")).toBe("serif");
   });
@@ -199,6 +212,25 @@ describe("text size, fonts and editor width", () => {
         },
       ),
     );
+  });
+
+  it("picks a fold arrow style, previewed closed and open, and saves it", async () => {
+    render(<Settings section="appearance" onClose={vi.fn()} />);
+    const group = screen.getByRole("radiogroup", { name: "Fold arrows" });
+    const options = within(group).getAllByRole("radio");
+    expect(options.map((o) => o.getAttribute("aria-label"))).toEqual(
+      Object.values(FOLD_ARROWS).map((a) => a.label),
+    );
+    expect(within(group).getByRole("radio", { name: "Triangle" })).toBeChecked();
+    fireEvent.click(within(group).getByRole("radio", { name: "Chevron" }));
+    expect(within(group).getByRole("radio", { name: "Chevron" })).toBeChecked();
+    await waitFor(async () =>
+      expect(
+        JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).appearance.foldArrow,
+      ).toBe("chevron"),
+    );
+    // An unknown style from a hand-edited config falls back to the triangle.
+    expect(foldArrowVars("nope" as never)["--fold-closed"]).toBe(FOLD_ARROWS.triangle.closed);
   });
 
   it("keeps a font chosen on another computer, marked as not installed", async () => {

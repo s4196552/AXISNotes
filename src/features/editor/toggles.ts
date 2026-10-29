@@ -139,7 +139,7 @@ class ArrowWidget extends WidgetType {
     );
     button.setAttribute("aria-expanded", String(this.open));
     if (this.heading) button.dataset.headingLevel = String(this.heading.level);
-    button.textContent = "▸";
+    // The icon is drawn by CSS from the fold arrow style in Settings → Appearance.
     const flip = () =>
       this.heading ? flipHeading(view, this.lineFrom) : flipToggle(view, this.lineFrom);
     button.addEventListener("mousedown", (e) => {

@@ -38,6 +38,7 @@ import { ClipperSettings } from "../clipper/ClipperSettings";
 import { UpdatesSettings } from "../updates/UpdatesSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
 import { ThemePicker } from "./ThemePicker";
+import { FoldArrowPicker } from "./FoldArrowPicker";
 import { About } from "./About";
 import { PacksSettings } from "../packs/PacksSettings";
 import "./settings.css";
@@ -339,6 +340,9 @@ function Appearance({ config, set }: SectionProps) {
             </option>
           ))}
         </select>
+      </Field>
+      <Field label="Fold arrows" hint="The arrows that fold headings and toggle lists.">
+        <FoldArrowPicker value={a.foldArrow} onChange={(foldArrow) => setA({ foldArrow })} />
       </Field>
       <Field label="CSS snippets" hint="Files in .axisnotes/snippets, applied on top of the theme.">
         {snippets.length === 0 ? (

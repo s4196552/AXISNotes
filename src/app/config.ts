@@ -31,6 +31,9 @@ export const isHexColor = (v: unknown): v is string =>
 
 export type EditorWidth = "narrow" | "medium" | "wide" | "full";
 
+/** How the arrows that fold headings and toggle lists look (see `FOLD_ARROWS`). */
+export type FoldArrow = "triangle" | "chevron" | "arrow" | "circle" | "plus" | "square";
+
 /** What Windows draws behind the see-through window (Translucent theme). */
 export type WindowEffect = "clear" | "blur" | "frosted" | "liquid" | "mica" | "micaAlt";
 
@@ -47,6 +50,7 @@ export interface AxisConfig {
     noteFont: string;
     uiFont: string;
     editorWidth: EditorWidth;
+    foldArrow: FoldArrow;
     /** Translucent theme: how opaque the window is (percent), and what shows behind it. */
     windowOpacity: number;
     windowEffect: WindowEffect;
@@ -115,6 +119,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     noteFont: "",
     uiFont: "",
     editorWidth: "medium",
+    foldArrow: "triangle",
     windowOpacity: 80,
     windowEffect: "frosted",
   },

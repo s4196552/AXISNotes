@@ -784,6 +784,20 @@ input.editor-title::placeholder {
   user-select: none;
   transition: transform 0.12s ease;
 }
+/* The icon: a mask in the text colour, from the fold arrow style (src/app/appearance.ts,
+   FOLD_ARROWS), which sets --fold-closed, --fold-open and --fold-turn. */
+.cm-toggle-arrow::before {
+  content: "";
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  vertical-align: -0.05em;
+  background-color: currentColor;
+  mask: var(--fold-closed) center / contain no-repeat;
+}
+.cm-toggle-arrow.cm-toggle-open::before {
+  mask-image: var(--fold-open, var(--fold-closed));
+}
 .cm-toggle-arrow:hover {
   color: var(--fg);
 }
@@ -802,7 +816,7 @@ input.editor-title::placeholder {
   color: var(--fg-muted);
 }
 .cm-toggle-arrow.cm-toggle-open {
-  transform: rotate(90deg);
+  transform: rotate(var(--fold-turn, 90deg));
 }
 @media (prefers-reduced-motion: reduce) {
   .cm-toggle-arrow {
