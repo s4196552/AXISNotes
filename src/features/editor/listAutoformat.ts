@@ -5,13 +5,12 @@ import { insideMath } from "./math";
 
 // Lists start as you type, without the space Markdown needs:
 //   `-` at the start of a line            → `- `   (a bullet, shown at once)
-//   `1` on an empty line                   → `1. `  (a numbered list)
-//   `.` after a number at the line's start → `3. `
+//   `.` after a number at the line's start → `3. `  (a numbered list)
+// A number on its own stays text (`1`, `10 apples`, and the command menu's `1` for Heading 1).
 // The next keystroke can take it back, so ordinary text still comes out as typed:
-//   a space (or the `.` of `1.`) is absorbed, since the formatting already added it;
+//   a space is absorbed, since the formatting already added it;
 //   `-` after an auto `- ` gives `--` (so `---` still makes a rule or frontmatter);
-//   a digit (or `,` `:` `/` `)` `-`) after an auto `1. ` gives plain `10`, `1:30`, `1/2`…,
-//   and a digit after an auto `3. ` gives `3.5`;
+//   a digit after an auto `3. ` gives `3.5`;
 //   Backspace right after puts back just the character that was typed.
 // Never in code, frontmatter, raw HTML, comments or math, and only for one plain cursor.
 
@@ -19,7 +18,7 @@ interface Auto {
   /** Where the typed character went, and the cursor after the formatting. */
   from: number;
   pos: number;
-  /** The character that was typed (`-`, `1` or `.`). */
+  /** The character that was typed (`-` or `.`). */
   typed: string;
 }
 
@@ -90,13 +89,7 @@ function followUp(view: EditorView, auto: Auto, text: string): boolean {
   }
   const { from, pos, typed } = auto;
   if (typed === "-" && text === "-") return replace(view, from, pos, "--", null);
-  if (typed === "1" && text === ".") {
-    // Absorbed, but still "just formatted": a space may follow, or a digit (`1.5`).
-    view.dispatch({ effects: setAuto.of({ ...auto, typed: "1." }) });
-    return true;
-  }
-  if (typed === "1" && /^[\d,:/)-]$/.test(text)) return replace(view, from, pos, "1" + text, null);
-  if (typed.endsWith(".") && /^\d$/.test(text)) return replace(view, from, pos, typed + text, null);
+  if (typed === "." && /^\d$/.test(text)) return replace(view, from, pos, "." + text, null);
   return false;
 }
 
@@ -105,14 +98,13 @@ const typing = EditorView.inputHandler.of((view, from, to, text) => {
   if (view.composing || from !== to || state.selection.ranges.length > 1) return false;
   const auto = state.field(autoField, false);
   if (auto && auto.pos === from && followUp(view, auto, text)) return true;
-  if (text !== "-" && text !== "1" && text !== ".") return false;
+  if (text !== "-" && text !== ".") return false;
 
   const line = state.doc.lineAt(from);
   const before = state.sliceDoc(line.from, from);
   const after = state.sliceDoc(from, line.to);
   let insert: string;
   if (text === "-" && /^\s*$/.test(before) && !/^[\s*+-]/.test(after)) insert = "- ";
-  else if (text === "1" && /^\s*$/.test(before) && after === "") insert = "1. ";
   else if (text === "." && /^\s*\d{1,9}$/.test(before) && after === "") insert = ". ";
   else return false;
   if (verbatim(state, from) || becomesVerbatim(state, from, insert)) return false;

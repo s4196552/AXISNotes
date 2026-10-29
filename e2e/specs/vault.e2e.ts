@@ -60,7 +60,7 @@ describe("AXISNotes desktop app on a real vault", () => {
     await browser.keys("eggs");
     await browser.keys(Key.Enter);
     await browser.keys(Key.Enter); // Enter on the empty bullet ends the list
-    await browser.keys("1first");
+    await browser.keys("1.first"); // `1.` starts it; a lone `1` stays text
     await browser.keys(Key.Enter);
     await browser.keys("second");
     await browser.keys(Key.Enter);

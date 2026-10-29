@@ -2,6 +2,11 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-29: A lone `1` stays text; digits pick headings in the command menu (T-137)
+
+- **Typing `1` on an empty line no longer inserts `1. `.** It turned a plain `1` into a list the user didn't ask for, and broke the command menu opened with Ctrl+/ on an empty line, where `1` should find Heading 1. A numbered list still starts as soon as `.` follows a number (`1.` → `1. `), so this supersedes only the `1` rule of the T-071 entry below; its `1. ` follow-ups (`10`, `1:30`, `1/2`) are gone with it.
+- **In the command menu, `1` to `6` on their own list Heading N, then Toggle heading N** (with their Turn into rows on a line with text), so Enter makes that heading. CodeMirror matches a one-character query only against a label's first letter, so a digit matched nothing before. Other numbers and longer queries filter as before; a disabled heading command stays hidden.
+
 ## 2026-10-22: Updates run the installer directly again (T-123)
 
 - **The update window from T-119 is gone.** On the human's machine every update after 0.3.20 failed with the installer's "Error opening file for writing: …\AXISNotes\axisnotes.exe": the installed exe and the update window's temp copy both refused writes (Windows error 5, not 32 "in use"), with no process holding them, while `uninstall.exe` beside it and fresh copies of the same exe were writable. Bitdefender's behaviour monitor (ATC) is running there; an unsigned app copying itself to `%TEMP%`, running the copy and that starting an installer is a dropper pattern. Bitdefender's own logs weren't readable, so this is the likely cause rather than a proven one. 0.3.19 → 0.3.20 (installer started directly) had worked.
