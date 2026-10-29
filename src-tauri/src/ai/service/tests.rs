@@ -409,3 +409,72 @@ async fn handwriting_reads_an_image_on_two_vision_providers() {
         assert_eq!(e.service.read_log(1)[0].task, Task::Handwriting);
     }
 }
+
+fn plan_env(responses: Vec<(u16, &str)>) -> Env {
+    let mut providers = std_providers();
+    providers.insert(0, provider("plan", ProviderKind::ChatGpt, "ChatGPT plan"));
+    let e = env(responses, providers, &["openai"]);
+    let mut settings = e.service.settings();
+    settings.tasks.insert(
+        Task::Chat,
+        TaskChoice {
+            provider: "plan".into(),
+            model: "account-model".into(),
+        },
+    );
+    settings.fallback = vec!["openai".into()];
+    e.service.save_settings(settings).unwrap();
+    e
+}
+fn connect_plan(e: &Env) {
+    // Offline fixture credential; never a real account or API key.
+    e.keys.set("chatgpt-session:plan", &serde_json::json!({"client_id":"oaiapp_test","subject":"test-user","access_token":"fixture-only", "scope":"resource.invoke chatgpt.tokens.use.direct","expires_at":u64::MAX}).to_string()).unwrap();
+}
+#[tokio::test]
+async fn plan_auth_quota_and_disconnection_never_use_paid_fallback() {
+    for response in [
+        "{\"error\":{\"message\":\"unauthorized\"}}",
+        "{\"error\":{\"code\":\"subscription_sharing_usage_limit_exceeded\"}}",
+    ] {
+        let e = plan_env(vec![(429, response), (200, OPENAI_OK)]);
+        connect_plan(&e);
+        let (result, _) = run(&e, ask(&[])).await;
+        assert!(result.is_err());
+        assert_eq!(e.fx.requests.lock().unwrap().len(), 1);
+    }
+    let e = plan_env(vec![(200, OPENAI_OK)]);
+    assert!(run(&e, ask(&[])).await.0.is_err());
+    assert!(e.fx.requests.lock().unwrap().is_empty());
+    let mut settings = e.service.settings();
+    settings.providers[0].enabled = false;
+    e.service.save_settings(settings).unwrap();
+    assert!(run(&e, ask(&[])).await.0.is_err());
+    assert!(e.fx.requests.lock().unwrap().is_empty());
+}
+#[tokio::test]
+async fn plan_respects_source_rules_and_cannot_masquerade_as_local() {
+    let e = plan_env(vec![(200, OPENAI_OK)]);
+    connect_plan(&e);
+    assert!(run(&e, ask(&["Medical/scan.md"])).await.0.is_err());
+    assert!(run(&e, ask(&["Journal/day.md"])).await.0.is_err());
+    assert!(e.fx.requests.lock().unwrap().is_empty());
+    let mut cfg = provider("p", ProviderKind::ChatGpt, "Plan");
+    cfg.base_url = "http://localhost:1234".into();
+    assert!(!is_local(&cfg));
+    let mut settings = e.service.settings();
+    settings.providers[0].base_url = cfg.base_url;
+    assert!(e.service.save_settings(settings).is_err());
+    assert!(e.service.set_key("plan", "test-key").is_err());
+    assert!(e.service.delete_key("plan").is_err());
+}
+#[tokio::test]
+async fn plan_settings_expose_no_tokens_and_model_failure_has_no_api_catalog() {
+    let e = plan_env(vec![(401, "{}")]);
+    connect_plan(&e);
+    let exposed = serde_json::to_string(&e.service.providers()).unwrap();
+    assert!(!exposed.contains("fixture-only"));
+    assert!(!exposed.contains("resource.invoke"));
+    let models = e.service.list_models("plan").await.unwrap();
+    assert!(models.models.is_empty());
+    assert!(models.error.is_some());
+}

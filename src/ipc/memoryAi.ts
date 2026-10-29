@@ -22,6 +22,10 @@ import type {
 type AiBackend = Pick<
   Backend,
   | "aiSettings"
+  | "aiSubscriptionSignIn"
+  | "aiSubscriptionCancel"
+  | "aiSubscriptionDisconnect"
+  | "aiSubscriptionUsage"
   | "aiSaveSettings"
   | "aiSetKey"
   | "aiDeleteKey"
@@ -38,6 +42,7 @@ const fail = (code: ErrorCode, message: string): never => {
 };
 
 const DEFAULT_URL: Record<AiProviderKind, string> = {
+  chatgpt: "https://api.openai.com/v1",
   openai: "https://api.openai.com/v1",
   anthropic: "https://api.anthropic.com/v1",
   gemini: "https://generativelanguage.googleapis.com/v1beta",
@@ -90,9 +95,11 @@ const DEFAULTS: Partial<Record<AiProviderKind, Partial<Record<AiTask, string>>>>
 };
 
 const modelsFor = (kind: AiProviderKind): AiModel[] =>
-  MODELS[kind] ?? [
-    { id: "demo-model", name: "demo-model", vision: false, json: false, context: null },
-  ];
+  kind === "chatgpt"
+    ? []
+    : (MODELS[kind] ?? [
+        { id: "demo-model", name: "demo-model", vision: false, json: false, context: null },
+      ]);
 
 const requiresKey = (k: AiProviderKind) =>
   k === "openai" || k === "anthropic" || k === "gemini" || k === "openrouter";
@@ -104,10 +111,11 @@ function isLocal(p: AiProviderConfig): boolean {
     .split(/[/?]/)[0]!
     .replace(/:\d+$/, "");
   return (
-    host === "localhost" ||
-    host.endsWith(".localhost") ||
-    host.startsWith("127.") ||
-    host === "[::1]"
+    p.kind !== "chatgpt" &&
+    (host === "localhost" ||
+      host.endsWith(".localhost") ||
+      host.startsWith("127.") ||
+      host === "[::1]")
   );
 }
 
@@ -209,6 +217,12 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
     for (const id of settings.fallback) push(settings.providers.find((p) => p.id === id));
     if (chain.length === 0) settings.providers.forEach((p) => push(p));
     if (chain.length === 0) fail("Ai", "No AI provider is set up. Add one in Settings → AI.");
+    const selected = req.provider
+      ? provider(req.provider)
+      : settings.providers.find((p) => p.id === settings.tasks[task]?.provider);
+    if (selected?.kind === "chatgpt" || chain[0]?.p.kind === "chatgpt") {
+      fail("Ai", "ChatGPT plan requests require the desktop app. No API-key fallback was used.");
+    }
     const out = chain
       .filter((c) => rule !== "local" || isLocal(c.p))
       .filter((c) => !requiresKey(c.p.kind) || keys.has(c.p.id))
@@ -230,13 +244,31 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
     (req.attach ?? []).map((p) => readFile(p) ?? fail("NotFound", `not found: ${p}`)).join("\n");
 
   return {
+    async aiSubscriptionSignIn() {
+      fail(
+        "Ai",
+        "ChatGPT plan sign-in is available in the AXISNotes desktop app. This preview does not connect to your account.",
+      );
+    },
+    async aiSubscriptionCancel() {},
+    async aiSubscriptionDisconnect(id) {
+      keys.delete(id);
+    },
+    async aiSubscriptionUsage() {
+      fail("Ai", "Manage plan usage in ChatGPT Settings → Usage.");
+    },
     async aiSettings() {
       return view();
     },
     async aiSaveSettings(next) {
       const ids = new Set<string>();
       for (const p of next.providers) {
-        if (!p.id.trim() || ids.has(p.id)) fail("InvalidName", `invalid name: provider id ${p.id}`);
+        if (!p.id.trim() || p.id.toLowerCase().startsWith("chatgpt-session:") || ids.has(p.id))
+          fail("InvalidName", `invalid name: provider id ${p.id}`);
+        if (p.kind === "chatgpt" && p.baseUrl.trim())
+          fail("Blocked", "ChatGPT plan connections use only the official OpenAI endpoint");
+        if (settings.providers.some((old) => old.id === p.id && old.kind !== p.kind))
+          fail("Blocked", "Remove the old provider before changing its type");
         ids.add(p.id);
       }
       for (const p of settings.providers) if (!ids.has(p.id)) keys.delete(p.id);
@@ -250,7 +282,8 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
       return view();
     },
     async aiSetKey(id, key) {
-      provider(id);
+      if (provider(id).kind === "chatgpt")
+        fail("Blocked", "Use Continue with ChatGPT instead of an API key");
       if (key.trim()) keys.add(id);
       else keys.delete(id);
     },
@@ -259,16 +292,20 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
     },
     async aiTestProvider(id) {
       const p = provider(id);
+      if (p.kind === "chatgpt") fail("Ai", "Connect your ChatGPT plan in the desktop app");
       if (requiresKey(p.kind) && !keys.has(id)) fail("Ai", `${p.name} has no API key`);
       if (p.kind === "custom" && !p.baseUrl.trim()) fail("Ai", `${p.name} has no endpoint URL`);
       return modelsFor(p.kind).length;
     },
     async aiListModels(id) {
+      if (provider(id).kind === "chatgpt")
+        return { models: [], error: "Connect your ChatGPT plan in the desktop app" };
       return { models: modelsFor(provider(id).kind), error: null };
     },
     async aiPlan(req) {
       const rule = ruleOf(req);
       const first = candidates(req, rule)[0]!;
+      if (first.p.kind === "chatgpt") fail("Ai", "ChatGPT plan requests require the desktop app");
       const tokens = estimate(req, attachedText(req));
       return {
         providerId: first.p.id,

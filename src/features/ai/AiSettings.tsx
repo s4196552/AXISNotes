@@ -19,6 +19,7 @@ import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { KIND_LABELS, RULE_LABELS, TASK_LABELS } from "./labels";
 import "./ai.css";
+import { SubscriptionConnection } from "./SubscriptionConnection";
 
 // Settings → AI. Provider settings are per user and saved by the Rust layer (keys go
 // to the OS keychain and are never shown again); folder rules live in the vault config.
@@ -64,7 +65,11 @@ export function AiSettingsPanel() {
         </p>
       )}
       <Providers view={view} save={save} reload={reload} />
-      <Tasks view={view} save={save} />
+      <Tasks
+        key={view.providers.map((p) => `${p.id}:${p.hasKey}`).join("|")}
+        view={view}
+        save={save}
+      />
       <Fallback view={view} save={save} />
       <Limits settings={view.settings} save={save} />
       <FolderRules />
@@ -103,8 +108,9 @@ function Providers({ view, save, reload }: { view: AiSettingsView; save: Save; r
     <section className="ai-section" aria-label="Providers">
       <h3>Providers</h3>
       <p className="settings-hint muted">
-        Bring your own keys. Keys are stored in your system keychain and never leave the app except
-        to the provider they belong to.
+        Connect an eligible ChatGPT plan, bring your own API keys, or use a local model. API keys
+        have separate billing; a subscription is used only through its supported plan connection.
+        Credentials are stored in your system keychain.
       </p>
       {view.providers.length === 0 && <p className="muted">No providers yet.</p>}
       {view.providers.map((p) => (
@@ -195,51 +201,63 @@ function ProviderCard(p: {
           <Trash size={14} />
         </button>
       </div>
-      <div className="ai-provider-row">
-        <input
-          aria-label={`Endpoint of ${label}`}
-          placeholder={provider.defaultBaseUrl || "https://your-endpoint/v1"}
-          defaultValue={provider.baseUrl}
-          onBlur={(e) =>
-            e.target.value.trim() !== provider.baseUrl &&
-            p.onChange({ baseUrl: e.target.value.trim() })
-          }
-        />
-      </div>
-      <div className="ai-provider-row">
-        <span className={`ai-key-status${provider.hasKey ? " ok" : ""}`}>
-          <KeyRound size={13} />{" "}
-          {provider.hasKey
-            ? "Key saved in keychain"
-            : provider.requiresKey
-              ? "No key"
-              : "No key needed"}
-        </span>
-        <form
-          className="ai-key-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (key.trim()) void saveKey(key);
+      {provider.kind === "chatgpt" ? (
+        <SubscriptionConnection
+          provider={provider}
+          reload={() => {
+            setTest(null);
+            p.onKeyChanged();
           }}
-        >
-          <input
-            type="password"
-            autoComplete="off"
-            aria-label={`API key for ${label}`}
-            placeholder={provider.hasKey ? "Replace key" : "Paste API key"}
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-          />
-          <button type="submit" disabled={!key.trim()}>
-            Save key
-          </button>
-          {provider.hasKey && (
-            <button type="button" onClick={() => void saveKey("")}>
-              Remove key
-            </button>
-          )}
-        </form>
-      </div>
+        />
+      ) : (
+        <>
+          <div className="ai-provider-row">
+            <input
+              aria-label={`Endpoint of ${label}`}
+              placeholder={provider.defaultBaseUrl || "https://your-endpoint/v1"}
+              defaultValue={provider.baseUrl}
+              onBlur={(e) =>
+                e.target.value.trim() !== provider.baseUrl &&
+                p.onChange({ baseUrl: e.target.value.trim() })
+              }
+            />
+          </div>
+          <div className="ai-provider-row">
+            <span className={`ai-key-status${provider.hasKey ? " ok" : ""}`}>
+              <KeyRound size={13} />{" "}
+              {provider.hasKey
+                ? "Key saved in keychain"
+                : provider.requiresKey
+                  ? "No key"
+                  : "No key needed"}
+            </span>
+            <form
+              className="ai-key-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (key.trim()) void saveKey(key);
+              }}
+            >
+              <input
+                type="password"
+                autoComplete="off"
+                aria-label={`API key for ${label}`}
+                placeholder={provider.hasKey ? "Replace key" : "Paste API key"}
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+              />
+              <button type="submit" disabled={!key.trim()}>
+                Save key
+              </button>
+              {provider.hasKey && (
+                <button type="button" onClick={() => void saveKey("")}>
+                  Remove key
+                </button>
+              )}
+            </form>
+          </div>
+        </>
+      )}
       <div className="ai-provider-row">
         <button onClick={() => void runTest()} disabled={busy}>
           <RefreshCw size={13} className={busy ? "spin" : undefined} /> Test connection
@@ -374,8 +392,9 @@ function Fallback({ view, save }: { view: AiSettingsView; save: Save }) {
     <section className="ai-section" aria-label="Fallback order">
       <h3>Fallback order</h3>
       <p className="settings-hint muted">
-        If a task's provider is down, rate-limited or rejects the key, these are tried in order with
-        their default model for the task.
+        ChatGPT plan requests never fall back to API-key billing. For other providers that are down,
+        rate-limited or reject the key, these are tried in order with their default model for the
+        task.
       </p>
       <ol className="ai-fallback">
         {order.map((id, i) => (

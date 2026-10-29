@@ -129,3 +129,44 @@ describe("AI settings", () => {
     expect(table).not.toHaveTextContent("secret prompt");
   });
 });
+
+describe("ChatGPT plan connections", () => {
+  it("offers plan sign-in separately from API keys and explains billing", async () => {
+    render(<AiSettingsPanel />);
+    await addProvider("chatgpt");
+    const card = await screen.findByRole("group", { name: "Provider ChatGPT plan (Plus / Pro)" });
+    expect(within(card).queryByLabelText(/API key for/)).not.toBeInTheDocument();
+    expect(within(card).queryByLabelText(/Endpoint of/)).not.toBeInTheDocument();
+    expect(within(card).getByText(/never switches to a paid API key/)).toBeInTheDocument();
+    fireEvent.click(within(card).getByRole("button", { name: "Continue with ChatGPT" }));
+    expect(await within(card).findByRole("alert")).toHaveTextContent("desktop app");
+    expect(within(card).getByRole("status")).toHaveTextContent("not connected");
+    expect(JSON.stringify(await h.b.aiSettings())).not.toContain("access_token");
+  });
+  it("cancels sign-in when its settings view is closed", async () => {
+    const cancel = vi.spyOn(h.b, "aiSubscriptionCancel");
+    vi.spyOn(h.b, "aiSubscriptionSignIn").mockImplementation(() => new Promise(() => {}));
+    const { unmount } = render(<AiSettingsPanel />);
+    await addProvider("chatgpt");
+    fireEvent.click(await screen.findByRole("button", { name: "Continue with ChatGPT" }));
+    unmount();
+    expect(cancel).toHaveBeenCalledWith("chatgpt");
+  });
+  it("does not preview subscription requests through an API-key fallback", async () => {
+    const { settings } = await h.b.aiSettings();
+    await h.b.aiSaveSettings({
+      ...settings,
+      providers: [
+        { id: "plan", kind: "chatgpt", name: "Plan", baseUrl: "", enabled: true },
+        { id: "api", kind: "openai", name: "API", baseUrl: "", enabled: true },
+      ],
+      tasks: { chat: { provider: "plan", model: "account-model" } },
+      fallback: ["api"],
+    });
+    await h.b.aiSetKey("api", "fixture-key");
+    await expect(h.b.aiPlan({ messages: [] })).rejects.toMatchObject({ code: "Ai" });
+    await expect(h.b.aiRun("plan-test", { messages: [] }, () => {})).rejects.toMatchObject({
+      code: "Ai",
+    });
+  });
+});

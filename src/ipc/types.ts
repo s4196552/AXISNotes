@@ -186,7 +186,7 @@ export interface TimeEntry {
 // ---- AI (Phase 4); see src-tauri/src/ai ----
 
 export type AiProviderKind =
-  "openai" | "anthropic" | "gemini" | "openrouter" | "ollama" | "lmstudio" | "custom";
+  "chatgpt" | "openai" | "anthropic" | "gemini" | "openrouter" | "ollama" | "lmstudio" | "custom";
 export type AiTask = "handwriting" | "diagrams" | "textFixes" | "chat";
 export type AiEffort = "quick" | "balanced" | "deep";
 /** Per-folder AI access: `local` = only models on this machine. */
@@ -204,6 +204,7 @@ export interface AiProviderConfig {
 /** A provider as the UI sees it. Whether a key exists — never the key itself. */
 export interface AiProviderStatus extends AiProviderConfig {
   hasKey: boolean;
+  account?: string | null;
   requiresKey: boolean;
   local: boolean;
   defaultBaseUrl: string;
@@ -526,6 +527,10 @@ export interface Backend {
   timeEntries(): Promise<TimeEntry[]>;
 
   aiSettings(): Promise<AiSettingsView>;
+  aiSubscriptionSignIn(providerId: string): Promise<void>;
+  aiSubscriptionCancel(providerId: string): Promise<void>;
+  aiSubscriptionDisconnect(providerId: string): Promise<void>;
+  aiSubscriptionUsage(): Promise<void>;
   aiSaveSettings(settings: AiSettings): Promise<AiSettingsView>;
   /** Store a key in the OS keychain (empty = delete). Keys are never read back. */
   aiSetKey(providerId: string, key: string): Promise<void>;

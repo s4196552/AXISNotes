@@ -2,6 +2,17 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-29: Optional ChatGPT subscription connection (T-141)
+
+- Add a separate `chatgpt` provider for the official Sign in with ChatGPT public-client flow. Eligible users explicitly approve plan usage; ordinary API-key providers retain their own billing. There is no universal way to apply every provider's chat subscription to an API key.
+- Native Rust owns browser sign-in, an ephemeral loopback callback, state/nonce/PKCE, RS256 JWKS identity validation, account/client binding, serialized token refresh and OS-keychain credentials. Settings and IPC return connection status and email only. OAuth records use small base64 keychain entries with a generation manifest published last, respecting Windows Credential Manager's 2,560-byte entry ceiling. Replacing/disconnecting removes the previous entries. Callback attempts expire after three minutes and cancellation/removal fences late credentials.
+- Subscription requests use only `https://api.openai.com/v1`, streamed Responses with `store:false`, developer messages instead of system messages, and omit unsupported temperature/output-cap fields. Model choices come from the connected account, never bundled API defaults. Success requires `response.completed`; partial/failed streams are errors.
+- If a subscription is selected, disconnected, disabled or over quota, never fall back to a paid API-key provider. Source privacy rules and local token caps remain enforced. Browser previews cannot pretend to sign in or perform subscription inference.
+- Enable the existing reqwest dependency's standard `form` feature for OAuth. reqwest and its added transitive serde_urlencoded dependency are MIT OR Apache-2.0 licensed; ryu is Apache-2.0 OR BSL-1.0 licensed; the lockfile pins their versions. Add fs2 0.4.3 (MIT OR Apache-2.0) for OS-released file locks so separate AXISNotes instances cannot race rotating refresh tokens. No new frontend dependency.
+- Availability is provider-controlled. Official support covers eligible open-source/local projects; paid or remotely hosted distribution requires OpenAI access approval. This implementation does not claim other subscriptions support reuse.
+- References: https://developers.openai.com/siwc/token-sharing-open-source/sign-in ; https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference ; https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations
+
+
 ## 2026-10-29: Obsidian-style code blocks; one Code block command (T-140)
 
 - **The command menu keeps only Inline code and Code block** for code (plus the Mermaid diagram). The 13 per-language commands (Python code block, Java code block, ...) are gone: Code block leaves the cursor after the opening fence, where the language is typed with suggestions, exactly like typing three backticks. Code block also has no Turn into row any more, so it appears once; it always starts a new block (below a line with text). The palette's Insert code block still wraps a selection.

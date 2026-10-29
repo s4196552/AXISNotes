@@ -106,6 +106,28 @@ pub fn ai_set_key(ai: State<AiState>, provider_id: String, key: String) -> AppRe
 }
 
 #[tauri::command]
+pub async fn ai_subscription_sign_in(ai: State<'_, AiState>, provider_id: String) -> AppResult<()> {
+    let svc = ai.service.clone();
+    svc.subscription_sign_in(&provider_id).await
+}
+#[tauri::command]
+pub fn ai_subscription_cancel(ai: State<AiState>, provider_id: String) {
+    ai.service.subscription_cancel(&provider_id);
+}
+#[tauri::command]
+pub async fn ai_subscription_disconnect(
+    ai: State<'_, AiState>,
+    provider_id: String,
+) -> AppResult<()> {
+    let svc = ai.service.clone();
+    svc.subscription_disconnect(&provider_id).await
+}
+#[tauri::command]
+pub fn ai_subscription_usage() -> AppResult<()> {
+    crate::ai::subscription::open_usage()
+}
+
+#[tauri::command]
 pub fn ai_delete_key(ai: State<AiState>, provider_id: String) -> AppResult<()> {
     ai.service.delete_key(&provider_id)
 }
