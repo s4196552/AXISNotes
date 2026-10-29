@@ -34,6 +34,9 @@ export type EditorWidth = "narrow" | "medium" | "wide" | "full";
 /** How the arrows that fold headings and toggle lists look (see `FOLD_ARROWS`). */
 export type FoldArrow = "triangle" | "chevron" | "arrow" | "circle" | "plus" | "square";
 
+/** A colour preset for headings 1–6 (see `HEADING_COLORS`); "theme" keeps the theme's. */
+export type HeadingColors = "theme" | "accent" | "rainbow" | "amber" | "ocean" | "forest" | "berry";
+
 /** What Windows draws behind the see-through window (Translucent theme). */
 export type WindowEffect = "clear" | "blur" | "frosted" | "liquid" | "mica" | "micaAlt";
 
@@ -51,6 +54,7 @@ export interface AxisConfig {
     uiFont: string;
     editorWidth: EditorWidth;
     foldArrow: FoldArrow;
+    headingColors: HeadingColors;
     /** Translucent theme: how opaque the window is (percent), and what shows behind it. */
     windowOpacity: number;
     windowEffect: WindowEffect;
@@ -120,6 +124,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     uiFont: "",
     editorWidth: "medium",
     foldArrow: "triangle",
+    headingColors: "theme",
     windowOpacity: 80,
     windowEffect: "frosted",
   },
