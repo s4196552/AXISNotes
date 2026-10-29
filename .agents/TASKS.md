@@ -145,4 +145,4 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 
 | T-140 | 6 | Obsidian-style code blocks; one Code block command | claude | merged | agent/claude/T-140 | `src/features/editor/{livePreview*,quickCommands.ts,code.ts,theme.ts,editor.css,triggers.test.ts}`, `src/features/commands/units.test.ts`, `src/styles/theme.css`, `e2e/specs/code.e2e.ts`, `docs/{CODE_SYNTAX,DECISIONS}.md`, task coordination |
 
-| T-142 | 6 | Heading colour presets in Settings → Appearance | claude | approved | agent/claude/T-142 | `src/app/{appearance,config}.ts`, `src/features/settings/{HeadingColorPicker.tsx,Settings.tsx,settings.css,appearance.test.tsx}`, `src/features/editor/editor.css`, `src/styles/theme.css`, `docs/DECISIONS.md`, task coordination |
+| T-142 | 6 | Heading colour presets in Settings → Appearance | claude | merged | agent/claude/T-142 | `src/app/{appearance,config}.ts`, `src/features/settings/{HeadingColorPicker.tsx,Settings.tsx,settings.css,appearance.test.tsx}`, `src/features/editor/editor.css`, `src/styles/theme.css`, `docs/DECISIONS.md`, task coordination |
