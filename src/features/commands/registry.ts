@@ -19,6 +19,8 @@ import { effectiveShortcut, formatHotkey, matches, type Shortcut } from "./hotke
 import { useEditorPrefs } from "../editor/prefs";
 import { getActiveEditor } from "../editor/activeEditor";
 import { insertCode } from "../editor/code";
+import { toggleMark } from "../editor/inlineMarks";
+import { EditorView } from "@codemirror/view";
 import { openCommandMenu } from "../editor/quickCommands";
 import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { useUpdates } from "../updates/updates";
@@ -34,6 +36,8 @@ export interface Command {
   shortcut?: Shortcut;
   /** Don't take the shortcut when focus is inside elements matching this selector. */
   ignoreIn?: string;
+  /** Take the shortcut only when focus is inside elements matching this selector. */
+  onlyIn?: string;
   /** Hidden from the palette (and its shortcut does nothing) when this says no. */
   available?(): boolean;
   run(): void;
@@ -63,14 +67,46 @@ export function shortcutOf(c: Command): Shortcut | undefined {
   return effectiveShortcut(c.id, c.shortcut, useConfig.getState().config.hotkeys);
 }
 
+/** The editor with focus (an embed or card too), else the note's editor. */
+function targetEditor(): EditorView | undefined {
+  const focused = document.activeElement?.closest(".cm-editor");
+  return (
+    (focused instanceof HTMLElement ? EditorView.findFromDOM(focused) : null) ??
+    getActiveEditor()?.view
+  );
+}
+
+const editorAvailable = () => targetEditor() !== undefined;
+
 registerCommands([
   ...([false, true] as const).map((block): Command => ({
     id: block ? "insert-code-block" : "insert-inline-code",
     label: block ? "Insert code block" : "Insert inline code",
-    available: () => !!getActiveEditor(),
+    // Ctrl+E for inline code, as in Notion.
+    shortcut: block ? undefined : { key: "e", mod: true },
+    onlyIn: ".cm-editor",
+    available: editorAvailable,
     run: () => {
-      const editor = getActiveEditor();
-      if (editor) insertCode(editor.view, block);
+      const view = targetEditor();
+      if (view) insertCode(view, block);
+    },
+  })),
+  ...(
+    [
+      ["format-bold", "Bold", "**", { key: "b", mod: true }],
+      ["format-italic", "Italic", "*", { key: "i", mod: true }],
+      ["format-strikethrough", "Strikethrough", "~~", { key: "s", mod: true, shift: true }],
+    ] as const
+  ).map(([id, label, mark, shortcut]): Command => ({
+    id,
+    label,
+    shortcut,
+    // Only in a note, so a grid keeps its own Ctrl+B.
+    onlyIn: ".cm-editor",
+    available: editorAvailable,
+    run: () => {
+      const view = targetEditor();
+      if (view) toggleMark(view, mark);
     },
   })),
   {
@@ -331,6 +367,7 @@ export function commandForEvent(e: KeyboardEvent): Command | undefined {
     const s = shortcutOf(c);
     if (s === undefined || !matches(s, e)) return false;
     if (c.available && !c.available()) return false;
+    if (c.onlyIn && !(e.target instanceof Element && e.target.closest(c.onlyIn))) return false;
     return !(c.ignoreIn && e.target instanceof Element && e.target.closest(c.ignoreIn));
   });
 }

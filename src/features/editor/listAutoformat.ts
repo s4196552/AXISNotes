@@ -49,7 +49,7 @@ function inVerbatim(state: EditorState, pos: number, upTo = pos): boolean {
 }
 
 /** Text that isn't Markdown prose: code, frontmatter, raw HTML, comments or `$$` math. */
-function verbatim(state: EditorState, pos: number): boolean {
+export function verbatim(state: EditorState, pos: number): boolean {
   // The character before only counts on the same line: the newline ending a frontmatter
   // or fence belongs to it, but the line after is prose (and where notes open).
   const lineStart = state.doc.lineAt(pos).from;

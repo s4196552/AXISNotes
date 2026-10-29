@@ -1,4 +1,7 @@
 import {
+  Bold,
+  Italic,
+  Strikethrough,
   ArrowLeft,
   ArrowRight,
   BookOpen,
@@ -52,6 +55,9 @@ import {
 /** The Lucide icon the command palette shows beside each command. */
 export const COMMAND_ICONS: Record<string, LucideIcon> = {
   "insert-inline-code": SquareCode,
+  "format-bold": Bold,
+  "format-italic": Italic,
+  "format-strikethrough": Strikethrough,
   "insert-code-block": SquareCode,
   "command-menu": SquareSlash,
   switcher: Search,
