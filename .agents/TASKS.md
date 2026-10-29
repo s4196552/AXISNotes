@@ -141,4 +141,4 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 
 | T-138 | 6 | Fold arrow styles in Settings → Appearance | claude | merged | agent/claude/T-138 | `src/app/{appearance,config}.ts`, `src/features/settings/{FoldArrowPicker.tsx,Settings.tsx,settings.css,appearance.test.tsx}`, `src/features/editor/{toggles.ts,editor.css}`, `src/styles/theme.css`, `docs/DECISIONS.md`, task coordination |
 
-| T-139 | 6 | Marks close as you type; Ctrl+B, Ctrl+I and formatting commands | claude | approved | agent/claude/T-139 | `src/features/editor/{inlineMarks*,listAutoformat.ts,Editor.tsx,quickCommands.ts,triggers.test.ts}`, `src/features/commands/{registry.ts,commandIcons.ts,hotkeys.test.tsx}`, `docs/DECISIONS.md`, task coordination |
+| T-139 | 6 | Marks close as you type; Ctrl+B, Ctrl+I and formatting commands | claude | merged | agent/claude/T-139 | `src/features/editor/{inlineMarks*,listAutoformat.ts,Editor.tsx,quickCommands.ts,triggers.test.ts}`, `src/features/commands/{registry.ts,commandIcons.ts,hotkeys.test.tsx}`, `docs/DECISIONS.md`, task coordination |
