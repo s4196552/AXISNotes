@@ -143,4 +143,4 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 
 | T-139 | 6 | Marks close as you type; Ctrl+B, Ctrl+I and formatting commands | claude | merged | agent/claude/T-139 | `src/features/editor/{inlineMarks*,listAutoformat.ts,Editor.tsx,quickCommands.ts,triggers.test.ts}`, `src/features/commands/{registry.ts,commandIcons.ts,hotkeys.test.tsx}`, `docs/DECISIONS.md`, task coordination |
 
-| T-140 | 6 | Obsidian-style code blocks; one Code block command | claude | approved | agent/claude/T-140 | `src/features/editor/{livePreview*,quickCommands.ts,code.ts,theme.ts,editor.css,triggers.test.ts}`, `src/features/commands/units.test.ts`, `src/styles/theme.css`, `e2e/specs/code.e2e.ts`, `docs/{CODE_SYNTAX,DECISIONS}.md`, task coordination |
+| T-140 | 6 | Obsidian-style code blocks; one Code block command | claude | merged | agent/claude/T-140 | `src/features/editor/{livePreview*,quickCommands.ts,code.ts,theme.ts,editor.css,triggers.test.ts}`, `src/features/commands/units.test.ts`, `src/styles/theme.css`, `e2e/specs/code.e2e.ts`, `docs/{CODE_SYNTAX,DECISIONS}.md`, task coordination |
