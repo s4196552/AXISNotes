@@ -5,6 +5,9 @@ import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { Settings } from "../settings/Settings";
 import { effectiveShortcut, formatHotkey, hotkeyFromEvent, parseHotkey } from "./hotkeys";
 import { allCommands, commandForEvent } from "./registry";
+import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { setActiveEditor } from "../editor/activeEditor";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -48,6 +51,37 @@ describe("hotkey text", () => {
     });
     expect(commandForEvent(key("p", { ctrlKey: true }))).toBeUndefined();
     expect(commandForEvent(key("Y", { ctrlKey: true, shiftKey: true }))?.id).toBe("palette");
+  });
+});
+
+describe("formatting shortcuts", () => {
+  it("bolds and italicises with Ctrl+B and Ctrl+I in a note, and nowhere else", () => {
+    const view = new EditorView({
+      parent: document.body,
+      state: EditorState.create({ doc: "a ", selection: { anchor: 2 } }),
+    });
+    setActiveEditor(view, "Note.md");
+    const inNote = (k: string, mods: Partial<KeyboardEvent> = {}) => {
+      const e = key(k, { ctrlKey: true, ...mods });
+      Object.defineProperty(e, "target", { value: view.contentDOM });
+      return e;
+    };
+    expect(commandForEvent(inNote("b"))?.id).toBe("format-bold");
+    expect(commandForEvent(inNote("i"))?.id).toBe("format-italic");
+    expect(commandForEvent(inNote("s", { shiftKey: true }))?.id).toBe("format-strikethrough");
+    expect(commandForEvent(inNote("e"))?.id).toBe("insert-inline-code");
+    commandForEvent(inNote("b"))!.run();
+    expect(view.state.doc.toString()).toBe("a ****");
+    expect(view.state.selection.main.head).toBe(4);
+    // Outside a note (a grid, a text field) Ctrl+B is left alone.
+    const grid = document.createElement("div");
+    document.body.append(grid);
+    const outside = key("b", { ctrlKey: true });
+    Object.defineProperty(outside, "target", { value: grid });
+    expect(commandForEvent(outside)).toBeUndefined();
+    setActiveEditor(null);
+    view.destroy();
+    grid.remove();
   });
 });
 

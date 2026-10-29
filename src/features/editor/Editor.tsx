@@ -39,6 +39,7 @@ import { countWords, wordCount } from "./wordCount";
 import { useStatusSlot } from "./statusSlot";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { listAutoformat } from "./listAutoformat";
+import { inlineMarks } from "./inlineMarks";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
 import { dailyDateOf, followLink, openAskAi, openFixText } from "../commands/actions";
@@ -350,6 +351,7 @@ export function Editor({ path }: EditorProps) {
             quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
             outlinerKeys,
             listAutoformat,
+            inlineMarks,
             outlineCompartment.current.of(useEditorPrefs.getState().outlineView ? outlineView : []),
             EditorView.lineWrapping,
             yamlFrontmatter({

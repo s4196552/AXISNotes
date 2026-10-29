@@ -707,6 +707,7 @@ describe("command menu sections", () => {
     ]);
     expect([...new Set(shown.map(sectionOf))]).toEqual([
       "Basic blocks",
+      "Text style",
       "Links",
       "Media",
       "Insert",

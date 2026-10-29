@@ -2,6 +2,13 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-29: Marks close as you type; Ctrl+B, Ctrl+I and formatting commands (T-139)
+
+- **Typing `` ` `` or `*` inserts its closer, with the cursor between** (`src/features/editor/inlineMarks.ts`). A second mark in an empty pair grows it (`**|**`, ``` ``|`` ```), and ``` ``` ``` alone on a line becomes a code block with the cursor after the opening fence, where the language goes. Typing the mark at its closer steps over the whole closer, so `**bold**` typed in full comes out right. With text selected, `` ` `` or `*` wraps it and keeps it selected.
+- **It gets out of the way of ordinary text:** no pairing touching a letter or digit (`2*3`, `don`t`), after a backslash, or in code, frontmatter, raw HTML, comments or math. A space in an empty `*` pair drops the closer, so `* ` still starts a bullet and `2 * 3` stays as typed; Enter on a line holding only `***` keeps a rule. Backspace in an empty pair removes one mark from each side. Only for one plain cursor, never during IME composition.
+- **Bold (Ctrl+B), Italic (Ctrl+I), Strikethrough (Ctrl+Shift+S) and Insert inline code (Ctrl+E)** are app commands, so they're remappable and in the palette; Bold, Italic and Strikethrough are also in the command menu under Text style. They wrap a selection or unwrap it when the marks are already there, and leave an empty cursor between an empty pair. Their shortcuts only act with focus in a note editor (`onlyIn: ".cm-editor"`), so the grid keeps its own Ctrl+B, and they edit the focused editor (an embed or canvas card too). `***x***` counts as both bold and italic, so each toggles separately.
+- `_` and `~` are not paired as you type: `snake_case` and `~` for "about" are too common.
+
 ## 2026-10-29: Fold arrow styles (T-138)
 
 - **Settings → Appearance → Fold arrows** picks how the arrows that fold headings and toggle lists look: Triangle (the default, as before), Chevron, Arrow, Circled chevron, Plus and minus, or Boxed plus and minus. It is saved as `appearance.foldArrow` in the vault's config; an unknown value falls back to Triangle.

@@ -10,6 +10,7 @@ import { type EditorState, Facet, StateEffect, StateField } from "@codemirror/st
 import type { EditorView } from "@codemirror/view";
 import {
   AlignJustify,
+  Bold,
   CalendarClock,
   CalendarDays,
   ChevronDown,
@@ -30,6 +31,7 @@ import {
   Heading6,
   ImagePlus,
   Info,
+  Italic,
   LayoutTemplate,
   Link,
   List,
@@ -42,6 +44,7 @@ import {
   PenLine,
   SeparatorHorizontal,
   SquareCode,
+  Strikethrough,
   Table,
   TextQuote,
   Type,
@@ -55,6 +58,7 @@ import { PAGE_STYLE_PROP, type PageStyle } from "../templates/templates";
 import { lucideSvg } from "./lucideSvg";
 import { CODE_LANGUAGES, codeFence } from "./code";
 import { minimalChange } from "./targets";
+import { toggleMark } from "./inlineMarks";
 import { pickAndEmbed } from "./media";
 
 // The command menu (Ctrl+/, or an optional typed trigger) and `:` emoji, with
@@ -341,6 +345,23 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     markdown: "`code`",
     run: (v, f, t) => insert(v, f, t, "`|`"),
   },
+  ...(
+    [
+      ["bold", "Bold", Bold, "Strong text", "**"],
+      ["italic", "Italic", Italic, "Slanted text for emphasis", "*"],
+      ["strikethrough", "Strikethrough", Strikethrough, "Crossed-out text", "~~"],
+    ] as const
+  ).map(([id, label, icon, description, mark]): SlashCommand => ({
+    id,
+    label,
+    icon,
+    description,
+    markdown: `${mark}text${mark}`,
+    run: (v, f, t) => {
+      v.dispatch({ changes: { from: f, to: t }, selection: { anchor: f } });
+      toggleMark(v, mark);
+    },
+  })),
   ...CODE_LANGUAGES.map(([name, language]): SlashCommand => ({
     id: `code-${language}`,
     label: `${name} code block`,
@@ -605,6 +626,7 @@ export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
       "toggle-h6",
     ],
   },
+  { name: "Text style", ids: ["bold", "italic", "strikethrough"] },
   { name: "Links", ids: ["link", "embed"] },
   { name: "Media", ids: ["media", "web-embed"] },
   {
