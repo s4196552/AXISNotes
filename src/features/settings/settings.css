@@ -356,3 +356,49 @@
 .heading-color-sample > :nth-child(3) {
   font-size: 12px;
 }
+
+/* Search settings (Settings.tsx, SearchResults): a box at the top of the sections, and
+   every section stacked while searching, with what doesn't match hidden. */
+.settings-search {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+}
+.settings-search-hidden {
+  display: none !important;
+}
+.settings-search-heading {
+  margin: 16px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.settings-search-goto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  text-align: left;
+}
+.settings-search-goto > span {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+}
+.settings-search-goto:hover {
+  background: var(--bg-hover);
+}
+.settings-search-empty {
+  margin-top: 16px;
+}

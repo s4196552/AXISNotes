@@ -2,6 +2,12 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-29: Search settings (T-143)
+
+- **Settings has a "Search settings" box** at the top of its section list, focused when Settings opens. While it holds text, the sections are shown one under another with only the matching settings left visible, and those work in place (change a font straight from the results). A setting matches when every typed word is in its own text, the heading of its group, the label of the setting holding it, or its section's name; a section's name shows the whole section. "No settings match" appears when nothing is left. Escape clears the search before it closes Settings; choosing a section leaves the search.
+- **The filter works on what is rendered** (`src/features/settings/settingsSearch.ts`): rows, list items and checkboxes are hidden with a class, not removed, so no section needs a separate search index that could drift from its controls. A MutationObserver re-runs it as sections finish loading (fonts, templates); it watches content only, not the classes it sets.
+- **Live sections are offered as links, not opened:** AI (which asks every provider for its models when it opens), Web clipper, Updates and Icon & image packs load data on mount, so a search lists them as "Open …" rows matched on a short keyword list (providers, API key, model names, pairing, updates folder, emoji …) and opens the page when clicked.
+
 ## 2026-10-29: Context menus stay inside the window (T-144)
 
 - **The file tree's right-click menu, the tab menu and the tab-group editor open above or to the left of the pointer when they would run past the bottom or right edge of the window**, like the operating system's own menus. If neither side of the pointer has room, the menu sits against the edge; one taller than the window starts 8 px from the top and scrolls. Before, they always opened at the pointer, so right-clicking low in the sidebar hid most of the file menu.

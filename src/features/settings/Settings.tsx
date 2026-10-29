@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   CalendarDays,
   Images,
@@ -38,6 +38,7 @@ import { ClipperSettings } from "../clipper/ClipperSettings";
 import { UpdatesSettings } from "../updates/UpdatesSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
 import { ThemePicker } from "./ThemePicker";
+import { filterSettings, hasAll, HIDDEN, wordsOf } from "./settingsSearch";
 import { FoldArrowPicker } from "./FoldArrowPicker";
 import { HeadingColorPicker } from "./HeadingColorPicker";
 import { About } from "./About";
@@ -75,9 +76,52 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
 
 export function Settings({ onClose, section: initial }: { onClose(): void; section?: Section }) {
   const [section, setSection] = useState<Section>(initial ?? "appearance");
+  const [query, setQuery] = useState("");
+  const searching = query.trim() !== "";
   const config = useConfig((s) => s.config);
   const update = useConfig((s) => s.update);
   const set = (fn: (c: AxisConfig) => AxisConfig) => void update(fn);
+  const open = (id: Section) => {
+    setQuery("");
+    setSection(id);
+  };
+
+  const render = (id: Section) => {
+    switch (id) {
+      case "appearance":
+        return <Appearance config={config} set={set} />;
+      case "packs":
+        return <PacksSettings />;
+      case "spelling":
+        return <Spelling config={config} set={set} />;
+      case "daily":
+        return <Daily config={config} set={set} />;
+      case "files":
+        return <Files config={config} set={set} />;
+      case "templates":
+        return (
+          <Field label="Templates folder" hint="Notes in this folder are offered as templates.">
+            <input
+              aria-label="Templates folder"
+              defaultValue={config.templatesFolder}
+              onBlur={(e) => set((c) => ({ ...c, templatesFolder: e.target.value.trim() }))}
+            />
+          </Field>
+        );
+      case "commands":
+        return <Commands config={config} set={set} />;
+      case "ai":
+        return <AiSettingsPanel />;
+      case "clipper":
+        return <ClipperSettings />;
+      case "updates":
+        return <UpdatesSettings />;
+      case "hotkeys":
+        return <HotkeysSettings config={config} set={set} />;
+      case "about":
+        return <About />;
+    }
+  };
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -89,11 +133,27 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
         onKeyDown={(e) => e.key === "Escape" && onClose()}
       >
         <nav className="settings-nav" aria-label="Settings sections">
+          <input
+            type="search"
+            className="settings-search"
+            aria-label="Search settings"
+            placeholder="Search settings"
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              // Escape clears the search first; an empty box lets it close Settings.
+              if (e.key === "Escape" && query) {
+                e.stopPropagation();
+                setQuery("");
+              }
+            }}
+          />
           {SECTIONS.map((s) => (
             <button
               key={s.id}
-              aria-current={section === s.id ? "page" : undefined}
-              onClick={() => setSection(s.id)}
+              aria-current={!searching && section === s.id ? "page" : undefined}
+              onClick={() => open(s.id)}
             >
               <s.icon size={16} aria-hidden="true" />
               {s.label}
@@ -102,33 +162,92 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
         </nav>
         <div className="settings-body">
           <header className="settings-header">
-            <h2>{SECTIONS.find((s) => s.id === section)!.label}</h2>
+            <h2>{searching ? "Search results" : SECTIONS.find((s) => s.id === section)!.label}</h2>
             <button aria-label="Close settings" onClick={onClose}>
               <X size={16} />
             </button>
           </header>
-          {section === "appearance" && <Appearance config={config} set={set} />}
-          {section === "packs" && <PacksSettings />}
-          {section === "spelling" && <Spelling config={config} set={set} />}
-          {section === "daily" && <Daily config={config} set={set} />}
-          {section === "files" && <Files config={config} set={set} />}
-          {section === "templates" && (
-            <Field label="Templates folder" hint="Notes in this folder are offered as templates.">
-              <input
-                aria-label="Templates folder"
-                defaultValue={config.templatesFolder}
-                onBlur={(e) => set((c) => ({ ...c, templatesFolder: e.target.value.trim() }))}
-              />
-            </Field>
+          {searching ? (
+            <SearchResults query={query} render={render} open={open} />
+          ) : (
+            render(section)
           )}
-          {section === "commands" && <Commands config={config} set={set} />}
-          {section === "ai" && <AiSettingsPanel />}
-          {section === "clipper" && <ClipperSettings />}
-          {section === "updates" && <UpdatesSettings />}
-          {section === "hotkeys" && <HotkeysSettings config={config} set={set} />}
-          {section === "about" && <About />}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---- Search ----
+
+/**
+ * Sections that load live data when they open (AI asks every provider for its models):
+ * a search doesn't open them, it offers them by these words.
+ */
+const LIVE_KEYWORDS: Partial<Record<Section, string>> = {
+  ai:
+    "providers api key openai chatgpt anthropic claude gemini openrouter ollama lm studio " +
+    "models per task handwriting diagrams text fixes fallback order effort and limits " +
+    "token cap ask before sending folder privacy request log",
+  clipper:
+    "browser extension chrome firefox paired browsers pairing code clippings folder " +
+    "enable the web clipper install the extension",
+  updates:
+    "check for updates when axisnotes starts install updates automatically updates folder version",
+  packs: "icon packs image packs emoji add pack icons images",
+};
+
+function SearchResults(p: {
+  query: string;
+  render(id: Section): React.ReactNode;
+  open(id: Section): void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [empty, setEmpty] = useState(false);
+  const { query } = p;
+  useLayoutEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const words = wordsOf(query);
+    const run = () => setEmpty(!filterSettings(root, words));
+    run();
+    // Sections fill in after loading (fonts, templates): filter again as they change. Only
+    // content changes, not the classes set here, so it can't loop.
+    const watch = new MutationObserver(run);
+    watch.observe(root, { childList: true, subtree: true, characterData: true });
+    return () => watch.disconnect();
+  }, [query]);
+  const words = wordsOf(query);
+  return (
+    <div ref={ref} className="settings-search-results">
+      {SECTIONS.map((s) => {
+        const live = LIVE_KEYWORDS[s.id];
+        if (live !== undefined)
+          return (
+            <div
+              key={s.id}
+              className={`settings-search-section${hasAll(words, `${s.label} ${live}`) ? "" : ` ${HIDDEN}`}`}
+              data-live=""
+            >
+              <button className="settings-search-goto" onClick={() => p.open(s.id)}>
+                <s.icon size={16} aria-hidden="true" />
+                <span>
+                  Open {s.label}
+                  <span className="settings-hint muted">
+                    Settings for {s.label} are on its page
+                  </span>
+                </span>
+              </button>
+            </div>
+          );
+        return (
+          <div key={s.id} className="settings-search-section" data-label={s.label}>
+            <h3 className="settings-search-heading">{s.label}</h3>
+            <div className="settings-search-body">{p.render(s.id)}</div>
+          </div>
+        );
+      })}
+      {empty && <p className="muted settings-search-empty">No settings match “{query.trim()}”.</p>}
     </div>
   );
 }
