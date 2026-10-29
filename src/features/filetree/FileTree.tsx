@@ -13,7 +13,6 @@ import {
   ArrowDownAZ,
   ArrowUp,
   Ban,
-  ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   Cpu,
@@ -137,6 +136,17 @@ export function FileTree() {
   const rootDropRef = useRef<HTMLDivElement>(null);
 
   const rows = useMemo(() => visibleRows(tree, expanded, fileOrder), [tree, expanded, fileOrder]);
+  // The folder just opened by a click or key, so its rows can drop into place. Several
+  // opening at once (a vault's saved folders, revealing the open note) don't animate.
+  const [lastExpanded, setLastExpanded] = useState(expanded);
+  const [opened, setOpened] = useState<string | null>(null);
+  if (lastExpanded !== expanded) {
+    // Adjusting state while rendering (as useExpanded does), so the rows animate at once.
+    const added = [...expanded].filter((p) => !lastExpanded.has(p));
+    setLastExpanded(expanded);
+    setOpened(added.length === 1 ? added[0]! : null);
+  }
+  const openedAt = opened === null ? -1 : rows.findIndex((r) => r.entry.path === opened);
 
   // Latest state for the stable action callbacks below.
   const latest = useRef({ tree, selected, fileOrder, expanded });
@@ -646,11 +656,14 @@ export function FileTree() {
         onContextMenu={(e) => actions.openMenu(e, null)}
       >
         {rows.length === 0 && <p className="filetree-empty muted">No notes yet</p>}
-        {rows.map(({ entry, depth }) => (
+        {rows.map(({ entry, depth }, i) => (
           <TreeRow
             key={entry.path}
             entry={entry}
             depth={depth}
+            entering={
+              openedAt >= 0 && entry.path.startsWith(`${opened}/`) ? i - openedAt - 1 : undefined
+            }
             expanded={entry.kind === "dir" && expanded.has(entry.path)}
             selected={entry.path === selected}
             active={entry.path === activePath}
@@ -878,6 +891,8 @@ interface TreeRowProps {
   aiRule?: AiRule;
   /** A folder with its own dashboard shows a button that opens it. */
   dashboard?: boolean;
+  /** Revealed by opening its folder: its place among the folder's rows (they drop in). */
+  entering?: number;
   actions: RowActions;
 }
 
@@ -894,6 +909,7 @@ const TreeRow = memo(function TreeRow({
   colors,
   aiRule,
   dashboard,
+  entering,
   actions,
 }: TreeRowProps) {
   const own = rowColorProps(rowColors(colors));
@@ -923,6 +939,7 @@ const TreeRow = memo(function TreeRow({
     drop === "after" && "drop-after",
     dragged && "dragged",
     !isDir && !openable && "dimmed",
+    entering !== undefined && "entering",
     own.className,
   ]
     .filter(Boolean)
@@ -943,6 +960,8 @@ const TreeRow = memo(function TreeRow({
         {
           ...own.style,
           paddingLeft: 6 + (depth - 1) * 14,
+          // Each revealed row starts a little after the one above (capped).
+          ...(entering !== undefined && { animationDelay: `${Math.min(entering, 12) * 14}ms` }),
           // The drop line starts where the row's icon does.
           "--drop-indent": `${24 + (depth - 1) * 14}px`,
         } as CSSProperties
@@ -960,7 +979,7 @@ const TreeRow = memo(function TreeRow({
       onDragStart={(e) => e.preventDefault()}
     >
       <span
-        className="filetree-chevron"
+        className={isDir && expanded ? "filetree-chevron open" : "filetree-chevron"}
         onClick={
           isDir
             ? (e) => {
@@ -971,7 +990,7 @@ const TreeRow = memo(function TreeRow({
             : undefined
         }
       >
-        {isDir && (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
+        {isDir && <ChevronRight size={14} aria-hidden />}
       </span>
       {customIcon ? (
         <EntryIcon
