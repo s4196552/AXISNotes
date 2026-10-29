@@ -56,7 +56,7 @@ import { formatDate } from "../../lib/dates";
 import { splitFrontmatter, withFrontmatter } from "../../lib/markdown";
 import { PAGE_STYLE_PROP, type PageStyle } from "../templates/templates";
 import { lucideSvg } from "./lucideSvg";
-import { CODE_LANGUAGES, codeFence } from "./code";
+import { codeFence } from "./code";
 import { minimalChange } from "./targets";
 import { toggleMark } from "./inlineMarks";
 import { pickAndEmbed } from "./media";
@@ -157,6 +157,8 @@ interface SlashCommand {
    * change the current line instead (both like Notion).
    */
   block?: (text: string) => BlockText;
+  /** A block command shown once, without its "Turn into" row (it always starts below). */
+  noTurnInto?: boolean;
   /** Replace the typed `/query` (from..to) with something. Block commands don't need one. */
   run?(view: EditorView, from: number, to: number, cfg: QuickCommandConfig): void;
 }
@@ -335,7 +337,9 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     icon: SquareCode,
     description: "Code with optional language highlighting",
     markdown: "```",
-    block: (t) => codeFence(t),
+    // The cursor goes after the opening fence, where the language is typed.
+    block: (t) => (t ? codeFence(t) : ["```", "\n```"]),
+    noTurnInto: true,
   },
   {
     id: "inline-code",
@@ -361,14 +365,6 @@ export const SLASH_COMMANDS: SlashCommand[] = [
       v.dispatch({ changes: { from: f, to: t }, selection: { anchor: f } });
       toggleMark(v, mark);
     },
-  })),
-  ...CODE_LANGUAGES.map(([name, language]): SlashCommand => ({
-    id: `code-${language}`,
-    label: `${name} code block`,
-    icon: SquareCode,
-    description: `A code block highlighted as ${name}`,
-    markdown: "```" + language,
-    block: (text) => codeFence(text, language),
   })),
   {
     id: "table",
@@ -615,7 +611,6 @@ export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
       "callout",
       "code",
       "inline-code",
-      ...CODE_LANGUAGES.map(([, language]) => `code-${language}`),
       "table",
       "divider",
       "toggle-h1",
@@ -765,7 +760,7 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
       const main = option(c, place(at.section, at.order), (view, to) =>
         block ? newBlock(view, start, to, block) : c.run?.(view, start, to, cfg),
       );
-      if (!turnable || !block) return [main];
+      if (!turnable || !block || c.noTurnInto) return [main];
       const turn = option(
         { ...c, description: "Change this line, keeping its text" },
         { section: FILTERED, detail: TURN_INTO },

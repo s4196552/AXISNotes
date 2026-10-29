@@ -126,31 +126,28 @@ const highlight = HighlightStyle.define([
   { tag: [t.link, t.url], color: "var(--link)" },
   { tag: [t.processingInstruction, t.meta, t.contentSeparator], color: "var(--fg-muted)" },
   { tag: t.monospace, fontFamily: "var(--font-mono)" },
-  // Token variables can also be overridden by a vault's custom CSS theme.
+  // Programming tokens get a class each, coloured in editor.css from the --syntax-*
+  // variables (a class rule takes no inline style), so a vault theme can recolour them.
+  // The most specific tag wins: a defined function beats a function, beats a variable.
+  { tag: [t.keyword, t.operatorKeyword, t.modifier, t.controlKeyword], class: "cm-code-keyword" },
+  { tag: [t.string, t.special(t.string), t.regexp, t.character], class: "cm-code-string" },
+  { tag: [t.comment, t.lineComment, t.blockComment, t.docComment], class: "cm-code-comment" },
+  { tag: [t.number, t.bool, t.null, t.atom], class: "cm-code-number" },
+  { tag: [t.variableName, t.propertyName, t.special(t.variableName)], class: "cm-code-variable" },
   {
-    tag: [t.keyword, t.operatorKeyword, t.modifier],
-    class: "cm-code-keyword",
-    color: "var(--syntax-keyword)",
-  },
-  {
-    tag: [t.string, t.special(t.string), t.regexp],
-    class: "cm-code-string",
-    color: "var(--syntax-string)",
-  },
-  { tag: t.comment, class: "cm-code-comment", color: "var(--syntax-comment)", fontStyle: "italic" },
-  { tag: [t.number, t.bool, t.null], class: "cm-code-number", color: "var(--syntax-number)" },
-  {
-    tag: [t.function(t.variableName), t.function(t.propertyName)],
+    tag: [t.function(t.variableName), t.function(t.propertyName), t.macroName],
     class: "cm-code-function",
-    color: "var(--syntax-function)",
   },
   {
-    tag: [t.typeName, t.className, t.namespace],
-    class: "cm-code-type",
-    color: "var(--syntax-type)",
+    tag: [t.function(t.definition(t.variableName)), t.definition(t.className)],
+    class: "cm-code-definition",
   },
-  { tag: [t.operator, t.punctuation], color: "var(--fg)" },
-  { tag: [t.tagName, t.attributeName], color: "var(--syntax-type)" },
+  { tag: [t.standard(t.variableName), t.self], class: "cm-code-builtin" },
+  { tag: [t.typeName, t.className, t.namespace], class: "cm-code-type" },
+  { tag: [t.operator, t.derefOperator, t.arithmeticOperator], class: "cm-code-operator" },
+  { tag: [t.tagName, t.angleBracket], class: "cm-code-definition" },
+  { tag: [t.attributeName, t.labelName], class: "cm-code-type" },
+  { tag: t.meta, class: "cm-code-comment" },
 ]);
 
 export const axisTheme = [editorTheme, syntaxHighlighting(highlight)];

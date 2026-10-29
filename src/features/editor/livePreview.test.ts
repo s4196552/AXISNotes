@@ -2,7 +2,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import type { Decoration } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
-import { buildDecorations, CheckboxWidget } from "./livePreview";
+import { buildDecorations, CheckboxWidget, codeLanguageLabel } from "./livePreview";
 
 interface Found {
   text: string;
@@ -85,15 +85,45 @@ describe("live preview decorations", () => {
     expect(a.eq(new CheckboxWidget(false, 4))).toBe(false);
   });
 
-  it("styles fenced code lines and dims the fences without hiding code", () => {
-    const f = decorate("x\n```js\nlet a = 1;\n```", 1);
-    const lines = f.filter((d) => d.kind === "line").map((d) => d.cls);
-    expect(lines).toEqual([
-      "cm-lp-codeblock cm-lp-fence",
+  it("draws fenced code as a box with its language, and shows the fences while editing", () => {
+    const doc = "x\n```js\nlet a = 1;\n```";
+    const away = decorate(doc, 1);
+    expect(away.filter((d) => d.kind === "line").map((d) => d.cls)).toEqual([
+      "cm-lp-codeblock cm-lp-code-first cm-lp-fence cm-lp-fence-hidden",
       "cm-lp-codeblock",
-      "cm-lp-codeblock cm-lp-fence",
+      "cm-lp-codeblock cm-lp-code-last cm-lp-fence cm-lp-fence-hidden",
     ]);
-    expect(hidden(f)).toEqual([]);
+    // The opening fence becomes the language label; the closing one is hidden.
+    expect(away).toContainEqual({ text: "```js", kind: "widget", cls: "CodeLanguageWidget" });
+    expect(hidden(away)).toEqual(["```"]);
+    // With the cursor in the block, its fences are back as typed.
+    const editing = decorate(doc, 3);
+    expect(editing.filter((d) => d.kind === "line").map((d) => d.cls)).toEqual([
+      "cm-lp-codeblock cm-lp-code-first cm-lp-fence",
+      "cm-lp-codeblock",
+      "cm-lp-codeblock cm-lp-code-last cm-lp-fence",
+    ]);
+    expect(editing.filter((d) => d.kind === "widget" || d.kind === "hide")).toEqual([]);
+  });
+
+  it("names code languages like Obsidian, and leaves mermaid blocks to the diagrams", () => {
+    expect(codeLanguageLabel("python")).toBe("Python");
+    expect(codeLanguageLabel("PY")).toBe("Python");
+    expect(codeLanguageLabel("js title")).toBe("JavaScript");
+    expect(codeLanguageLabel("mylang")).toBe("mylang");
+    expect(codeLanguageLabel("")).toBe("");
+    const plain = decorate("x\n```\ncode\n```", 1);
+    expect(hidden(plain)).toEqual(["```", "```"]);
+    const mermaid = decorate("x\n```mermaid\ngraph TD\n```", 1);
+    expect(mermaid.filter((d) => d.kind === "widget" || d.kind === "hide")).toEqual([]);
+  });
+
+  it("draws an indent guide at each indent level of code", () => {
+    const f = decorate("x\n```py\ndef f():\n    if a:\n        b()\n\n    c\n```", 1);
+    const guides = f.filter((d) => d.cls === "cm-code-indent").map((d) => d.text);
+    expect(guides).toEqual(["    ", "    ", "    ", "    "]);
+    const tabs = decorate("x\n```go\nfunc f() {\n\t\tx()\n}\n```", 1);
+    expect(tabs.filter((d) => d.cls === "cm-code-indent")).toHaveLength(2);
   });
 
   it("hides quote marks and styles every quoted line", () => {
