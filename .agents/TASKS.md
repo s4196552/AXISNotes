@@ -147,6 +147,6 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 
 | T-142 | 6 | Heading colour presets in Settings → Appearance | claude | merged | agent/claude/T-142 | `src/app/{appearance,config}.ts`, `src/features/settings/{HeadingColorPicker.tsx,Settings.tsx,settings.css,appearance.test.tsx}`, `src/features/editor/editor.css`, `src/styles/theme.css`, `docs/DECISIONS.md`, task coordination |
 
-| T-143 | 6 | Search settings | claude | approved | agent/claude/T-143 | `src/features/settings/{Settings.tsx,settings.css,settingsSearch.ts,settingsSearch.test.tsx}`, `docs/DECISIONS.md`, task coordination |
+| T-143 | 6 | Search settings | claude | merged | agent/claude/T-143 | `src/features/settings/{Settings.tsx,settings.css,settingsSearch.ts,settingsSearch.test.tsx}`, `docs/DECISIONS.md`, task coordination |
 
 | T-144 | 6 | Context menus stay inside the window (file tree, tabs) | claude | merged | agent/claude/T-144 | `src/app/menuPosition*`, `src/features/filetree/FileTree.tsx`, `src/features/tabs/TabBar.tsx`, `docs/DECISIONS.md`, task coordination |
