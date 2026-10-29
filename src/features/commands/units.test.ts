@@ -137,8 +137,9 @@ describe("slash commands", () => {
     // Without Turn into, a block goes on a new line under one that has text.
     expect(run("Title /h2", "Heading 2").text).toBe("Title\n## ");
     const code = run("/co", "Code block");
-    expect(code.text).toBe("```\n\n```");
-    expect(code.head).toBe(4);
+    // The cursor waits after the opening fence, where the language goes.
+    expect(code.text).toBe("```\n```");
+    expect(code.head).toBe(3);
     expect(run("x\n/gr", "Page style: Math grid").text).toBe(
       "---\naxis-style: math-grid\n---\n\nx\n",
     );

@@ -4,22 +4,6 @@ import { languages } from "@codemirror/language-data";
 import { EditorSelection } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 
-export const CODE_LANGUAGES = [
-  ["Python", "python"],
-  ["Java", "java"],
-  ["JavaScript", "javascript"],
-  ["TypeScript", "typescript"],
-  ["HTML", "html"],
-  ["CSS", "css"],
-  ["JSON", "json"],
-  ["SQL", "sql"],
-  ["Bash", "bash"],
-  ["C", "c"],
-  ["C++", "cpp"],
-  ["C#", "csharp"],
-  ["Rust", "rust"],
-] as const;
-
 /** Suggestions use the installed lazy parser catalogue, including its aliases. */
 export function codeLanguageCompletions(context: CompletionContext): CompletionResult | null {
   const { state, pos } = context;

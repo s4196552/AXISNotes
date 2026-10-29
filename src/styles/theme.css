@@ -97,15 +97,21 @@
   scrollbar-color: var(--scrollbar) transparent;
 }
 
-/* Override these tokens in a custom theme to customise programming colours. */
+/* Override these tokens in a custom theme to customise programming colours. The
+   defaults follow One Light / One Dark, like Obsidian's code blocks. */
 :root,
 [data-theme-preview] {
-  --syntax-keyword: light-dark(#8250df, #c4a7ff);
-  --syntax-string: light-dark(#116329, #9ece8b);
-  --syntax-comment: var(--fg-muted);
-  --syntax-number: light-dark(#953800, #f5b97b);
-  --syntax-function: light-dark(#0550ae, #82baff);
-  --syntax-type: light-dark(#8a4600, #e5c07b);
+  --syntax-keyword: light-dark(#a626a4, #c678dd);
+  --syntax-string: light-dark(#50a14f, #98c379);
+  --syntax-comment: light-dark(#a0a1a7, #7f848e);
+  --syntax-number: light-dark(#986801, #d19a66);
+  --syntax-function: light-dark(#4078f2, #61afef);
+  --syntax-definition: light-dark(#e45649, #e06c75);
+  --syntax-variable: light-dark(#0184bc, #7cc4ff);
+  --syntax-builtin: light-dark(#c18401, #e5c07b);
+  --syntax-type: light-dark(#c18401, #e5c07b);
+  --syntax-operator: light-dark(#0184bc, #56b6c2);
+  --syntax-guide: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.1));
 }
 :root[data-theme="contrast"],
 [data-theme-preview="contrast"] {
@@ -113,5 +119,10 @@
   --syntax-string: #7fff7f;
   --syntax-number: #ffc080;
   --syntax-function: #80dfff;
+  --syntax-definition: #ff9f9f;
+  --syntax-variable: #ffffff;
+  --syntax-builtin: #ffb3ff;
   --syntax-type: #ffb3ff;
+  --syntax-operator: #80dfff;
+  --syntax-guide: rgba(255, 255, 255, 0.35);
 }

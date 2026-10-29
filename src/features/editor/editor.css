@@ -240,13 +240,77 @@ input.editor-title::placeholder {
   vertical-align: middle;
   border-top: 1px solid var(--border);
 }
-.cm-lp-codeblock {
+/* Fenced code: a rounded box with the language in its top-right corner, the fences shown
+   only while the block is edited (src/features/editor/livePreview.ts), like Obsidian. */
+.cm-line.cm-lp-codeblock {
   font-family: var(--font-mono);
   font-size: 0.9em;
   background: var(--code-bg);
+  padding-left: 16px;
+  padding-right: 16px;
+  tab-size: 4;
+}
+.cm-line.cm-lp-code-first {
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  padding-top: 6px;
+}
+.cm-line.cm-lp-code-last {
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  padding-bottom: 6px;
 }
 .cm-lp-fence {
   color: var(--fg-muted);
+}
+/* A hidden closing fence leaves only the box's bottom padding. */
+.cm-line.cm-lp-fence-hidden.cm-lp-code-last {
+  line-height: 0.5;
+}
+.cm-lp-code-lang {
+  display: inline-block;
+  width: 100%;
+  text-align: right;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--fg-muted);
+  user-select: none;
+}
+.cm-code-indent {
+  box-shadow: inset 1px 0 0 var(--syntax-guide);
+}
+
+/* Programming tokens (classes from theme.ts), coloured by the --syntax-* variables. */
+.cm-code-keyword {
+  color: var(--syntax-keyword);
+}
+.cm-code-string {
+  color: var(--syntax-string);
+}
+.cm-code-comment {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+.cm-code-number {
+  color: var(--syntax-number);
+}
+.cm-code-variable {
+  color: var(--syntax-variable);
+}
+.cm-code-function {
+  color: var(--syntax-function);
+}
+.cm-code-definition {
+  color: var(--syntax-definition);
+}
+.cm-code-builtin {
+  color: var(--syntax-builtin);
+}
+.cm-code-type {
+  color: var(--syntax-type);
+}
+.cm-code-operator {
+  color: var(--syntax-operator);
 }
 
 /* Wikilinks and tags */

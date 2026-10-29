@@ -1,4 +1,5 @@
-import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree, LanguageDescription, syntaxTree } from "@codemirror/language";
+import { languages } from "@codemirror/language-data";
 import type { EditorState, Range } from "@codemirror/state";
 import {
   Decoration,
@@ -16,6 +17,45 @@ type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 // Obsidian-style live preview: Markdown syntax marks are hidden on lines that don't
 // hold the cursor/selection, and the text is styled as rendered Markdown. Everything is
 // derived from the Lezer Markdown syntax tree, only for the requested (visible) ranges.
+
+/** The language of a code block, shown in its top-right corner (like Obsidian). */
+class CodeLanguageWidget extends WidgetType {
+  constructor(readonly label: string) {
+    super();
+  }
+  eq(other: CodeLanguageWidget) {
+    return other.label === this.label;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "cm-lp-code-lang";
+    span.textContent = this.label;
+    return span;
+  }
+}
+
+/** `python`, `PY` or `js` → the language's name ("Python", "JavaScript"); else as typed. */
+export function codeLanguageLabel(info: string): string {
+  const name = info.trim().split(/\s/)[0] ?? "";
+  if (!name) return "";
+  const lower = name.toLowerCase();
+  const found =
+    LanguageDescription.matchLanguageName(languages, lower, true) ??
+    LanguageDescription.matchFilename(languages, `code.${lower}`);
+  return found?.name ?? name;
+}
+
+/** The width of one indent level in a code block's lines: a tab, or its smallest indent. */
+function indentUnit(lines: string[]): string {
+  let unit = 0;
+  for (const text of lines) {
+    const m = /^( +)\S/.exec(text);
+    if (m && (unit === 0 || m[1]!.length < unit)) unit = m[1]!.length;
+  }
+  return " ".repeat(Math.max(2, Math.min(unit || 4, 8)));
+}
+
+const indentGuide = Decoration.mark({ class: "cm-code-indent" });
 
 class BulletWidget extends WidgetType {
   eq() {
@@ -197,12 +237,46 @@ export function buildDecorations(
           case "FencedCode": {
             const first = state.doc.lineAt(node.from).number;
             const last = state.doc.lineAt(node.to).number;
+            const info = node.getChild("CodeInfo");
+            const language = info ? state.sliceDoc(info.from, info.to) : "";
+            const closed = last > first && /^\s*(`{3,}|~{3,})\s*$/.test(state.doc.line(last).text);
+            // The fences show as typed while a selection is in the block; else the block is
+            // a box with its language in the corner. Mermaid blocks draw as diagrams.
+            const editing = touched(node.from, node.to) || /^mermaid$/i.test(language.trim());
+            const body: { from: number; text: string }[] = [];
             for (let n = first; n <= last; n++) {
               const l = state.doc.line(n);
-              const fence = n === first || (n === last && /^\s*(`{3,}|~{3,})\s*$/.test(l.text));
+              const fence = n === first || (n === last && closed);
+              const cls = ["cm-lp-codeblock"];
+              if (n === first) cls.push("cm-lp-code-first");
+              if (n === last) cls.push("cm-lp-code-last");
+              if (fence) cls.push(editing ? "cm-lp-fence" : "cm-lp-fence cm-lp-fence-hidden");
+              out.push(line(cls.join(" ")).range(l.from));
+              if (!fence) body.push({ from: l.from, text: l.text });
+            }
+            if (!editing) {
+              const open = state.doc.line(first);
+              const label = codeLanguageLabel(language);
               out.push(
-                line(fence ? "cm-lp-codeblock cm-lp-fence" : "cm-lp-codeblock").range(l.from),
+                (label
+                  ? Decoration.replace({ widget: new CodeLanguageWidget(label) })
+                  : hide
+                ).range(open.from, open.to),
               );
+              if (closed) {
+                const end = state.doc.line(last);
+                if (end.to > end.from) out.push(hide.range(end.from, end.to));
+              }
+            }
+            // Indent guides: a thin line at each indent level of the code.
+            const unit = indentUnit(body.map((b) => b.text));
+            for (const { from: lineFrom, text } of body) {
+              for (let i = 0; i < text.length;) {
+                const step = text[i] === "\t" ? 1 : text.startsWith(unit, i) ? unit.length : 0;
+                if (!step || !/\S/.test(text.slice(i + step))) break;
+                out.push(indentGuide.range(lineFrom + i, lineFrom + i + step));
+                i += step;
+              }
             }
             return false;
           }

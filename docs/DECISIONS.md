@@ -2,6 +2,12 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-29: Obsidian-style code blocks; one Code block command (T-140)
+
+- **The command menu keeps only Inline code and Code block** for code (plus the Mermaid diagram). The 13 per-language commands (Python code block, Java code block, ...) are gone: Code block leaves the cursor after the opening fence, where the language is typed with suggestions, exactly like typing three backticks. Code block also has no Turn into row any more, so it appears once; it always starts a new block (below a line with text). The palette's Insert code block still wraps a selection.
+- **Syntax colours now actually show.** The highlight rules gave each token a class, which makes CodeMirror ignore the rule's colour, and no CSS styled those classes, so code was uncoloured. Each class (`cm-code-keyword`, `-string`, `-comment`, `-number`, `-variable`, `-function`, `-definition`, `-builtin`, `-type`, `-operator`) is now coloured in `editor.css` from `--syntax-*` variables. The defaults follow One Light / One Dark, the palette in the human's Obsidian screenshot; High contrast keeps its own.
+- **Code blocks draw like Obsidian's when the cursor is elsewhere:** a rounded box with padding, the language name in the top-right corner (`python`, `PY` → "Python", from CodeMirror's language list, else as typed), the fence lines hidden, and a thin indent guide at each indent level (`--syntax-guide`). With the cursor in the block its fences show as typed for editing. Mermaid blocks are left to the diagram renderer.
+
 ## 2026-10-29: Marks close as you type; Ctrl+B, Ctrl+I and formatting commands (T-139)
 
 - **Typing a backtick or `*` inserts its closer, with the cursor between** (`src/features/editor/inlineMarks.ts`). A second mark in an empty pair grows it (`**|**`, or two backticks each side), and three backticks alone on a line become a code block with the cursor after the opening fence, where the language goes. Typing the mark at its closer steps over the whole closer, so `**bold**` typed in full comes out right. With text selected, a backtick or `*` wraps it and keeps it selected.

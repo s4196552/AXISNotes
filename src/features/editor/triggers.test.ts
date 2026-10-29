@@ -832,9 +832,20 @@ describe("command menu: new blocks, Turn into and descriptions", () => {
     expect((await run("> [!toggle|h1]- Plan ", "bul", "Bulleted list", TURN_INTO)).doc).toBe(
       "- Plan",
     );
-    const code = await run("x = 1 ", "code", "Code block", TURN_INTO);
-    expect(code.doc).toBe("```\nx = 1\n```");
-    expect(code.cursor).toBe("```\nx = 1".length);
+  });
+
+  it("offers one Code block, which starts below with the cursor where the language goes", async () => {
+    const view = viewWith("x = 1 ");
+    openCommandMenu(view);
+    type(view, "code");
+    const labels = slashCompletions(ctx(view))!.options.map((o) => [o.label, o.detail]);
+    expect(labels.filter(([l]) => l === "Code block")).toEqual([["Code block", undefined]]);
+    expect(labels.some(([l]) => /\w code block$/.test(l!))).toBe(false); // no per-language rows
+    const below = await run("x = 1 ", "code", "Code block");
+    expect(below.doc).toBe("x = 1\n```\n```");
+    expect(below.cursor).toBe("x = 1\n```".length);
+    const empty = await run("", "code", "Code block");
+    expect(empty).toEqual({ doc: "```\n```", cursor: 3 });
   });
 
   it("starts a new block under a line with text, or replaces an empty one", async () => {
