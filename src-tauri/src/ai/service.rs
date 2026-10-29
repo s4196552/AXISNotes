@@ -55,6 +55,7 @@ pub struct ProviderStatus {
     #[serde(flatten)]
     pub config: ProviderConfig,
     pub has_key: bool,
+    pub account: Option<String>,
     pub requires_key: bool,
     pub local: bool,
     pub default_base_url: &'static str,
@@ -110,9 +111,13 @@ pub struct AiService {
     keys: Arc<dyn KeyStore>,
     transport: Arc<dyn Transport>,
     settings: Mutex<AiSettings>,
+    sessions: super::subscription::Sessions,
 }
 
 fn is_local(cfg: &ProviderConfig) -> bool {
+    if cfg.kind == super::ProviderKind::ChatGpt {
+        return false;
+    }
     let url = if cfg.base_url.trim().is_empty() {
         cfg.kind.default_base_url()
     } else {
@@ -138,6 +143,10 @@ impl AiService {
     ) -> Self {
         let settings = AiSettings::load(&settings_path);
         AiService {
+            sessions: super::subscription::Sessions::new(
+                keys.clone(),
+                settings_path.with_file_name("chatgpt-session.lock"),
+            ),
             settings_path,
             log_path,
             registry,
@@ -156,7 +165,16 @@ impl AiService {
             .providers
             .into_iter()
             .map(|cfg| ProviderStatus {
-                has_key: self.keys.get(&cfg.id).ok().flatten().is_some(),
+                has_key: if cfg.kind == super::ProviderKind::ChatGpt {
+                    self.sessions.status(&cfg.id).0
+                } else {
+                    self.keys.get(&cfg.id).ok().flatten().is_some()
+                },
+                account: if cfg.kind == super::ProviderKind::ChatGpt {
+                    self.sessions.status(&cfg.id).1
+                } else {
+                    None
+                },
                 requires_key: cfg.kind.requires_key(),
                 local: is_local(&cfg),
                 default_base_url: cfg.kind.default_base_url(),
@@ -169,8 +187,27 @@ impl AiService {
     pub fn save_settings(&self, mut next: AiSettings) -> AppResult<()> {
         let mut seen = std::collections::HashSet::new();
         for p in &next.providers {
-            if p.id.trim().is_empty() || !seen.insert(p.id.clone()) {
+            if p.id.trim().is_empty()
+                || p.id.to_ascii_lowercase().starts_with("chatgpt-session:")
+                || !seen.insert(p.id.clone())
+            {
                 return Err(AppError::InvalidName(format!("provider id {:?}", p.id)));
+            }
+        }
+        for cfg in &next.providers {
+            if cfg.kind == super::ProviderKind::ChatGpt && !cfg.base_url.trim().is_empty() {
+                return Err(AppError::Blocked(
+                    "ChatGPT plan connections use only the official OpenAI endpoint".into(),
+                ));
+            }
+            if self
+                .settings()
+                .provider(&cfg.id)
+                .is_some_and(|old| old.kind != cfg.kind)
+            {
+                return Err(AppError::Blocked(
+                    "Remove the old provider before changing its type".into(),
+                ));
             }
         }
         next.fallback.retain(|id| seen.contains(id));
@@ -183,9 +220,15 @@ impl AiService {
             .map(|p| p.id.clone())
             .collect();
         next.save(&self.settings_path)?;
+        for old in &self.settings().providers {
+            if !next.provider(&old.id).is_some_and(|p| p.enabled) {
+                self.sessions.cancel(&old.id);
+            }
+        }
         *self.settings.lock().unwrap() = next;
         for id in removed {
-            let _ = self.keys.delete(&id);
+            self.sessions.forget(&id)?;
+            self.keys.delete(&id)?;
         }
         Ok(())
     }
@@ -194,6 +237,11 @@ impl AiService {
         if self.settings().provider(provider_id).is_none() {
             return Err(AppError::NotFound(format!("provider {provider_id}")));
         }
+        if self.provider_cfg(provider_id)?.kind == super::ProviderKind::ChatGpt {
+            return Err(AppError::Blocked(
+                "Use Continue with ChatGPT instead of an API key".into(),
+            ));
+        }
         if key.trim().is_empty() {
             return self.keys.delete(provider_id);
         }
@@ -201,11 +249,39 @@ impl AiService {
     }
 
     pub fn delete_key(&self, provider_id: &str) -> AppResult<()> {
+        if self.provider_cfg(provider_id)?.kind == super::ProviderKind::ChatGpt {
+            return Err(AppError::Blocked(
+                "Use Disconnect to sign out of ChatGPT".into(),
+            ));
+        }
         self.keys.delete(provider_id)
     }
+    pub async fn subscription_sign_in(&self, id: &str) -> AppResult<()> {
+        self.subscription_config(id)?;
+        self.sessions.sign_in(id).await
+    }
+    fn subscription_config(&self, id: &str) -> AppResult<()> {
+        if self.provider_cfg(id)?.kind != super::ProviderKind::ChatGpt {
+            return Err(AppError::Blocked(
+                "This provider does not support ChatGPT plan sign-in".into(),
+            ));
+        }
+        Ok(())
+    }
+    pub fn subscription_cancel(&self, id: &str) {
+        self.sessions.cancel(id);
+    }
+    pub async fn subscription_disconnect(&self, id: &str) -> AppResult<()> {
+        self.subscription_config(id)?;
+        self.sessions.disconnect(id).await
+    }
 
-    fn adapter(&self, cfg: &ProviderConfig) -> AppResult<Adapter> {
-        let key = self.keys.get(&cfg.id)?;
+    async fn adapter(&self, cfg: &ProviderConfig) -> AppResult<Adapter> {
+        let key = if cfg.kind == super::ProviderKind::ChatGpt {
+            Some(self.sessions.access_token(&cfg.id).await?)
+        } else {
+            self.keys.get(&cfg.id)?
+        };
         if cfg.kind.requires_key() && key.is_none() {
             return Err(AppError::Ai(format!("{} has no API key", cfg.name)));
         }
@@ -232,10 +308,14 @@ impl AiService {
     pub async fn list_models(&self, provider_id: &str) -> AppResult<ModelList> {
         let cfg = self.provider_cfg(provider_id)?;
         let fallback = |e: String| ModelList {
-            models: self.registry.listed(cfg.kind),
+            models: if cfg.kind == super::ProviderKind::ChatGpt {
+                Vec::new()
+            } else {
+                self.registry.listed(cfg.kind)
+            },
             error: Some(e),
         };
-        let adapter = match self.adapter(&cfg) {
+        let adapter = match self.adapter(&cfg).await {
             Ok(a) => a,
             Err(e) => return Ok(fallback(e.to_string())),
         };
@@ -251,7 +331,7 @@ impl AiService {
     /// Check a provider's endpoint and key by listing its models.
     pub async fn test_provider(&self, provider_id: &str) -> AppResult<usize> {
         let cfg = self.provider_cfg(provider_id)?;
-        let adapter = self.adapter(&cfg)?;
+        let adapter = self.adapter(&cfg).await?;
         adapter
             .list_models()
             .await
@@ -263,7 +343,7 @@ impl AiService {
         if let Some(m) = self.registry.default_model(cfg.kind, task, &[]) {
             return Some(m);
         }
-        let models = self.adapter(cfg).ok()?.list_models().await.ok()?;
+        let models = self.adapter(cfg).await.ok()?.list_models().await.ok()?;
         self.registry.default_model(cfg.kind, task, &models)
     }
 
@@ -307,6 +387,21 @@ impl AiService {
             ));
         }
 
+        // A plan-selected request must never incur a paid API-key fallback, including
+        // when disconnected, over quota or unavailable during model discovery.
+        let plan_selected = req
+            .provider
+            .as_deref()
+            .or_else(|| settings.task(task).map(|c| c.provider.as_str()))
+            .and_then(|id| settings.provider(id))
+            .is_some_and(|p| p.kind == super::ProviderKind::ChatGpt);
+        if plan_selected
+            || chain
+                .first()
+                .is_some_and(|(p, _)| p.kind == super::ProviderKind::ChatGpt)
+        {
+            chain.retain(|(p, _)| p.kind == super::ProviderKind::ChatGpt);
+        }
         let needs_vision = has_images(&req.messages);
         let mut out = Vec::new();
         let mut skipped: Vec<String> = Vec::new();
@@ -478,7 +573,7 @@ impl AiService {
             if cancel.load(Ordering::Relaxed) {
                 return Err(AppError::Cancelled);
             }
-            let adapter = self.adapter(&cand.cfg)?;
+            let adapter = self.adapter(&cand.cfg).await?;
             let request = Request {
                 model: cand.model.clone(),
                 messages: messages.clone(),

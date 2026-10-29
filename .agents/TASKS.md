@@ -145,6 +145,8 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 
 | T-140 | 6 | Obsidian-style code blocks; one Code block command | claude | merged | agent/claude/T-140 | `src/features/editor/{livePreview*,quickCommands.ts,code.ts,theme.ts,editor.css,triggers.test.ts}`, `src/features/commands/units.test.ts`, `src/styles/theme.css`, `e2e/specs/code.e2e.ts`, `docs/{CODE_SYNTAX,DECISIONS}.md`, task coordination |
 
+| T-141 | 6 | Optional ChatGPT plan sign-in, native credential lifecycle, account models and no paid fallback | codex (human requested) | merged | agent/codex/T-141 | `src-tauri/src/ai/**`, `src-tauri/src/{ai_commands,lib}.rs`, `src-tauri/{Cargo.toml,Cargo.lock}`, `src/features/ai/**`, `src/ipc/{types,tauriBackend,memoryAi}.ts`, `e2e/specs/subscription.e2e.ts`, `docs/DECISIONS.md`, task coordination |
+
 | T-142 | 6 | Heading colour presets in Settings → Appearance | claude | merged | agent/claude/T-142 | `src/app/{appearance,config}.ts`, `src/features/settings/{HeadingColorPicker.tsx,Settings.tsx,settings.css,appearance.test.tsx}`, `src/features/editor/editor.css`, `src/styles/theme.css`, `docs/DECISIONS.md`, task coordination |
 
 | T-143 | 6 | Search settings | claude | merged | agent/claude/T-143 | `src/features/settings/{Settings.tsx,settings.css,settingsSearch.ts,settingsSearch.test.tsx}`, `docs/DECISIONS.md`, task coordination |

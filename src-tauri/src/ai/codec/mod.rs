@@ -3,6 +3,7 @@
 //! tested against recorded provider responses.
 
 mod anthropic;
+mod chatgpt;
 mod gemini;
 mod openai_chat;
 mod openai_responses;
@@ -64,6 +65,7 @@ pub trait Codec: Send + Sync {
 pub fn codec_for(format: ApiFormat) -> &'static dyn Codec {
     match format {
         ApiFormat::OpenAiResponses => &openai_responses::OpenAiResponses,
+        ApiFormat::ChatGptResponses => &chatgpt::ChatGptResponses,
         ApiFormat::OpenAiChat => &openai_chat::OpenAiChat,
         ApiFormat::Anthropic => &anthropic::Anthropic,
         ApiFormat::Gemini => &gemini::Gemini,

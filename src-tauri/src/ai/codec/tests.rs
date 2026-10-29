@@ -394,3 +394,49 @@ async fn live_same_prompt_when_keys_are_available() {
         assert!(!a.complete(&request(&model)).await.unwrap().text.is_empty());
     }
 }
+
+#[tokio::test]
+async fn chatgpt_plan_uses_only_official_streaming_contract() {
+    let (a, fx) = adapter(
+        ProviderKind::ChatGpt,
+        Some("test-oauth"),
+        vec![(200, fixture!("openai_responses.sse"))],
+    );
+    let mut req = request("account-model");
+    req.temperature = Some(0.5);
+    let c = a.complete(&req).await.unwrap();
+    assert_eq!(c.text, ANSWER);
+    let requests = fx.requests.lock().unwrap();
+    let http = &requests[0];
+    assert_eq!(http.url, "https://api.openai.com/v1/responses");
+    let body = http.body.as_ref().unwrap();
+    assert_eq!(body["store"], false);
+    assert_eq!(body["stream"], true);
+    assert_eq!(body["input"][0]["role"], "developer");
+    assert!(body.get("max_output_tokens").is_none());
+    assert!(body.get("temperature").is_none());
+}
+#[tokio::test]
+async fn chatgpt_plan_uses_account_catalog_not_api_defaults() {
+    let catalog = r#"{"models":[{"slug":"account-only","display_name":"Account model","visibility":"list","supports_image_input":true},{"slug":"hidden","visibility":"hide"}]}"#;
+    let (a, _) = adapter(
+        ProviderKind::ChatGpt,
+        Some("test-oauth"),
+        vec![(200, catalog)],
+    );
+    let models = a.list_models().await.unwrap();
+    assert_eq!(models.len(), 1);
+    assert_eq!(models[0].id, "account-only");
+    assert!(models[0].vision);
+}
+#[tokio::test]
+async fn chatgpt_plan_requires_completed_and_reports_usage_limits_after_deltas() {
+    for response in [
+        "event: response.output_text.delta\ndata: {\"delta\":\"Partial\"}\n\n",
+        "event: response.incomplete\ndata: {}\n\n",
+        "event: response.output_text.delta\ndata: {\"delta\":\"Partial\"}\n\nevent: response.failed\ndata: {\"response\":{\"error\":{\"code\":\"subscription_sharing_usage_limit_exceeded\"}}}\n\n",
+    ] {
+        let (a,_) = adapter(ProviderKind::ChatGpt,Some("test-oauth"),vec![(200,response)]);
+        assert!(a.stream(&request("account-model"),&mut |_| true).await.is_err());
+    }
+}

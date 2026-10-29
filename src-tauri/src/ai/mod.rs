@@ -12,6 +12,7 @@ pub mod registry;
 pub mod service;
 pub mod settings;
 pub mod sse;
+pub mod subscription;
 pub mod transport;
 
 use std::future::Future;
@@ -27,6 +28,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 #[serde(rename_all = "lowercase")]
 pub enum ProviderKind {
     OpenAi,
+    ChatGpt,
     Anthropic,
     Gemini,
     OpenRouter,
@@ -39,6 +41,7 @@ pub enum ProviderKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApiFormat {
     OpenAiResponses,
+    ChatGptResponses,
     OpenAiChat,
     Anthropic,
     Gemini,
@@ -48,6 +51,7 @@ impl ProviderKind {
     pub fn format(self) -> ApiFormat {
         match self {
             ProviderKind::OpenAi => ApiFormat::OpenAiResponses,
+            ProviderKind::ChatGpt => ApiFormat::ChatGptResponses,
             ProviderKind::Anthropic => ApiFormat::Anthropic,
             ProviderKind::Gemini => ApiFormat::Gemini,
             _ => ApiFormat::OpenAiChat,
@@ -56,7 +60,7 @@ impl ProviderKind {
 
     pub fn default_base_url(self) -> &'static str {
         match self {
-            ProviderKind::OpenAi => "https://api.openai.com/v1",
+            ProviderKind::OpenAi | ProviderKind::ChatGpt => "https://api.openai.com/v1",
             ProviderKind::Anthropic => "https://api.anthropic.com/v1",
             ProviderKind::Gemini => "https://generativelanguage.googleapis.com/v1beta",
             ProviderKind::OpenRouter => "https://openrouter.ai/api/v1",

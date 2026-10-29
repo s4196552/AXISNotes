@@ -31,6 +31,11 @@ impl Adapter {
         transport: Arc<dyn Transport>,
         registry: Arc<Registry>,
     ) -> Self {
+        let base_url = if kind == ProviderKind::ChatGpt {
+            None
+        } else {
+            base_url
+        };
         let base = base_url
             .filter(|b| !b.trim().is_empty())
             .unwrap_or(kind.default_base_url())
@@ -132,6 +137,11 @@ impl Adapter {
                 }
             }
         }
+        if self.kind == ProviderKind::ChatGpt && !acc.done {
+            return Err(AiError::Protocol(
+                "ChatGPT stream ended before response.completed".into(),
+            ));
+        }
         Ok(acc.into_completion(&req.model))
     }
 }
@@ -139,6 +149,9 @@ impl Adapter {
 impl AiProvider for Adapter {
     fn complete<'a>(&'a self, req: &'a Request) -> BoxFuture<'a, AiResult<Completion>> {
         Box::pin(async move {
+            if self.kind == ProviderKind::ChatGpt {
+                return self.stream(req, &mut |_| true).await;
+            }
             let mut r = self.prepared(req);
             let mut flags = Flags::default();
             match self.complete_once(&r, flags).await {
@@ -179,6 +192,9 @@ impl AiProvider for Adapter {
                 return Err(error_from(res.status, &res.body));
             }
             let models = self.codec.parse_models(&Self::json(&res)?);
+            if self.kind == ProviderKind::ChatGpt {
+                return Ok(models);
+            }
             Ok(models
                 .into_iter()
                 .filter(|m| self.registry.is_text_model(self.kind, &m.id))

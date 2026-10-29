@@ -1,6 +1,7 @@
 import type { AiProviderKind, AiRule, AiTask } from "../../ipc";
 
 export const KIND_LABELS: Record<AiProviderKind, string> = {
+  chatgpt: "ChatGPT plan (Plus / Pro)",
   openai: "OpenAI",
   anthropic: "Anthropic (Claude)",
   gemini: "Google Gemini",
