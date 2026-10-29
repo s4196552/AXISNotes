@@ -8,6 +8,12 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **The filter works on what is rendered** (`src/features/settings/settingsSearch.ts`): rows, list items and checkboxes are hidden with a class, not removed, so no section needs a separate search index that could drift from its controls. A MutationObserver re-runs it as sections finish loading (fonts, templates); it watches content only, not the classes it sets.
 - **Live sections are offered as links, not opened:** AI (which asks every provider for its models when it opens), Web clipper, Updates and Icon & image packs load data on mount, so a search lists them as "Open …" rows matched on a short keyword list (providers, API key, model names, pairing, updates folder, emoji …) and opens the page when clicked.
 
+## 2026-10-29: Zen mode (T-146)
+
+- **Zen mode (F11, the palette, or the new button left of the right-panel button in the tab row)** makes the window full screen and shows only the note, like Zen Browser's compact mode. The side panels, tab row, window buttons and status bar are hidden; pointing within 6 px of the window's left or right edge slides that panel in over the note, and the top edge slides down the tab row with the window buttons and a Leave Zen mode button. Each part hides 350 ms after the pointer leaves it (with 32 px of slack), but stays while a menu or dialog is open or while text is typed in it. The panel shortcuts and buttons reveal panels too.
+- **It reuses the compact layout's overlay panels** (`shell compact zen`), so panel state, widths and the docked layout are untouched and come back as they were. Zen mode itself isn't saved; the app starts out of it.
+- **Full screen** goes through the window API (`WindowFrame.setFullscreen`, Tauri's `setFullscreen`, permission `core:window:allow-set-fullscreen`); in a browser it uses the Fullscreen API, and leaving browser full screen (Esc) leaves Zen mode. If full screen is refused, Zen mode still hides everything.
+
 ## 2026-10-29: Icons in right-click menus; rounded accent selection in the file tree (T-145)
 
 - **Every item in the file tree, tab and tab-group menus has an icon** before its label, the same Lucide icon the command palette uses for that action where there is one (New note, grid and canvas; Rename; Move to; Delete; Pin; group and ungroup; Close). Icons are muted; a dangerous item's icon takes its red. Labels are unchanged, so tests and screen readers read the same text.

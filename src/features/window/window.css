@@ -60,8 +60,11 @@
   border-bottom: 1px solid var(--border);
 }
 .content.right-hidden .tabbar-row {
-  padding-right: calc(44px + var(--frame-controls));
+  padding-right: calc(78px + var(--frame-controls));
 }
 .content.right-hidden .side-panels-toggle:not(.left) {
   right: calc(10px + var(--frame-controls));
+}
+.content.right-hidden .side-panels-toggle.zen-toggle {
+  right: calc(44px + var(--frame-controls));
 }

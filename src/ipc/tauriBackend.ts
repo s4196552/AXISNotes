@@ -177,6 +177,7 @@ export function createTauriBackend(): Backend {
       toggleMaximize: () => getCurrentWindow().toggleMaximize(),
       requestClose: () => getCurrentWindow().close(),
       isMaximized: () => getCurrentWindow().isMaximized(),
+      setFullscreen: (on) => getCurrentWindow().setFullscreen(on),
       onResized: (cb) => getCurrentWindow().onResized(() => cb()),
     },
     listFonts: () => invoke("list_fonts"),

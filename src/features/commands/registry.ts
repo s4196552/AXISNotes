@@ -25,6 +25,7 @@ import { openCommandMenu } from "../editor/quickCommands";
 import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { useUpdates } from "../updates/updates";
 import { toggleLeftPanel, toggleRightPanel, toggleSidePanels } from "../../app/layout";
+import { toggleZen } from "../../app/zen";
 
 export interface Command {
   id: string;
@@ -347,6 +348,12 @@ registerCommands([
     label: "Hide/show side panels",
     shortcut: { key: "\\", mod: true },
     run: toggleSidePanels,
+  },
+  {
+    id: "zen-mode",
+    label: "Zen mode (full screen, panels on the window's edges)",
+    shortcut: { key: "F11" },
+    run: toggleZen,
   },
   { id: "toggle-left-panel", label: "Hide/show left panel", run: toggleLeftPanel },
   { id: "toggle-right-panel", label: "Hide/show right panel", run: toggleRightPanel },
