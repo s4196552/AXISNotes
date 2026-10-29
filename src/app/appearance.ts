@@ -1,5 +1,5 @@
 import { backend, type OsWindowEffect } from "../ipc";
-import type { AxisConfig, EditorWidth, WindowEffect } from "./config";
+import type { AxisConfig, EditorWidth, FoldArrow, WindowEffect } from "./config";
 
 // Applies the theme and CSS snippets from the vault config to the document.
 // Built-in modes set `data-theme`; user themes and snippets are injected <style> tags.
@@ -129,6 +129,56 @@ export const EDITOR_WIDTHS: Record<EditorWidth, { label: string; css: string }> 
   wide: { label: "Wide", css: "960px" },
   full: { label: "Full width", css: "none" },
 };
+/** An SVG icon (24×24, black) as a CSS `url()`, for use as a mask. */
+const svgUrl = (body: string) =>
+  `url("data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`,
+  )}")`;
+
+/**
+ * The fold arrow styles: the icon of a closed heading or toggle, the icon once it's open
+ * (if it changes), and how far the icon turns when it opens.
+ */
+export const FOLD_ARROWS: Record<
+  FoldArrow,
+  { label: string; closed: string; open?: string; turn: string }
+> = {
+  triangle: {
+    label: "Triangle",
+    closed: svgUrl('<path d="M8 5l10 7-10 7z" fill="black" stroke-width="1.5"/>'),
+    turn: "90deg",
+  },
+  chevron: { label: "Chevron", closed: svgUrl('<path d="m9 6 6 6-6 6"/>'), turn: "90deg" },
+  arrow: { label: "Arrow", closed: svgUrl('<path d="M5 12h14M13 6l6 6-6 6"/>'), turn: "90deg" },
+  circle: {
+    label: "Circled chevron",
+    closed: svgUrl('<circle cx="12" cy="12" r="9.5" stroke-width="2"/><path d="m10.5 8 4 4-4 4"/>'),
+    turn: "90deg",
+  },
+  plus: {
+    label: "Plus and minus",
+    closed: svgUrl('<path d="M5 12h14M12 5v14"/>'),
+    open: svgUrl('<path d="M5 12h14"/>'),
+    turn: "0deg",
+  },
+  square: {
+    label: "Boxed plus and minus",
+    closed: svgUrl(
+      '<rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-width="2"/><path d="M8 12h8M12 8v8"/>',
+    ),
+    open: svgUrl(
+      '<rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-width="2"/><path d="M8 12h8"/>',
+    ),
+    turn: "0deg",
+  },
+};
+
+/** The CSS variables that draw a fold arrow style (`.cm-toggle-arrow` in editor.css). */
+export function foldArrowVars(style: FoldArrow): Record<string, string> {
+  const a = FOLD_ARROWS[style] ?? FOLD_ARROWS.triangle;
+  return { "--fold-closed": a.closed, "--fold-open": a.open ?? a.closed, "--fold-turn": a.turn };
+}
+
 const UI_FONT_FALLBACK = '"Segoe UI", system-ui, -apple-system, sans-serif';
 
 /** A CSS font stack with `family` first; its quotes and backslashes are dropped. */
@@ -137,9 +187,12 @@ export function fontStack(family: string, fallback: string): string {
   return clean ? `"${clean}", ${fallback}` : fallback;
 }
 
-/** Note text size, fonts and editor width, as CSS variables on the document. */
+/** Note text size, fonts, editor width and fold arrows, as CSS variables on the document. */
 export function applyTypography(
-  a: Pick<AxisConfig["appearance"], "noteFontSize" | "noteFont" | "uiFont" | "editorWidth">,
+  a: Pick<
+    AxisConfig["appearance"],
+    "noteFontSize" | "noteFont" | "uiFont" | "editorWidth" | "foldArrow"
+  >,
 ) {
   const style = document.documentElement.style;
   const size = Math.min(
@@ -148,6 +201,8 @@ export function applyTypography(
   );
   style.setProperty("--note-font-size", `${size}px`);
   style.setProperty("--editor-width", (EDITOR_WIDTHS[a.editorWidth] ?? EDITOR_WIDTHS.medium).css);
+  for (const [name, value] of Object.entries(foldArrowVars(a.foldArrow)))
+    style.setProperty(name, value);
   if (a.uiFont) style.setProperty("--font-ui", fontStack(a.uiFont, UI_FONT_FALLBACK));
   else style.removeProperty("--font-ui");
   if (a.noteFont) style.setProperty("--font-note", fontStack(a.noteFont, "var(--font-ui)"));

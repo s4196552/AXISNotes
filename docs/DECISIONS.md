@@ -2,6 +2,11 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-29: Fold arrow styles (T-138)
+
+- **Settings → Appearance → Fold arrows** picks how the arrows that fold headings and toggle lists look: Triangle (the default, as before), Chevron, Arrow, Circled chevron, Plus and minus, or Boxed plus and minus. It is saved as `appearance.foldArrow` in the vault's config; an unknown value falls back to Triangle.
+- **The icons are inline SVGs used as CSS masks** (`FOLD_ARROWS` in `src/app/appearance.ts`), filled with the text colour, so they follow every theme and a change applies at once without redrawing the editor. Each style gives its closed icon, an optional open icon (plus → minus) and how far it turns when opened (90° for arrows, none for plus/minus). The widget no longer holds a `▸` character; its `aria-label` and `aria-expanded` are unchanged. No dependency added.
+
 ## 2026-10-29: A lone `1` stays text; digits pick headings in the command menu (T-137)
 
 - **Typing `1` on an empty line no longer inserts `1. `.** It turned a plain `1` into a list the user didn't ask for, and broke the command menu opened with Ctrl+/ on an empty line, where `1` should find Heading 1. A numbered list still starts as soon as `.` follows a number (`1.` → `1. `), so this supersedes only the `1` rule of the T-071 entry below; its `1. ` follow-ups (`10`, `1:30`, `1/2`) are gone with it.
