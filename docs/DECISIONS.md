@@ -8,6 +8,11 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **The filter works on what is rendered** (`src/features/settings/settingsSearch.ts`): rows, list items and checkboxes are hidden with a class, not removed, so no section needs a separate search index that could drift from its controls. A MutationObserver re-runs it as sections finish loading (fonts, templates); it watches content only, not the classes it sets.
 - **Live sections are offered as links, not opened:** AI (which asks every provider for its models when it opens), Web clipper, Updates and Icon & image packs load data on mount, so a search lists them as "Open …" rows matched on a short keyword list (providers, API key, model names, pairing, updates folder, emoji …) and opens the page when clicked.
 
+## 2026-10-29: Context menus stay inside the window (T-144)
+
+- **The file tree's right-click menu, the tab menu and the tab-group editor open above or to the left of the pointer when they would run past the bottom or right edge of the window**, like the operating system's own menus. If neither side of the pointer has room, the menu sits against the edge; one taller than the window starts 8 px from the top and scrolls. Before, they always opened at the pointer, so right-clicking low in the sidebar hid most of the file menu.
+- One helper, `src/app/menuPosition.ts`: a pure `fitMenu` for the geometry, and `useFitToViewport`, which measures the menu in a layout effect before it is painted, so it never flashes off screen. It converts between screen and style pixels, so a zoomed panel's menu is placed correctly too.
+
 ## 2026-10-29: Heading colour presets (T-142)
 
 - **Settings → Appearance → Heading colours** offers presets: Theme default (as before), Accent, Rainbow, Amber, Ocean, Forest and Berry. Each colours headings 1–6 separately, with a lighter shade in dark themes (`light-dark()`), and the choice applies at once. It is saved as `appearance.headingColors` in the vault's config; an unknown value falls back to Theme default.
