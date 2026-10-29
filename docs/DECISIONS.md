@@ -2,6 +2,11 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-29: Context menus stay inside the window (T-144)
+
+- **The file tree's right-click menu, the tab menu and the tab-group editor open above or to the left of the pointer when they would run past the bottom or right edge of the window**, like the operating system's own menus. If neither side of the pointer has room, the menu sits against the edge; one taller than the window starts 8 px from the top and scrolls. Before, they always opened at the pointer, so right-clicking low in the sidebar hid most of the file menu.
+- One helper, `src/app/menuPosition.ts`: a pure `fitMenu` for the geometry, and `useFitToViewport`, which measures the menu in a layout effect before it is painted, so it never flashes off screen. It converts between screen and style pixels, so a zoomed panel's menu is placed correctly too.
+
 ## 2026-10-29: Heading colour presets (T-142)
 
 - **Settings → Appearance → Heading colours** offers presets: Theme default (as before), Accent, Rainbow, Amber, Ocean, Forest and Berry. Each colours headings 1–6 separately, with a lighter shade in dark themes (`light-dark()`), and the choice applies at once. It is saved as `appearance.headingColors` in the vault's config; an unknown value falls back to Theme default.
