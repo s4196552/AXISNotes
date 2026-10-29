@@ -6,7 +6,8 @@
   align-items: flex-end;
   gap: 2px;
   height: 38px;
-  padding: 0 44px 0 8px;
+  /* Room at the right end for the Zen mode and right panel buttons. */
+  padding: 0 78px 0 8px;
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border);
 }

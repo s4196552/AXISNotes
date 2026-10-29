@@ -1,4 +1,5 @@
 import {
+  Maximize2,
   Bold,
   Italic,
   Strikethrough,
@@ -103,6 +104,7 @@ export const COMMAND_ICONS: Record<string, LucideIcon> = {
   "zoom-out": ZoomOut,
   "zoom-reset": ZoomIn,
   "toggle-side-panels": PanelsLeftRight,
+  "zen-mode": Maximize2,
   "toggle-left-panel": PanelLeft,
   "toggle-right-panel": PanelRight,
   "toggle-theme": Palette,

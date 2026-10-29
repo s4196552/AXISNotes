@@ -6,6 +6,8 @@ import { create } from "zustand";
 const KEY = "axisnotes.layout";
 
 export type Side = "left" | "right";
+/** A window edge that reveals part of the app in Zen mode (see `src/app/zen.ts`). */
+export type ZenEdge = Side | "top";
 
 /**
  * Below this width the side panels stop taking room beside the note and open over it
@@ -67,6 +69,14 @@ interface LayoutState extends Saved {
   /** The panel open over the note while compact (not saved; starts closed). */
   overlay: Side | null;
   setOverlay(side: Side | null): void;
+  /**
+   * Zen mode: the note fills the screen, and the panels and the tab row stay hidden
+   * until the pointer reaches the window's left, right or top edge (not saved).
+   */
+  zen: boolean;
+  /** What the pointer has revealed in Zen mode, if anything. */
+  zenReveal: ZenEdge | null;
+  setZenReveal(edge: ZenEdge | null): void;
   setPanels(p: Partial<Pick<Saved, "left" | "right">>): void;
   /**
    * Set one panel's width (clamped). `save: false` applies it without writing local
@@ -90,6 +100,11 @@ export const useLayout = create<LayoutState>((set, get) => ({
   overlay: null,
   setOverlay(overlay) {
     set({ overlay });
+  },
+  zen: false,
+  zenReveal: null,
+  setZenReveal(zenReveal) {
+    if (get().zenReveal !== zenReveal) set({ zenReveal });
   },
   setPanels(p) {
     set(p);
@@ -122,13 +137,18 @@ if (typeof window !== "undefined") {
     .addEventListener?.("change", (e) => useLayout.setState({ compact: e.matches, overlay: null }));
 }
 
-/** Whether a panel is showing: docked when the window is wide, as an overlay when compact. */
+/**
+ * Whether a panel is showing: docked when the window is wide, as an overlay when compact,
+ * and in Zen mode only while the pointer has revealed it.
+ */
 export const isPanelOpen = (s: LayoutState, side: Side) =>
-  s.compact ? s.overlay === side : s[side];
+  s.zen ? s.zenReveal === side : s.compact ? s.overlay === side : s[side];
 
 /** Hide both side panels, or bring both back if they're already hidden. */
 export function toggleSidePanels() {
-  const { left, right, setPanels, compact, overlay, setOverlay } = useLayout.getState();
+  const { left, right, setPanels, compact, overlay, setOverlay, zen, zenReveal, setZenReveal } =
+    useLayout.getState();
+  if (zen) return setZenReveal(zenReveal ? null : "left");
   if (compact) return setOverlay(overlay ? null : "left");
   const show = !left && !right;
   setPanels({ left: show, right: show });
@@ -136,7 +156,8 @@ export function toggleSidePanels() {
 
 function togglePanel(side: Side) {
   const s = useLayout.getState();
-  if (s.compact) s.setOverlay(s.overlay === side ? null : side);
+  if (s.zen) s.setZenReveal(s.zenReveal === side ? null : side);
+  else if (s.compact) s.setOverlay(s.overlay === side ? null : side);
   else s.setPanels({ [side]: !s[side] });
 }
 
@@ -144,7 +165,8 @@ export const toggleLeftPanel = () => togglePanel("left");
 export const toggleRightPanel = () => togglePanel("right");
 export function showLeftPanel() {
   const s = useLayout.getState();
-  if (s.compact) s.setOverlay("left");
+  if (s.zen) s.setZenReveal("left");
+  else if (s.compact) s.setOverlay("left");
   else s.setPanels({ left: true });
 }
 /** Close the panel open over the note (compact windows). */
