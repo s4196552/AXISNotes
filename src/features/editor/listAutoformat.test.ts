@@ -78,9 +78,11 @@ describe("lists start as you type", () => {
     expect(shown(twice)).toBe("-  |"); // a second space is the user's
   });
 
-  it("makes a numbered list from `1` or `1.` on an empty line", () => {
+  it("makes a numbered list from `1.`, but leaves a lone `1` as typed", () => {
     const one = editor();
-    type(one, "1first");
+    type(one, "1");
+    expect(shown(one)).toBe("1|");
+    type(one, ".first");
     expect(shown(one)).toBe("1. first|");
     const dotted = editor();
     type(dotted, "1. second");
@@ -131,9 +133,9 @@ describe("lists start as you type", () => {
     backspace(view);
     expect(shown(view)).toBe("-|");
     const num = editor();
-    type(num, "1");
+    type(num, "1.");
     backspace(num);
-    expect(shown(num)).toBe("1|");
+    expect(shown(num)).toBe("1.|");
     // Later, Backspace is ordinary again.
     const later = editor();
     type(later, "-a");

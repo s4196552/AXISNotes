@@ -679,6 +679,9 @@ export const commandMenuRender = [
 
 export const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** The heading level a command-menu query of just `1`…`6` asks for. */
+const headingLevel = (typed: string) => (/^[1-6]$/.test(typed) ? typed : null);
+
 /** Where the command menu's text starts: at the Ctrl+/ anchor, or after a typed trigger. */
 function menuStart(context: CompletionContext, cfg: QuickCommandConfig) {
   const anchor = context.state.field(commandMenuAnchor, false) ?? null;
@@ -718,13 +721,20 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
   });
   // Nothing typed: Notion-style sections in their set order. Typed: one ranked list. The
   // result is only reused while that stays true, so the layout switches as you type.
-  const filtering = context.state.sliceDoc(typedFrom, context.pos).trim() !== "";
+  const typed = context.state.sliceDoc(typedFrom, context.pos).trim();
+  const filtering = typed !== "";
+  // A digit 1–6 picks that heading level, plain then toggle. CodeMirror matches a
+  // one-character query only against a label's first letter, so it would find nothing.
+  const level = headingLevel(typed);
+  const levelIds = level ? [`h${level}`, `toggle-h${level}`] : null;
   const place = (section: CompletionSection, order: number) =>
     filtering ? { section: FILTERED } : { section, boost: -order };
   const custom: CompletionSection = { name: CUSTOM_GROUP, rank: COMMAND_GROUPS.length };
   // Turn into: offered while filtering, when the line already has text to keep.
   const turnable = filtering && lineAround(context.state, start, context.pos).text !== "";
-  const commands = SLASH_COMMANDS.filter((c) => !cfg.disabled.includes(c.id));
+  const commands = SLASH_COMMANDS.filter(
+    (c) => !cfg.disabled.includes(c.id) && (!levelIds || levelIds.includes(c.id)),
+  );
   // Each Turn into follows its command with the same score; the sort keeps that order.
   const options: CommandCompletion[] = [
     ...commands.flatMap((c) => {
@@ -741,7 +751,7 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
       );
       return [main, turn];
     }),
-    ...cfg.custom.map((c, i) =>
+    ...(levelIds ? [] : cfg.custom).map((c, i) =>
       option(
         { label: c.label, icon: Zap, description: c.insert.replace("{{cursor}}", "").trim() },
         place(custom, i),
@@ -749,8 +759,11 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
       ),
     ),
   ];
-  const validFor = (typed: string) => /^[\w ]*$/.test(typed) && (typed.trim() !== "") === filtering;
-  return { from: typedFrom, options, validFor };
+  const validFor = (now: string) =>
+    level
+      ? headingLevel(now.trim()) === level
+      : /^[\w ]*$/.test(now) && (now.trim() !== "") === filtering && !headingLevel(now.trim());
+  return { from: typedFrom, options, validFor, ...(level ? { filter: false } : {}) };
 }
 
 // ---- Emoji ----

@@ -755,6 +755,55 @@ describe("command menu sections", () => {
   });
 });
 
+describe("command menu: digits pick a heading level", () => {
+  it("lists Heading N then Toggle heading N for 1 to 6, and Enter makes the heading", async () => {
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      const view = viewWith("");
+      openCommandMenu(view);
+      await vi.waitFor(() => expect(currentCompletions(view.state).length).toBeGreaterThan(0));
+      type(view, String(n));
+      await vi.waitFor(() =>
+        expect(currentCompletions(view.state).map((c) => c.label)).toEqual([
+          `Heading ${n}`,
+          `Toggle heading ${n}`,
+        ]),
+      );
+      acceptCompletion(view);
+      expect(view.state.doc.toString()).toBe(`${"#".repeat(n)} `);
+    }
+  });
+
+  it("works after a typed trigger and offers Turn into on a line with text", () => {
+    const view = viewWith("Plan /2", { cfg: { slashTrigger: "/" } });
+    const r = slashCompletions(ctx(view))!;
+    expect(r.options.map((o) => [o.label, o.detail])).toEqual([
+      ["Heading 2", undefined],
+      ["Heading 2", TURN_INTO],
+      ["Toggle heading 2", undefined],
+      ["Toggle heading 2", TURN_INTO],
+    ]);
+    expect(r.validFor).toBeInstanceOf(Function);
+    const valid = r.validFor as (t: string) => boolean;
+    expect([valid("2"), valid("2 "), valid("3"), valid("2h"), valid("")]).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("leaves other numbers and disabled headings alone", () => {
+    const shown = (doc: string, disabled: string[] = []) =>
+      slashCompletions(ctx(viewWith(doc, { cfg: { slashTrigger: "/", disabled } })))!.options.map(
+        (o) => o.label,
+      );
+    expect(shown("/7")).not.toContain("Heading 7");
+    expect(shown("/7").length).toBeGreaterThan(2); // an ordinary fuzzy query
+    expect(shown("/3", ["h3"])).toEqual(["Toggle heading 3"]);
+  });
+});
+
 describe("command menu: new blocks, Turn into and descriptions", () => {
   const render = (c: Completion) =>
     commandMenuRender.map((r) => r.render(c)).filter((n): n is HTMLElement => n !== null);
