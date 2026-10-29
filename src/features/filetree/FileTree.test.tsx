@@ -83,6 +83,26 @@ describe("FileTree", () => {
     expect(queryRow("Bio")).toBeNull();
   });
 
+  it("turns the folder's arrow and drops in only the rows its opening reveals", async () => {
+    await setup({ "School/Bio.md": "", "School/Chem.md": "", "Ideas.md": "" });
+    const chevron = () => row("School").querySelector(".filetree-chevron")!;
+    expect(chevron()).not.toHaveClass("open");
+    expect(row("Ideas")).not.toHaveClass("entering"); // nothing animates on first show
+
+    fireEvent.click(row("School"));
+    expect(chevron()).toHaveClass("open");
+    expect(row("Bio")).toHaveClass("entering");
+    expect(row("Chem")).toHaveClass("entering");
+    // One after another: the second row starts a little later.
+    expect(row("Bio").style.animationDelay).toBe("0ms");
+    expect(row("Chem").style.animationDelay).toBe("14ms");
+    expect(row("School")).not.toHaveClass("entering");
+    expect(row("Ideas")).not.toHaveClass("entering");
+
+    fireEvent.click(row("School"));
+    expect(chevron()).not.toHaveClass("open");
+  });
+
   it("persists expanded folders per vault", async () => {
     await setup({ "School/Bio.md": "" });
     fireEvent.click(row("School"));

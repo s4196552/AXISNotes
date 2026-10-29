@@ -154,3 +154,5 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 | T-145 | 6 | Icons in right-click menus; rounded accent file tree selection | claude | merged | agent/claude/T-145 | `src/features/filetree/{FileTree.tsx,filetree.css}`, `src/features/tabs/TabBar.tsx`, `docs/DECISIONS.md`, task coordination |
 
 | T-146 | 6 | Zen mode: full screen, panels and tab row revealed from the window edges | claude | merged | agent/claude/T-146 | `src/app/{layout.ts,zen.ts,zen.test.tsx}`, `src/App.tsx`, `src/features/panels/ZenToggle.tsx`, `src/features/commands/{registry,commandIcons}.ts`, `src/ipc/{types,tauriBackend}.ts`, `src-tauri/capabilities/default.json`, `src/styles/app.css`, `src/features/{tabs/tabs.css,window/window.css,window/WindowControls.test.tsx}`, `docs/DECISIONS.md`, task coordination |
+
+| T-147 | 6 | Zen mode slides; file tree folder drop-down and turning arrow | claude | approved | agent/claude/T-147 | `src/styles/app.css`, `src/features/filetree/{FileTree.tsx,FileTree.test.tsx,filetree.css}`, `docs/DECISIONS.md`, task coordination |

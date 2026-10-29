@@ -587,10 +587,33 @@ body.pointer-dragging * {
 .shell.zen[data-zen-reveal="top"] .window-controls {
   transform: none;
 }
-@media (prefers-reduced-motion: reduce) {
-  .shell.zen .tabbar-row,
-  .shell.zen .window-controls {
-    transition: none;
+/* Zen mode always slides, like the docked panels, even with Windows animations off (which
+   turns on prefers-reduced-motion): the user asked for these slides. Opening uses a
+   keyframe too, because the right panel is only mounted while it shows, so it has no
+   closed state to transition from. These rules come after, and outrank, the compact
+   overlay's reduced-motion rule above. */
+.shell.compact.zen .sidebar-slot {
+  transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+.shell.compact.zen .sidebar-slot[data-closed] {
+  transition:
+    transform 180ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 180ms;
+}
+.shell.compact.zen .sidebar-slot.left:not([data-closed]) {
+  animation: zen-slide-from-left 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+.shell.compact.zen .sidebar-slot.right:not([data-closed]) {
+  animation: zen-slide-from-right 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes zen-slide-from-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes zen-slide-from-right {
+  from {
+    transform: translateX(100%);
   }
 }
 

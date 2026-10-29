@@ -159,6 +159,24 @@ body.filetree-dragging * {
   flex: none;
   color: var(--fg-muted);
 }
+/* One arrow that turns to point down as its folder opens, and back as it closes. These
+   play even with Windows animations off, like the panels' slides. */
+.filetree-chevron svg {
+  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+.filetree-chevron.open svg {
+  transform: rotate(90deg);
+}
+/* The rows a folder reveals drop into place, one just after another. */
+.filetree-row.entering {
+  animation: filetree-drop 180ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+@keyframes filetree-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
 .filetree-icon {
   flex: none;
   color: var(--fg-muted);
