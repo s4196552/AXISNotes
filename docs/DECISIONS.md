@@ -2,6 +2,12 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-29: Search settings (T-143)
+
+- **Settings has a "Search settings" box** at the top of its section list, focused when Settings opens. While it holds text, the sections are shown one under another with only the matching settings left visible, and those work in place (change a font straight from the results). A setting matches when every typed word is in its own text, the heading of its group, the label of the setting holding it, or its section's name; a section's name shows the whole section. "No settings match" appears when nothing is left. Escape clears the search before it closes Settings; choosing a section leaves the search.
+- **The filter works on what is rendered** (`src/features/settings/settingsSearch.ts`): rows, list items and checkboxes are hidden with a class, not removed, so no section needs a separate search index that could drift from its controls. A MutationObserver re-runs it as sections finish loading (fonts, templates); it watches content only, not the classes it sets.
+- **Live sections are offered as links, not opened:** AI (which asks every provider for its models when it opens), Web clipper, Updates and Icon & image packs load data on mount, so a search lists them as "Open …" rows matched on a short keyword list (providers, API key, model names, pairing, updates folder, emoji …) and opens the page when clicked.
+
 ## 2026-10-29: Heading colour presets (T-142)
 
 - **Settings → Appearance → Heading colours** offers presets: Theme default (as before), Accent, Rainbow, Amber, Ocean, Forest and Berry. Each colours headings 1–6 separately, with a lighter shade in dark themes (`light-dark()`), and the choice applies at once. It is saved as `appearance.headingColors` in the vault's config; an unknown value falls back to Theme default.
