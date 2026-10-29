@@ -52,6 +52,9 @@
   white-space: nowrap;
   /* Names are light grey until the row is selected or open, then full white. */
   color: var(--fg-muted);
+  /* Rounded rows inset from the panel's edges, like Obsidian's. */
+  margin: 0 6px;
+  border-radius: var(--radius-md);
 }
 .filetree-row:hover {
   background: var(--bg-hover);
@@ -60,8 +63,10 @@
   background: var(--bg-active);
   color: var(--fg);
 }
+/* The selected row: an accent-coloured rounded box with a light accent tint. */
 .filetree-body:focus-visible .filetree-row.selected,
 .filetree-row.selected {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   box-shadow: inset 0 0 0 1px var(--accent);
   color: var(--fg);
 }
@@ -182,9 +187,18 @@ body.filetree-dragging * {
 }
 .filetree-menu button {
   justify-content: flex-start;
+  gap: 8px;
   border: none;
   background: transparent;
   padding: 6px 10px;
+}
+/* Each item's icon, before its label (file, tab and tab group menus). */
+.filetree-menu .menu-icon {
+  flex: none;
+  color: var(--fg-muted);
+}
+.filetree-menu button.danger .menu-icon {
+  color: inherit;
 }
 .filetree-menu button:hover {
   background: var(--bg-hover);

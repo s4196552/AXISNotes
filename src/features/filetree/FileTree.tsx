@@ -9,10 +9,16 @@ import {
   useState,
 } from "react";
 import {
+  ArrowDown,
+  ArrowDownAZ,
+  ArrowUp,
+  Ban,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
+  Cpu,
   File,
+  FolderInput,
   FilePlus,
   FileText,
   Folder,
@@ -23,9 +29,14 @@ import {
   Image,
   LayoutDashboard,
   Lock,
+  type LucideIcon,
+  Palette,
   Pencil,
   Shapes,
   Sheet,
+  Smile,
+  Sparkles,
+  Trash2,
 } from "lucide-react";
 import { type AiRule, backend, isBackendError, type VaultEntry } from "../../ipc";
 import { CANVAS_EXT, docKind, GRID_EXT } from "../../lib/fileKinds";
@@ -686,63 +697,79 @@ export function FileTree() {
         >
           <MenuItem
             label="New note here"
+            icon={FilePlus}
             onClick={() => void createNote(menuDir)}
             close={setMenu}
           />
           <MenuItem
             label="New grid here"
+            icon={Sheet}
             onClick={() => void createNote(menuDir, "grid")}
             close={setMenu}
           />
           <MenuItem
             label="New canvas here"
+            icon={Shapes}
             onClick={() => void createNote(menuDir, "canvas")}
             close={setMenu}
           />
           <MenuItem
             label="New folder here"
+            icon={FolderPlus}
             onClick={() => void createFolder(menuDir)}
             close={setMenu}
           />
           {menu.entry?.kind === "dir" && <DashboardItems path={menu.entry.path} close={setMenu} />}
           {menu.entry?.kind !== "file" && fileOrder[menuDir] && (
-            <MenuItem label="Sort A–Z" onClick={() => void resetOrder(menuDir)} close={setMenu} />
+            <MenuItem
+              label="Sort A–Z"
+              icon={ArrowDownAZ}
+              onClick={() => void resetOrder(menuDir)}
+              close={setMenu}
+            />
           )}
           {menu.entry && (
             <>
               <AiRuleItems path={menu.entry.path} close={setMenu} />
               <MenuItem
                 label="Rename"
+                icon={Pencil}
                 onClick={() => setRenaming(menu.entry!.path)}
                 close={setMenu}
               />
               <MenuItem
                 label="Move to…"
+                icon={FolderInput}
                 onClick={() => useUi.getState().open({ kind: "move", path: menu.entry!.path })}
                 close={setMenu}
               />
               <MenuItem
                 label="Move up"
+                icon={ArrowUp}
                 onClick={() => nudge(menu.entry!.path, -1)}
                 close={setMenu}
               />
               <MenuItem
                 label="Move down"
+                icon={ArrowDown}
                 onClick={() => nudge(menu.entry!.path, 1)}
                 close={setMenu}
               />
               <MenuItem
                 label="Change icon…"
+                icon={Smile}
                 onClick={() => useUi.getState().open({ kind: "icon", path: menu.entry!.path })}
                 close={setMenu}
               />
               <MenuItem
                 label="Change colours…"
+                icon={Palette}
                 onClick={() => useUi.getState().open({ kind: "colors", path: menu.entry!.path })}
                 close={setMenu}
               />
               <MenuItem
                 label="Delete"
+                icon={Trash2}
                 danger
                 onClick={() => void trash(menu.entry!)}
                 close={setMenu}
@@ -761,12 +788,18 @@ function DashboardItems({ path, close }: { path: string; close(v: null): void })
   const open = () => useAppStore.getState().openDashboard(path);
   return has ? (
     <>
-      <MenuItem label="Open dashboard" onClick={open} close={close} />
-      <MenuItem label="Remove dashboard" onClick={() => setDashboard(path, false)} close={close} />
+      <MenuItem label="Open dashboard" icon={LayoutDashboard} onClick={open} close={close} />
+      <MenuItem
+        label="Remove dashboard"
+        icon={LayoutDashboard}
+        onClick={() => setDashboard(path, false)}
+        close={close}
+      />
     </>
   ) : (
     <MenuItem
       label="Add dashboard"
+      icon={LayoutDashboard}
       onClick={() => {
         setDashboard(path, true);
         open();
@@ -786,16 +819,17 @@ function AiRuleItems({ path, close }: { path: string; close(v: null): void }) {
       else folders[path] = r;
       return { ...c, ai: { ...c.ai, folders } };
     });
-  const items: [AiRule | null, string][] = [
-    [null, "AI access: inherit"],
-    ["never", "AI access: never"],
-    ["local", "AI access: local models only"],
+  const items: [AiRule | null, string, LucideIcon][] = [
+    [null, "AI access: inherit", Sparkles],
+    ["never", "AI access: never", Ban],
+    ["local", "AI access: local models only", Cpu],
   ];
   return (
     <>
-      {items.map(([r, label]) => (
+      {items.map(([r, label, icon]) => (
         <MenuItem
           key={label}
+          icon={icon}
           label={(rule ?? null) === r ? `✓ ${label}` : label}
           onClick={() => set(r)}
           close={close}
@@ -807,6 +841,8 @@ function AiRuleItems({ path, close }: { path: string; close(v: null): void }) {
 
 function MenuItem(props: {
   label: string;
+  /** Shown before the label, like the command palette's icons. */
+  icon: LucideIcon;
   danger?: boolean;
   onClick(): void;
   close(v: null): void;
@@ -820,6 +856,7 @@ function MenuItem(props: {
         props.onClick();
       }}
     >
+      <props.icon size={15} className="menu-icon" aria-hidden />
       {props.label}
     </button>
   );
