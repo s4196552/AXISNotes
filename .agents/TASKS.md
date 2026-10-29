@@ -150,3 +150,5 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 | T-143 | 6 | Search settings | claude | merged | agent/claude/T-143 | `src/features/settings/{Settings.tsx,settings.css,settingsSearch.ts,settingsSearch.test.tsx}`, `docs/DECISIONS.md`, task coordination |
 
 | T-144 | 6 | Context menus stay inside the window (file tree, tabs) | claude | merged | agent/claude/T-144 | `src/app/menuPosition*`, `src/features/filetree/FileTree.tsx`, `src/features/tabs/TabBar.tsx`, `docs/DECISIONS.md`, task coordination |
+
+| T-145 | 6 | Icons in right-click menus; rounded accent file tree selection | claude | approved | agent/claude/T-145 | `src/features/filetree/{FileTree.tsx,filetree.css}`, `src/features/tabs/TabBar.tsx`, `docs/DECISIONS.md`, task coordination |

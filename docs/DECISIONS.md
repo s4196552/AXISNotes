@@ -8,6 +8,11 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **The filter works on what is rendered** (`src/features/settings/settingsSearch.ts`): rows, list items and checkboxes are hidden with a class, not removed, so no section needs a separate search index that could drift from its controls. A MutationObserver re-runs it as sections finish loading (fonts, templates); it watches content only, not the classes it sets.
 - **Live sections are offered as links, not opened:** AI (which asks every provider for its models when it opens), Web clipper, Updates and Icon & image packs load data on mount, so a search lists them as "Open …" rows matched on a short keyword list (providers, API key, model names, pairing, updates folder, emoji …) and opens the page when clicked.
 
+## 2026-10-29: Icons in right-click menus; rounded accent selection in the file tree (T-145)
+
+- **Every item in the file tree, tab and tab-group menus has an icon** before its label, the same Lucide icon the command palette uses for that action where there is one (New note, grid and canvas; Rename; Move to; Delete; Pin; group and ungroup; Close). Icons are muted; a dangerous item's icon takes its red. Labels are unchanged, so tests and screen readers read the same text.
+- **File tree rows are rounded (8 px) and inset 6 px from the panel's edges, like Obsidian's.** The selected row is an accent-coloured rounded box: a 1 px accent outline over a 14% accent tint. Rows with their own background colour keep it and still get the outline.
+
 ## 2026-10-29: Context menus stay inside the window (T-144)
 
 - **The file tree's right-click menu, the tab menu and the tab-group editor open above or to the left of the pointer when they would run past the bottom or right edge of the window**, like the operating system's own menus. If neither side of the pointer has room, the menu sits against the edge; one taller than the window starts 8 px from the top and scrolls. Before, they always opened at the pointer, so right-clicking low in the sidebar hid most of the file menu.
