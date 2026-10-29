@@ -2,6 +2,11 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-10-29: Heading colour presets (T-142)
+
+- **Settings → Appearance → Heading colours** offers presets: Theme default (as before), Accent, Rainbow, Amber, Ocean, Forest and Berry. Each colours headings 1–6 separately, with a lighter shade in dark themes (`light-dark()`), and the choice applies at once. It is saved as `appearance.headingColors` in the vault's config; an unknown value falls back to Theme default.
+- **How it is drawn:** the presets live in `HEADING_COLORS` (`src/app/appearance.ts`) and set `--heading-1`…`--heading-6` on the document; each `.cm-lp-hN` line sets `--heading` from its level, so toggle headings follow too. With Theme default the level variables are removed and fall back to the theme's `--heading`, so custom themes and CSS snippets can still set their own. The note title keeps the theme's heading colour.
+
 ## 2026-10-29: Obsidian-style code blocks; one Code block command (T-140)
 
 - **The command menu keeps only Inline code and Code block** for code (plus the Mermaid diagram). The 13 per-language commands (Python code block, Java code block, ...) are gone: Code block leaves the cursor after the opening fence, where the language is typed with suggestions, exactly like typing three backticks. Code block also has no Turn into row any more, so it appears once; it always starts a new block (below a line with text). The palette's Insert code block still wraps a selection.

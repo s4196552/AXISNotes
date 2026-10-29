@@ -39,6 +39,7 @@ import { UpdatesSettings } from "../updates/UpdatesSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
 import { ThemePicker } from "./ThemePicker";
 import { FoldArrowPicker } from "./FoldArrowPicker";
+import { HeadingColorPicker } from "./HeadingColorPicker";
 import { About } from "./About";
 import { PacksSettings } from "../packs/PacksSettings";
 import "./settings.css";
@@ -340,6 +341,12 @@ function Appearance({ config, set }: SectionProps) {
             </option>
           ))}
         </select>
+      </Field>
+      <Field label="Heading colours" hint="A colour for each heading level, or the theme's own.">
+        <HeadingColorPicker
+          value={a.headingColors}
+          onChange={(headingColors) => setA({ headingColors })}
+        />
       </Field>
       <Field label="Fold arrows" hint="The arrows that fold headings and toggle lists.">
         <FoldArrowPicker value={a.foldArrow} onChange={(foldArrow) => setA({ foldArrow })} />

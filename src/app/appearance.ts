@@ -1,5 +1,5 @@
 import { backend, type OsWindowEffect } from "../ipc";
-import type { AxisConfig, EditorWidth, FoldArrow, WindowEffect } from "./config";
+import type { AxisConfig, EditorWidth, FoldArrow, HeadingColors, WindowEffect } from "./config";
 
 // Applies the theme and CSS snippets from the vault config to the document.
 // Built-in modes set `data-theme`; user themes and snippets are injected <style> tags.
@@ -179,6 +179,73 @@ export function foldArrowVars(style: FoldArrow): Record<string, string> {
   return { "--fold-closed": a.closed, "--fold-open": a.open ?? a.closed, "--fold-turn": a.turn };
 }
 
+/** Colours for headings 1–6 in light and dark themes, each `[light, dark]`. */
+type HeadingShades = readonly [string, string][];
+const shades = (light: string[], dark: string[]): HeadingShades =>
+  light.map((l, i) => [l, dark[i]!] as [string, string]);
+
+/**
+ * Heading colour presets (Settings → Appearance). "theme" leaves the theme's own heading
+ * colour; the others colour each level, with a lighter shade for dark themes.
+ */
+export const HEADING_COLORS: Record<
+  HeadingColors,
+  { label: string; shades: HeadingShades | null }
+> = {
+  theme: { label: "Theme default", shades: null },
+  accent: { label: "Accent", shades: Array(6).fill(["var(--accent)", "var(--accent)"]) },
+  rainbow: {
+    label: "Rainbow",
+    shades: shades(
+      ["#d73a49", "#c2610c", "#a07800", "#22863a", "#0366d6", "#6f42c1"],
+      ["#e06c75", "#e5a050", "#e5c07b", "#98c379", "#61afef", "#c678dd"],
+    ),
+  },
+  amber: {
+    label: "Amber",
+    shades: shades(
+      ["#b45309", "#c2610c", "#b7791f", "#a16207", "#92400e", "#78350f"],
+      ["#f0a35e", "#e5a050", "#e8b56b", "#ebc287", "#d9a46c", "#c79a6b"],
+    ),
+  },
+  ocean: {
+    label: "Ocean",
+    shades: shades(
+      ["#0b5394", "#1565c0", "#0277bd", "#00838f", "#00796b", "#455a64"],
+      ["#7cc4ff", "#61afef", "#56b6c2", "#4fd1c5", "#81e6d9", "#a0aec0"],
+    ),
+  },
+  forest: {
+    label: "Forest",
+    shades: shades(
+      ["#1b5e20", "#2e7d32", "#388e3c", "#558b2f", "#689f38", "#827717"],
+      ["#98c379", "#8fd18f", "#a3d977", "#b5e08a", "#c5e1a5", "#d4e157"],
+    ),
+  },
+  berry: {
+    label: "Berry",
+    shades: shades(
+      ["#880e4f", "#ad1457", "#6a1b9a", "#7b1fa2", "#8e24aa", "#5e35b1"],
+      ["#f48fb1", "#f06292", "#ce93d8", "#c678dd", "#b39ddb", "#9fa8da"],
+    ),
+  },
+};
+
+/**
+ * The `--heading-1`…`--heading-6` variables of a preset (`.cm-lp-hN` in editor.css), or
+ * null for the theme's own colour.
+ */
+export function headingColorVars(preset: HeadingColors): Record<string, string> | null {
+  const s = (HEADING_COLORS[preset] ?? HEADING_COLORS.theme).shades;
+  if (!s) return null;
+  return Object.fromEntries(
+    s.map(([light, dark], i) => [
+      `--heading-${i + 1}`,
+      light === dark ? light : `light-dark(${light}, ${dark})`,
+    ]),
+  );
+}
+
 const UI_FONT_FALLBACK = '"Segoe UI", system-ui, -apple-system, sans-serif';
 
 /** A CSS font stack with `family` first; its quotes and backslashes are dropped. */
@@ -187,11 +254,11 @@ export function fontStack(family: string, fallback: string): string {
   return clean ? `"${clean}", ${fallback}` : fallback;
 }
 
-/** Note text size, fonts, editor width and fold arrows, as CSS variables on the document. */
+/** Note text size, fonts, editor width, fold arrows and heading colours, as CSS variables. */
 export function applyTypography(
   a: Pick<
     AxisConfig["appearance"],
-    "noteFontSize" | "noteFont" | "uiFont" | "editorWidth" | "foldArrow"
+    "noteFontSize" | "noteFont" | "uiFont" | "editorWidth" | "foldArrow" | "headingColors"
   >,
 ) {
   const style = document.documentElement.style;
@@ -203,6 +270,12 @@ export function applyTypography(
   style.setProperty("--editor-width", (EDITOR_WIDTHS[a.editorWidth] ?? EDITOR_WIDTHS.medium).css);
   for (const [name, value] of Object.entries(foldArrowVars(a.foldArrow)))
     style.setProperty(name, value);
+  const headings = headingColorVars(a.headingColors);
+  for (let n = 1; n <= 6; n++) {
+    const value = headings?.[`--heading-${n}`];
+    if (value) style.setProperty(`--heading-${n}`, value);
+    else style.removeProperty(`--heading-${n}`);
+  }
   if (a.uiFont) style.setProperty("--font-ui", fontStack(a.uiFont, UI_FONT_FALLBACK));
   else style.removeProperty("--font-ui");
   if (a.noteFont) style.setProperty("--font-note", fontStack(a.noteFont, "var(--font-ui)"));
