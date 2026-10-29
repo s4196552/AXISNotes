@@ -32,6 +32,7 @@ import { CANVAS_EXT, docKind, GRID_EXT } from "../../lib/fileKinds";
 import { emptySheet, serializeSheet } from "../../lib/formula/sheet";
 import { emptyCanvas, serializeCanvas } from "../../lib/canvas";
 import { useAppStore } from "../../app/store";
+import { useFitToViewport } from "../../app/menuPosition";
 import { type EntryColors, type FolderIcon, useConfig } from "../../app/config";
 import { useUi } from "../commands/ui";
 import { EntryIcon } from "../icons/EntryIcon";
@@ -109,6 +110,9 @@ export function FileTree() {
   const [selected, setSelected] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // Near the bottom or right of the window the menu opens above or left of the pointer.
+  useFitToViewport(menuRef, menu?.x ?? 0, menu?.y ?? 0, menu);
   /** The item being dragged, where it would land, and the pointer. */
   const [drag, setDrag] = useState<{ path: string; over: DropAt | null; x: number; y: number }>();
   const pressed = useRef<{
@@ -674,6 +678,7 @@ export function FileTree() {
 
       {menu && (
         <div
+          ref={menuRef}
           className="filetree-menu"
           role="menu"
           style={{ left: menu.x, top: menu.y }}

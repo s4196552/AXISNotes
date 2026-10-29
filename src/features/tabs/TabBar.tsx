@@ -9,6 +9,7 @@ import {
 } from "react";
 import { House, Pin, Plus, X } from "lucide-react";
 import { useAppStore } from "../../app/store";
+import { useFitToViewport } from "../../app/menuPosition";
 import { useConfig } from "../../app/config";
 import { useAreaZoomProps } from "../../app/zoom";
 import { usePointerDrag } from "../../app/usePointerDrag";
@@ -405,6 +406,8 @@ function TabMenu(props: {
 }) {
   const tabs = useAppStore((s) => s.tabs);
   const store = useAppStore.getState;
+  const ref = useRef<HTMLDivElement>(null);
+  useFitToViewport(ref, props.x, props.y);
   const tab = tabs.list.find((t) => t.id === props.id);
   if (!tab) return null;
   const sel = selection(tabs);
@@ -428,6 +431,7 @@ function TabMenu(props: {
 
   return (
     <div
+      ref={ref}
       className="filetree-menu tab-menu"
       role="menu"
       aria-label={many ? `${targets.length} selected tabs` : `${tabTitle(tab)} tab`}
@@ -472,6 +476,8 @@ function TabMenu(props: {
 function GroupEditor(props: { id: string; x: number; y: number; close(): void }) {
   const group = useAppStore((s) => findGroup(s.tabs, props.id));
   const store = useAppStore.getState;
+  const ref = useRef<HTMLDivElement>(null);
+  useFitToViewport(ref, props.x, props.y);
   if (!group) return null;
   const act = (run: () => void) => () => {
     props.close();
@@ -479,6 +485,7 @@ function GroupEditor(props: { id: string; x: number; y: number; close(): void })
   };
   return (
     <div
+      ref={ref}
       className="filetree-menu tab-group-editor"
       role="dialog"
       aria-label="Edit tab group"
