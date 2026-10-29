@@ -7,7 +7,19 @@ import {
   useRef,
   useState,
 } from "react";
-import { House, Pin, Plus, X } from "lucide-react";
+import {
+  ArrowRightToLine,
+  CopyX,
+  FilePlus,
+  House,
+  Layers,
+  type LucideIcon,
+  Pin,
+  PinOff,
+  Plus,
+  Ungroup,
+  X,
+} from "lucide-react";
 import { useAppStore } from "../../app/store";
 import { useFitToViewport } from "../../app/menuPosition";
 import { useConfig } from "../../app/config";
@@ -416,7 +428,7 @@ function TabMenu(props: {
   const what = many ? `${targets.length} tabs` : "tab";
   const targetTabs = tabs.list.filter((t) => targets.includes(t.id));
   const otherGroups = tabs.groups.filter((g) => targetTabs.some((t) => t.group !== g.id));
-  const item = (label: string, run: () => void, className?: string) => (
+  const item = (label: string, Icon: LucideIcon, run: () => void, className?: string) => (
     <button
       role="menuitem"
       className={className}
@@ -425,6 +437,7 @@ function TabMenu(props: {
         run();
       }}
     >
+      <Icon size={15} className="menu-icon" aria-hidden />
       {label}
     </button>
   );
@@ -438,7 +451,7 @@ function TabMenu(props: {
       style={{ left: props.x, top: props.y }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {item(`Add ${what} to new group`, () => {
+      {item(`Add ${what} to new group`, Layers, () => {
         const id = store().groupTabs(targets);
         if (id) props.onNewGroup(id);
       })}
@@ -458,16 +471,20 @@ function TabMenu(props: {
         </button>
       ))}
       {targetTabs.some((t) => t.group) &&
-        item("Remove from group", () => store().removeTabsFromGroup(targets))}
+        item("Remove from group", Ungroup, () => store().removeTabsFromGroup(targets))}
       <div className="tab-menu-sep" role="separator" />
       {many
-        ? item(`Close ${what}`, () =>
+        ? item(`Close ${what}`, X, () =>
             targetTabs.filter((t) => !t.pinned).forEach((t) => store().closeTab(t.id)),
           )
-        : item("Close", () => store().closeTab(tab.id))}
-      {!many && item("Close others", () => store().closeOtherTabs(tab.id))}
-      {!many && item("Close tabs to the right", () => store().closeTabsToRight(tab.id))}
-      {!many && item(tab.pinned ? "Unpin" : "Pin", () => store().togglePinTab(tab.id))}
+        : item("Close", X, () => store().closeTab(tab.id))}
+      {!many && item("Close others", CopyX, () => store().closeOtherTabs(tab.id))}
+      {!many &&
+        item("Close tabs to the right", ArrowRightToLine, () => store().closeTabsToRight(tab.id))}
+      {!many &&
+        item(tab.pinned ? "Unpin" : "Pin", tab.pinned ? PinOff : Pin, () =>
+          store().togglePinTab(tab.id),
+        )}
     </div>
   );
 }
@@ -520,9 +537,16 @@ function GroupEditor(props: { id: string; x: number; y: number; close(): void })
         ))}
       </div>
       <div className="tab-menu-sep" role="separator" />
-      <button onClick={act(() => store().newTabInGroup(group.id))}>New tab in group</button>
-      <button onClick={act(() => store().ungroupTabs(group.id))}>Ungroup</button>
+      <button onClick={act(() => store().newTabInGroup(group.id))}>
+        <FilePlus size={15} className="menu-icon" aria-hidden />
+        New tab in group
+      </button>
+      <button onClick={act(() => store().ungroupTabs(group.id))}>
+        <Ungroup size={15} className="menu-icon" aria-hidden />
+        Ungroup
+      </button>
       <button className="danger" onClick={act(() => store().closeTabGroup(group.id))}>
+        <X size={15} className="menu-icon" aria-hidden />
         Close group
       </button>
     </div>

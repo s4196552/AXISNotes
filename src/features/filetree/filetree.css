@@ -182,9 +182,18 @@ body.filetree-dragging * {
 }
 .filetree-menu button {
   justify-content: flex-start;
+  gap: 8px;
   border: none;
   background: transparent;
   padding: 6px 10px;
+}
+/* Each item's icon, before its label (file, tab and tab group menus). */
+.filetree-menu .menu-icon {
+  flex: none;
+  color: var(--fg-muted);
+}
+.filetree-menu button.danger .menu-icon {
+  color: inherit;
 }
 .filetree-menu button:hover {
   background: var(--bg-hover);
