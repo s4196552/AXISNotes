@@ -615,6 +615,8 @@ export interface WindowFrame {
   /** Ask to close, as the system close button would (so `onCloseRequested` runs first). */
   requestClose(): Promise<void>;
   isMaximized(): Promise<boolean>;
+  /** Cover the whole screen (Zen mode), or return to the window as it was. */
+  setFullscreen(on: boolean): Promise<void>;
   /** Called after each resize, maximize and restore. Returns an unsubscribe function. */
   onResized(cb: () => void): Promise<() => void>;
 }

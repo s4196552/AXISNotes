@@ -303,3 +303,102 @@
   mask-image: var(--fold-open, var(--fold-closed));
   transform: rotate(var(--fold-turn, 90deg));
 }
+
+/* Settings → Appearance → Heading colours (HeadingColorPicker.tsx): each tile shows H1–H3
+   in its preset, from the --heading-N variables the tile sets. */
+.heading-color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+.heading-color-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+}
+.heading-color-tile:hover {
+  background: var(--bg-hover);
+}
+.heading-color-tile input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.heading-color-tile:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.heading-color-tile:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.heading-color-sample {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 700;
+}
+.heading-color-sample > :nth-child(1) {
+  font-size: 16px;
+}
+.heading-color-sample > :nth-child(2) {
+  font-size: 14px;
+}
+.heading-color-sample > :nth-child(3) {
+  font-size: 12px;
+}
+
+/* Search settings (Settings.tsx, SearchResults): a box at the top of the sections, and
+   every section stacked while searching, with what doesn't match hidden. */
+.settings-search {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+}
+.settings-search-hidden {
+  display: none !important;
+}
+.settings-search-heading {
+  margin: 16px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.settings-search-goto {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  text-align: left;
+}
+.settings-search-goto > span {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+}
+.settings-search-goto:hover {
+  background: var(--bg-hover);
+}
+.settings-search-empty {
+  margin-top: 16px;
+}

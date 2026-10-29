@@ -2,7 +2,14 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
-import { applyTypography, FOLD_ARROWS, foldArrowVars, fontStack } from "../../app/appearance";
+import {
+  applyTypography,
+  FOLD_ARROWS,
+  foldArrowVars,
+  fontStack,
+  HEADING_COLORS,
+  headingColorVars,
+} from "../../app/appearance";
 import { installZoom, stepZoom, useAreaZoom, useAreaZoomProps, useZoom } from "../../app/zoom";
 import { useAppStore } from "../../app/store";
 import { commandForEvent } from "../commands/registry";
@@ -161,6 +168,7 @@ describe("text size, fonts and editor width", () => {
       uiFont: "Verdana",
       editorWidth: "full",
       foldArrow: "plus",
+      headingColors: "rainbow",
     });
     expect(style.getPropertyValue("--note-font-size")).toBe("20px");
     expect(style.getPropertyValue("--editor-width")).toBe("none");
@@ -168,6 +176,9 @@ describe("text size, fonts and editor width", () => {
     expect(style.getPropertyValue("--fold-closed")).toBe(FOLD_ARROWS.plus.closed);
     expect(style.getPropertyValue("--fold-open")).toBe(FOLD_ARROWS.plus.open);
     expect(style.getPropertyValue("--fold-turn")).toBe("0deg");
+    // Rainbow: each level its own colour, lighter in dark themes.
+    expect(style.getPropertyValue("--heading-1")).toBe("light-dark(#d73a49, #e06c75)");
+    expect(style.getPropertyValue("--heading-6")).toBe("light-dark(#6f42c1, #c678dd)");
     expect(style.getPropertyValue("--font-note")).toBe('"Georgia", var(--font-ui)');
     expect(style.getPropertyValue("--font-ui")).toMatch(/^"Verdana", "Segoe UI"/);
     // Back to the defaults; sizes stay in range.
@@ -177,11 +188,14 @@ describe("text size, fonts and editor width", () => {
       uiFont: "",
       editorWidth: "medium",
       foldArrow: "triangle",
+      headingColors: "theme",
     });
     expect(style.getPropertyValue("--note-font-size")).toBe("32px");
     expect(style.getPropertyValue("--editor-width")).toBe("760px");
     expect(style.getPropertyValue("--fold-open")).toBe(FOLD_ARROWS.triangle.closed);
     expect(style.getPropertyValue("--fold-turn")).toBe("90deg");
+    // The theme's own heading colour again: no level overrides left on the document.
+    expect(style.getPropertyValue("--heading-1")).toBe("");
     expect(style.getPropertyValue("--font-ui")).toBe("");
     expect(fontStack("", "serif")).toBe("serif");
   });
@@ -231,6 +245,31 @@ describe("text size, fonts and editor width", () => {
     );
     // An unknown style from a hand-edited config falls back to the triangle.
     expect(foldArrowVars("nope" as never)["--fold-closed"]).toBe(FOLD_ARROWS.triangle.closed);
+  });
+
+  it("picks a heading colour preset, previewed with its colours, and saves it", async () => {
+    render(<Settings section="appearance" onClose={vi.fn()} />);
+    const group = screen.getByRole("radiogroup", { name: "Heading colours" });
+    expect(
+      within(group)
+        .getAllByRole("radio")
+        .map((o) => o.getAttribute("aria-label")),
+    ).toEqual(Object.values(HEADING_COLORS).map((c) => c.label));
+    expect(within(group).getByRole("radio", { name: "Theme default" })).toBeChecked();
+    const ocean = within(group).getByRole("radio", { name: "Ocean" });
+    expect(ocean.closest("label")!.style.getPropertyValue("--heading-1")).toBe(
+      "light-dark(#0b5394, #7cc4ff)",
+    );
+    fireEvent.click(ocean);
+    expect(ocean).toBeChecked();
+    await waitFor(async () =>
+      expect(
+        JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).appearance.headingColors,
+      ).toBe("ocean"),
+    );
+    // Accent follows the theme's accent; an unknown preset is the theme's colour.
+    expect(headingColorVars("accent")!["--heading-2"]).toBe("var(--accent)");
+    expect(headingColorVars("nope" as never)).toBeNull();
   });
 
   it("keeps a font chosen on another computer, marked as not installed", async () => {

@@ -12,6 +12,32 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - Availability is provider-controlled. Official support covers eligible open-source/local projects; paid or remotely hosted distribution requires OpenAI access approval. This implementation does not claim other subscriptions support reuse.
 - References: https://developers.openai.com/siwc/token-sharing-open-source/sign-in ; https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference ; https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations
 
+## 2026-10-29: Search settings (T-143)
+
+- **Settings has a "Search settings" box** at the top of its section list, focused when Settings opens. While it holds text, the sections are shown one under another with only the matching settings left visible, and those work in place (change a font straight from the results). A setting matches when every typed word is in its own text, the heading of its group, the label of the setting holding it, or its section's name; a section's name shows the whole section. "No settings match" appears when nothing is left. Escape clears the search before it closes Settings; choosing a section leaves the search.
+- **The filter works on what is rendered** (`src/features/settings/settingsSearch.ts`): rows, list items and checkboxes are hidden with a class, not removed, so no section needs a separate search index that could drift from its controls. A MutationObserver re-runs it as sections finish loading (fonts, templates); it watches content only, not the classes it sets.
+- **Live sections are offered as links, not opened:** AI (which asks every provider for its models when it opens), Web clipper, Updates and Icon & image packs load data on mount, so a search lists them as "Open …" rows matched on a short keyword list (providers, API key, model names, pairing, updates folder, emoji …) and opens the page when clicked.
+
+## 2026-10-29: Zen mode (T-146)
+
+- **Zen mode (F11, the palette, or the new button left of the right-panel button in the tab row)** makes the window full screen and shows only the note, like Zen Browser's compact mode. The side panels, tab row, window buttons and status bar are hidden; pointing within 6 px of the window's left or right edge slides that panel in over the note, and the top edge slides down the tab row with the window buttons and a Leave Zen mode button. Each part hides 350 ms after the pointer leaves it (with 32 px of slack), but stays while a menu or dialog is open or while text is typed in it. The panel shortcuts and buttons reveal panels too.
+- **It reuses the compact layout's overlay panels** (`shell compact zen`), so panel state, widths and the docked layout are untouched and come back as they were. Zen mode itself isn't saved; the app starts out of it.
+- **Full screen** goes through the window API (`WindowFrame.setFullscreen`, Tauri's `setFullscreen`, permission `core:window:allow-set-fullscreen`); in a browser it uses the Fullscreen API, and leaving browser full screen (Esc) leaves Zen mode. If full screen is refused, Zen mode still hides everything.
+
+## 2026-10-29: Icons in right-click menus; rounded accent selection in the file tree (T-145)
+
+- **Every item in the file tree, tab and tab-group menus has an icon** before its label, the same Lucide icon the command palette uses for that action where there is one (New note, grid and canvas; Rename; Move to; Delete; Pin; group and ungroup; Close). Icons are muted; a dangerous item's icon takes its red. Labels are unchanged, so tests and screen readers read the same text.
+- **File tree rows are rounded (8 px) and inset 6 px from the panel's edges, like Obsidian's.** The selected row is an accent-coloured rounded box: a 1 px accent outline over a 14% accent tint. Rows with their own background colour keep it and still get the outline.
+
+## 2026-10-29: Context menus stay inside the window (T-144)
+
+- **The file tree's right-click menu, the tab menu and the tab-group editor open above or to the left of the pointer when they would run past the bottom or right edge of the window**, like the operating system's own menus. If neither side of the pointer has room, the menu sits against the edge; one taller than the window starts 8 px from the top and scrolls. Before, they always opened at the pointer, so right-clicking low in the sidebar hid most of the file menu.
+- One helper, `src/app/menuPosition.ts`: a pure `fitMenu` for the geometry, and `useFitToViewport`, which measures the menu in a layout effect before it is painted, so it never flashes off screen. It converts between screen and style pixels, so a zoomed panel's menu is placed correctly too.
+
+## 2026-10-29: Heading colour presets (T-142)
+
+- **Settings → Appearance → Heading colours** offers presets: Theme default (as before), Accent, Rainbow, Amber, Ocean, Forest and Berry. Each colours headings 1–6 separately, with a lighter shade in dark themes (`light-dark()`), and the choice applies at once. It is saved as `appearance.headingColors` in the vault's config; an unknown value falls back to Theme default.
+- **How it is drawn:** the presets live in `HEADING_COLORS` (`src/app/appearance.ts`) and set `--heading-1`…`--heading-6` on the document; each `.cm-lp-hN` line sets `--heading` from its level, so toggle headings follow too. With Theme default the level variables are removed and fall back to the theme's `--heading`, so custom themes and CSS snippets can still set their own. The note title keeps the theme's heading colour.
 
 ## 2026-10-29: Obsidian-style code blocks; one Code block command (T-140)
 

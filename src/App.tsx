@@ -43,6 +43,8 @@ import { RunningTimer } from "./features/time/TimerControls";
 import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
 import { PanelToggle } from "./features/panels/PanelToggle";
+import { ZenToggle } from "./features/panels/ZenToggle";
+import { useZenEdges } from "./app/zen";
 import { usePresence } from "./features/panels/presence";
 import { TabBar } from "./features/tabs/TabBar";
 import { TAB_PANEL_ID } from "./features/tabs/tabInfo";
@@ -66,6 +68,9 @@ export default function App() {
   const rightWidth = useLayout((s) => s.rightWidth);
   const rightMounted = usePresence(showRight);
   useClipNotices();
+  const zen = useLayout((s) => s.zen);
+  const zenReveal = useLayout((s) => s.zenReveal);
+  useZenEdges();
 
   // Compact: an open panel closes once something is opened from it, or on Escape.
   useEffect(
@@ -195,14 +200,17 @@ export default function App() {
 
   return (
     <div
-      className={compact ? "shell compact" : "shell"}
+      // Zen mode lays the panels over the note, as a compact window does.
+      className={zen ? "shell compact zen" : compact ? "shell compact" : "shell"}
+      data-zen-reveal={zen ? (zenReveal ?? undefined) : undefined}
       // A hidden panel's column is 0 px rather than removed, so it can slide (see .shell).
       style={
         {
           // Compact: the panels open over the note, so they take no column.
-          gridTemplateColumns: compact
-            ? "0px minmax(0, 1fr) 0px"
-            : `${showLeft ? leftWidth : 0}px minmax(0, 1fr) ${showRight ? rightWidth : 0}px`,
+          gridTemplateColumns:
+            compact || zen
+              ? "0px minmax(0, 1fr) 0px"
+              : `${showLeft ? leftWidth : 0}px minmax(0, 1fr) ${showRight ? rightWidth : 0}px`,
           "--left-width": `${leftWidth}px`,
           "--right-width": `${rightWidth}px`,
           "--pane-inset": `${PANE_LAYOUT.inset}px`,
@@ -229,6 +237,7 @@ export default function App() {
         {/* The left panel's own header holds its hide button; once hidden, it shows here. */}
         {!showLeft && <PanelToggle side="left" className="side-panels-toggle left" />}
         <PanelToggle side="right" className="side-panels-toggle" />
+        <ZenToggle />
         <TabBar />
         <div className="tab-panel" id={TAB_PANEL_ID} role="tabpanel" {...mainZoom}>
           <Suspense fallback={<div className="empty muted">Loading…</div>}>
@@ -270,7 +279,7 @@ export default function App() {
         </div>
       )}
       {/* Compact: clicking beside the open panel closes it. */}
-      {compact && overlay && <div className="overlay-scrim" onMouseDown={closeOverlay} />}
+      {compact && !zen && overlay && <div className="overlay-scrim" onMouseDown={closeOverlay} />}
       <WindowControls />
       <Modals />
       <UpdateBanner />

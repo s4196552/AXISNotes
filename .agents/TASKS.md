@@ -146,3 +146,13 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 | T-140 | 6 | Obsidian-style code blocks; one Code block command | claude | merged | agent/claude/T-140 | `src/features/editor/{livePreview*,quickCommands.ts,code.ts,theme.ts,editor.css,triggers.test.ts}`, `src/features/commands/units.test.ts`, `src/styles/theme.css`, `e2e/specs/code.e2e.ts`, `docs/{CODE_SYNTAX,DECISIONS}.md`, task coordination |
 
 | T-141 | 6 | Optional ChatGPT plan sign-in, native credential lifecycle, account models and no paid fallback | codex (human requested) | in-review | agent/codex/T-141 | `src-tauri/src/ai/**`, `src-tauri/src/{ai_commands,lib}.rs`, `src-tauri/{Cargo.toml,Cargo.lock}`, `src/features/ai/**`, `src/ipc/{types,tauriBackend,memoryAi}.ts`, `e2e/specs/subscription.e2e.ts`, `docs/DECISIONS.md`, task coordination |
+
+| T-142 | 6 | Heading colour presets in Settings → Appearance | claude | merged | agent/claude/T-142 | `src/app/{appearance,config}.ts`, `src/features/settings/{HeadingColorPicker.tsx,Settings.tsx,settings.css,appearance.test.tsx}`, `src/features/editor/editor.css`, `src/styles/theme.css`, `docs/DECISIONS.md`, task coordination |
+
+| T-143 | 6 | Search settings | claude | merged | agent/claude/T-143 | `src/features/settings/{Settings.tsx,settings.css,settingsSearch.ts,settingsSearch.test.tsx}`, `docs/DECISIONS.md`, task coordination |
+
+| T-144 | 6 | Context menus stay inside the window (file tree, tabs) | claude | merged | agent/claude/T-144 | `src/app/menuPosition*`, `src/features/filetree/FileTree.tsx`, `src/features/tabs/TabBar.tsx`, `docs/DECISIONS.md`, task coordination |
+
+| T-145 | 6 | Icons in right-click menus; rounded accent file tree selection | claude | merged | agent/claude/T-145 | `src/features/filetree/{FileTree.tsx,filetree.css}`, `src/features/tabs/TabBar.tsx`, `docs/DECISIONS.md`, task coordination |
+
+| T-146 | 6 | Zen mode: full screen, panels and tab row revealed from the window edges | claude | merged | agent/claude/T-146 | `src/app/{layout.ts,zen.ts,zen.test.tsx}`, `src/App.tsx`, `src/features/panels/ZenToggle.tsx`, `src/features/commands/{registry,commandIcons}.ts`, `src/ipc/{types,tauriBackend}.ts`, `src-tauri/capabilities/default.json`, `src/styles/app.css`, `src/features/{tabs/tabs.css,window/window.css,window/WindowControls.test.tsx}`, `docs/DECISIONS.md`, task coordination |
