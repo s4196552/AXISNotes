@@ -103,6 +103,23 @@ describe("FileTree", () => {
     expect(chevron()).not.toHaveClass("open");
   });
 
+  it("stops treating a folder as just opened once its rows have dropped in", async () => {
+    await setup({ "School/Bio.md": "" });
+    fireEvent.click(row("School"));
+    expect(row("Bio")).toHaveClass("entering");
+    await act(() => new Promise((r) => setTimeout(r, 550)));
+    // A note added or renamed in the folder later doesn't drop in again.
+    expect(row("Bio")).not.toHaveClass("entering");
+  });
+
+  it("doesn't animate the folders another vault opens with", async () => {
+    localStorage.setItem("axis:filetree:expanded:/other", JSON.stringify(["School"]));
+    await setup({ "School/Bio.md": "" });
+    expect(queryRow("Bio")).toBeNull();
+    act(() => useAppStore.setState({ vault: { root: "/other", name: "Other" } }));
+    expect(row("Bio")).not.toHaveClass("entering");
+  });
+
   it("persists expanded folders per vault", async () => {
     await setup({ "School/Bio.md": "" });
     fireEvent.click(row("School"));

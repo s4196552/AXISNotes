@@ -75,6 +75,26 @@ describe("Zen mode", () => {
     expect(useLayout.getState().zenReveal).toBeNull();
   });
 
+  it("keeps a panel that slid in under a pointer that stopped on it", () => {
+    vi.useFakeTimers();
+    backend.windowFrame = frame();
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1000);
+    const { container } = render(<Edges />);
+    const slot = container.querySelector(".sidebar-slot.left")!;
+    const box = (right: number) =>
+      ({ left: right - 260, right, top: 0, bottom: 800, width: 260, height: 800 }) as DOMRect;
+    act(() => setZen(true));
+    move(2, 300);
+    // Mid-slide the panel is still mostly off-screen, so the pointer passing x = 200 is
+    // outside it…
+    vi.spyOn(slot, "getBoundingClientRect").mockReturnValue(box(80));
+    move(200, 300);
+    // …but by the time the hide is due it has come to rest under the pointer.
+    vi.spyOn(slot, "getBoundingClientRect").mockReturnValue(box(260));
+    act(() => vi.advanceTimersByTime(400));
+    expect(useLayout.getState().zenReveal).toBe("left");
+  });
+
   it("does nothing at the edges outside Zen mode", () => {
     render(<Edges />);
     move(2, 300);

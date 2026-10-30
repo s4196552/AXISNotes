@@ -48,5 +48,6 @@ export function useExpanded(vaultRoot: string) {
 
   const collapseAll = useCallback(() => update(() => new Set()), [update]);
 
-  return { expanded, toggle, collapseAll, update };
+  // `root` is the vault `expanded` belongs to: just after a vault change, the last one's.
+  return { expanded, root: state.root, toggle, collapseAll, update };
 }
