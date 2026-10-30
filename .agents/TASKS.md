@@ -159,4 +159,4 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 
 | T-147 | 6 | Zen mode slides; file tree folder drop-down and turning arrow | claude | merged | agent/claude/T-147 | `src/styles/app.css`, `src/features/filetree/{FileTree.tsx,FileTree.test.tsx,filetree.css}`, `docs/DECISIONS.md`, task coordination |
 
-| T-148 | 6 | Fix Zen hiding under a resting pointer; file tree drop-in on vault switch and later remounts | claude | approved | agent/claude/T-148 | `src/app/{zen.ts,zen.test.tsx}`, `src/features/filetree/{FileTree.tsx,FileTree.test.tsx,useExpanded.ts}`, task coordination |
+| T-148 | 6 | Fix Zen hiding under a resting pointer; file tree drop-in on vault switch and later remounts | claude | merged | agent/claude/T-148 | `src/app/{zen.ts,zen.test.tsx}`, `src/features/filetree/{FileTree.tsx,FileTree.test.tsx,useExpanded.ts}`, task coordination |
