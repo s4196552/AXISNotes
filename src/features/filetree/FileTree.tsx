@@ -88,6 +88,8 @@ interface DropAt {
 const DRAG_START = 5;
 /** Hovering over a closed folder this long (ms) while dragging opens it. */
 const OPEN_DELAY = 600;
+/** Long enough (ms) for an opened folder's last row to drop in: 12 × 14 ms delay + 180 ms. */
+const DROP_MS = 500;
 
 /** Everything a row can trigger. Kept in one stable object so rows can be memoized. */
 interface RowActions {
@@ -115,7 +117,14 @@ export function FileTree() {
   const dashboards = useConfig((s) => s.config.dashboards);
   const fileOrder = useConfig((s) => s.config.fileOrder);
   const activePath = useAppStore((s) => s.activePath);
-  const { expanded, toggle, collapseAll, update: updateExpanded } = useExpanded(vault?.root ?? "");
+  // `root`: the vault `expanded` belongs to, which trails a vault switch by one render.
+  const {
+    expanded,
+    root,
+    toggle,
+    collapseAll,
+    update: updateExpanded,
+  } = useExpanded(vault?.root ?? "");
 
   const [selected, setSelected] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -137,15 +146,23 @@ export function FileTree() {
 
   const rows = useMemo(() => visibleRows(tree, expanded, fileOrder), [tree, expanded, fileOrder]);
   // The folder just opened by a click or key, so its rows can drop into place. Several
-  // opening at once (a vault's saved folders, revealing the open note) don't animate.
-  const [lastExpanded, setLastExpanded] = useState(expanded);
+  // opening at once (revealing the open note) don't animate, nor do the folders a vault
+  // opens with.
+  const [last, setLast] = useState({ root, expanded });
   const [opened, setOpened] = useState<string | null>(null);
-  if (lastExpanded !== expanded) {
+  if (last.root !== root || last.expanded !== expanded) {
     // Adjusting state while rendering (as useExpanded does), so the rows animate at once.
-    const added = [...expanded].filter((p) => !lastExpanded.has(p));
-    setLastExpanded(expanded);
-    setOpened(added.length === 1 ? added[0]! : null);
+    const added = [...expanded].filter((p) => !last.expanded.has(p));
+    setLast({ root, expanded });
+    setOpened(last.root === root && added.length === 1 ? added[0]! : null);
   }
+  // Once its rows have dropped in, the folder is no longer "just opened": a row added or
+  // renamed in it later doesn't drop in again.
+  useEffect(() => {
+    if (opened === null) return;
+    const t = window.setTimeout(() => setOpened(null), DROP_MS);
+    return () => window.clearTimeout(t);
+  }, [opened]);
   const openedAt = opened === null ? -1 : rows.findIndex((r) => r.entry.path === opened);
 
   // Latest state for the stable action callbacks below.

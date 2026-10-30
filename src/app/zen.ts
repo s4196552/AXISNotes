@@ -56,6 +56,19 @@ function holding(el: Element | null) {
   return !!el && !!active && el.contains(active) && active.matches("input, textarea, select");
 }
 
+/** Whether the revealed part should stay for a pointer at x, y: near its box, or held. */
+function stays(edge: ZenEdge, x: number, y: number) {
+  const el = document.querySelector(REVEALED[edge]);
+  const r = el?.getBoundingClientRect();
+  const inside =
+    !!r &&
+    x >= r.left - SLACK &&
+    x <= r.right + SLACK &&
+    y >= r.top - SLACK &&
+    y <= r.bottom + SLACK;
+  return inside || holding(el);
+}
+
 /** While in Zen mode, reveal the panels and tab row from the window's edges. */
 export function useZenEdges() {
   const zen = useLayout((s) => s.zen);
@@ -75,18 +88,14 @@ export function useZenEdges() {
         return;
       }
       if (!s.zenReveal) return;
-      const el = document.querySelector(REVEALED[s.zenReveal]);
-      const r = el?.getBoundingClientRect();
-      const inside =
-        !!r &&
-        e.clientX >= r.left - SLACK &&
-        e.clientX <= r.right + SLACK &&
-        e.clientY >= r.top - SLACK &&
-        e.clientY <= r.bottom + SLACK;
-      if (inside || holding(el)) return cancel();
+      if (stays(s.zenReveal, e.clientX, e.clientY)) return cancel();
+      const { clientX: x, clientY: y } = e;
       timer ??= setTimeout(() => {
         timer = undefined;
-        useLayout.getState().setZenReveal(null);
+        const shown = useLayout.getState().zenReveal;
+        // Measured again: the part may have been mid-slide when the pointer passed, and has
+        // since come to rest under a pointer that stopped there.
+        if (shown && !stays(shown, x, y)) useLayout.getState().setZenReveal(null);
       }, HIDE_MS);
     };
     // Leaving full screen another way (Esc in a browser) leaves Zen mode too.
