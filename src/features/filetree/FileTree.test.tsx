@@ -501,3 +501,114 @@ describe("FileTree", () => {
     expect(rowColors({ background: "#11223344" })).toEqual({ background: "#11223344" });
   });
 });
+
+describe("FileTree: several items at once", () => {
+  const names = () => screen.getAllByRole("treeitem").map((r) => r.textContent);
+  const picked = () =>
+    screen
+      .getAllByRole("treeitem")
+      .filter((r) => r.getAttribute("aria-selected") === "true")
+      .map((r) => r.textContent);
+
+  it("selects a range with Shift+click, and a plain click goes back to one row", async () => {
+    await setup({ "A.md": "", "B.md": "", "C.md": "", "D.md": "" });
+    expect(screen.getByRole("tree")).toHaveAttribute("aria-multiselectable", "true");
+    fireEvent.click(row("B"));
+    fireEvent.click(row("D"), { shiftKey: true });
+    expect(picked()).toEqual(["B", "C", "D"]);
+    // Shift+click doesn't open what it selects.
+    expect(useAppStore.getState().activePath).toBe("B.md");
+    // From the same anchor, the other way.
+    fireEvent.click(row("A"), { shiftKey: true });
+    expect(picked()).toEqual(["A", "B"]);
+    fireEvent.click(row("C"));
+    expect(picked()).toEqual(["C"]);
+    expect(useAppStore.getState().activePath).toBe("C.md");
+  });
+
+  it("extends with Shift+arrows and clears with Escape", async () => {
+    await setup({ "A.md": "", "B.md": "", "C.md": "" });
+    const tree = screen.getByRole("tree");
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+    fireEvent.keyDown(tree, { key: "ArrowDown", shiftKey: true });
+    fireEvent.keyDown(tree, { key: "ArrowDown", shiftKey: true });
+    expect(picked()).toEqual(["A", "B", "C"]);
+    fireEvent.keyDown(tree, { key: "ArrowUp", shiftKey: true });
+    expect(picked()).toEqual(["A", "B"]);
+    fireEvent.keyDown(tree, { key: "Escape" });
+    expect(picked()).toEqual(["B"]);
+    fireEvent.keyDown(tree, { key: "ArrowDown", shiftKey: true });
+    fireEvent.keyDown(tree, { key: "ArrowDown" });
+    expect(picked()).toEqual(["C"]);
+  });
+
+  it("trashes the selected items after one confirmation", async () => {
+    await setup({ "A.md": "", "B.md": "", "C.md": "", "School/Bio.md": "" });
+    useAppStore.getState().openFile("School/Bio.md"); // shows School open
+    fireEvent.click(row("A"));
+    fireEvent.click(row("School"), { shiftKey: true });
+    expect(picked()).toEqual(["School", "Bio", "A"]);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false);
+
+    // The menu of a picked row is for all of them; Bio goes with its folder.
+    fireEvent.contextMenu(row("A"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete 2 items" }));
+    expect(confirm).toHaveBeenCalledWith("Move 2 items to the trash?\n\nSchool\nA");
+    expect(Object.keys(h.b.files())).toHaveLength(4);
+
+    confirm.mockReturnValueOnce(true);
+    fireEvent.keyDown(screen.getByRole("tree"), { key: "Delete" });
+    await waitFor(() => expect(names()).toEqual(["B", "C"]));
+    expect(h.b.files()).toEqual({ "B.md": "", "C.md": "" });
+    expect(useAppStore.getState().activePath).not.toBe("School/Bio.md");
+  });
+
+  it("gives a row outside the selection its own menu", async () => {
+    await setup({ "A.md": "", "B.md": "", "C.md": "" });
+    fireEvent.click(row("A"));
+    fireEvent.click(row("B"), { shiftKey: true });
+    fireEvent.contextMenu(row("C"));
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+    expect(picked()).toEqual(["C"]);
+  });
+
+  it("drags all the selected items into a folder", async () => {
+    await setup({ "A.md": "a", "B.md": "b", "C.md": "c", "School/X.md": "" });
+    fireEvent.click(row("A"));
+    fireEvent.click(row("B"), { shiftKey: true });
+    await drag(row("B"), row("School"));
+    await waitFor(() =>
+      expect(h.b.files()).toEqual({
+        "School/A.md": "a",
+        "School/B.md": "b",
+        "C.md": "c",
+        "School/X.md": "",
+      }),
+    );
+    await waitFor(() => expect(picked()).toEqual(["A", "B"]));
+  });
+
+  it("drags the selected items between two rows, keeping their order", async () => {
+    await setup({ "A.md": "", "B.md": "", "C.md": "", "D.md": "" });
+    fireEvent.click(row("A"));
+    fireEvent.click(row("B"), { shiftKey: true });
+    await drag(row("A"), row("D"), 0.8); // after D
+    await waitFor(() => expect(names()).toEqual(["C", "D", "A", "B"]));
+    expect(picked()).toEqual(["A", "B"]);
+
+    fireEvent.click(row("D"));
+    fireEvent.click(row("A"), { shiftKey: true });
+    await drag(row("D"), row("C"), 0.2); // before C
+    await waitFor(() => expect(names()).toEqual(["D", "A", "C", "B"]));
+  });
+
+  it("drags a row outside the selection on its own", async () => {
+    await setup({ "A.md": "", "B.md": "", "C.md": "", "School/X.md": "" });
+    fireEvent.click(row("A"));
+    fireEvent.click(row("B"), { shiftKey: true });
+    await drag(row("C"), row("School"));
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["School/C.md"]));
+    expect(h.b.files()).toHaveProperty(["A.md"]);
+    expect(h.b.files()).toHaveProperty(["B.md"]);
+  });
+});
