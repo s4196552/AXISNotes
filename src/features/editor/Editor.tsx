@@ -40,6 +40,7 @@ import { useStatusSlot } from "./statusSlot";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { listAutoformat } from "./listAutoformat";
 import { symbolAutoformat } from "./symbolAutoformat";
+import { inlineCodeLanguage } from "./inlineCodeLanguage";
 import { inlineMarks } from "./inlineMarks";
 import { useEditorPrefs } from "./prefs";
 import { TimerButton } from "../time/TimerControls";
@@ -351,6 +352,7 @@ export function Editor({ path }: EditorProps) {
             mediaInput,
             quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
             outlinerKeys,
+            inlineCodeLanguage,
             symbolAutoformat,
             listAutoformat,
             inlineMarks,

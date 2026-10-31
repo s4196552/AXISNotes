@@ -13,6 +13,7 @@ import type { NoteRef } from "../../ipc";
 
 type Tree = ReturnType<typeof syntaxTree>;
 import { parseWikilinkInner, splitFrontmatter } from "../../lib/markdown";
+import { taggedCode } from "./inlineCodeLanguage";
 
 // Wikilinks, #tags and frontmatter in the editor: live-preview rendering, click-to-open,
 // and `[[` autocomplete. Host callbacks come in through the `linkHost` facet.
@@ -85,13 +86,17 @@ export function buildLinkDecorations(
   const tree =
     ensureSyntaxTree(state, Math.max(0, ...ranges.map((r) => r.to)), 200) ?? syntaxTree(state);
   const active = focused ? activeLineNumbers(state) : new Set<number>();
+  // `Java`code` spans are code too, though Markdown reads their code as text.
+  const tagged = taggedCode(state, ranges);
+  const inCode = (pos: number) =>
+    inCodeOrMeta(tree, pos) || tagged.some((t) => pos >= t.from && pos < t.to);
   const out: Range<Decoration>[] = [];
   for (const { from, to } of ranges) {
     const text = state.sliceDoc(from, to);
     for (const m of text.matchAll(WIKILINK_RE)) {
       const start = from + m.index;
       const end = start + m[0].length;
-      if (inCodeOrMeta(tree, start)) continue;
+      if (inCode(start)) continue;
       const bang = m[1]!.length;
       const inner = m[2]!;
       const link = parseWikilinkInner(inner);
@@ -111,14 +116,14 @@ export function buildLinkDecorations(
     for (const m of text.matchAll(BLOCK_ID_RE)) {
       const start = from + m.index;
       const line = state.doc.lineAt(start).number;
-      if (active.has(line) || inCodeOrMeta(tree, start + 1)) continue;
+      if (active.has(line) || inCode(start + 1)) continue;
       out.push(hide.range(start, start + m[0].length));
     }
     for (const m of text.matchAll(TAG_RE)) {
       const tag = m[2]!.replace(/\/+$/, "");
       if (!tag || /^\d+$/.test(tag)) continue;
       const start = from + m.index + m[1]!.length;
-      if (inCodeOrMeta(tree, start)) continue;
+      if (inCode(start)) continue;
       out.push(
         Decoration.mark({
           class: "cm-lp-tag",

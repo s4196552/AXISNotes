@@ -11,6 +11,7 @@ import {
 } from "@codemirror/view";
 import { mathRanges } from "./math";
 import { VERBATIM } from "./listAutoformat";
+import { taggedCode } from "./inlineCodeLanguage";
 
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
@@ -171,6 +172,15 @@ export function buildDecorations(
   // A `-` in an equation is a minus sign, shown as typed while the equation is edited.
   const maths = mathRanges(state);
   const inMath = (pos: number) => maths.some((m) => pos > m.from && pos < m.to);
+  // `Java`code` spans draw themselves (inlineCodeLanguage.ts), backticks included.
+  const tagged = taggedCode(state, ranges);
+  // Skipped: what lies inside one, and a code span its closing backtick would open.
+  const inTagged = (node: SyntaxNode) =>
+    tagged.some(
+      (t) =>
+        node.from >= t.from &&
+        (node.to <= t.to || (node.from === t.to - 1 && node.name === "InlineCode")),
+    );
 
   for (const { from, to } of ranges) {
     tree.iterate({
@@ -179,6 +189,7 @@ export function buildDecorations(
       enter(ref) {
         const node = ref.node;
         const name = node.name;
+        if (tagged.length && inTagged(node)) return false;
 
         const heading = /^ATXHeading(\d)$/.exec(name);
         if (heading) {
