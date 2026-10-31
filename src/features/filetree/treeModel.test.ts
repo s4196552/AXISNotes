@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { VaultEntry } from "../../ipc";
 import {
+  outermost,
   canMove,
   displayName,
   dropSide,
@@ -141,5 +142,13 @@ describe("treeModel", () => {
       School: ["Bio.md"],
     });
     expect(remapOrder(order, "Other.md", "New.md")).toBeNull();
+  });
+
+  it("keeps only the outermost of nested paths, in order", () => {
+    expect(outermost(["School", "School/Bio.md", "A.md", "Schoolwork.md"])).toEqual([
+      "School",
+      "A.md",
+      "Schoolwork.md",
+    ]);
   });
 });
