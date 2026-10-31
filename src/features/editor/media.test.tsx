@@ -15,6 +15,7 @@ import { PATH_MIME } from "../../lib/fileKinds";
 import { Settings } from "../settings/Settings";
 import { readImageLayout } from "../../lib/imageLayout";
 import { embeds } from "./embeds";
+import { relocateEmbed } from "./imageEditor";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -114,18 +115,178 @@ describe("embedded images, video and audio", () => {
   });
 });
 
+/** Right-click an image and pick `item` from its menu. */
+function fromMenu(image: HTMLElement, item: string) {
+  fireEvent.contextMenu(image.closest(".cm-image-frame")!, { clientX: 20, clientY: 20 });
+  fireEvent.click(screen.getByRole("menuitem", { name: item }));
+}
+
+/** jsdom has no layout: lay the note out as 20px lines, with the editor 800px wide. */
+function fakeLayout(view: EditorView) {
+  const rect = { left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600 };
+  view.dom.getBoundingClientRect = () => ({ ...rect, x: 0, y: 0, toJSON: () => rect });
+  vi.spyOn(view, "documentTop", "get").mockReturnValue(0);
+  vi.spyOn(view, "lineBlockAtHeight").mockImplementation((h) => {
+    const n = Math.max(1, Math.min(view.state.doc.lines, Math.floor(h / 20) + 1));
+    const line = view.state.doc.line(n);
+    const top = (n - 1) * 20;
+    return { from: line.from, to: line.to, top, height: 20, bottom: top + 20 } as never;
+  });
+}
+
+const selected = () => document.querySelector(".cm-image-selected");
+
 describe("editing embedded images", () => {
   beforeEach(() =>
     setup({
       "Note.md": 'Intro\n\n![Cell|300x200](photo.png "Caption")\n',
+      ...Object.fromEntries(
+        ["Plain", "Open", "Drag", "Stay", "Resize"].map((n) => [
+          `${n}.md`,
+          "Intro\n\n![[photo.png|300]]\n\nOutro\n\nEnd\n",
+        ]),
+      ),
       "photo.png": "original image bytes",
     }),
   );
-  it("honours both Obsidian dimensions and saves a reversible crop with the note", async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    document.querySelector(".cm-image-menu")?.remove();
+  });
+
+  it("selects an image with one click, without moving the cursor into its text", async () => {
+    const view = await open("Plain.md");
+    const image = await screen.findByAltText("photo.png");
+    const head = view.state.selection.main.head;
+    fireEvent.pointerDown(image.closest(".cm-image-frame")!, { button: 0 });
+    fireEvent.pointerUp(window, { button: 0 });
+    await waitFor(() => expect(selected()).toBe(image.closest(".cm-image-embed")));
+    expect(view.state.selection.main.head).toBe(head);
+    expect(screen.getByAltText("photo.png")).toBe(image); // still shown, not its text
+    expect(view.dom).toHaveClass("cm-image-selecting"); // the text cursor hides
+    // Ctrl+C copies its embed; Escape lets go of it.
+    const copied: Record<string, string> = {};
+    const clipboardData = { setData: (type: string, value: string) => (copied[type] = value) };
+    fireEvent.copy(view.contentDOM, { clipboardData });
+    expect(copied["text/plain"]).toBe("![[photo.png|300]]");
+    fireEvent.keyDown(view.contentDOM, { key: "Escape" });
+    await waitFor(() => expect(selected()).toBeNull());
+    // Selected again, Delete removes it (and the blank line it leaves).
+    fireEvent.pointerDown(image.closest(".cm-image-frame")!, { button: 0 });
+    fireEvent.pointerUp(window, { button: 0 });
+    fireEvent.keyDown(view.contentDOM, { key: "Delete" });
+    expect(text(view)).toBe("Intro\n\nOutro\n\nEnd\n");
+    expect(undo(view)).toBe(true);
+    expect(text(view)).toBe("Intro\n\n![[photo.png|300]]\n\nOutro\n\nEnd\n");
+  });
+
+  it("opens the image with a double click", async () => {
+    await open("Open.md");
+    const image = await screen.findByAltText("photo.png");
+    fireEvent.dblClick(image.closest(".cm-image-frame")!);
+    expect(useAppStore.getState().activePath).toBe("photo.png");
+  });
+
+  it("moves an image to the line it's dragged to, and copies it with Ctrl", async () => {
+    const view = await open("Drag.md");
+    fakeLayout(view);
+    const frame = () => screen.getByAltText("photo.png").closest(".cm-image-frame")!;
+    // Line 5 ("Outro") spans 80–100px: dropping on its lower half puts the image after it.
+    fireEvent.pointerDown(await waitFor(frame), { button: 0, clientX: 10, clientY: 50 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 70 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 95 });
+    const marker = document.querySelector<HTMLElement>(".cm-image-drop-line")!;
+    expect(marker.hidden).toBe(false);
+    expect(marker.style.top).toBe("99px");
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 95 });
+    // A blank line keeps it apart from "Outro"; the one it left behind is gone.
+    expect(text(view)).toBe("Intro\n\nOutro\n\n![[photo.png|300]]\n\nEnd\n");
+    expect(document.querySelector(".cm-image-drop-line")).toBeNull();
+    await waitFor(() => expect(selected()).toBe(frame().closest(".cm-image-embed")));
+    expect(undo(view)).toBe(true);
+    expect(text(view)).toBe("Intro\n\n![[photo.png|300]]\n\nOutro\n\nEnd\n");
+
+    // With Ctrl held, the image stays where it was and a copy goes to the top.
+    await waitFor(frame);
+    fireEvent.pointerDown(frame(), { button: 0, clientX: 10, clientY: 50 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 2, ctrlKey: true });
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 2, ctrlKey: true });
+    expect(text(view)).toBe("![[photo.png|300]]\n\nIntro\n\n![[photo.png|300]]\n\nOutro\n\nEnd\n");
+  });
+
+  it("keeps a moved image its own paragraph, at the top, bottom or between lines", () => {
+    const moved = (doc: string, src: number, after: number, copy = false) => {
+      const state = EditorState.create({ doc });
+      const spec = relocateEmbed(state, src, after, copy);
+      return spec ? state.update(spec).state.doc.toString() : null;
+    };
+    expect(moved("A\n![[p.png]]\nB\nC", 2, 4)).toBe("A\nB\nC\n\n![[p.png]]");
+    expect(moved("A\nB\n![[p.png]]", 3, 0)).toBe("![[p.png]]\n\nA\nB");
+    expect(moved("A\nB\n![[p.png]]", 3, 1)).toBe("A\n\n![[p.png]]\n\nB");
+    expect(moved("A\n\n![[p.png]]\n\nB", 3, 2)).toBeNull(); // where it already is
+    expect(moved("A\n\n![[p.png]]\n\nB", 3, 2, true)).toBe("A\n\n![[p.png]]\n\n![[p.png]]\n\nB");
+  });
+
+  it("leaves the note alone when an image is dropped where it already is, or with Escape", async () => {
+    const view = await open("Stay.md");
+    fakeLayout(view);
+    const frame = (await screen.findByAltText("photo.png")).closest(".cm-image-frame")!;
+    fireEvent.pointerDown(frame, { button: 0, clientX: 10, clientY: 50 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 58 });
+    expect(document.querySelector<HTMLElement>(".cm-image-drop-line")!.hidden).toBe(true);
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 58 });
+    fireEvent.pointerDown(frame, { button: 0, clientX: 10, clientY: 50 });
+    fireEvent.pointerMove(window, { clientX: 10, clientY: 125 });
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(window, { clientX: 10, clientY: 125 });
+    expect(text(view)).toBe("Intro\n\n![[photo.png|300]]\n\nOutro\n\nEnd\n");
+  });
+
+  it("resizes from a handle on the image and writes Obsidian's |width", async () => {
+    const view = await open("Resize.md");
+    const image = await screen.findByAltText("photo.png");
+    const handle = image.closest(".cm-image-box")!.querySelector('[data-handle="se"]')!;
+    fireEvent.pointerDown(handle, { button: 0, clientX: 300, clientY: 200 });
+    fireEvent.pointerMove(window, { clientX: 360, clientY: 200 });
+    expect(image.closest(".cm-image-frame")).toHaveStyle({ width: "360px" });
+    expect(screen.getByText("360 × 270")).toBeInTheDocument(); // the size while dragging
+    fireEvent.pointerMove(window, { clientX: 400, clientY: 200 });
+    fireEvent.pointerUp(window, { clientX: 400, clientY: 200 });
+    expect(view.state.doc.line(3).text).toBe("![[photo.png|400]]");
+    await waitFor(() => expect(selected()).not.toBeNull()); // still selected
+    // A handle on the left grows the image as it's dragged left; Escape cancels.
+    const left = screen
+      .getByAltText("photo.png")
+      .closest(".cm-image-box")!
+      .querySelector('[data-handle="w"]')!;
+    fireEvent.pointerDown(left, { button: 0, clientX: 0, clientY: 100 });
+    fireEvent.pointerMove(window, { clientX: -50, clientY: 100 });
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(window, { clientX: -50, clientY: 100 });
+    expect(view.state.doc.line(3).text).toBe("![[photo.png|400]]");
+    fireEvent.pointerDown(left, { button: 0, clientX: 0, clientY: 100 });
+    fireEvent.pointerMove(window, { clientX: 100, clientY: 100 });
+    fireEvent.pointerUp(window, { clientX: 100, clientY: 100 });
+    expect(view.state.doc.line(3).text).toBe("![[photo.png|300]]");
+  });
+
+  it("keeps both dimensions in proportion when resizing an image that has a height", async () => {
     const view = await open("Note.md");
     const image = await screen.findByAltText("Cell");
+    const handle = image.closest(".cm-image-box")!.querySelector('[data-handle="e"]')!;
+    fireEvent.pointerDown(handle, { button: 0, clientX: 300, clientY: 100 });
+    fireEvent.pointerMove(window, { clientX: 450, clientY: 100 });
+    fireEvent.pointerUp(window, { clientX: 450, clientY: 100 });
+    expect(view.state.doc.line(3).text).toBe('![Cell|450x300](photo.png "Caption")');
+  });
+
+  it("has no toolbar: crop and exact size are in the right-click menu", async () => {
+    const view = await open("Note.md");
+    const image = await screen.findByAltText("Cell");
+    expect(document.querySelector(".cm-image-embed > .cm-image-tools")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit image" })).toBeNull();
     expect(image.closest(".cm-image-frame")).toHaveStyle({ width: "300px", aspectRatio: "1.5" });
-    fireEvent.click(screen.getByRole("button", { name: "Edit image" }));
+    fromMenu(image, "Crop and exact size…");
     fireEvent.input(screen.getByLabelText("Width (px)"), { target: { value: "480" } });
     fireEvent.input(screen.getByLabelText("Height (px)"), { target: { value: "240" } });
     fireEvent.input(screen.getByLabelText("Left crop (%)"), { target: { value: "10" } });
@@ -143,10 +304,11 @@ describe("editing embedded images", () => {
     expect(undo(view)).toBe(true);
     expect(text(view)).toBe('Intro\n\n![Cell|300x200](photo.png "Caption")\n');
   });
+
   it("cancels previews, rejects empty crops and resets transforms explicitly", async () => {
     const view = await open("Note.md");
     const source = text(view);
-    fireEvent.click(screen.getByRole("button", { name: "Edit image" }));
+    fromMenu(await screen.findByAltText("Cell"), "Crop and exact size…");
     fireEvent.input(screen.getByLabelText("Left crop (%)"), { target: { value: "60" } });
     fireEvent.input(screen.getByLabelText("Right crop (%)"), { target: { value: "60" } });
     fireEvent.click(screen.getByRole("button", { name: "Apply image changes" }));
@@ -157,14 +319,13 @@ describe("editing embedded images", () => {
       width: "300px",
       aspectRatio: "1.5",
     });
-    fireEvent.click(screen.getByRole("button", { name: "Edit image" }));
-    fireEvent.click(screen.getByRole("button", { name: "Reset size and crop" }));
-    fireEvent.click(screen.getByRole("button", { name: "Apply image changes" }));
+    fromMenu(screen.getByAltText("Cell"), "Reset size and crop");
     expect(text(view)).toBe('Intro\n\n![Cell](photo.png "Caption")\n');
   });
+
   it("keeps source editing available and disables image changes when read-only", async () => {
     const view = await open("Note.md");
-    fireEvent.click(screen.getByRole("button", { name: "Edit link" }));
+    fromMenu(await screen.findByAltText("Cell"), "Edit link");
     expect(view.state.doc.lineAt(view.state.selection.main.head).number).toBe(3);
     expect(screen.queryByAltText("Cell")).toBeNull();
     const parent = document.createElement("div");
@@ -177,9 +338,11 @@ describe("editing embedded images", () => {
       }),
     });
     try {
-      expect(parent.querySelector<HTMLButtonElement>(".cm-image-tools button")!.disabled).toBe(
-        true,
-      );
+      const frame = parent.querySelector(".cm-image-frame")!;
+      expect(parent.querySelector(".cm-image-handle")).toBeNull();
+      fireEvent.contextMenu(frame);
+      const items = screen.getAllByRole("menuitem").map((b) => b.textContent);
+      expect(items).toEqual(["Open image", "Edit link", "Copy embed"]);
     } finally {
       readonly.destroy();
       parent.remove();

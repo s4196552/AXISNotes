@@ -746,6 +746,141 @@ input.editor-title::placeholder {
 .cm-image-embed[data-kind="image"] {
   cursor: default;
 }
+/* An image in a note (T-154): hover outlines it and shows the resize handles; a click
+   selects it (a solid outline, and the text cursor hides); drag to move, handles to
+   resize. */
+.cm-image-box {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+  border-radius: var(--radius);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: outline-color 0.12s;
+}
+.cm-image-editable .cm-image-frame {
+  cursor: grab;
+}
+.cm-image-embed:hover .cm-image-box {
+  outline-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.cm-image-selected .cm-image-box,
+.cm-image-selected:hover .cm-image-box {
+  outline-color: var(--accent);
+}
+.cm-image-selecting .cm-cursorLayer {
+  visibility: hidden;
+}
+.cm-image-dragging .cm-image-box {
+  opacity: 0.45;
+}
+.cm-image-handle {
+  position: absolute;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  margin: -6px 0 0 -6px;
+  border: 2px solid var(--bg);
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.12s;
+  touch-action: none;
+}
+.cm-image-embed:hover .cm-image-handle,
+.cm-image-selected .cm-image-handle,
+.cm-image-resizing .cm-image-handle {
+  opacity: 1;
+}
+.cm-image-dragging .cm-image-handle {
+  opacity: 0;
+}
+.cm-image-handle[data-handle="nw"] {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+.cm-image-handle[data-handle="ne"] {
+  left: 100%;
+  top: 0;
+  cursor: nesw-resize;
+}
+.cm-image-handle[data-handle="sw"] {
+  left: 0;
+  top: 100%;
+  cursor: nesw-resize;
+}
+.cm-image-handle[data-handle="se"] {
+  left: 100%;
+  top: 100%;
+  cursor: nwse-resize;
+}
+.cm-image-handle[data-handle="w"],
+.cm-image-handle[data-handle="e"] {
+  top: 50%;
+  height: 22px;
+  margin-top: -13px;
+  width: 8px;
+  margin-left: -5px;
+  cursor: ew-resize;
+}
+.cm-image-handle[data-handle="w"] {
+  left: 0;
+}
+.cm-image-handle[data-handle="e"] {
+  left: 100%;
+}
+.cm-image-size {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, #000 70%, transparent);
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.cm-image-size[hidden] {
+  display: none;
+}
+.cm-image-drop-line {
+  position: fixed;
+  z-index: 1000;
+  height: 3px;
+  margin-top: -1px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.cm-image-drop-line[hidden] {
+  display: none;
+}
+.cm-image-ghost {
+  position: fixed;
+  z-index: 1001;
+  width: 120px;
+  max-height: 120px;
+  object-fit: contain;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  opacity: 0.8;
+  pointer-events: none;
+}
+.cm-image-ghost.copy {
+  outline: 2px dashed var(--accent);
+}
+body.cm-image-drag-active,
+body.cm-image-drag-active * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+body.cm-image-drag-copy,
+body.cm-image-drag-copy * {
+  cursor: copy !important;
+}
 .cm-image-frame {
   position: relative;
   max-width: 100%;

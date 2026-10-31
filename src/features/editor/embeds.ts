@@ -26,7 +26,7 @@ import { linkHost } from "./links";
 import { livePreview } from "./livePreview";
 import { axisTheme } from "./theme";
 import { tables } from "./tables";
-import { imageTools } from "./imageEditor";
+import { imageSelecting, imageTools } from "./imageEditor";
 import { readImageLayout } from "../../lib/imageLayout";
 
 // Note/section/block embeds (`![[Note]]`, `![[Note#Heading]]`, `![[Note#^id]]`) rendered as
@@ -407,6 +407,15 @@ class EmbedWidget extends WidgetType {
 }
 
 type MediaShown = MediaKind | "player";
+
+/** A web address in the browser (as links in tables open). */
+function openWebPage(url: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.click();
+}
 const imageCleanups = new WeakMap<HTMLElement, () => void>();
 
 /** What a media embed's target shows as: a web video player, or by its extension. */
@@ -424,9 +433,9 @@ const MEDIA_ICON: Record<MediaShown, string> = {
 
 /**
  * An image, video, audio file or web video on a line of its own: `![[photo.png|300]]`,
- * `![[clip.mp4]]`, `![alt](https://…/pic.jpg)`, `![](https://youtu.be/…)`. Clicking an
- * image shows its link for editing; players keep their clicks and get an "Edit link"
- * button instead.
+ * `![[clip.mp4]]`, `![alt](https://…/pic.jpg)`, `![](https://youtu.be/…)`. An image is
+ * selected, opened, dragged and resized on the image itself (`imageTools`); players keep
+ * their clicks and get an "Edit link" button instead.
  */
 class MediaWidget extends WidgetType {
   readonly shown: MediaShown;
@@ -482,11 +491,17 @@ class MediaWidget extends WidgetType {
       const img = document.createElement("img");
       img.src = url;
       img.alt = name;
-      img.title = `${path ?? url} — Edit image to resize or crop`;
+      img.title = this.readOnly
+        ? `${path ?? url}\nDouble-click to open`
+        : `${path ?? url}\nDouble-click to open. Drag to move (hold Ctrl to copy); drag a corner to resize. Right-click for more.`;
       if (this.width) img.width = this.width;
       img.addEventListener("load", () => view.requestMeasure());
       img.addEventListener("error", failed);
-      imageCleanups.set(wrap, imageTools(view, wrap, img, this.source, editLink));
+      const open = (newTab: boolean) => {
+        if (path) useAppStore.getState().openFile(path, undefined, { newTab });
+        else openWebPage(url);
+      };
+      imageCleanups.set(wrap, imageTools(view, wrap, img, this.source, { editLink, open }));
       return wrap;
     }
     let media: HTMLElement;
@@ -634,5 +649,5 @@ export async function anchorCompletions(
 }
 
 export function embeds(path: string) {
-  return [notePath.of(path), embedField];
+  return [notePath.of(path), embedField, imageSelecting];
 }
