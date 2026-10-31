@@ -33,6 +33,12 @@ const autoField = StateField.define<Auto | null>({
   },
 });
 
+/** A `- ` bullet just made from a typed `-`, while the cursor is still right after it. */
+export function pendingBullet(state: EditorState): { from: number; pos: number } | null {
+  const auto = state.field(autoField, false);
+  return auto?.typed === "-" ? { from: auto.from, pos: auto.pos } : null;
+}
+
 /** Syntax nodes whose text is kept as written: code, frontmatter, raw HTML, comments. */
 export const VERBATIM =
   /^(InlineCode|FencedCode|CodeBlock|CodeText|Frontmatter|FrontmatterContent|HTMLBlock|CommentBlock|ProcessingInstructionBlock)$/;
