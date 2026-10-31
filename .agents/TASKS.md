@@ -166,3 +166,5 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 | T-150 | 6 | Language-tagged inline code: `` `Java`code` `` highlighted like a code block | claude | merged | agent/claude/T-150 | `src/features/editor/{inlineCodeLanguage.ts,inlineCodeLanguage.test.ts,livePreview.ts,links.ts,links.test.ts,symbolAutoformat.ts,theme.ts,Editor.tsx}`, task coordination |
 
 | T-151 | 6 | File tree: select several items with Shift+click / Shift+arrows; drag, delete them together | claude | merged | agent/claude/T-151 | `src/features/filetree/{FileTree.tsx,FileTree.test.tsx,treeModel.ts,treeModel.test.ts}`, task coordination |
+
+| T-153 | 6 | Mermaid: no "Syntax error in text" graphics left on the page for invalid diagrams | claude | merged | agent/claude/T-153 | `src/features/diagrams/{mermaid.ts,mermaid.test.ts}`, task coordination |
