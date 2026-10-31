@@ -59,7 +59,7 @@ function literal(state: EditorState, pos: number): boolean {
   const line = state.doc.lineAt(pos);
   const before = state.sliceDoc(line.from, pos);
   // An inline code span still being typed (inline marks usually close it at once), or
-  // the code of a `Java`code` span.
+  // the code of a `Java`code`` span.
   if (openCode(before)) return true;
   // Inside `[[…` on this line: link targets and aliases keep their own spelling.
   if (before.lastIndexOf("[[") > before.lastIndexOf("]]")) return true;

@@ -75,8 +75,8 @@ describe("link decorations", () => {
       5,
     );
     expect(d.map((x) => [x.text, x.cls])).toEqual([["#tag", "cm-lp-tag"]]);
-    // The code of a `lang`code` span, though Markdown reads it as text.
-    const tagged = decorations("x\n`c`x; #include [[Plan]]` and #tag", 1);
+    // The code of a `lang`code`` span, though Markdown reads it as text.
+    const tagged = decorations("x\n`c`x; #include [[Plan]]`` and #tag", 1);
     expect(tagged.map((x) => [x.text, x.cls])).toEqual([["#tag", "cm-lp-tag"]]);
   });
 

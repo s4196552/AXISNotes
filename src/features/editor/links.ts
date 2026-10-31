@@ -86,7 +86,7 @@ export function buildLinkDecorations(
   const tree =
     ensureSyntaxTree(state, Math.max(0, ...ranges.map((r) => r.to)), 200) ?? syntaxTree(state);
   const active = focused ? activeLineNumbers(state) : new Set<number>();
-  // `Java`code` spans are code too, though Markdown reads their code as text.
+  // `Java`code`` spans are code too, though Markdown reads their code as text.
   const tagged = taggedCode(state, ranges);
   const inCode = (pos: number) =>
     inCodeOrMeta(tree, pos) || tagged.some((t) => pos >= t.from && pos < t.to);
