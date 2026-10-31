@@ -1,6 +1,7 @@
 import { type EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { pendingBullet, verbatim } from "./listAutoformat";
+import { openCode } from "./inlineCodeLanguage";
 
 // Arrows and comparison signs as you type:
 //   `->` → `→`    `<-` → `←`    `<->` → `↔` (`>` after an auto `←`)
@@ -57,8 +58,9 @@ function literal(state: EditorState, pos: number): boolean {
   if (verbatim(state, pos)) return true;
   const line = state.doc.lineAt(pos);
   const before = state.sliceDoc(line.from, pos);
-  // An inline code span still being typed (inline marks usually close it at once).
-  if ((before.replace(/\\`/g, "").match(/`/g)?.length ?? 0) % 2 === 1) return true;
+  // An inline code span still being typed (inline marks usually close it at once), or
+  // the code of a `Java`code` span.
+  if (openCode(before)) return true;
   // Inside `[[…` on this line: link targets and aliases keep their own spelling.
   if (before.lastIndexOf("[[") > before.lastIndexOf("]]")) return true;
   // A URL, up to the cursor.

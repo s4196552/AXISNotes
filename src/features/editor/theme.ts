@@ -118,7 +118,8 @@ const editorTheme = EditorView.theme({
   },
 });
 
-const highlight = HighlightStyle.define([
+/** Token colours, shared by code blocks and language-tagged inline code. */
+export const axisHighlight = HighlightStyle.define([
   { tag: t.heading, fontWeight: "700", color: "var(--heading)" },
   { tag: t.strong, fontWeight: "700" },
   { tag: t.emphasis, fontStyle: "italic" },
@@ -150,4 +151,4 @@ const highlight = HighlightStyle.define([
   { tag: t.meta, class: "cm-code-comment" },
 ]);
 
-export const axisTheme = [editorTheme, syntaxHighlighting(highlight)];
+export const axisTheme = [editorTheme, syntaxHighlighting(axisHighlight)];
