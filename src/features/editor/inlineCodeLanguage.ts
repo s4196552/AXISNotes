@@ -14,15 +14,16 @@ import { axisHighlight } from "./theme";
 
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
-// Inline code in a language: `Java`String greeting = "Hello, World!";`
-// A code span holding a language name, then the code with no space before it, then a
-// closing backtick. The code is coloured like a fenced block in that language, and off the
-// cursor's line the `Java` span and the closing backtick are hidden. Any language the code
-// blocks know works, by name, alias or file extension (`python`, `js`, `py`, `C++`).
+// Inline code in a language: `Java`String greeting = "Hello, World!";``
+// A code span holding a language name, then the code with no space before it, then two
+// closing backticks (so the code may hold a single one, as in `js`a = `b`;``). The code is
+// coloured like a fenced block in that language, and off the cursor's line the `Java` span
+// and the closing backticks are hidden. Any language the code blocks know works, by name,
+// alias or file extension (`python`, `js`, `py`, `C++`).
 // The file keeps exactly what was typed; other Markdown apps show `Java` as inline code
-// followed by plain text and a backtick.
+// followed by plain text and two backticks.
 
-/** A language span and the code after it: `from` `Java` codeFrom code codeTo ` to. */
+/** A language span and the code after it: `from` `Java` codeFrom code codeTo `` to. */
 export interface TaggedCode {
   from: number;
   codeFrom: number;
@@ -35,6 +36,8 @@ export interface TaggedCode {
 const TAG = /^`([A-Za-z][\w+#.-]*)`/;
 /** Code never starts with a space or prose punctuation: "`python`, `java`", "`npm`'s". */
 const CODE_START = /[^\s`,.;:!?)\]}'’]/;
+/** Where a tagged span ends: two backticks, the last two of a longer run. */
+const CLOSE = /``(?!`)/g;
 /** Blocks whose lines are kept as written, so a tagged span there is only text. */
 const BLOCKS =
   /^(FencedCode|CodeBlock|Frontmatter|HTMLBlock|CommentBlock|ProcessingInstructionBlock)$/;
@@ -56,9 +59,10 @@ interface Scan {
 }
 
 /**
- * Backtick runs on one line, left to right. A single backtick starting `lang`code` opens a
- * tagged span that runs to the next backtick; any other run is a code span up to the next
- * run of the same length, as in Markdown. Backslash-escaped backticks are text.
+ * Backtick runs on one line, left to right. A single backtick starting `lang`code`` opens a
+ * tagged span that runs to the next pair of backticks (the last two of a longer run); any
+ * other run is a code span up to the next run of the same length, as in Markdown.
+ * Backslash-escaped backticks are text.
  */
 function scan(text: string): Scan {
   const spans: Scan["spans"] = [];
@@ -79,10 +83,11 @@ function scan(text: string): Scan {
     const codeFrom = tag ? i + tag[0].length : 0;
     const language = tag && CODE_START.test(text[codeFrom] ?? "") ? findLanguage(tag[1]!) : null;
     if (language) {
-      const close = text.indexOf("`", codeFrom);
+      CLOSE.lastIndex = codeFrom;
+      const close = CLOSE.exec(text)?.index ?? -1;
       if (close < 0) return { spans, open: "tagged" };
-      spans.push({ from: i, codeFrom, codeTo: close, to: close + 1, language });
-      i = close + 1;
+      spans.push({ from: i, codeFrom, codeTo: close, to: close + 2, language });
+      i = close + 2;
       continue;
     }
     // An ordinary code span: its closer is the next run of exactly the same length.

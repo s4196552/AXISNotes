@@ -172,7 +172,7 @@ export function buildDecorations(
   // A `-` in an equation is a minus sign, shown as typed while the equation is edited.
   const maths = mathRanges(state);
   const inMath = (pos: number) => maths.some((m) => pos > m.from && pos < m.to);
-  // `Java`code` spans draw themselves (inlineCodeLanguage.ts), backticks included.
+  // `Java`code`` spans draw themselves (inlineCodeLanguage.ts), backticks included.
   const tagged = taggedCode(state, ranges);
   // Skipped: what lies inside one, and a code span its closing backtick would open.
   const inTagged = (node: SyntaxNode) =>
