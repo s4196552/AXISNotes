@@ -162,3 +162,5 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 | T-148 | 6 | Fix Zen hiding under a resting pointer; file tree drop-in on vault switch and later remounts | claude | merged | agent/claude/T-148 | `src/app/{zen.ts,zen.test.tsx}`, `src/features/filetree/{FileTree.tsx,FileTree.test.tsx,useExpanded.ts}`, task coordination |
 
 | T-149 | 6 | Arrow and comparison symbols as you type (`->` → `→`, `<-`, `<->`, `>=`, `<=`, `!=`, `~=`) | claude | merged | agent/claude/T-149 | `src/features/editor/{symbolAutoformat.ts,symbolAutoformat.test.ts,listAutoformat.ts,Editor.tsx}`, task coordination |
+
+| T-151 | 6 | File tree: select several items with Shift+click / Shift+arrows; drag, delete them together | claude | merged | agent/claude/T-151 | `src/features/filetree/{FileTree.tsx,FileTree.test.tsx,treeModel.ts,treeModel.test.ts}`, task coordination |

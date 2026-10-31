@@ -166,6 +166,11 @@ export function canMove(src: string, targetDir: string): boolean {
   return parentPath(src) !== targetDir; // already there
 }
 
+/** `paths` without any inside another of them (a folder's own items go with it), in order. */
+export function outermost(paths: readonly string[]): string[] {
+  return paths.filter((p) => !paths.some((q) => q !== p && p.startsWith(q + "/")));
+}
+
 /** Rewrite expanded-folder paths after `from` was renamed/moved to `to`. */
 export function remapPaths(paths: Iterable<string>, from: string, to: string): Set<string> {
   const out = new Set<string>();

@@ -59,6 +59,7 @@ import {
   isOpenable,
   joinPath,
   orderedChildren,
+  outermost,
   parentPath,
   placeName,
   remapPaths,
@@ -94,6 +95,8 @@ const DROP_MS = 500;
 /** Everything a row can trigger. Kept in one stable object so rows can be memoized. */
 interface RowActions {
   select(path: string): void;
+  /** Shift+click: select every row from the anchor to `path`. */
+  extend(path: string): void;
   /** Open a file (in a new tab with `newTab`), or expand/collapse a folder. */
   activate(entry: VaultEntry, newTab?: boolean): void;
   toggle(path: string): void;
@@ -127,15 +130,28 @@ export function FileTree() {
   } = useExpanded(vault?.root ?? "");
 
   const [selected, setSelected] = useState<string | null>(null);
+  // Rows picked with Shift+click or Shift+↑/↓, from `anchor` to `focus` (the selected row).
+  // Any other change of the selected row drops back to that one row (see below).
+  const [picked, setPicked] = useState<{ anchor: string; focus: string; paths: string[] } | null>(
+    null,
+  );
+  if (picked && picked.focus !== selected) setPicked(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   // Near the bottom or right of the window the menu opens above or left of the pointer.
   useFitToViewport(menuRef, menu?.x ?? 0, menu?.y ?? 0, menu);
-  /** The item being dragged, where it would land, and the pointer. */
-  const [drag, setDrag] = useState<{ path: string; over: DropAt | null; x: number; y: number }>();
+  /** The item pressed, everything dragged with it, where it would land, and the pointer. */
+  const [drag, setDrag] = useState<{
+    path: string;
+    paths: string[];
+    over: DropAt | null;
+    x: number;
+    y: number;
+  }>();
   const pressed = useRef<{
     path: string;
+    paths: string[];
     x: number;
     y: number;
     pointerId: number;
@@ -166,10 +182,30 @@ export function FileTree() {
   const openedAt = opened === null ? -1 : rows.findIndex((r) => r.entry.path === opened);
 
   // Latest state for the stable action callbacks below.
-  const latest = useRef({ tree, selected, fileOrder, expanded });
+  const latest = useRef({ tree, selected, picked, rows, fileOrder, expanded });
   useLayoutEffect(() => {
-    latest.current = { tree, selected, fileOrder, expanded };
-  }, [tree, selected, fileOrder, expanded]);
+    latest.current = { tree, selected, picked, rows, fileOrder, expanded };
+  }, [tree, selected, picked, rows, fileOrder, expanded]);
+
+  /** The chosen paths in tree order (just the selected row unless several are picked). */
+  const chosen = useCallback((): string[] => {
+    const { picked: p, selected: sel } = latest.current;
+    return p ? p.paths : sel !== null ? [sel] : [];
+  }, []);
+
+  /** Select every visible row from the anchor (the last row chosen without Shift) to `path`. */
+  const extendTo = useCallback((path: string) => {
+    const { rows: all, picked: p, selected: sel } = latest.current;
+    const at = (q: string | null) => all.findIndex((r) => r.entry.path === q);
+    const to = at(path);
+    if (to < 0) return;
+    let anchor = p?.anchor ?? sel ?? path;
+    if (at(anchor) < 0) anchor = path;
+    const from = at(anchor);
+    const paths = all.slice(Math.min(from, to), Math.max(from, to) + 1).map((r) => r.entry.path);
+    setSelected(path);
+    setPicked(paths.length > 1 ? { anchor, focus: path, paths } : null);
+  }, []);
 
   const run = useCallback(async (op: () => Promise<void>) => {
     try {
@@ -260,9 +296,44 @@ export function FileTree() {
     [run],
   );
 
-  /** Names in `dir`, in the order shown. */
+  /** Trash several items after one confirmation (a folder takes its own items with it). */
+  const trashMany = useCallback(
+    (paths: string[]) => {
+      const t = latest.current.tree;
+      const entries = outermost(paths)
+        .map((p) => findEntry(t, p))
+        .filter((e): e is VaultEntry => !!e);
+      if (entries.length <= 1) return entries[0] ? trash(entries[0]) : Promise.resolve(false);
+      return run(async () => {
+        const names = entries.slice(0, 10).map(displayName);
+        if (entries.length > 10) names.push(`…and ${entries.length - 10} more`);
+        if (!window.confirm(`Move ${entries.length} items to the trash?\n\n${names.join("\n")}`))
+          return;
+        const done: string[] = [];
+        try {
+          for (const e of entries) {
+            await backend.trashEntry(e.path);
+            done.push(e.path);
+          }
+        } finally {
+          const store = useAppStore.getState();
+          await store.refreshTree();
+          for (const p of done) {
+            store.onEntryRemoved(p);
+            await remapIcons(p, null);
+          }
+          setSelected(null);
+        }
+      });
+    },
+    [run, trash],
+  );
+
+  /** Names in `dir`, in the order shown. Read from the stores, which a move or a saved
+   *  order updates at once, so several items dropped together see each other. */
   const shownNames = useCallback((dir: string) => {
-    const { tree: t, fileOrder: order } = latest.current;
+    const t = useAppStore.getState().tree;
+    const order = useConfig.getState().config.fileOrder;
     return orderedChildren(findEntry(t, dir)?.children ?? [], order[dir]).map((c) => c.name);
   }, []);
 
@@ -322,29 +393,72 @@ export function FileTree() {
 
   // ---- Dragging rows ----
 
-  /** Where `src` would land with the pointer at x, y, or null if it can't go there. */
-  const dropAt = useCallback((src: string, x: number, y: number): DropAt | null => {
+  /** Where `srcs` would land with the pointer at x, y, or null if they can't go there. */
+  const dropAt = useCallback((srcs: string[], x: number, y: number): DropAt | null => {
+    // Into a folder: each item must be able to go there (one already in it stays put).
+    const canInto = (dir: string) =>
+      srcs.every((s) => canMove(s, dir) || (srcs.length > 1 && parentPath(s) === dir)) &&
+      srcs.some((s) => canMove(s, dir));
     const body = treeRef.current;
     const el = document.elementFromPoint(x, y);
     if (el && rootDropRef.current?.contains(el))
-      return canMove(src, "") ? { path: "", side: "into" } : null;
+      return canInto("") ? { path: "", side: "into" } : null;
     if (!body || !el || !body.contains(el)) return null;
     const rowEl = el.closest<HTMLElement>("[role=treeitem]");
     // Empty space below the rows: the top level.
-    if (!rowEl) return canMove(src, "") ? { path: "", side: "into" } : null;
+    if (!rowEl) return canInto("") ? { path: "", side: "into" } : null;
     const path = rowEl.dataset.path ?? "";
     const isDir = findEntry(latest.current.tree, path)?.kind === "dir";
     const r = rowEl.getBoundingClientRect();
     const side = dropSide(y, r.top, r.height, isDir);
-    if (side === "into") return canMove(src, path) ? { path, side } : null;
+    if (side === "into") return canInto(path) ? { path, side } : null;
     const dir = parentPath(path);
     // Not next to itself, nor anywhere inside itself.
-    if (path === src || dir === src || dir.startsWith(src + "/")) return null;
+    if (srcs.some((src) => path === src || dir === src || dir.startsWith(src + "/"))) return null;
     return { path, side };
   }, []);
 
+  /** Drop several items: into a folder, or before/after a row, keeping their order. */
+  const dropMany = useCallback(
+    async (srcs: string[], over: DropAt) => {
+      // A clash or a failed move is reported and leaves that item where it was.
+      const exists = (p: string) => !!findEntry(useAppStore.getState().tree, p);
+      const moved = (src: string, to: string) => exists(to) && (to === src || !exists(src));
+      const landed: string[] = [];
+      if (over.side === "into") {
+        for (const src of srcs) {
+          const to = joinPath(over.path, baseName(src));
+          if (parentPath(src) !== over.path) await move(src, to);
+          if (moved(src, to)) landed.push(to);
+        }
+      } else {
+        // Each goes right after the one placed before it (or before the target, in order).
+        const side = over.side;
+        let target = over.path;
+        for (const src of srcs) {
+          const to = joinPath(parentPath(target), baseName(src));
+          await place(src, target, side);
+          if (!moved(src, to)) break;
+          landed.push(to);
+          if (side === "after") target = to;
+        }
+      }
+      const focus = landed[landed.length - 1];
+      if (!focus) return;
+      setSelected(focus);
+      setPicked(landed.length > 1 ? { anchor: landed[0]!, focus, paths: landed } : null);
+    },
+    [move, place],
+  );
+
   useEffect(() => {
-    let current: { path: string; over: DropAt | null; x: number; y: number } | null = null;
+    let current: {
+      path: string;
+      paths: string[];
+      over: DropAt | null;
+      x: number;
+      y: number;
+    } | null = null;
     let opening: { path: string; timer: ReturnType<typeof setTimeout> } | null = null;
     let frame: number | undefined;
     let lastFrame = 0;
@@ -366,7 +480,7 @@ export function FileTree() {
     };
     const updateTarget = () => {
       if (!current) return;
-      const over = dropAt(current.path, current.x, current.y);
+      const over = dropAt(current.paths, current.x, current.y);
       // Hovering over a closed folder opens it after a moment.
       const folder = over?.side === "into" && over.path !== "" ? over.path : null;
       if (folder !== (opening?.path ?? null)) {
@@ -408,7 +522,7 @@ export function FileTree() {
       }
       if (!current) {
         if (Math.hypot(e.clientX - p.x, e.clientY - p.y) < DRAG_START) return;
-        current = { path: p.path, over: null, x: e.clientX, y: e.clientY };
+        current = { path: p.path, paths: p.paths, over: null, x: e.clientX, y: e.clientY };
         document.body.classList.add("filetree-dragging");
         setMenu(null);
         frame = requestAnimationFrame(tick);
@@ -424,7 +538,7 @@ export function FileTree() {
       const done = current;
       // Hit-test while the drag-only root target is still mounted and before
       // releasing pointer capture can dispatch another event and flush a render.
-      const over = done ? dropAt(done.path, e.clientX, e.clientY) : null;
+      const over = done ? dropAt(done.paths, e.clientX, e.clientY) : null;
       end();
       if (!done) return;
       // The click that ends a drag doesn't also open the row under the pointer.
@@ -435,7 +549,8 @@ export function FileTree() {
       // folder may have changed the rows). Hit-test the actual drop position.
       const src = done.path;
       if (!over) return;
-      if (over.side === "into") void move(src, joinPath(over.path, baseName(src)));
+      if (done.paths.length > 1) void dropMany(done.paths, over);
+      else if (over.side === "into") void move(src, joinPath(over.path, baseName(src)));
       else void place(src, over.path, over.side);
     };
     const onKey = (e: KeyboardEvent) => {
@@ -467,13 +582,18 @@ export function FileTree() {
       window.removeEventListener("blur", end);
       window.removeEventListener("keydown", onKey, true);
     };
-  }, [dropAt, move, place, toggle, vault?.root]);
+  }, [dropAt, dropMany, move, place, toggle, vault?.root]);
 
   const actions = useMemo<RowActions>(
     () => ({
-      select: setSelected,
+      select(path) {
+        setSelected(path);
+        setPicked(null);
+      },
+      extend: extendTo,
       activate(entry, newTab) {
         setSelected(entry.path);
+        setPicked(null);
         if (entry.kind === "dir") toggle(entry.path);
         else if (isOpenable(entry))
           useAppStore.getState().openFile(entry.path, undefined, { newTab });
@@ -482,7 +602,11 @@ export function FileTree() {
       openMenu(e, entry) {
         e.preventDefault();
         e.stopPropagation();
-        if (entry) setSelected(entry.path);
+        // On a row outside the picked ones, the menu is for that row alone.
+        if (entry && !latest.current.picked?.paths.includes(entry.path)) {
+          setSelected(entry.path);
+          setPicked(null);
+        }
         setMenu({ x: e.clientX, y: e.clientY, entry });
       },
       commitRename(entry, input) {
@@ -503,8 +627,11 @@ export function FileTree() {
         e.preventDefault();
         setMenu(null);
         treeRef.current?.focus({ preventScroll: true });
+        // Pressing a picked row drags all the picked rows (a folder takes its items along).
+        const p = latest.current.picked;
         pressed.current = {
           path,
+          paths: p?.paths.includes(path) ? outermost(p.paths) : [path],
           x: e.clientX,
           y: e.clientY,
           pointerId: e.pointerId,
@@ -513,7 +640,7 @@ export function FileTree() {
         e.currentTarget.setPointerCapture?.(e.pointerId);
       },
     }),
-    [toggle, move],
+    [toggle, move, extendTo],
   );
 
   // Close the context menu on outside click or Escape.
@@ -576,8 +703,15 @@ export function FileTree() {
     if (renaming !== null || rows.length === 0) return;
     const index = rows.findIndex((r) => r.entry.path === selected);
     const current = index >= 0 ? rows[index]!.entry : null;
-    const selectAt = (i: number) =>
-      setSelected(rows[Math.max(0, Math.min(rows.length - 1, i))]!.entry.path);
+    // With Shift, ↑ ↓ Home and End extend the selection instead of moving it.
+    const selectAt = (i: number) => {
+      const path = rows[Math.max(0, Math.min(rows.length - 1, i))]!.entry.path;
+      if (e.shiftKey) extendTo(path);
+      else {
+        setSelected(path);
+        setPicked(null);
+      }
+    };
 
     // Alt + ↑ / ↓ moves the item among its neighbours.
     if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
@@ -610,7 +744,11 @@ export function FileTree() {
         if (current) setRenaming(current.path);
         break;
       case "Delete":
-        if (current) void trash(current);
+        void trashMany(chosen());
+        break;
+      case "Escape":
+        if (!picked) return;
+        setPicked(null);
         break;
       case "Home":
         selectAt(0);
@@ -627,6 +765,10 @@ export function FileTree() {
   if (!tree) return null;
 
   const dragged = drag ? findEntry(tree, drag.path) : null;
+  const pickedPaths = new Set(picked?.paths);
+  // The context menu of a picked row acts on all the picked rows.
+  const many =
+    menu?.entry && pickedPaths.has(menu.entry.path) ? outermost(picked?.paths ?? []) : null;
 
   const menuDir = menu
     ? menu.entry === null
@@ -667,6 +809,7 @@ export function FileTree() {
         className={`filetree-body${drag?.over?.path === "" ? " drop-target" : ""}`}
         role="tree"
         aria-label="Vault files"
+        aria-multiselectable="true"
         tabIndex={0}
         aria-activedescendant={selected !== null ? rowId(selected) : undefined}
         onKeyDown={onKeyDown}
@@ -682,11 +825,11 @@ export function FileTree() {
               openedAt >= 0 && entry.path.startsWith(`${opened}/`) ? i - openedAt - 1 : undefined
             }
             expanded={entry.kind === "dir" && expanded.has(entry.path)}
-            selected={entry.path === selected}
+            selected={entry.path === selected || pickedPaths.has(entry.path)}
             active={entry.path === activePath}
             renaming={entry.path === renaming}
             drop={drag?.over?.path === entry.path ? drag.over.side : undefined}
-            dragged={drag?.path === entry.path}
+            dragged={!!drag?.paths.includes(entry.path)}
             customIcon={folderIcons[entry.path]}
             colors={entryColors[entry.path]}
             aiRule={aiFolders[entry.path]}
@@ -713,7 +856,11 @@ export function FileTree() {
           aria-hidden
           style={{ transform: `translate(${drag.x + 12}px, ${drag.y + 8}px)` }}
         >
-          {dragged ? displayName(dragged) : baseName(drag.path)}
+          {drag.paths.length > 1
+            ? `${drag.paths.length} items`
+            : dragged
+              ? displayName(dragged)
+              : baseName(drag.path)}
         </div>
       )}
 
@@ -725,85 +872,101 @@ export function FileTree() {
           style={{ left: menu.x, top: menu.y }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <MenuItem
-            label="New note here"
-            icon={FilePlus}
-            onClick={() => void createNote(menuDir)}
-            close={setMenu}
-          />
-          <MenuItem
-            label="New grid here"
-            icon={Sheet}
-            onClick={() => void createNote(menuDir, "grid")}
-            close={setMenu}
-          />
-          <MenuItem
-            label="New canvas here"
-            icon={Shapes}
-            onClick={() => void createNote(menuDir, "canvas")}
-            close={setMenu}
-          />
-          <MenuItem
-            label="New folder here"
-            icon={FolderPlus}
-            onClick={() => void createFolder(menuDir)}
-            close={setMenu}
-          />
-          {menu.entry?.kind === "dir" && <DashboardItems path={menu.entry.path} close={setMenu} />}
-          {menu.entry?.kind !== "file" && fileOrder[menuDir] && (
+          {many ? (
             <MenuItem
-              label="Sort A–Z"
-              icon={ArrowDownAZ}
-              onClick={() => void resetOrder(menuDir)}
+              label={`Delete ${many.length} items`}
+              icon={Trash2}
+              danger
+              onClick={() => void trashMany(many)}
               close={setMenu}
             />
-          )}
-          {menu.entry && (
+          ) : (
             <>
-              <AiRuleItems path={menu.entry.path} close={setMenu} />
               <MenuItem
-                label="Rename"
-                icon={Pencil}
-                onClick={() => setRenaming(menu.entry!.path)}
+                label="New note here"
+                icon={FilePlus}
+                onClick={() => void createNote(menuDir)}
                 close={setMenu}
               />
               <MenuItem
-                label="Move to…"
-                icon={FolderInput}
-                onClick={() => useUi.getState().open({ kind: "move", path: menu.entry!.path })}
+                label="New grid here"
+                icon={Sheet}
+                onClick={() => void createNote(menuDir, "grid")}
                 close={setMenu}
               />
               <MenuItem
-                label="Move up"
-                icon={ArrowUp}
-                onClick={() => nudge(menu.entry!.path, -1)}
+                label="New canvas here"
+                icon={Shapes}
+                onClick={() => void createNote(menuDir, "canvas")}
                 close={setMenu}
               />
               <MenuItem
-                label="Move down"
-                icon={ArrowDown}
-                onClick={() => nudge(menu.entry!.path, 1)}
+                label="New folder here"
+                icon={FolderPlus}
+                onClick={() => void createFolder(menuDir)}
                 close={setMenu}
               />
-              <MenuItem
-                label="Change icon…"
-                icon={Smile}
-                onClick={() => useUi.getState().open({ kind: "icon", path: menu.entry!.path })}
-                close={setMenu}
-              />
-              <MenuItem
-                label="Change colours…"
-                icon={Palette}
-                onClick={() => useUi.getState().open({ kind: "colors", path: menu.entry!.path })}
-                close={setMenu}
-              />
-              <MenuItem
-                label="Delete"
-                icon={Trash2}
-                danger
-                onClick={() => void trash(menu.entry!)}
-                close={setMenu}
-              />
+              {menu.entry?.kind === "dir" && (
+                <DashboardItems path={menu.entry.path} close={setMenu} />
+              )}
+              {menu.entry?.kind !== "file" && fileOrder[menuDir] && (
+                <MenuItem
+                  label="Sort A–Z"
+                  icon={ArrowDownAZ}
+                  onClick={() => void resetOrder(menuDir)}
+                  close={setMenu}
+                />
+              )}
+              {menu.entry && (
+                <>
+                  <AiRuleItems path={menu.entry.path} close={setMenu} />
+                  <MenuItem
+                    label="Rename"
+                    icon={Pencil}
+                    onClick={() => setRenaming(menu.entry!.path)}
+                    close={setMenu}
+                  />
+                  <MenuItem
+                    label="Move to…"
+                    icon={FolderInput}
+                    onClick={() => useUi.getState().open({ kind: "move", path: menu.entry!.path })}
+                    close={setMenu}
+                  />
+                  <MenuItem
+                    label="Move up"
+                    icon={ArrowUp}
+                    onClick={() => nudge(menu.entry!.path, -1)}
+                    close={setMenu}
+                  />
+                  <MenuItem
+                    label="Move down"
+                    icon={ArrowDown}
+                    onClick={() => nudge(menu.entry!.path, 1)}
+                    close={setMenu}
+                  />
+                  <MenuItem
+                    label="Change icon…"
+                    icon={Smile}
+                    onClick={() => useUi.getState().open({ kind: "icon", path: menu.entry!.path })}
+                    close={setMenu}
+                  />
+                  <MenuItem
+                    label="Change colours…"
+                    icon={Palette}
+                    onClick={() =>
+                      useUi.getState().open({ kind: "colors", path: menu.entry!.path })
+                    }
+                    close={setMenu}
+                  />
+                  <MenuItem
+                    label="Delete"
+                    icon={Trash2}
+                    danger
+                    onClick={() => void trash(menu.entry!)}
+                    close={setMenu}
+                  />
+                </>
+              )}
             </>
           )}
         </div>
@@ -971,7 +1134,7 @@ const TreeRow = memo(function TreeRow({
       aria-expanded={isDir ? expanded : undefined}
       aria-current={active ? "page" : undefined}
       data-path={entry.path}
-      title={`${entry.path}\nDrag to move or reorder. Select and press F2 to rename.`}
+      title={`${entry.path}\nDrag to move or reorder. Select and press F2 to rename. Shift+click to select several.`}
       className={classes}
       style={
         {
@@ -983,8 +1146,11 @@ const TreeRow = memo(function TreeRow({
           "--drop-indent": `${24 + (depth - 1) * 14}px`,
         } as CSSProperties
       }
-      // Ctrl/Cmd+click or middle-click opens in a new tab, as in Obsidian.
-      onClick={(e) => actions.activate(entry, e.ctrlKey || e.metaKey)}
+      // Ctrl/Cmd+click or middle-click opens in a new tab, as in Obsidian; Shift+click
+      // selects every row from the last one clicked to this one.
+      onClick={(e) =>
+        e.shiftKey ? actions.extend(entry.path) : actions.activate(entry, e.ctrlKey || e.metaKey)
+      }
       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
       onAuxClick={(e) => {
         if (e.button !== 1 || isDir) return;
@@ -1000,6 +1166,7 @@ const TreeRow = memo(function TreeRow({
         onClick={
           isDir
             ? (e) => {
+                if (e.shiftKey) return; // the row's Shift+click
                 e.stopPropagation();
                 actions.select(entry.path);
                 actions.toggle(entry.path);
