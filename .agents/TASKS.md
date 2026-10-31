@@ -170,3 +170,5 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 | T-152 | 6 | Language-tagged inline code closes with two backticks (`Java`code``) | claude | merged | agent/claude/T-152 | `src/features/editor/{inlineCodeLanguage.ts,inlineCodeLanguage.test.ts,links.ts,links.test.ts,livePreview.ts,symbolAutoformat.ts}`, task coordination |
 
 | T-153 | 6 | Mermaid: no "Syntax error in text" graphics left on the page for invalid diagrams | claude | merged | agent/claude/T-153 | `src/features/diagrams/{mermaid.ts,mermaid.test.ts}`, task coordination |
+
+| T-154 | 6 | Images in notes: click to select, double-click to open, drag to another line, resize by handles (no mini toolbar) | claude | merged | agent/claude/T-154 | `src/features/editor/{imageEditor.ts,embeds.ts,editor.css,media.test.tsx}`, task coordination |
