@@ -11,6 +11,7 @@ import {
   cycle,
   deserialize,
   forward,
+  go,
   goTo,
   groupTabs,
   initialTabs,
@@ -107,6 +108,20 @@ describe("history", () => {
     const s = initialTabs();
     expect(back(s)).toBe(s);
     expect(forward(s)).toBe(s);
+    expect(go(s, -3)).toBe(s);
+  });
+
+  it("jumps several places at once, keeping the places passed over", () => {
+    let s = initialTabs();
+    for (const p of ["a.md", "b.md", "c.md", "d.md"]) s = navigate(s, note(p));
+    s = go(s, -3);
+    expect(current(s)).toBe("a.md");
+    expect(activeTab(s).forward).toEqual([note("d.md"), note("c.md"), note("b.md")]);
+    s = go(s, 2);
+    expect(current(s)).toBe("c.md");
+    expect(activeTab(s).back).toEqual([note("a.md"), note("b.md")]);
+    // Past the end stops at the last place.
+    expect(current(go(s, 10))).toBe("d.md");
   });
 });
 

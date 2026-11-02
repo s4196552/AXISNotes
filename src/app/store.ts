@@ -77,6 +77,8 @@ export interface AppState {
   goToTab(index: number): void;
   goBack(): void;
   goForward(): void;
+  /** Several places back (negative) or forward (positive) in the active tab's history. */
+  goHistory(steps: number): void;
   /** Move a tab; `group` puts it in that group (null: none), else it keeps its own. */
   moveTab(id: string, to: number, group?: string | null): void;
   togglePinTab(id?: string): void;
@@ -275,6 +277,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   goToTab: (index) => set({ ...withTabs(T.goTo(get().tabs, index)), pendingTarget: null }),
   goBack: () => set({ ...withTabs(T.back(get().tabs)), pendingTarget: null }),
   goForward: () => set({ ...withTabs(T.forward(get().tabs)), pendingTarget: null }),
+  goHistory: (steps) => set({ ...withTabs(T.go(get().tabs, steps)), pendingTarget: null }),
   moveTab: (id, to, group) => set(withTabs(T.moveTab(get().tabs, id, to, group))),
   togglePinTab(id) {
     const tabs = get().tabs;

@@ -277,6 +277,91 @@ describe("tab shortcuts", () => {
   });
 });
 
+describe("back and forward", () => {
+  const backButton = () => screen.getByRole("button", { name: /^Back/ });
+  const forwardButton = () => screen.getByRole("button", { name: /^Forward/ });
+
+  it("goes back and forward through the files opened from the file tree", () => {
+    render(
+      <>
+        <FileTree />
+        <TabBar />
+      </>,
+    );
+    expect(backButton()).toBeDisabled();
+    expect(forwardButton()).toBeDisabled();
+    fireEvent.click(screen.getByRole("treeitem", { name: "Alpha" }));
+    fireEvent.click(screen.getByRole("treeitem", { name: "Beta" }));
+    expect(backButton()).toHaveAccessibleName("Back to Alpha");
+    expect(backButton()).toHaveAttribute("title", "Back to Alpha (Ctrl+Alt+ArrowLeft)");
+
+    fireEvent.click(backButton());
+    expect(store().activePath).toBe("Alpha.md");
+    expect(backButton()).toBeDisabled();
+    expect(forwardButton()).toHaveAccessibleName("Forward to Beta");
+
+    fireEvent.click(forwardButton());
+    expect(store().activePath).toBe("Beta.md");
+    expect(forwardButton()).toBeDisabled();
+    // Still one tab: Back and Forward move within it.
+    expect(titles()).toEqual(["Beta"]);
+  });
+
+  it("follows each tab's own history", () => {
+    render(<TabBar />);
+    act(() => store().openFile("Alpha.md"));
+    act(() => store().openFile("Beta.md"));
+    act(() => store().openFile("Sheet.axgrid", undefined, { newTab: true }));
+    expect(backButton()).toBeDisabled();
+    fireEvent.click(screen.getByRole("tab", { name: /Beta/ }));
+    expect(backButton()).toHaveAccessibleName("Back to Alpha");
+  });
+
+  it("works with the mouse's back and forward side buttons", () => {
+    render(<TabBar />);
+    act(() => store().openFile("Alpha.md"));
+    act(() => store().openFile("Beta.md"));
+    const side = (button: number) => {
+      const down = new MouseEvent("mousedown", { bubbles: true, cancelable: true, button });
+      const up = new MouseEvent("mouseup", { bubbles: true, cancelable: true, button });
+      fireEvent(document.body, down);
+      fireEvent(document.body, up);
+      // The webview mustn't act on them as well.
+      expect(down.defaultPrevented && up.defaultPrevented).toBe(true);
+    };
+    side(3);
+    expect(store().activePath).toBe("Alpha.md");
+    side(4);
+    expect(store().activePath).toBe("Beta.md");
+    // Other buttons are left alone.
+    fireEvent(document.body, new MouseEvent("mouseup", { bubbles: true, button: 0 }));
+    expect(store().activePath).toBe("Beta.md");
+  });
+
+  it("lists the places on right-click and jumps straight to one", () => {
+    render(<TabBar />);
+    for (const p of ["Alpha.md", "Beta.md", "School/Gamma.md", "Sheet.axgrid"]) {
+      act(() => store().openFile(p));
+    }
+    fireEvent.contextMenu(backButton());
+    const menu = screen.getByRole("menu", { name: "Back history" });
+    const items = within(menu).getAllByRole("menuitem");
+    expect(items.map((i) => i.textContent)).toEqual(["Gamma", "Beta", "Alpha"]);
+    fireEvent.click(items[2]!);
+    expect(store().activePath).toBe("Alpha.md");
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    fireEvent.contextMenu(forwardButton());
+    const forwardItems = within(screen.getByRole("menu", { name: "Forward history" }))
+      .getAllByRole("menuitem")
+      .map((i) => i.textContent);
+    expect(forwardItems).toEqual(["Beta", "Gamma", "Sheet"]);
+    // A click elsewhere closes it.
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
 describe("tabs and the vault", () => {
   it("opens in a new tab with Ctrl+click or middle-click in the file tree", () => {
     render(
