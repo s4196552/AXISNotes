@@ -36,6 +36,7 @@ import {
 } from "../../app/tabs";
 import { groupLabel, kindIcon, TAB_PANEL_ID, tabTitle } from "./tabInfo";
 import { EntryIcon } from "../icons/EntryIcon";
+import { NavButtons } from "./NavButtons";
 import "./tabs.css";
 
 const tabDomId = (id: string) => `tab-${id}`;
@@ -194,6 +195,7 @@ export function TabBar() {
   return (
     // The row is the window's title bar: its empty part moves the window (see WindowControls).
     <div className="tabbar-row" data-tauri-drag-region {...zoomProps}>
+      <NavButtons />
       <div
         ref={bar}
         className={["tabbar", marker("end") && "drop-end"].filter(Boolean).join(" ")}

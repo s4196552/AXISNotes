@@ -137,6 +137,19 @@
   background: var(--bg-hover);
   color: var(--fg);
 }
+/* Back and Forward (NavButtons), before the tabs. */
+.tab-nav {
+  flex: none;
+  display: flex;
+  align-self: center;
+  gap: 1px;
+  margin-right: 4px;
+}
+.tab-nav-button:disabled {
+  opacity: 0.35;
+  background: transparent;
+  color: var(--fg-muted);
+}
 
 .tabbar.drop-end::after {
   content: "";

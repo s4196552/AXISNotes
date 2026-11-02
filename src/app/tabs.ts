@@ -267,6 +267,13 @@ export function forward(s: TabsState): TabsState {
   });
 }
 
+/** Go `steps` places through the active tab's history: back when negative, else forward. */
+export function go(s: TabsState, steps: number): TabsState {
+  let out = s;
+  for (let i = 0; i < Math.abs(steps); i++) out = steps < 0 ? back(out) : forward(out);
+  return out;
+}
+
 /**
  * Move tab `id` to position `to` in the list (counted without it). `group` puts it in that
  * group, or in none for null; left out, the tab keeps its group.
