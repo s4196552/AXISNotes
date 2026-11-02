@@ -173,4 +173,4 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 
 | T-154 | 6 | Images in notes: click to select, double-click to open, drag to another line, resize by handles (no mini toolbar) | claude | merged | agent/claude/T-154 | `src/features/editor/{imageEditor.ts,embeds.ts,editor.css,media.test.tsx}`, task coordination |
 
-| T-155 | 6 | Back/Forward buttons in the tab row (right-click for history), mouse side buttons | claude | in-review | agent/claude/T-155 | `src/app/{tabs.ts,tabs.test.ts,store.ts}`, `src/features/tabs/{NavButtons.tsx,TabBar.tsx,tabs.css,tabs.test.tsx}`, task coordination |
+| T-155 | 6 | Back/Forward buttons in the tab row (right-click for history), mouse side buttons | claude | merged | agent/claude/T-155 | `src/app/{tabs.ts,tabs.test.ts,store.ts}`, `src/features/tabs/{NavButtons.tsx,TabBar.tsx,tabs.css,tabs.test.tsx}`, task coordination |
