@@ -73,6 +73,19 @@ describe("toggles", () => {
     ).toHaveLength(2);
   });
 
+  it("hangs heading arrows in the margin and indents only a toggle list's inside", () => {
+    const view = viewWith(DOC.replace("|h2]-", "|h2]+"), 0);
+    const arrows = [...view.contentDOM.querySelectorAll(".cm-toggle-arrow")];
+    // A toggle heading's arrow and a Markdown heading's hang; a toggle list's sits inline.
+    expect(arrows.map((a) => a.classList.contains("cm-toggle-hang"))).toEqual([true, false, false]);
+    expect(arrows[1]!.classList.contains("cm-heading-arrow")).toBe(true);
+    const lineOf = (text: string) =>
+      [...view.contentDOM.querySelectorAll(".cm-line")].find((l) => l.textContent?.endsWith(text))!;
+    expect(lineOf("Nucleus").className).toContain("cm-toggle-section");
+    expect(lineOf("Nucleus").className).not.toContain("cm-toggle-inside");
+    expect(lineOf("inside").className).toContain("cm-toggle-inside");
+  });
+
   it("opens and closes by flipping + and - in the note", () => {
     const view = viewWith(DOC);
     const [cells, list] = findToggles(view.state);

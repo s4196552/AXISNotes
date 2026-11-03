@@ -13,8 +13,10 @@ const editorTheme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {
     fontFamily: "var(--font-note)",
-    lineHeight: "1.65",
+    lineHeight: "var(--note-line-height)",
   },
+  // Text starts at the content's edge, under the note title (CodeMirror pads lines by 6px).
+  ".cm-line": { paddingLeft: "0" },
   ".cm-content": {
     maxWidth: "var(--editor-width)",
     margin: "0 auto",

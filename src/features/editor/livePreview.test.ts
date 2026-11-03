@@ -8,6 +8,8 @@ interface Found {
   text: string;
   kind: "hide" | "widget" | "mark" | "line";
   cls?: string;
+  /** Inline style a line or mark sets (list layout). */
+  style?: string;
 }
 
 /** Build a state with the cursor on `cursorLine` (1-based) and list its decorations. */
@@ -18,11 +20,17 @@ function decorate(doc: string, cursorLine = 1): Found[] {
   }).state;
   const found: Found[] = [];
   buildDecorations(state).between(0, state.doc.length, (from, to, deco: Decoration) => {
-    const spec = deco.spec as { class?: string; widget?: unknown };
+    const spec = deco.spec as {
+      class?: string;
+      widget?: unknown;
+      attributes?: { style?: string };
+    };
     const text = state.sliceDoc(from, to);
-    if (from === to && spec.class) found.push({ text: "", kind: "line", cls: spec.class });
+    const style = spec.attributes?.style ? { style: spec.attributes.style } : {};
+    if (from === to && spec.class)
+      found.push({ text: "", kind: "line", cls: spec.class, ...style });
     else if (spec.widget) found.push({ text, kind: "widget", cls: spec.widget.constructor.name });
-    else if (spec.class) found.push({ text, kind: "mark", cls: spec.class });
+    else if (spec.class) found.push({ text, kind: "mark", cls: spec.class, ...style });
     else found.push({ text, kind: "hide" });
   });
   return found;
@@ -69,7 +77,7 @@ describe("live preview decorations", () => {
     const f = decorate(doc, 1);
     const widgets = f.filter((d) => d.kind === "widget");
     expect(widgets).toEqual([
-      { text: "-", kind: "widget", cls: "BulletWidget" },
+      { text: "- ", kind: "widget", cls: "BulletWidget" },
       { text: "- [ ] ", kind: "widget", cls: "CheckboxWidget" },
       { text: "- [x] ", kind: "widget", cls: "CheckboxWidget" },
       { text: "---", kind: "widget", cls: "RuleWidget" },
@@ -77,6 +85,38 @@ describe("live preview decorations", () => {
     expect(f).toContainEqual({ text: "done", kind: "mark", cls: "cm-lp-done" });
     // On the task's own line the raw Markdown stays visible.
     expect(decorate(doc, 3).filter((d) => d.cls === "CheckboxWidget")).toHaveLength(1);
+  });
+
+  it("lays list lines out like Obsidian: indent steps, a fixed-width marker, a hanging indent", () => {
+    const doc = "x\n- one\n\t- two\n\t\t- three\n\n1. first\n   10. tenth\n\n- [ ] task";
+    const f = decorate(doc, 1);
+    const lines = f.filter((d) => d.cls === "cm-lp-li").map((d) => d.style);
+    expect(lines).toEqual([
+      "--li-depth: 0; --li-marker: var(--list-bullet-width)",
+      "--li-depth: 1; --li-marker: var(--list-bullet-width)",
+      "--li-depth: 2; --li-marker: var(--list-bullet-width)",
+      "--li-depth: 0; --li-marker: calc(var(--list-marker-pad) + 1ch + var(--list-ol-suffix))",
+      "--li-depth: 1; --li-marker: calc(var(--list-marker-pad) + 2ch + var(--list-ol-suffix))",
+      "--li-depth: 0; --li-marker: var(--list-task-width)",
+    ]);
+    // One indent step per level, each running from the parent's marker to the child's.
+    expect(f.filter((d) => d.cls === "cm-lp-indent").map((d) => d.text)).toEqual([
+      "\t",
+      "\t",
+      "\t",
+      "   ",
+    ]);
+    // Numbers stay as typed, in a box as wide as the number.
+    expect(f.filter((d) => d.cls === "cm-lp-ol").map((d) => d.text)).toEqual(["1. ", "10. "]);
+  });
+
+  it("keeps a bullet being edited in the bullet's box, and leaves quoted lists alone", () => {
+    const editing = decorate("x\n- one", 2);
+    expect(editing).toContainEqual({ text: "- ", kind: "mark", cls: "cm-lp-listmark" });
+    expect(editing.filter((d) => d.cls === "BulletWidget")).toEqual([]);
+    const quoted = decorate("x\n> - one\n>   - two", 1);
+    expect(quoted.filter((d) => d.cls === "cm-lp-li" || d.cls === "cm-lp-indent")).toEqual([]);
+    expect(quoted.filter((d) => d.cls === "BulletWidget")).toHaveLength(2);
   });
 
   it("tracks checkbox state and position", () => {

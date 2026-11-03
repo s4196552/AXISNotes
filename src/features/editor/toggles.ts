@@ -113,6 +113,8 @@ class ArrowWidget extends WidgetType {
     readonly open: boolean,
     readonly lineFrom: number,
     readonly heading?: { title: string; level: number },
+    /** A toggle heading's arrow hangs in the margin like a heading's. */
+    readonly hang = false,
   ) {
     super();
   }
@@ -120,13 +122,14 @@ class ArrowWidget extends WidgetType {
     return (
       other.open === this.open &&
       other.lineFrom === this.lineFrom &&
+      other.hang === this.hang &&
       other.heading?.title === this.heading?.title &&
       other.heading?.level === this.heading?.level
     );
   }
   toDOM(view: EditorView) {
     const button = document.createElement("span");
-    button.className = `cm-toggle-arrow${this.open ? " cm-toggle-open" : ""}${this.heading ? " cm-heading-arrow" : ""}`;
+    button.className = `cm-toggle-arrow${this.open ? " cm-toggle-open" : ""}${this.heading ? " cm-heading-arrow" : ""}${this.hang ? " cm-toggle-hang" : ""}`;
     button.tabIndex = 0;
     button.setAttribute("role", "button");
     button.setAttribute(
@@ -159,7 +162,8 @@ class ArrowWidget extends WidgetType {
   }
 }
 
-const bodyLine = Decoration.line({ class: "cm-toggle-body" });
+const bodyLine = Decoration.line({ class: "cm-toggle-body cm-toggle-inside" });
+const sectionLine = Decoration.line({ class: "cm-toggle-body cm-toggle-section" });
 const hidden = Decoration.replace({});
 
 interface ToggleState {
@@ -224,7 +228,7 @@ function drawToggles(view: EditorView): DecorationSet {
   for (const t of state.field(toggleField).toggles) {
     const title = `cm-toggle-title${t.level ? ` cm-lp-h cm-lp-h${t.level}` : ""}`;
     out.push(Decoration.line({ class: title }).range(t.from));
-    const arrow = new ArrowWidget(t.open, t.from);
+    const arrow = new ArrowWidget(t.open, t.from, undefined, t.level !== null);
     const editing = view.hasFocus && sel.some((r) => r.to >= t.from && r.from <= t.to);
     const text = state.sliceDoc(t.from, t.from + 2);
     const quoteTo = t.from + (text === "> " ? 2 : 1);
@@ -232,7 +236,7 @@ function drawToggles(view: EditorView): DecorationSet {
     else out.push(Decoration.replace({ widget: arrow }).range(quoteTo, t.markerTo));
     for (let pos = t.to + 1; pos <= t.bodyTo;) {
       const line = state.doc.lineAt(pos);
-      out.push(bodyLine.range(line.from));
+      out.push((t.level ? sectionLine : bodyLine).range(line.from));
       pos = line.to + 1;
     }
   }

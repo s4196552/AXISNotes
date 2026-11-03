@@ -59,7 +59,8 @@ describe("Default heading folding (T-133)", () => {
     fs.writeFileSync(file("Hierarchy.md"), NORMAL);
     await row("Hierarchy.md").waitForDisplayed();
     await row("Hierarchy.md").click();
-    await arrow("Collapse", "Parent").waitForDisplayed();
+    // An open heading's arrow is transparent until its line is hovered, as in Obsidian.
+    await arrow("Collapse", "Parent").waitForExist();
     const outline = $('[aria-label="Outline view"]');
     if ((await outline.getAttribute("aria-pressed")) === "true") await outline.click();
     await expect(outline).toHaveAttribute("aria-pressed", "false");
