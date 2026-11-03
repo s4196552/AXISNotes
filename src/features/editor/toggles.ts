@@ -10,6 +10,8 @@ import {
   type ViewUpdate,
   WidgetType,
 } from "@codemirror/view";
+import { ChevronDown } from "lucide-react";
+import { lucideSvg } from "./lucideSvg";
 
 // Toggles, like Notion's toggle lists and toggle headings. They're stored as Obsidian
 // foldable callouts, so other apps fold them too:
@@ -21,6 +23,9 @@ import {
 // unquoted content and smaller headings. Plain toggle lists keep their quoted body.
 // `+` is open and `-` closed. The arrow flips that character, so the state is saved in the
 // note. While a toggle is closed its inside is hidden, unless the cursor is in it.
+//
+// Obsidian's own foldable callouts (`> [!note]- Title`) fold the same way, with a chevron
+// after the title as in Obsidian (obsidianSyntax.ts draws the rest of the callout).
 
 export interface Toggle {
   /** The title line. */
@@ -35,7 +40,14 @@ export interface Toggle {
   open: boolean;
   /** End of the heading section, or the quoted body for a plain toggle list. */
   bodyTo: number;
+  /** A foldable Obsidian callout rather than a toggle. */
+  callout: boolean;
 }
+
+/** A foldable callout's title: `> [!type|meta]±`, any type but `toggle`. */
+const FOLDABLE_CALLOUT = /^>\s*\[!(?!toggle[|\]])[\w-]+(?:\|[^\]]*)?\]([+-])/i;
+/** Any callout title, which ends the quoted inside of the one before it. */
+const CALLOUT_TITLE = /^>\s*\[![\w-]+/;
 
 /**
  * Every toggle in the note. Fenced code is tracked here rather than read from the syntax
@@ -48,22 +60,26 @@ export function findToggles(state: EditorState): Toggle[] {
     const line = doc.line(n);
     if (!structuralLine(state, n) || line.text.charCodeAt(0) !== 62 /* > */) continue;
     const m = TOGGLE_HEAD.exec(line.text);
-    if (!m) continue;
+    const callout = m ? null : FOLDABLE_CALLOUT.exec(line.text);
+    if (!m && !callout) continue;
     let last = n;
     while (last < doc.lines && doc.line(last + 1).text.charCodeAt(0) === 62) {
-      if (structuralLine(state, last + 1) && TOGGLE_HEAD.test(doc.line(last + 1).text)) break;
+      const next = doc.line(last + 1).text;
+      if (structuralLine(state, last + 1) && (callout ? CALLOUT_TITLE : TOGGLE_HEAD).test(next))
+        break;
       last++;
     }
     const close = line.text.indexOf("]");
     out.push({
       from: line.from,
       to: line.to,
-      markerTo: line.from + m[0].length,
+      markerTo: line.from + (m ?? callout)![0].length,
       statePos: line.from + close + 1,
-      hasState: m[2] !== "",
-      level: m[1] ? Number(m[1]) : null,
-      open: m[2] !== "-",
-      bodyTo: m[1] ? headingSectionAt(state, n)!.bodyTo : doc.line(last).to,
+      hasState: m ? m[2] !== "" : true,
+      level: m?.[1] ? Number(m[1]) : null,
+      open: (m ? m[2] : callout![1]) !== "-",
+      bodyTo: m?.[1] ? headingSectionAt(state, n)!.bodyTo : doc.line(last).to,
+      callout: !!callout,
     });
     n = last;
   }
@@ -162,7 +178,45 @@ class ArrowWidget extends WidgetType {
   }
 }
 
+/** A foldable callout's chevron, after its title as in Obsidian; turned when closed. */
+class CalloutFoldWidget extends WidgetType {
+  constructor(
+    readonly open: boolean,
+    readonly lineFrom: number,
+  ) {
+    super();
+  }
+  eq(other: CalloutFoldWidget) {
+    return other.open === this.open && other.lineFrom === this.lineFrom;
+  }
+  toDOM(view: EditorView) {
+    const button = document.createElement("span");
+    button.className = `cm-callout-fold${this.open ? "" : " cm-callout-fold-closed"}`;
+    button.tabIndex = 0;
+    button.setAttribute("role", "button");
+    button.setAttribute("aria-label", this.open ? "Collapse callout" : "Expand callout");
+    button.setAttribute("aria-expanded", String(this.open));
+    button.append(lucideSvg(ChevronDown, 16));
+    button.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      flipToggle(view, this.lineFrom);
+    });
+    button.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      e.stopPropagation();
+      flipToggle(view, this.lineFrom);
+    });
+    return button;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
 const bodyLine = Decoration.line({ class: "cm-toggle-body cm-toggle-inside" });
+/** A closed callout's title is the whole box. */
+const closedCallout = Decoration.line({ class: "cm-callout-closed" });
 const sectionLine = Decoration.line({ class: "cm-toggle-body cm-toggle-section" });
 const hidden = Decoration.replace({});
 
@@ -226,6 +280,18 @@ function drawToggles(view: EditorView): DecorationSet {
     );
   }
   for (const t of state.field(toggleField).toggles) {
+    if (t.callout) {
+      // Like the rest of the callout (obsidianSyntax.ts), raw while its title is selected.
+      const inside = sel.some((r) => r.to > t.to && r.from <= t.bodyTo);
+      if (!t.open && t.bodyTo > t.to && !inside) out.push(closedCallout.range(t.from));
+      if (!sel.some((r) => r.to >= t.from && r.from <= t.to))
+        out.push(
+          Decoration.widget({ widget: new CalloutFoldWidget(t.open, t.from), side: -1 }).range(
+            t.to,
+          ),
+        );
+      continue;
+    }
     const title = `cm-toggle-title${t.level ? ` cm-lp-h cm-lp-h${t.level}` : ""}`;
     out.push(Decoration.line({ class: title }).range(t.from));
     const arrow = new ArrowWidget(t.open, t.from, undefined, t.level !== null);

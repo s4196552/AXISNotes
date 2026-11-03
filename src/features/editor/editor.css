@@ -1057,33 +1057,93 @@ body.cm-image-drag-copy * {
   font-style: italic;
   opacity: 0.75;
 }
+/* Callouts, drawn like Obsidian's (obsidianSyntax.ts): a tinted, rounded box with the
+   type's icon and a coloured title, 12px/24px padding and a paragraph's space around the
+   inside. The title line is the whole box while the callout is closed (toggles.ts). */
 .cm-line.cm-callout {
-  --callout: var(--accent);
-  border-left: 3px solid var(--callout);
+  --callout: var(--callout-blue);
+  border-left: none;
+  padding-left: 24px !important;
+  padding-right: 12px;
   background: color-mix(in srgb, var(--callout) 10%, transparent);
-  padding-left: 10px;
+  color: var(--fg);
 }
-.cm-line.cm-callout-first {
-  margin-top: 4px;
+.cm-line.cm-callout-title {
+  padding-top: 12px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  line-height: 1.3;
   font-weight: 600;
+  color: var(--callout);
 }
+.cm-line.cm-callout-body-first {
+  padding-top: var(--note-font-size);
+}
+.cm-line.cm-callout-last {
+  padding-bottom: calc(var(--note-font-size) + 12px);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+.cm-line.cm-callout-title.cm-callout-last,
+.cm-line.cm-callout-closed {
+  padding-bottom: 12px;
+  border-radius: var(--radius-sm);
+}
+.cm-line.cm-callout-abstract,
 .cm-line.cm-callout-tip {
-  --callout: #2e9d63;
+  --callout: var(--callout-cyan);
 }
+.cm-line.cm-callout-success {
+  --callout: var(--callout-green);
+}
+.cm-line.cm-callout-question,
 .cm-line.cm-callout-warning {
-  --callout: #d9822b;
+  --callout: var(--callout-orange);
 }
-.cm-line.cm-callout-question {
-  --callout: #3b82c4;
+.cm-line.cm-callout-failure,
+.cm-line.cm-callout-danger,
+.cm-line.cm-callout-bug {
+  --callout: var(--callout-red);
+}
+.cm-line.cm-callout-example {
+  --callout: var(--callout-purple);
 }
 .cm-line.cm-callout-quote {
-  --callout: var(--fg-muted);
+  --callout: var(--callout-gray);
 }
 .cm-callout-type {
+  color: var(--fg-muted);
+  font-weight: 400;
+}
+.cm-callout-icon,
+.cm-callout-fold {
+  display: inline-flex;
+  align-items: center;
+  height: 1lh;
+  vertical-align: top;
   color: var(--callout);
-  font-size: 0.85em;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+}
+.cm-callout-icon {
+  margin-right: 4px;
+}
+.cm-callout-fold {
+  margin-left: 4px;
+  padding-right: 8px;
+  cursor: pointer;
+}
+.cm-callout-fold svg {
+  transition: transform 0.1s ease-in-out;
+}
+.cm-callout-fold-closed svg {
+  transform: rotate(-90deg);
+}
+.cm-callout-fold:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-callout-fold svg {
+    transition: none;
+  }
 }
 
 /* Toggles: `> [!toggle|hN]± Title` (src/features/editor/toggles.ts). No quote bar. A toggle

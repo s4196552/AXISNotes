@@ -86,6 +86,26 @@ describe("toggles", () => {
     expect(lineOf("inside").className).toContain("cm-toggle-inside");
   });
 
+  it("folds Obsidian's foldable callouts with a chevron after the title", () => {
+    const doc = "Intro\n> [!note]- Closed\n> Hidden text\n\n> [!tip]+ Open\n> Shown\n\nEnd";
+    const state = EditorState.create({ doc, extensions: [markdown()] });
+    const found = findToggles(state);
+    expect(found.map((t) => [t.callout, t.open, state.sliceDoc(t.to + 1, t.bodyTo)])).toEqual([
+      [true, false, "> Hidden text"],
+      [true, true, "> Shown"],
+    ]);
+    const view = viewWith(doc, 0);
+    expect(view.contentDOM.textContent).not.toContain("Hidden text");
+    const folds = view.contentDOM.querySelectorAll(".cm-callout-fold");
+    expect([...folds].map((f) => f.getAttribute("aria-expanded"))).toEqual(["false", "true"]);
+    expect(view.contentDOM.querySelector(".cm-callout-closed")?.textContent).toContain("Closed");
+    folds[0]!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    expect(view.state.doc.line(2).text).toBe("> [!note]+ Closed");
+    expect(view.contentDOM.textContent).toContain("Hidden text");
+    // A callout without + or - doesn't fold.
+    expect(findToggles(EditorState.create({ doc: "> [!note] Fixed\n> body" }))).toEqual([]);
+  });
+
   it("opens and closes by flipping + and - in the note", () => {
     const view = viewWith(DOC);
     const [cells, list] = findToggles(view.state);
