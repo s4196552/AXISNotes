@@ -176,3 +176,5 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 | T-155 | 6 | Back/Forward buttons in the tab row (right-click for history), mouse side buttons | claude | merged | agent/claude/T-155 | `src/app/{tabs.ts,tabs.test.ts,store.ts}`, `src/features/tabs/{NavButtons.tsx,TabBar.tsx,tabs.css,tabs.test.tsx}`, task coordination |
 
 | T-156 | 6 | Headings, lists, tasks and fold arrows laid out like Obsidian's live preview | claude | merged | agent/claude/T-156 | `src/features/editor/{livePreview.ts,livePreview.test.ts,toggles.ts,toggles.test.ts,theme.ts,editor.css}`, `src/styles/theme.css`, `e2e/specs/heading-folding.e2e.ts`, task coordination |
+
+| T-157 | 6 | Callouts drawn and folded like Obsidian's (box, icon, coloured title, chevron) | claude | merged | agent/claude/T-157 | `src/features/editor/{obsidianSyntax.ts,obsidianSyntax.test.ts,toggles.ts,toggles.test.ts,editor.css}`, `src/styles/theme.css`, task coordination |

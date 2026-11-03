@@ -6,7 +6,25 @@ import {
   type EditorView,
   ViewPlugin,
   type ViewUpdate,
+  WidgetType,
 } from "@codemirror/view";
+import {
+  Bug,
+  Check,
+  CircleCheck,
+  CircleHelp,
+  ClipboardList,
+  Flame,
+  Info,
+  List,
+  type LucideIcon,
+  Pencil,
+  Quote,
+  TriangleAlert,
+  X,
+  Zap,
+} from "lucide-react";
+import { lucideSvg } from "./lucideSvg";
 
 // Obsidian Markdown extensions that plain CommonMark doesn't style, so imported vaults
 // look right: ==highlights==, %%comments%% and > [!type] callouts. Like the rest of the
@@ -16,10 +34,6 @@ const hide = Decoration.replace({});
 const highlight = Decoration.mark({ class: "cm-lp-highlight" });
 const comment = Decoration.mark({ class: "cm-lp-comment" });
 const calloutType = Decoration.mark({ class: "cm-callout-type" });
-const calloutLine = (type: string, first: boolean) =>
-  Decoration.line({
-    class: `cm-callout cm-callout-${type}${first ? " cm-callout-first" : ""}`,
-  });
 
 const CODE = new Set(["FencedCode", "CodeBlock", "InlineCode", "CodeText"]);
 
@@ -33,28 +47,59 @@ function inCode(state: EditorState, pos: number): boolean {
   return false;
 }
 
-/** Normalize Obsidian's callout names to a few styles. */
+/** Obsidian's callout types, their other names and icons. Colours are in editor.css. */
+const KINDS: Record<string, { names: string[]; icon: LucideIcon }> = {
+  note: { names: [], icon: Pencil },
+  abstract: { names: ["summary", "tldr"], icon: ClipboardList },
+  info: { names: [], icon: Info },
+  todo: { names: [], icon: CircleCheck },
+  tip: { names: ["hint", "important"], icon: Flame },
+  success: { names: ["check", "done"], icon: Check },
+  question: { names: ["help", "faq"], icon: CircleHelp },
+  warning: { names: ["caution", "attention"], icon: TriangleAlert },
+  failure: { names: ["fail", "missing"], icon: X },
+  danger: { names: ["error"], icon: Zap },
+  bug: { names: [], icon: Bug },
+  example: { names: [], icon: List },
+  quote: { names: ["cite"], icon: Quote },
+};
+
+/** Normalize a callout's type to Obsidian's kinds; unknown types look like a note. */
 export function calloutKind(type: string): string {
   const t = type.toLowerCase();
-  if (["tip", "hint", "important", "success", "check", "done"].includes(t)) return "tip";
-  if (
-    [
-      "warning",
-      "caution",
-      "attention",
-      "danger",
-      "error",
-      "bug",
-      "failure",
-      "fail",
-      "missing",
-    ].includes(t)
-  )
-    return "warning";
-  if (["question", "help", "faq"].includes(t)) return "question";
-  if (["quote", "cite", "example"].includes(t)) return "quote";
+  for (const [kind, { names }] of Object.entries(KINDS))
+    if (kind === t || names.includes(t)) return kind;
   return "note";
 }
+
+/** `> [!type|meta]± Title`: the type, its fold state and where the title starts. */
+const CALLOUT_HEAD = /^>\s*\[!([\w-]+)(?:\|[^\]]*)?\]([+-]?)[ \t]*/;
+
+/** A callout title's icon, and the type's name when the title is left empty. */
+class CalloutIconWidget extends WidgetType {
+  constructor(
+    readonly kind: string,
+    readonly label: string,
+  ) {
+    super();
+  }
+  eq(other: CalloutIconWidget) {
+    return other.kind === this.kind && other.label === this.label;
+  }
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "cm-callout-head";
+    const icon = document.createElement("span");
+    icon.className = "cm-callout-icon";
+    icon.append(lucideSvg(KINDS[this.kind]!.icon, 16));
+    span.append(icon);
+    if (this.label) span.append(this.label);
+    return span;
+  }
+}
+
+const calloutLine = (kind: string, ...extra: string[]) =>
+  Decoration.line({ class: ["cm-callout", `cm-callout-${kind}`, ...extra].join(" ") });
 
 export function buildObsidian(state: EditorState, ranges: readonly { from: number; to: number }[]) {
   const out: Range<Decoration>[] = [];
@@ -67,29 +112,21 @@ export function buildObsidian(state: EditorState, ranges: readonly { from: numbe
     // Callouts: find the start of a blockquote that begins before the visible range.
     let lineNo = state.doc.lineAt(from).number;
     while (lineNo > 1 && /^>/.test(state.doc.line(lineNo - 1).text)) lineNo--;
-    let callout: string | null = null;
     for (; lineNo <= state.doc.lines; lineNo++) {
       const line = state.doc.line(lineNo);
-      if (line.from > to && !callout) break;
       if (line.from > to) break;
       // `[!type|meta]` is Obsidian's callout metadata. Toggles are drawn by toggles.ts.
-      const head = /^>\s*\[!([\w-]+)(?:\|[^\]]*)?\]([+-]?)/.exec(line.text);
-      if (head && head[1]!.toLowerCase() === "toggle") {
-        callout = null;
-        while (lineNo < state.doc.lines && /^>/.test(state.doc.line(lineNo + 1).text)) lineNo++;
-      } else if (head && !inCode(state, line.from)) {
-        callout = calloutKind(head[1]!);
-        if (line.from >= from) {
-          out.push(calloutLine(callout, true).range(line.from));
-          const start = line.from + line.text.indexOf("[");
-          const end = line.from + line.text.indexOf("]") + 1;
-          out.push(calloutType.range(start, end));
-        }
-      } else if (callout && /^>/.test(line.text)) {
-        if (line.from >= from) out.push(calloutLine(callout, false).range(line.from));
-      } else {
-        callout = null;
+      const head = CALLOUT_HEAD.exec(line.text);
+      if (!head || inCode(state, line.from)) continue;
+      // A callout runs on through the quoted lines after its title.
+      let last = lineNo;
+      while (last < state.doc.lines && /^>/.test(state.doc.line(last + 1).text)) {
+        if (CALLOUT_HEAD.test(state.doc.line(last + 1).text)) break;
+        last++;
       }
+      if (head[1]!.toLowerCase() !== "toggle")
+        drawCallout(state, lineNo, last, head, active, from, out);
+      lineNo = last;
     }
 
     const text = state.sliceDoc(from, to);
@@ -109,6 +146,41 @@ export function buildObsidian(state: EditorState, ranges: readonly { from: numbe
     }
   }
   return Decoration.set(out, true);
+}
+
+/**
+ * A callout as Obsidian draws it: a tinted box with the type's icon and a coloured title,
+ * then the inside. Off the title line, `[!type]±` gives way to the icon (and the type's
+ * name, if there's no title). Folding is in toggles.ts.
+ */
+function drawCallout(
+  state: EditorState,
+  first: number,
+  last: number,
+  head: RegExpExecArray,
+  active: Set<number>,
+  from: number,
+  out: Range<Decoration>[],
+) {
+  const kind = calloutKind(head[1]!);
+  const title = state.doc.line(first);
+  for (let n = first; n <= last; n++) {
+    const line = state.doc.line(n);
+    if (line.from < from) continue;
+    const cls = [n === first ? "cm-callout-title" : n === first + 1 ? "cm-callout-body-first" : ""];
+    if (n === last) cls.push("cm-callout-last");
+    out.push(calloutLine(kind, ...cls.filter(Boolean)).range(line.from));
+  }
+  if (title.from < from) return;
+  const start = title.from + title.text.indexOf("[");
+  if (active.has(first)) {
+    out.push(calloutType.range(start, title.from + title.text.indexOf("]") + 1));
+    return;
+  }
+  const end = title.from + head[0].length;
+  const name = head[1]!;
+  const label = end < title.to ? "" : name[0]!.toUpperCase() + name.slice(1).toLowerCase();
+  out.push(Decoration.replace({ widget: new CalloutIconWidget(kind, label) }).range(start, end));
 }
 
 export const obsidianSyntax = ViewPlugin.fromClass(
