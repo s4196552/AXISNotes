@@ -1,6 +1,6 @@
 import { type EditorState, type Range, StateField } from "@codemirror/state";
 import { codeFolding, foldedRanges, foldEffect, unfoldEffect } from "@codemirror/language";
-import { headingSectionAt, headingSections, structuralLine, TOGGLE_HEAD } from "./headingSections";
+import { calloutBlocks, headingSectionAt, headingSections, TOGGLE_HEAD } from "./headingSections";
 export { TOGGLE_HEAD } from "./headingSections";
 import {
   Decoration,
@@ -40,48 +40,36 @@ export interface Toggle {
   open: boolean;
   /** End of the heading section, or the quoted body for a plain toggle list. */
   bodyTo: number;
+  /** End of the toggle's own quoted lines (a heading's section may go on past them). */
+  quoteTo: number;
   /** A foldable Obsidian callout rather than a toggle. */
   callout: boolean;
 }
 
-/** A foldable callout's title: `> [!type|meta]±`, any type but `toggle`. */
-const FOLDABLE_CALLOUT = /^>\s*\[!(?!toggle[|\]])[\w-]+(?:\|[^\]]*)?\]([+-])/i;
-/** Any callout title, which ends the quoted inside of the one before it. */
-const CALLOUT_TITLE = /^>\s*\[![\w-]+/;
-
 /**
- * Every toggle in the note. Fenced code is tracked here rather than read from the syntax
- * tree, which may not be parsed that far yet (and nothing would redraw when it is).
+ * Every toggle and foldable callout in the note, from the shared outline (headingSections.ts),
+ * which tracks fenced code itself rather than waiting for the syntax tree to be parsed.
  */
 export function findToggles(state: EditorState): Toggle[] {
   const out: Toggle[] = [];
   const doc = state.doc;
-  for (let n = 1; n <= doc.lines; n++) {
-    const line = doc.line(n);
-    if (!structuralLine(state, n) || line.text.charCodeAt(0) !== 62 /* > */) continue;
+  for (const { first, last, head } of calloutBlocks(state)) {
+    const line = doc.line(first);
     const m = TOGGLE_HEAD.exec(line.text);
-    const callout = m ? null : FOLDABLE_CALLOUT.exec(line.text);
-    if (!m && !callout) continue;
-    let last = n;
-    while (last < doc.lines && doc.line(last + 1).text.charCodeAt(0) === 62) {
-      const next = doc.line(last + 1).text;
-      if (structuralLine(state, last + 1) && (callout ? CALLOUT_TITLE : TOGGLE_HEAD).test(next))
-        break;
-      last++;
-    }
-    const close = line.text.indexOf("]");
+    // Other callouts fold only with a + or -, as in Obsidian.
+    if (!m && (!head[2] || head[1]!.toLowerCase() === "toggle")) continue;
     out.push({
       from: line.from,
       to: line.to,
-      markerTo: line.from + (m ?? callout)![0].length,
-      statePos: line.from + close + 1,
-      hasState: m ? m[2] !== "" : true,
+      markerTo: line.from + (m ?? head)[0].length,
+      statePos: line.from + line.text.indexOf("]") + 1,
+      hasState: (m ?? head)[2] !== "",
       level: m?.[1] ? Number(m[1]) : null,
-      open: (m ? m[2] : callout![1]) !== "-",
-      bodyTo: m?.[1] ? headingSectionAt(state, n)!.bodyTo : doc.line(last).to,
-      callout: !!callout,
+      open: (m ?? head)[2] !== "-",
+      bodyTo: m?.[1] ? headingSectionAt(state, first)!.bodyTo : doc.line(last).to,
+      quoteTo: doc.line(last).to,
+      callout: !m,
     });
-    n = last;
   }
   return out;
 }
@@ -281,10 +269,10 @@ function drawToggles(view: EditorView): DecorationSet {
   }
   for (const t of state.field(toggleField).toggles) {
     if (t.callout) {
-      // Like the rest of the callout (obsidianSyntax.ts), raw while its title is selected.
+      // Like the rest of the callout (obsidianSyntax.ts), raw while its title is edited.
       const inside = sel.some((r) => r.to > t.to && r.from <= t.bodyTo);
       if (!t.open && t.bodyTo > t.to && !inside) out.push(closedCallout.range(t.from));
-      if (!sel.some((r) => r.to >= t.from && r.from <= t.to))
+      if (!view.hasFocus || !sel.some((r) => r.to >= t.from && r.from <= t.to))
         out.push(
           Decoration.widget({ widget: new CalloutFoldWidget(t.open, t.from), side: -1 }).range(
             t.to,
@@ -300,7 +288,9 @@ function drawToggles(view: EditorView): DecorationSet {
     const quoteTo = t.from + (text === "> " ? 2 : 1);
     if (editing) out.push(Decoration.widget({ widget: arrow, side: -1 }).range(t.from));
     else out.push(Decoration.replace({ widget: arrow }).range(quoteTo, t.markerTo));
-    for (let pos = t.to + 1; pos <= t.bodyTo;) {
+    // Only the toggle's own quoted lines: callouts and quotes later in a heading's section
+    // are drawn as they would be anywhere else.
+    for (let pos = t.to + 1; pos <= t.quoteTo;) {
       const line = state.doc.lineAt(pos);
       out.push((t.level ? sectionLine : bodyLine).range(line.from));
       pos = line.to + 1;

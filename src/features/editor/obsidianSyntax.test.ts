@@ -50,6 +50,31 @@ describe("Obsidian syntax", () => {
     expect(decos("> [!toggle]+ Mine\n> inside\n\nafter")).toEqual([]);
   });
 
+  it("draws the title, not raw Markdown, while the editor is unfocused", () => {
+    const doc = "> [!warning] Careful\n> body\n\nafter";
+    const state = EditorState.create({ doc, selection: EditorSelection.cursor(0) });
+    const found: string[] = [];
+    buildObsidian(state, [{ from: 0, to: doc.length }], false).between(0, doc.length, (f, t, d) => {
+      found.push((d.spec as { class?: string }).class ?? `hide:${state.sliceDoc(f, t)}`);
+    });
+    expect(found).toContain("hide:[!warning] ");
+    expect(found).not.toContain("cm-callout-type");
+  });
+
+  it("decorates only the visible lines of a long callout", () => {
+    const doc = ["> [!note] Long", ...Array.from({ length: 50 }, (_, i) => `> line ${i}`)].join(
+      "\n",
+    );
+    const state = EditorState.create({ doc, selection: EditorSelection.cursor(0) });
+    const from = state.doc.line(20).from;
+    const to = state.doc.line(24).to;
+    const lines = new Set<number>();
+    buildObsidian(state, [{ from, to }]).between(0, doc.length, (f) => {
+      lines.add(state.doc.lineAt(f).number);
+    });
+    expect([...lines]).toEqual([20, 21, 22, 23, 24]);
+  });
+
   it("names an untitled callout after its type, with the type's icon", () => {
     const doc = "> [!faq]\n> body\n\nafter";
     const state = EditorState.create({ doc, selection: EditorSelection.cursor(doc.length) });

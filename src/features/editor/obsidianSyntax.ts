@@ -24,6 +24,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { type CalloutBlock, calloutBlocks } from "./headingSections";
 import { lucideSvg } from "./lucideSvg";
 
 // Obsidian Markdown extensions that plain CommonMark doesn't style, so imported vaults
@@ -72,9 +73,6 @@ export function calloutKind(type: string): string {
   return "note";
 }
 
-/** `> [!type|meta]± Title`: the type, its fold state and where the title starts. */
-const CALLOUT_HEAD = /^>\s*\[!([\w-]+)(?:\|[^\]]*)?\]([+-]?)[ \t]*/;
-
 /** A callout title's icon, and the type's name when the title is left empty. */
 class CalloutIconWidget extends WidgetType {
   constructor(
@@ -101,32 +99,28 @@ class CalloutIconWidget extends WidgetType {
 const calloutLine = (kind: string, ...extra: string[]) =>
   Decoration.line({ class: ["cm-callout", `cm-callout-${kind}`, ...extra].join(" ") });
 
-export function buildObsidian(state: EditorState, ranges: readonly { from: number; to: number }[]) {
+export function buildObsidian(
+  state: EditorState,
+  ranges: readonly { from: number; to: number }[],
+  /** Raw Markdown is shown on the cursor's lines only while the editor has focus. */
+  focused = true,
+) {
   const out: Range<Decoration>[] = [];
   const active = new Set<number>();
-  for (const r of state.selection.ranges)
-    for (let n = state.doc.lineAt(r.from).number; n <= state.doc.lineAt(r.to).number; n++)
-      active.add(n);
+  if (focused)
+    for (const r of state.selection.ranges)
+      for (let n = state.doc.lineAt(r.from).number; n <= state.doc.lineAt(r.to).number; n++)
+        active.add(n);
+  const callouts = calloutBlocks(state);
 
   for (const { from, to } of ranges) {
-    // Callouts: find the start of a blockquote that begins before the visible range.
-    let lineNo = state.doc.lineAt(from).number;
-    while (lineNo > 1 && /^>/.test(state.doc.line(lineNo - 1).text)) lineNo--;
-    for (; lineNo <= state.doc.lines; lineNo++) {
-      const line = state.doc.line(lineNo);
-      if (line.from > to) break;
-      // `[!type|meta]` is Obsidian's callout metadata. Toggles are drawn by toggles.ts.
-      const head = CALLOUT_HEAD.exec(line.text);
-      if (!head || inCode(state, line.from)) continue;
-      // A callout runs on through the quoted lines after its title.
-      let last = lineNo;
-      while (last < state.doc.lines && /^>/.test(state.doc.line(last + 1).text)) {
-        if (CALLOUT_HEAD.test(state.doc.line(last + 1).text)) break;
-        last++;
-      }
-      if (head[1]!.toLowerCase() !== "toggle")
-        drawCallout(state, lineNo, last, head, active, from, out);
-      lineNo = last;
+    // The callouts on screen; toggles are drawn by toggles.ts.
+    const top = state.doc.lineAt(from).number;
+    const bottom = state.doc.lineAt(to).number;
+    for (const c of callouts) {
+      if (c.last < top || c.head[1]!.toLowerCase() === "toggle") continue;
+      if (c.first > bottom) break;
+      drawCallout(state, c, Math.max(top, c.first), Math.min(bottom, c.last), active, out);
     }
 
     const text = state.sliceDoc(from, to);
@@ -155,23 +149,21 @@ export function buildObsidian(state: EditorState, ranges: readonly { from: numbe
  */
 function drawCallout(
   state: EditorState,
-  first: number,
-  last: number,
-  head: RegExpExecArray,
+  { first, last, head }: CalloutBlock,
+  /** The visible lines of it. */
+  top: number,
+  bottom: number,
   active: Set<number>,
-  from: number,
   out: Range<Decoration>[],
 ) {
   const kind = calloutKind(head[1]!);
-  const title = state.doc.line(first);
-  for (let n = first; n <= last; n++) {
-    const line = state.doc.line(n);
-    if (line.from < from) continue;
+  for (let n = top; n <= bottom; n++) {
     const cls = [n === first ? "cm-callout-title" : n === first + 1 ? "cm-callout-body-first" : ""];
     if (n === last) cls.push("cm-callout-last");
-    out.push(calloutLine(kind, ...cls.filter(Boolean)).range(line.from));
+    out.push(calloutLine(kind, ...cls.filter(Boolean)).range(state.doc.line(n).from));
   }
-  if (title.from < from) return;
+  if (top > first) return;
+  const title = state.doc.line(first);
   const start = title.from + title.text.indexOf("[");
   if (active.has(first)) {
     out.push(calloutType.range(start, title.from + title.text.indexOf("]") + 1));
@@ -187,11 +179,11 @@ export const obsidianSyntax = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
     constructor(view: EditorView) {
-      this.decorations = buildObsidian(view.state, view.visibleRanges);
+      this.decorations = buildObsidian(view.state, view.visibleRanges, view.hasFocus);
     }
     update(u: ViewUpdate) {
-      if (u.docChanged || u.viewportChanged || u.selectionSet)
-        this.decorations = buildObsidian(u.state, u.view.visibleRanges);
+      if (u.docChanged || u.viewportChanged || u.selectionSet || u.focusChanged)
+        this.decorations = buildObsidian(u.state, u.view.visibleRanges, u.view.hasFocus);
     }
   },
   { decorations: (p) => p.decorations },

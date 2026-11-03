@@ -17,6 +17,8 @@
   --heading: var(--fg);
   --scrim: rgb(0 0 0 / 0.25); /* behind dialogs */
   --scrollbar: color-mix(in srgb, var(--fg-muted) 45%, transparent);
+  --list-marker: color-mix(in srgb, var(--fg-muted) 70%, var(--bg)); /* bullets, numbers */
+  --indent-guide: color-mix(in srgb, var(--fg) 12%, transparent); /* nested lists */
   --radius-sm: 4px;
   --radius: 6px;
   --radius-md: 8px;
@@ -69,8 +71,6 @@
   --list-ol-suffix: 0.5em; /* the `. ` after a number */
   --list-task-width: 1.9375em; /* the checkbox's box, up to the text */
   --list-checkbox-left: 0.45em; /* before the checkbox */
-  --list-marker: color-mix(in srgb, var(--fg-muted) 70%, var(--bg)); /* bullets, numbers */
-  --indent-guide: color-mix(in srgb, var(--fg) 12%, transparent);
   --checkbox-size: 1em;
   --fold-arrow-size: 10px;
 }

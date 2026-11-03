@@ -106,6 +106,33 @@ describe("toggles", () => {
     expect(findToggles(EditorState.create({ doc: "> [!note] Fixed\n> body" }))).toEqual([]);
   });
 
+  it("ends a toggle at the next callout, and leaves callouts in a section alone", () => {
+    const doc = [
+      "> [!toggle]- List",
+      "> inside",
+      "> [!note] After the list",
+      "> note body",
+      "",
+      "> [!toggle|h2]+ Heading",
+      "> quoted",
+      "",
+      "> [!tip] In the section",
+      "> tip body",
+    ].join("\n");
+    const state = EditorState.create({ doc, extensions: [markdown()] });
+    const [list] = findToggles(state);
+    expect(state.sliceDoc(list!.to + 1, list!.bodyTo)).toBe("> inside");
+    const view = viewWith(doc, 0);
+    // Closing the list hides only its own inside.
+    expect(view.contentDOM.textContent).not.toContain("inside");
+    expect(view.contentDOM.textContent).toContain("note body");
+    const lineOf = (text: string) =>
+      [...view.contentDOM.querySelectorAll(".cm-line")].find((l) => l.textContent?.endsWith(text))!;
+    expect(lineOf("note body").className).not.toContain("cm-toggle");
+    expect(lineOf("quoted").className).toContain("cm-toggle-section");
+    expect(lineOf("tip body").className).not.toContain("cm-toggle");
+  });
+
   it("opens and closes by flipping + and - in the note", () => {
     const view = viewWith(DOC);
     const [cells, list] = findToggles(view.state);

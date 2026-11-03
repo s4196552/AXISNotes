@@ -15,10 +15,22 @@ export interface HeadingSection {
   title: string;
 }
 
+/** `> [!type|meta]± Title`: the type, its fold state and where the title starts. */
+export const CALLOUT_HEAD = /^>\s*\[!([\w-]+)(?:\|[^\]]*)?\]([+-]?)[ \t]*/;
+
+/** A callout or toggle: its title line and the quoted lines after it. */
+export interface CalloutBlock {
+  first: number;
+  /** The last quoted line, before the next callout's title or an unquoted line. */
+  last: number;
+  head: RegExpExecArray;
+}
+
 interface Structure {
   headings: HeadingSection[];
   byLine: Map<number, HeadingSection>;
   structural: Set<number>;
+  callouts: CalloutBlock[];
 }
 
 const cache = new WeakMap<Text, Structure>();
@@ -134,7 +146,20 @@ function structure(state: EditorState): Structure {
     stack.push(heading);
   }
   while (stack.length) finish(stack.pop()!, doc.lines);
-  const result = { headings, byLine, structural };
+  // Callouts and toggles alike end at the next callout's title, so every reader agrees.
+  const callouts: CalloutBlock[] = [];
+  const calloutHead = (n: number) =>
+    structural.has(n) ? CALLOUT_HEAD.exec(doc.line(n).text) : null;
+  for (let n = start; n <= doc.lines; n++) {
+    const head = calloutHead(n);
+    if (!head) continue;
+    let last = n;
+    while (last < doc.lines && doc.line(last + 1).text.startsWith(">") && !calloutHead(last + 1))
+      last++;
+    callouts.push({ first: n, last, head });
+    n = last;
+  }
+  const result = { headings, byLine, structural, callouts };
   cache.set(doc, result);
   return result;
 }
@@ -145,3 +170,6 @@ export const headingSectionAt = (state: EditorState, line: number) =>
   structure(state).byLine.get(line);
 export const structuralLine = (state: EditorState, line: number) =>
   structure(state).structural.has(line);
+/** Every callout and toggle in the note, in order, outside code. */
+export const calloutBlocks = (state: EditorState): readonly CalloutBlock[] =>
+  structure(state).callouts;
