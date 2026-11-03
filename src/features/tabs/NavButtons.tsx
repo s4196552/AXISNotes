@@ -63,10 +63,11 @@ export function NavButtons() {
   // Nearest place first.
   const places = (side: Side) => [...(side === "back" ? tab.back : tab.forward)].reverse();
 
+  const commands = allCommands();
   const button = (side: Side) => {
     const { Icon, command, word } = SIDES[side];
     const next = places(side)[0];
-    const cmd = allCommands().find((c) => c.id === command);
+    const cmd = commands.find((c) => c.id === command);
     const key = cmd && shortcutOf(cmd);
     const label = next ? `${word} to ${tabTitle(next)}` : word;
     return (

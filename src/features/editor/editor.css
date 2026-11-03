@@ -566,6 +566,8 @@ input.editor-title::placeholder {
 .page-math-grid .cm-scroller,
 .page-cornell .cm-scroller {
   line-height: 26px;
+  /* No gap between list items, which would push text off the paper's lines. */
+  --list-spacing: 0px;
 }
 .page-lined .cm-content,
 .page-cornell .cm-content {

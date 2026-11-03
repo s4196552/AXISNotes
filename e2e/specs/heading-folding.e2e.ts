@@ -9,6 +9,13 @@ const row = (name: string) => $(`[data-path="${name}"]`);
 const arrow = (action: string, title: string) =>
   $(`.cm-heading-arrow[aria-label="${action} heading: ${title}"]`);
 const body = () => $(".cm-content").getText();
+/** An open heading's arrow is transparent until its line is hovered, as in Obsidian. */
+async function collapse(title: string) {
+  const el = arrow("Collapse", title);
+  await el.moveTo();
+  await browser.waitUntil(async () => Number((await el.getCSSProperty("opacity")).value) === 1);
+  await el.click();
+}
 
 const NORMAL = [
   "# Parent",
@@ -59,12 +66,11 @@ describe("Default heading folding (T-133)", () => {
     fs.writeFileSync(file("Hierarchy.md"), NORMAL);
     await row("Hierarchy.md").waitForDisplayed();
     await row("Hierarchy.md").click();
-    // An open heading's arrow is transparent until its line is hovered, as in Obsidian.
     await arrow("Collapse", "Parent").waitForExist();
     const outline = $('[aria-label="Outline view"]');
     if ((await outline.getAttribute("aria-pressed")) === "true") await outline.click();
     await expect(outline).toHaveAttribute("aria-pressed", "false");
-    await arrow("Collapse", "Child").click();
+    await collapse("Child");
     await browser.waitUntil(async () => !(await body()).includes("Child paragraph"));
     expect(await body()).not.toContain("Child list item");
     expect(await body()).not.toContain("Child quotation");
@@ -73,7 +79,7 @@ describe("Default heading folding (T-133)", () => {
     expect(await body()).not.toContain("Deep body");
     expect(await body()).toContain("Sibling body");
     await expect($(".cm-image-embed img")).not.toExist();
-    await arrow("Collapse", "Parent").click();
+    await collapse("Parent");
     expect(await body()).not.toContain("Sibling");
     expect(await body()).toContain("Next body");
     await arrow("Expand", "Parent").click();
@@ -119,7 +125,7 @@ describe("Default heading folding (T-133)", () => {
     expect(await body()).toContain("Normal child body");
     expect(await body()).not.toContain("Nested body");
     expect(await body()).not.toContain("More nested body");
-    await arrow("Collapse", "Normal child").click();
+    await collapse("Normal child");
     expect(await body()).not.toContain("Toggle child");
     await arrow("Expand", "Normal child").click();
     expect(await body()).toContain("Toggle child");
