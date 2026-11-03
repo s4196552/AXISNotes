@@ -58,6 +58,7 @@ function indentUnit(lines: string[]): string {
 
 const indentGuide = Decoration.mark({ class: "cm-code-indent" });
 
+/** A bullet's `- `: a fixed-width box with the dot drawn by CSS, so text lines up. */
 class BulletWidget extends WidgetType {
   eq() {
     return true;
@@ -65,7 +66,6 @@ class BulletWidget extends WidgetType {
   toDOM() {
     const span = document.createElement("span");
     span.className = "cm-lp-bullet";
-    span.textContent = "•";
     return span;
   }
 }
@@ -233,12 +233,19 @@ export function buildDecorations(
           case "QuoteMark":
             hideRange(node.from, withSpace(state, node.to));
             break;
-          case "ListMark":
-            if (node.parent?.parent?.name === "BulletList" && !hasTask(node.parent)) {
-              if (!touched(node.from, node.to) && !inMath(node.from))
-                out.push(bullet.range(node.from, node.to));
-            }
+          case "ListMark": {
+            if (inMath(node.from) || node.parent?.name !== "ListItem") break;
+            const ordered = node.parent.parent?.name === "OrderedList";
+            const task = hasTask(node.parent);
+            const markTo = withSpace(state, node.to);
+            listLayout(state, node, task ? "task" : ordered ? node.to - node.from : "bullet", out);
+            // A task's marker is its checkbox (taskDecoration), numbered or not.
+            if (task) break;
+            if (ordered) out.push(orderedMark(node.to - node.from).range(node.from, markTo));
+            else if (touched(node.from, node.to)) out.push(listMark.range(node.from, markTo));
+            else out.push(bullet.range(node.from, markTo));
             break;
+          }
           case "Task":
             taskDecoration(state, node, isActive, out);
             break;
@@ -309,13 +316,65 @@ export function buildDecorations(
     for (let node: SyntaxNode | null = tree.resolveInner(at, 1); node; node = node.parent) {
       if (node.name === "ListMark" || VERBATIM.test(node.name)) plain = false;
     }
-    if (plain) out.push(bullet.range(at, at + 1));
+    if (plain) out.push(bullet.range(at, at + 2));
   }
   return Decoration.set(out, true);
 }
 
 function hasTask(listItem: SyntaxNode): boolean {
   return listItem.getChild("Task") !== null;
+}
+
+/** Raw `- ` (while edited) in the same fixed-width box as the bullet, so text stays put. */
+const listMark = mark("cm-lp-listmark");
+const indentMark = mark("cm-lp-indent");
+/** `1. `: its digits in a box as wide as the number, the text after it lined up. */
+const orderedMark = (length: number) =>
+  Decoration.mark({
+    class: "cm-lp-ol",
+    attributes: { style: `--li-marker: ${orderedWidth(length)}` },
+  });
+const orderedWidth = (length: number) =>
+  `calc(var(--list-marker-pad) + ${length - 1}ch + var(--list-ol-suffix))`;
+
+/**
+ * Lay a list item's line out like Obsidian: each indent level a fixed-width step with an
+ * indent guide, the marker a fixed width, and wrapped lines hanging under the text.
+ * `marker` is the kind of marker, or an ordered marker's length (`12.` is 3).
+ */
+function listLayout(
+  state: EditorState,
+  itemMark: SyntaxNode,
+  marker: "bullet" | "task" | number,
+  out: Range<Decoration>[],
+) {
+  const line = state.doc.lineAt(itemMark.from);
+  // Inside a quote or callout the line keeps its own layout.
+  if (!/^[ \t]*$/.test(state.sliceDoc(line.from, itemMark.from))) return;
+  // The indent levels run between the markers of the items this one is nested in.
+  const stops = [itemMark.from - line.from];
+  for (let item = itemMark.parent?.parent?.parent; item?.name === "ListItem";) {
+    const m = item.getChild("ListMark");
+    if (!m) break;
+    const col = m.from - state.doc.lineAt(m.from).from;
+    if (col >= stops[0]!) break;
+    stops.unshift(col);
+    item = item.parent?.parent;
+  }
+  for (let i = 0; i + 1 < stops.length; i++)
+    out.push(indentMark.range(line.from + stops[i]!, line.from + stops[i + 1]!));
+  const width =
+    marker === "bullet"
+      ? "var(--list-bullet-width)"
+      : marker === "task"
+        ? "var(--list-task-width)"
+        : orderedWidth(marker);
+  out.push(
+    Decoration.line({
+      class: "cm-lp-li",
+      attributes: { style: `--li-depth: ${stops.length - 1}; --li-marker: ${width}` },
+    }).range(line.from),
+  );
 }
 
 /** `[text](url)` shows only `text`: hide `[`, and everything from `]` to the end. */
