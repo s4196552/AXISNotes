@@ -547,7 +547,8 @@ export function FileTree() {
       setTimeout(() => window.removeEventListener("click", swallow, true), 0);
       // A final move event is not guaranteed before release (or a hover-open
       // folder may have changed the rows). Hit-test the actual drop position.
-      const src = done.path;
+      // A selected folder absorbs its selected children, including the row pressed.
+      const src = done.paths[0]!;
       if (!over) return;
       if (done.paths.length > 1) void dropMany(done.paths, over);
       else if (over.side === "into") void move(src, joinPath(over.path, baseName(src)));
@@ -764,7 +765,7 @@ export function FileTree() {
 
   if (!tree) return null;
 
-  const dragged = drag ? findEntry(tree, drag.path) : null;
+  const dragged = drag ? findEntry(tree, drag.paths[0]!) : null;
   const pickedPaths = new Set(picked?.paths);
   // The context menu of a picked row acts on all the picked rows.
   const many =
@@ -860,7 +861,7 @@ export function FileTree() {
             ? `${drag.paths.length} items`
             : dragged
               ? displayName(dragged)
-              : baseName(drag.path)}
+              : baseName(drag.paths[0]!)}
         </div>
       )}
 

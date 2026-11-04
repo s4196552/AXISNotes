@@ -602,6 +602,43 @@ describe("FileTree: several items at once", () => {
     await waitFor(() => expect(names()).toEqual(["D", "A", "C", "B"]));
   });
 
+  it.each([
+    { side: "into", at: 0.5 },
+    { side: "before", at: 0.2 },
+    { side: "after", at: 0.8 },
+  ])(
+    "drags the selected folder $side another row when a selected child is pressed",
+    async ({ side, at }) => {
+      await setup({ "A/One.md": "one", "A/Two.md": "two", "B/Other.md": "other" });
+      fireEvent.click(row("A"));
+      fireEvent.click(row("Two"), { shiftKey: true });
+      expect(picked()).toEqual(["A", "One", "Two"]);
+
+      await drag(row("One"), row("B"), at, { release: false });
+      expect(document.querySelector(".filetree-ghost")).toHaveTextContent("A");
+      fireEvent.pointerUp(window, { clientX: 10, clientY: 100 + 20 * at });
+      await act(() => new Promise((r) => setTimeout(r, 0)));
+
+      const folder = side === "into" ? "B/A" : "A";
+      await waitFor(() =>
+        expect(
+          Object.fromEntries(
+            Object.entries(h.b.files()).filter(([path]) => !path.startsWith(".axisnotes/")),
+          ),
+        ).toEqual({
+          [`${folder}/One.md`]: "one",
+          [`${folder}/Two.md`]: "two",
+          "B/Other.md": "other",
+        }),
+      );
+      await waitFor(() => expect(picked()).toEqual(["A"]));
+      if (side !== "into")
+        expect(names()).toEqual(
+          side === "before" ? ["A", "One", "Two", "B"] : ["B", "A", "One", "Two"],
+        );
+    },
+  );
+
   it("drags a row outside the selection on its own", async () => {
     await setup({ "A.md": "", "B.md": "", "C.md": "", "School/X.md": "" });
     fireEvent.click(row("A"));

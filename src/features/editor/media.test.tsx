@@ -187,6 +187,33 @@ describe("editing embedded images", () => {
     expect(useAppStore.getState().activePath).toBe("photo.png");
   });
 
+  it.each([
+    { shortcut: "Ctrl+C", key: "c", event: "copy", ctrlKey: true, metaKey: false },
+    { shortcut: "Ctrl+X", key: "x", event: "cut", ctrlKey: true, metaKey: false },
+    { shortcut: "Cmd+C", key: "c", event: "copy", ctrlKey: false, metaKey: true },
+    { shortcut: "Cmd+X", key: "x", event: "cut", ctrlKey: false, metaKey: true },
+  ] as const)("uses $shortcut on the selected image instead of the text cursor", async (keys) => {
+    const view = await open("Plain.md");
+    const original = text(view);
+    const head = view.state.selection.main.head;
+    const image = await screen.findByAltText("photo.png");
+    fireEvent.pointerDown(image.closest(".cm-image-frame")!, { button: 0 });
+    fireEvent.pointerUp(window, { button: 0 });
+    const clipboardData = { clearData: vi.fn(), setData: vi.fn() };
+
+    // A real clipboard shortcut sends keydown before the clipboard event.
+    fireEvent.keyDown(view.contentDOM, keys);
+    fireEvent[keys.event](view.contentDOM, { clipboardData });
+
+    expect(clipboardData.setData).toHaveBeenCalledWith("text/plain", "![[photo.png|300]]");
+    expect(view.state.selection.main.head).toBe(head);
+    if (keys.event === "cut") {
+      expect(text(view)).toBe("Intro\n\nOutro\n\nEnd\n");
+      expect(undo(view)).toBe(true);
+    }
+    expect(text(view)).toBe(original);
+  });
+
   it("moves an image to the line it's dragged to, and copies it with Ctrl", async () => {
     const view = await open("Drag.md");
     fakeLayout(view);

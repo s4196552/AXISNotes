@@ -179,3 +179,5 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 
 | T-157 | 6 | Callouts drawn and folded like Obsidian's (box, icon, coloured title, chevron) | claude | merged | agent/claude/T-157 | `src/features/editor/{obsidianSyntax.ts,obsidianSyntax.test.ts,toggles.ts,toggles.test.ts,editor.css}`, `src/styles/theme.css`, task coordination |
 | T-158 | 6 | Review fixes for T-155–T-157: callouts in toggle sections and after toggle lists, list gaps on lined pages, theme tile list colours, unfocused callout titles, one shared callout outline | claude | merged | agent/claude/T-158 | `src/features/editor/{headingSections.ts,toggles.ts,toggles.test.ts,obsidianSyntax.ts,obsidianSyntax.test.ts,editor.css}`, `src/styles/theme.css`, `src/features/tabs/NavButtons.tsx`, `e2e/specs/heading-folding.e2e.ts`, task coordination |
+
+| T-159 | 6 | Fix selected-image clipboard shortcuts and selected-folder drags started on a child | codex (human requested) | in-review | agent/codex/T-159 | src/features/editor/{imageEditor.ts,media.test.tsx}, src/features/filetree/{FileTree.tsx,FileTree.test.tsx}, task coordination |

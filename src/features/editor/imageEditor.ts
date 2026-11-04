@@ -161,6 +161,9 @@ const selectionKeys = Prec.highest(
       const at = view.state.field(imageSelection, false) ?? null;
       if (at === null || e.target !== view.contentDOM) return false;
       if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return false;
+      // The browser sends keydown before copy/cut: keep the image selected until
+      // those handlers copy its embed, rather than acting on the old text cursor.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && /^[cx]$/i.test(e.key)) return false;
       const line = embedLine(view.state, at);
       if (line && (e.key === "Delete" || e.key === "Backspace")) {
         e.preventDefault();
