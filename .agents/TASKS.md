@@ -182,4 +182,4 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 
 | T-159 | 6 | Fix selected-image clipboard shortcuts and selected-folder drags started on a child | codex (human requested) | merged | agent/codex/T-159 | src/features/editor/{imageEditor.ts,media.test.tsx}, src/features/filetree/{FileTree.tsx,FileTree.test.tsx}, task coordination |
 
-| T-160 | 6 | Publish Windows 0.3.52 with image clipboard and folder-selection fixes for in-app updating | codex (human requested) | approved | agent/codex/T-160 | release manifests, e2e/specs/selection-regressions.e2e.ts, task coordination, local Windows update output |
+| T-160 | 6 | Publish Windows 0.3.52 with image clipboard and folder-selection fixes for in-app updating | codex (human requested) | merged | agent/codex/T-160 | release manifests, e2e/specs/selection-regressions.e2e.ts, task coordination, local Windows update output |
