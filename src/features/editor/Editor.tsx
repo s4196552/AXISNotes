@@ -58,7 +58,7 @@ import {
   quickCommandConfig,
   slashCompletions,
 } from "./quickCommands";
-import { toggles } from "./toggles";
+import { type FoldRange, restoreFolds, toggles, viewFolds } from "./toggles";
 import {
   blockCompletions,
   mentionCompletions,
@@ -93,16 +93,25 @@ export interface EditorProps {
 export const AUTOSAVE_DELAY_MS = 500;
 
 /**
- * Where each note's cursor and scroll were when its editor closed, so switching back to
- * a tab (or reopening the note) returns to the same place. Kept for this session only.
+ * Where each note's cursor, scroll and folded headings/list items were when its editor
+ * closed, so switching back to a tab (or reopening the note) returns to the same place.
+ * Kept for this session only; folding never changes the note's text.
  */
-const viewStates = new Map<string, { anchor: number; head: number; scrollTop: number }>();
+const viewStates = new Map<
+  string,
+  { anchor: number; head: number; scrollTop: number; folds: FoldRange[] }
+>();
 const VIEW_STATE_LIMIT = 200;
 
 function rememberViewState(path: string, view: EditorView) {
   const { anchor, head } = view.state.selection.main;
   viewStates.delete(path); // re-insert as the newest
-  viewStates.set(path, { anchor, head, scrollTop: view.scrollDOM.scrollTop });
+  viewStates.set(path, {
+    anchor,
+    head,
+    scrollTop: view.scrollDOM.scrollTop,
+    folds: viewFolds(view.state),
+  });
   if (viewStates.size > VIEW_STATE_LIMIT) viewStates.delete(viewStates.keys().next().value!);
 }
 
@@ -402,6 +411,8 @@ export function Editor({ path }: EditorProps) {
           parent: host.current,
           state: start === head ? initial : initial.update({ selection: { anchor: start } }).state,
         });
+        if (saved?.folds.length)
+          created.dispatch({ effects: restoreFolds(created.state, saved.folds) });
         created.scrollDOM.classList.add("note-scroller");
         created.scrollDOM.prepend(pageTopHost);
         view.current = created;

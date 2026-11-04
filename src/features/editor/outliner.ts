@@ -1,6 +1,6 @@
 import { foldService } from "@codemirror/language";
-import type { EditorState, Line, TransactionSpec } from "@codemirror/state";
-import { headingSectionAt } from "./headingSections";
+import type { EditorState, Line, Text, TransactionSpec } from "@codemirror/state";
+import { headingSectionAt, structuralLine } from "./headingSections";
 
 // Outliner operations on plain Markdown: list items (with their nested children) and
 // heading sections can be indented, outdented, moved among siblings, folded and dragged.
@@ -259,12 +259,46 @@ export function moveBlockTo(
   return { changes: [remove, { from: insertAt, insert }] };
 }
 
-/** Folding: list items with children and heading sections. */
+const spanCache = new WeakMap<Text, Map<number, number>>();
+
+/**
+ * Every list item in the note outside code and frontmatter (bullets, numbers and tasks):
+ * its first line and its last, children included, as `listItemAt` finds them, in one pass.
+ */
+export function listItemSpans(state: EditorState): ReadonlyMap<number, number> {
+  const doc = state.doc;
+  const found = spanCache.get(doc);
+  if (found) return found;
+  const spans = new Map<number, number>();
+  const open: { first: number; indent: number }[] = [];
+  let lastText = 0;
+  for (let n = 1; n <= doc.lines; n++) {
+    const text = doc.line(n).text;
+    if (text.trim() === "") continue;
+    const w = indentWidth(text);
+    // Every line since an open item's first was deeper than it, so it ends at the last
+    // non-blank line before this one.
+    while (open.length && w <= open[open.length - 1]!.indent)
+      spans.set(open.pop()!.first, lastText);
+    if (LIST_RE.test(text) && structuralLine(state, n)) open.push({ first: n, indent: w });
+    lastText = n;
+  }
+  for (const item of open) spans.set(item.first, lastText);
+  spanCache.set(doc, spans);
+  return spans;
+}
+
+/** The fold range of a list item with children on `lineNo`: its children, or null. */
+export function listFoldRange(state: EditorState, lineNo: number) {
+  const last = listItemSpans(state).get(lineNo);
+  if (!last || last <= lineNo) return null;
+  return { from: state.doc.line(lineNo).to, to: state.doc.line(last).to };
+}
+
+/** Folding: heading sections, and list items (bullets, numbers, tasks) with children. */
 export const outlineFolding = foldService.of((state, lineStart) => {
   const line = state.doc.lineAt(lineStart);
   const heading = headingSectionAt(state, line.number);
   if (heading) return heading.bodyTo > heading.to ? { from: heading.to, to: heading.bodyTo } : null;
-  const block = blockAt(state, line.number);
-  if (!block || block.last <= block.first) return null;
-  return { from: line.to, to: state.doc.line(block.last).to };
+  return listFoldRange(state, line.number);
 });
