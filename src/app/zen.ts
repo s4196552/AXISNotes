@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { backend } from "../ipc";
+import { backend, type WindowFrame } from "../ipc";
 import { useLayout, type ZenEdge } from "./layout";
 
 // Zen mode, like Zen Browser's compact mode: the window goes full screen and only the
@@ -49,6 +49,50 @@ export function setZen(on: boolean) {
 
 export const toggleZen = () => setZen(!useLayout.getState().zen);
 
+// Moving the window in Zen mode, so Windows Snap can put it beside another (split view).
+// The top edge reveals a thin grab strip over the tab row (`.zen-drag-bar` in App.tsx); it
+// and the other title bar areas (`data-tauri-drag-region`) move the window. A full screen
+// window can't be moved or snapped, so the drag first returns it to a maximized window and
+// then hands the press to the system, which restores it under the pointer and snaps it
+// where it's dropped, as a maximized window's title bar does. Zen mode stays on.
+
+/** How far (CSS px) the pointer must move with the button held before the window moves. */
+export const DRAG_START = 4;
+
+/** Whether a press on `target` is on a title bar area itself (not a tab or button on it). */
+export function isDragArea(target: EventTarget | null) {
+  return target instanceof HTMLElement && target.hasAttribute("data-tauri-drag-region");
+}
+
+/** Out of full screen into a maximized window, which the system can drag and snap. */
+async function leaveFullscreen(frame: WindowFrame) {
+  if (!(await frame.isFullscreen())) return false;
+  await frame.setFullscreen(false);
+  return true;
+}
+
+/** Move the window by the press under way (see above). */
+export async function startZenDrag(frame: WindowFrame) {
+  try {
+    if ((await leaveFullscreen(frame)) && !(await frame.isMaximized())) {
+      await frame.toggleMaximize();
+    }
+    await frame.startDragging();
+  } catch {
+    // The window stays where it is.
+  }
+}
+
+/** A title bar's double-click: full screen and maximized both restore; else maximize. */
+export async function zenToggleMaximize(frame: WindowFrame) {
+  try {
+    if ((await leaveFullscreen(frame)) && !(await frame.isMaximized())) return;
+    await frame.toggleMaximize();
+  } catch {
+    // Nothing to change.
+  }
+}
+
 /** Whether a revealed part must stay: a menu or dialog is open, or text is typed in it. */
 function holding(el: Element | null) {
   if (document.querySelector(".filetree-menu, .modal-backdrop")) return true;
@@ -79,9 +123,51 @@ export function useZenEdges() {
       clearTimeout(timer);
       timer = undefined;
     };
+    /** Where a press on a title bar area began, until it moves the window or ends. */
+    let pressed: { x: number; y: number } | null = null;
+    /**
+     * Set once the window has been moved: the system keeps the pointer while it drags,
+     * so the next pointer move here is after the drop. That hides the bar, and edges
+     * reveal nothing until the pointer has left them, since a snap drops it on one.
+     */
+    let settling = false;
+    const onDown = (e: MouseEvent) => {
+      const frame = backend.windowFrame;
+      if (!frame || e.button !== 0 || !isDragArea(e.target)) return;
+      // Ours instead of Tauri's own drag (which can't move a full screen window), and no
+      // text selection from the press.
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      pressed = null;
+      if (e.detail === 2) {
+        settling = true;
+        void zenToggleMaximize(frame);
+      } else if (e.detail === 1) {
+        pressed = { x: e.clientX, y: e.clientY };
+      }
+    };
+    const onUp = () => {
+      pressed = null;
+    };
     const onMove = (e: MouseEvent) => {
       const s = useLayout.getState();
+      const frame = backend.windowFrame;
+      if (pressed && frame) {
+        if (!(e.buttons & 1)) pressed = null;
+        else if (Math.hypot(e.clientX - pressed.x, e.clientY - pressed.y) >= DRAG_START) {
+          pressed = null;
+          settling = true;
+          void startZenDrag(frame);
+          return;
+        } else return;
+      }
       const edge = zenEdgeAt(e.clientX, e.clientY, window.innerWidth);
+      if (settling) {
+        cancel();
+        s.setZenReveal(null);
+        if (edge) return;
+        settling = false;
+      }
       if (edge) {
         cancel();
         s.setZenReveal(edge);
@@ -102,10 +188,15 @@ export function useZenEdges() {
     const onFullscreen = () => {
       if (!backend.windowFrame && !document.fullscreenElement) setZen(false);
     };
+    // Capture on the window: before Tauri's drag handler on the document.
+    window.addEventListener("mousedown", onDown, true);
+    window.addEventListener("mouseup", onUp, true);
     window.addEventListener("mousemove", onMove);
     document.addEventListener("fullscreenchange", onFullscreen);
     return () => {
       cancel();
+      window.removeEventListener("mousedown", onDown, true);
+      window.removeEventListener("mouseup", onUp, true);
       window.removeEventListener("mousemove", onMove);
       document.removeEventListener("fullscreenchange", onFullscreen);
     };

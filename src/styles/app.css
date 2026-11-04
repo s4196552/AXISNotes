@@ -580,6 +580,40 @@ body.pointer-dragging * {
   display: grid;
   z-index: 59;
 }
+/* A thin grab strip along the top of the revealed tab row, Zen Browser style: dragging it
+   (or the row's empty part) moves the window, so Windows Snap can put it beside another.
+   Hidden, it lets every press through. */
+.zen-drag-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: var(--frame-controls);
+  z-index: 60;
+  height: 8px;
+  pointer-events: none;
+  transform: translateY(-100%);
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+.zen-drag-bar::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 44px;
+  height: 3px;
+  margin-left: -22px;
+  border-radius: 2px;
+  background: var(--fg-muted);
+  opacity: 0.4;
+  pointer-events: none;
+}
+.zen-drag-bar:hover::after {
+  opacity: 0.8;
+}
+.shell.zen[data-zen-reveal="top"] .zen-drag-bar {
+  pointer-events: auto;
+  transform: none;
+}
 .shell.zen .window-controls {
   transform: translateY(-110%);
   transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
