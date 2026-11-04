@@ -183,4 +183,7 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 | T-159 | 6 | Fix selected-image clipboard shortcuts and selected-folder drags started on a child | codex (human requested) | merged | agent/codex/T-159 | src/features/editor/{imageEditor.ts,media.test.tsx}, src/features/filetree/{FileTree.tsx,FileTree.test.tsx}, task coordination |
 
 | T-160 | 6 | Publish Windows 0.3.52 with image clipboard and folder-selection fixes for in-app updating | codex (human requested) | merged | agent/codex/T-160 | release manifests, e2e/specs/selection-regressions.e2e.ts, task coordination, local Windows update output |
+
+| T-161 | 6 | Fold arrows on bulleted, numbered and task list items (nested, view-only), toggle fold keys, fold state remembered per note across tab switches | claude | merged | agent/claude/T-161 | `src/features/editor/{outliner.ts,toggles.ts,foldArrows.test.ts,Editor.tsx,editor.css}`, task coordination |
+
 | T-162 | 6 | Zen mode: drag a thin top strip (revealed at the top edge) to move the window so Windows Snap can split it; double-click maximizes/restores | claude | in-review | agent/claude/T-162 | `src/app/{zen.ts,zen.test.tsx}`, `src/App.tsx`, `src/styles/app.css`, `src/ipc/{types.ts,tauriBackend.ts}`, `src/features/window/WindowControls.test.tsx`, task coordination |
