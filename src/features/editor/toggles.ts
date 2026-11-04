@@ -1,11 +1,19 @@
-import { type EditorState, type Range, StateField } from "@codemirror/state";
-import { codeFolding, foldedRanges, foldEffect, unfoldEffect } from "@codemirror/language";
+import { type EditorState, Prec, type Range, StateField } from "@codemirror/state";
+import {
+  codeFolding,
+  foldable,
+  foldedRanges,
+  foldEffect,
+  unfoldEffect,
+} from "@codemirror/language";
 import { calloutBlocks, headingSectionAt, headingSections, TOGGLE_HEAD } from "./headingSections";
+import { listFoldRange, listItemSpans } from "./outliner";
 export { TOGGLE_HEAD } from "./headingSections";
 import {
   Decoration,
   type DecorationSet,
   EditorView,
+  keymap,
   ViewPlugin,
   type ViewUpdate,
   WidgetType,
@@ -92,24 +100,66 @@ export function flipToggle(view: EditorView, lineFrom: number) {
   return true;
 }
 
+/** The view folds that start at `from` (a heading's or list item's line end). */
+function foldsAt(state: EditorState, from: number) {
+  const found: { from: number; to: number }[] = [];
+  foldedRanges(state).between(from, from, (a, b) => {
+    if (a === from) found.push({ from: a, to: b });
+  });
+  return found;
+}
+
+/**
+ * Fold or unfold `from..to` in the view only; the note's text never changes. Folds inside
+ * it stay as they were, so unfolding a parent brings its children back as they were left.
+ */
+function flipViewFold(view: EditorView, from: number, to: number) {
+  const open = foldsAt(view.state, from);
+  view.dispatch({
+    // Unfold what is folded there, even if the item has grown since it was folded.
+    effects: open.length ? open.map((r) => unfoldEffect.of(r)) : foldEffect.of({ from, to }),
+    selection:
+      !open.length && view.state.selection.ranges.some((r) => r.to > from && r.from <= to)
+        ? { anchor: from }
+        : undefined,
+  });
+  return true;
+}
+
+export type FoldRange = { from: number; to: number };
+
+/** The view folds (headings and list items), to bring back when the note is reopened. */
+export function viewFolds(state: EditorState): FoldRange[] {
+  const out: FoldRange[] = [];
+  foldedRanges(state).between(0, state.doc.length, (from, to) => {
+    out.push({ from, to });
+  });
+  return out;
+}
+
+/** Effects that fold `saved` again, skipping any the note no longer has as they were. */
+export function restoreFolds(state: EditorState, saved: readonly FoldRange[]) {
+  return saved
+    .filter(({ from, to }) => {
+      if (to > state.doc.length) return false;
+      const line = state.doc.lineAt(from);
+      const range = line.to === from ? foldable(state, line.from, line.to) : null;
+      return range?.from === from && range.to === to;
+    })
+    .map((r) => foldEffect.of(r));
+}
+
 /** View-only folding for standard Markdown headings; never rewrites the note. */
 export function flipHeading(view: EditorView, lineFrom: number) {
   const heading = headingSectionAt(view.state, view.state.doc.lineAt(lineFrom).number);
   if (!heading || heading.kind !== "markdown" || heading.bodyTo <= heading.to) return false;
-  let closed = false;
-  foldedRanges(view.state).between(heading.to, heading.bodyTo, (from) => {
-    if (from === heading.to) closed = true;
-  });
-  const range = { from: heading.to, to: heading.bodyTo };
-  view.dispatch({
-    effects: closed ? unfoldEffect.of(range) : foldEffect.of(range),
-    selection:
-      !closed &&
-      view.state.selection.ranges.some((r) => r.to > heading.to && r.from <= heading.bodyTo)
-        ? { anchor: heading.to }
-        : undefined,
-  });
-  return true;
+  return flipViewFold(view, heading.to, heading.bodyTo);
+}
+
+/** View-only folding of a list item's children (bullets, numbers and tasks alike). */
+export function flipListItem(view: EditorView, lineFrom: number) {
+  const range = listFoldRange(view.state, view.state.doc.lineAt(lineFrom).number);
+  return range ? flipViewFold(view, range.from, range.to) : false;
 }
 
 class ArrowWidget extends WidgetType {
@@ -119,6 +169,8 @@ class ArrowWidget extends WidgetType {
     readonly heading?: { title: string; level: number },
     /** A toggle heading's arrow hangs in the margin like a heading's. */
     readonly hang = false,
+    /** A list item's arrow, hanging left of its bullet, number or checkbox. */
+    readonly list = false,
   ) {
     super();
   }
@@ -127,28 +179,35 @@ class ArrowWidget extends WidgetType {
       other.open === this.open &&
       other.lineFrom === this.lineFrom &&
       other.hang === this.hang &&
+      other.list === this.list &&
       other.heading?.title === this.heading?.title &&
       other.heading?.level === this.heading?.level
     );
   }
   toDOM(view: EditorView) {
     const button = document.createElement("span");
-    button.className = `cm-toggle-arrow${this.open ? " cm-toggle-open" : ""}${this.heading ? " cm-heading-arrow" : ""}${this.hang ? " cm-toggle-hang" : ""}`;
+    button.className = `cm-toggle-arrow${this.open ? " cm-toggle-open" : ""}${this.heading ? " cm-heading-arrow" : ""}${this.hang ? " cm-toggle-hang" : ""}${this.list ? " cm-list-arrow" : ""}`;
     button.tabIndex = 0;
     button.setAttribute("role", "button");
     button.setAttribute(
       "aria-label",
       this.heading
         ? `${this.open ? "Collapse" : "Expand"} heading: ${this.heading.title}`
-        : this.open
-          ? "Close toggle"
-          : "Open toggle",
+        : this.list
+          ? `${this.open ? "Collapse" : "Expand"} list item`
+          : this.open
+            ? "Close toggle"
+            : "Open toggle",
     );
     button.setAttribute("aria-expanded", String(this.open));
     if (this.heading) button.dataset.headingLevel = String(this.heading.level);
     // The icon is drawn by CSS from the fold arrow style in Settings → Appearance.
     const flip = () =>
-      this.heading ? flipHeading(view, this.lineFrom) : flipToggle(view, this.lineFrom);
+      this.heading
+        ? flipHeading(view, this.lineFrom)
+        : this.list
+          ? flipListItem(view, this.lineFrom)
+          : flipToggle(view, this.lineFrom);
     button.addEventListener("mousedown", (e) => {
       e.preventDefault();
       flip();
@@ -256,13 +315,9 @@ function drawToggles(view: EditorView): DecorationSet {
   const sel = state.selection.ranges;
   for (const heading of headingSections(state)) {
     if (heading.kind !== "markdown" || heading.bodyTo <= heading.to) continue;
-    let open = true;
-    foldedRanges(state).between(heading.to, heading.bodyTo, (from) => {
-      if (from === heading.to) open = false;
-    });
     out.push(
       Decoration.widget({
-        widget: new ArrowWidget(open, heading.from, heading),
+        widget: new ArrowWidget(!foldsAt(state, heading.to).length, heading.from, heading),
         side: -1,
       }).range(heading.from),
     );
@@ -318,4 +373,69 @@ const togglePlugin = ViewPlugin.fromClass(
   { decorations: (p) => p.decorations },
 );
 
-export const toggles = [codeFolding(), toggleField, togglePlugin];
+const closedItem = Decoration.line({ class: "cm-li-folded" });
+
+/**
+ * A fold arrow on every list item with children, in the visible part of the note: shown
+ * while the line is hovered, and kept (with a ring round the bullet) while it is folded.
+ * It sits at the start of the line and CSS hangs it left of the marker by `--li-depth`.
+ */
+function drawListArrows(view: EditorView): DecorationSet {
+  const { state } = view;
+  const out: Range<Decoration>[] = [];
+  const spans = listItemSpans(state);
+  for (const { from, to } of view.visibleRanges) {
+    for (let n = state.doc.lineAt(from).number; n <= state.doc.lineAt(to).number; n++) {
+      const last = spans.get(n);
+      if (!last || last <= n) continue;
+      const line = state.doc.line(n);
+      const open = !foldsAt(state, line.to).length;
+      out.push(
+        Decoration.widget({
+          widget: new ArrowWidget(open, line.from, undefined, false, true),
+          side: -1,
+        }).range(line.from),
+      );
+      if (!open) out.push(closedItem.range(line.from));
+    }
+  }
+  return Decoration.set(out, true);
+}
+
+const listArrowPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = drawListArrows(view);
+    }
+    update(u: ViewUpdate) {
+      if (u.docChanged || u.viewportChanged || foldedRanges(u.startState) !== foldedRanges(u.state))
+        this.decorations = drawListArrows(u.view);
+    }
+  },
+  { decorations: (p) => p.decorations },
+);
+
+/**
+ * Ctrl+Shift+[ and ] (Cmd+Alt+[ and ] on a Mac) fold and unfold headings and list items
+ * through the fold keymap (outlinerView.ts). On a toggle's or foldable callout's title they
+ * close and open it with its arrow instead.
+ */
+function foldToggleKey(wantOpen: boolean) {
+  return (view: EditorView) => {
+    const line = view.state.doc.lineAt(view.state.selection.main.head);
+    const t = view.state.field(toggleField).toggles.find((x) => x.from === line.from);
+    if (!t) return false;
+    if (t.open !== wantOpen) flipToggle(view, t.from);
+    return true;
+  };
+}
+
+const toggleKeys = Prec.high(
+  keymap.of([
+    { key: "Ctrl-Shift-[", mac: "Cmd-Alt-[", run: foldToggleKey(false) },
+    { key: "Ctrl-Shift-]", mac: "Cmd-Alt-]", run: foldToggleKey(true) },
+  ]),
+);
+
+export const toggles = [codeFolding(), toggleField, togglePlugin, listArrowPlugin, toggleKeys];

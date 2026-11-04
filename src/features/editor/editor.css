@@ -1226,6 +1226,36 @@ body.cm-image-drag-copy * {
 .cm-toggle-hang:not(.cm-toggle-open) {
   color: var(--accent);
 }
+/* A list item's arrow (toggles.ts, drawListArrows) sits at the start of the line and hangs
+   left of its bullet, number or checkbox, one --list-indent step per nesting level, in the
+   same column as heading arrows at the top level. Shown like a heading's. */
+.cm-toggle-arrow.cm-list-arrow {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--fold-arrow-size);
+  height: max(1lh, 1.33em);
+  margin: 0 0 0 calc(var(--li-depth, 0) * var(--list-indent) - var(--fold-arrow-size) - 5px);
+  text-indent: 0;
+  opacity: 0;
+}
+.cm-list-arrow::before {
+  width: var(--fold-arrow-size);
+  height: var(--fold-arrow-size);
+}
+.cm-line:hover .cm-list-arrow,
+.cm-list-arrow:focus-visible,
+.cm-list-arrow:not(.cm-toggle-open) {
+  opacity: 1;
+}
+.cm-list-arrow:not(.cm-toggle-open) {
+  color: var(--accent);
+}
+/* A folded item's bullet gets a ring, as in Obsidian. */
+.cm-line.cm-li-folded .cm-lp-bullet::after {
+  box-shadow: 0 0 0 0.25em var(--bg-active);
+}
 .cm-editor .cm-foldPlaceholder {
   margin-left: 8px;
   background: transparent;
