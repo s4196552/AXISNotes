@@ -182,6 +182,8 @@ export function createTauriBackend(): Backend {
       requestClose: () => getCurrentWindow().close(),
       isMaximized: () => getCurrentWindow().isMaximized(),
       setFullscreen: (on) => getCurrentWindow().setFullscreen(on),
+      isFullscreen: () => getCurrentWindow().isFullscreen(),
+      startDragging: () => getCurrentWindow().startDragging(),
       onResized: (cb) => getCurrentWindow().onResized(() => cb()),
     },
     listFonts: () => invoke("list_fonts"),

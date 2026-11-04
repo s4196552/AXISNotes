@@ -238,6 +238,10 @@ export default function App() {
         {!showLeft && <PanelToggle side="left" className="side-panels-toggle left" />}
         <PanelToggle side="right" className="side-panels-toggle" />
         <ZenToggle />
+        {/* Zen mode's grab strip, revealed with the tab row: moves and snaps the window. */}
+        {zen && backend.windowFrame && (
+          <div className="zen-drag-bar" data-tauri-drag-region title="Drag to move or snap" />
+        )}
         <TabBar />
         <div className="tab-panel" id={TAB_PANEL_ID} role="tabpanel" {...mainZoom}>
           <Suspense fallback={<div className="empty muted">Loading…</div>}>

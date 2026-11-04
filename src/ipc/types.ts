@@ -617,6 +617,12 @@ export interface WindowFrame {
   isMaximized(): Promise<boolean>;
   /** Cover the whole screen (Zen mode), or return to the window as it was. */
   setFullscreen(on: boolean): Promise<void>;
+  isFullscreen(): Promise<boolean>;
+  /**
+   * Hand the press under way to the system to move the window, as its title bar would,
+   * so Windows Snap works (Zen mode's top strip, see `src/app/zen.ts`).
+   */
+  startDragging(): Promise<void>;
   /** Called after each resize, maximize and restore. Returns an unsubscribe function. */
   onResized(cb: () => void): Promise<() => void>;
 }

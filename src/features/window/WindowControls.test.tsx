@@ -14,6 +14,8 @@ function fakeFrame(maximized = false) {
     requestClose: vi.fn(async () => {}),
     isMaximized: vi.fn(async () => maximized),
     setFullscreen: vi.fn(async () => {}),
+    isFullscreen: vi.fn(async () => false),
+    startDragging: vi.fn(async () => {}),
     onResized: vi.fn(async (cb: () => void) => {
       resized = cb;
       return () => (resized = undefined);
