@@ -186,4 +186,4 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 
 | T-161 | 6 | Fold arrows on bulleted, numbered and task list items (nested, view-only), toggle fold keys, fold state remembered per note across tab switches | claude | merged | agent/claude/T-161 | `src/features/editor/{outliner.ts,toggles.ts,foldArrows.test.ts,Editor.tsx,editor.css}`, task coordination |
 
-| T-162 | 6 | Zen mode: drag a thin top strip (revealed at the top edge) to move the window so Windows Snap can split it; double-click maximizes/restores | claude | in-review | agent/claude/T-162 | `src/app/{zen.ts,zen.test.tsx}`, `src/App.tsx`, `src/styles/app.css`, `src/ipc/{types.ts,tauriBackend.ts}`, `src/features/window/WindowControls.test.tsx`, task coordination |
+| T-162 | 6 | Zen mode: drag a thin top strip (revealed at the top edge) to move the window so Windows Snap can split it; double-click maximizes/restores | claude | merged | agent/claude/T-162 | `src/app/{zen.ts,zen.test.tsx}`, `src/App.tsx`, `src/styles/app.css`, `src/ipc/{types.ts,tauriBackend.ts}`, `src/features/window/WindowControls.test.tsx`, task coordination |
