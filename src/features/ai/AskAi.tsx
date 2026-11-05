@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, HardDrive, Send, Sparkles, Square, X } from "lucide-react";
+import { Copy, FileText, HardDrive, Send, Sparkles, Square, X } from "lucide-react";
 import {
   type AiEffort,
   type AiPlan,
@@ -14,6 +14,7 @@ import { folderScope, MAX_FOLDER_NOTES } from "./folderScope";
 import { getActiveEditor } from "../editor/activeEditor";
 import { editNote } from "../files/editNote";
 import { createUniqueNote } from "../commands/actions";
+import { createDraft, folderOf } from "../drafts/drafts";
 import "./ai.css";
 
 // Ask an AI model about the open note (or a selection). Shows where the request goes and
@@ -367,6 +368,17 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
         <footer className="ask-ai-footer">
           {phase.kind === "done" && (
             <>
+              <button
+                onClick={() =>
+                  void createDraft({
+                    title: prompt.split(/\r?\n/)[0] ?? "",
+                    content: `${answer.trim()}\n`,
+                    folder: isFolder ? folder : path ? folderOf(path) : "",
+                  }).then(onClose, (e: unknown) => setPhase(errorOf(e)))
+                }
+              >
+                <FileText size={13} /> Open as draft
+              </button>
               <button onClick={() => void navigator.clipboard?.writeText(answer)}>
                 <Copy size={13} /> Copy
               </button>

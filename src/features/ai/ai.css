@@ -456,3 +456,49 @@
   margin: 0;
   font-size: 12px;
 }
+
+/* ---- Skills in an AI block (T-175) ---- */
+.ai-skill {
+  border-color: var(--accent);
+  background: var(--bg-active);
+  color: var(--accent);
+  cursor: default;
+}
+.ai-skill-remove {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.ai-block-summary {
+  margin: 0;
+  font-size: 13px;
+}
+.ai-block-files {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+.ai-block-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-family: var(--font-note);
+  font-size: var(--note-font-size);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ai-turn {
+  margin: 0;
+}
+.ai-turn-user {
+  color: var(--fg-muted);
+}

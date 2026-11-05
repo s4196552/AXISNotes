@@ -24,6 +24,8 @@ import { EditorView } from "@codemirror/view";
 import { openCommandMenu } from "../editor/quickCommands";
 import { openAiBlock } from "../ai/aiBlock";
 import { useAgentSettings } from "../agent/agentSettings";
+import { copyBuiltinsToVault, skillFromNote } from "../skills/skills";
+import { isNotePath } from "../../lib/markdown";
 import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { useUpdates } from "../updates/updates";
 import { toggleLeftPanel, toggleRightPanel, toggleSidePanels } from "../../app/layout";
@@ -172,6 +174,40 @@ registerCommands([
       }
       active.view.focus();
       openAiBlock(active.view);
+    },
+  },
+  {
+    id: "skills-copy",
+    label: "Copy the built-in AI skills into the vault (Skills folder)",
+    run: () =>
+      void copyBuiltinsToVault().then(
+        (n) =>
+          useAppStore
+            .getState()
+            .notify(
+              n
+                ? `Added ${n} skill${n === 1 ? "" : "s"} to the Skills folder. Edit them like any note.`
+                : "The Skills folder already has every built-in skill.",
+            ),
+        (e: unknown) => useAppStore.getState().notify(String((e as Error)?.message ?? e)),
+      ),
+  },
+  {
+    id: "skill-from-note",
+    label: "Make an AI skill from this note",
+    run: () => {
+      const path = useAppStore.getState().activePath;
+      if (!path || !isNotePath(path)) {
+        useAppStore.getState().notify("Open a note to make a skill from it.");
+        return;
+      }
+      void skillFromNote(path).then(
+        (p) => {
+          useAppStore.getState().openFile(p);
+          useAppStore.getState().notify("Skill made. Run it from the command menu (Ctrl+/).");
+        },
+        (e: unknown) => useAppStore.getState().notify(String((e as Error)?.message ?? e)),
+      );
     },
   },
   {

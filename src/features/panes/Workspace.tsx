@@ -14,6 +14,7 @@ import { loadFunctions } from "../../lib/formula/functions";
 import { docKind } from "../../lib/fileKinds";
 import { Editor } from "../editor";
 import { ImageView, UnsupportedView } from "../files/ImageView";
+import { WebFileView } from "../drafts/WebFileView";
 import { TabBar } from "../tabs/TabBar";
 import { TAB_PANEL_ID } from "../tabs/tabInfo";
 import { NewTab } from "../tabs/NewTab";
@@ -125,6 +126,7 @@ function View({
   if (kind === "grid") return <Grid key={path} path={path} />;
   if (kind === "canvas") return <Canvas key={path} path={path} />;
   if (kind === "image" || kind === "media") return <ImageView key={path} path={path} />;
+  if (kind === "web") return <WebFileView key={path} path={path} />;
   if (kind === "other") return <UnsupportedView key={path} path={path} />;
   return <Editor key={path} path={path} />;
 }

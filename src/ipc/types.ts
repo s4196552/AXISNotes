@@ -477,6 +477,8 @@ export interface Backend {
   trashEntry(path: string): Promise<void>;
   /** Show an entry, selected, in the system file manager ("" opens the vault folder). */
   revealEntry(path: string): Promise<void>;
+  /** Open a vault `.html` file in the default browser (other files are refused). */
+  openInBrowser(path: string): Promise<void>;
   /** Subscribe to changes made outside the app. Returns an unsubscribe function. */
   onVaultChanged(cb: (changes: VaultChange[]) => void): Promise<() => void>;
   /** Progress of catching the index up after a vault opens (big vaults open first and are
@@ -650,17 +652,41 @@ export interface AgentView {
    * webview's storage on this device, which both windows read.
    */
   imagesVersion: number;
+  /** Quick Chat under the Agent, while it's open. */
+  chat: AgentChatView | null;
+}
+
+/** Quick Chat: one question to the AI from the Agent, and its answer. */
+export interface AgentChatView {
+  question: string;
+  answer: string;
+  running: boolean;
+  error: string | null;
+  /** The note open in AXISNotes, which the question can include. */
+  noteName: string | null;
+  useNote: boolean;
 }
 
 /** What the Agent's window asks the main window to do. */
 export type AgentMessage =
-  { kind: "ready" } | { kind: "open" } | { kind: "sleep" } | { kind: "hide" };
+  | { kind: "ready" }
+  | { kind: "open" }
+  | { kind: "sleep" }
+  | { kind: "hide" }
+  | { kind: "chat-open" }
+  | { kind: "chat-close" }
+  | { kind: "chat-send"; text: string }
+  | { kind: "chat-stop" }
+  | { kind: "chat-use-note"; on: boolean }
+  | { kind: "chat-draft" };
 
 export interface AgentWindowHost {
   /** Open the Agent's window (if it isn't open) at a screen position, or the default. */
-  open(at: { x: number; y: number } | null, size: number): Promise<void>;
+  open(at: { x: number; y: number } | null, width: number, height: number): Promise<void>;
   close(): Promise<void>;
   send(view: AgentView): Promise<void>;
+  /** Resize the Agent's window (it grows right and down for Quick Chat). */
+  resize(width: number, height: number): Promise<void>;
   onMessage(cb: (m: AgentMessage) => void): Promise<() => void>;
   /** Bring the main window to the front. */
   focusMain(): Promise<void>;

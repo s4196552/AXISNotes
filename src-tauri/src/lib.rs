@@ -75,6 +75,7 @@ pub fn run() {
             commands::rename_entry,
             commands::trash_entry,
             commands::reveal_entry,
+            commands::open_in_browser,
             commands::search,
             commands::list_tags,
             commands::list_property_keys,

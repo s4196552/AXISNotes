@@ -696,6 +696,17 @@ export function createMemoryBackend(
       if (normalize(path) !== "" && !nodes.has(normalize(path))) fail("NotFound", path);
       fail("Io", "Showing files in the file manager needs the desktop app.");
     },
+    // A browser page opens the web page in a new tab instead.
+    async openInBrowser(path) {
+      requireVault();
+      const p = normalize(path);
+      if (!/\.html?$/i.test(p)) fail("InvalidName", `${path} is not a web page`);
+      const n = nodes.get(p);
+      if (!n || n.kind !== "file") fail("NotFound", path);
+      const url = URL.createObjectURL(new Blob([n.content], { type: "text/html" }));
+      window.open(url, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
     // The in-memory index is always up to date.
     onIndexProgress: async () => () => {},
     // The browser preview zooms with CSS; the desktop app zooms the webview itself.

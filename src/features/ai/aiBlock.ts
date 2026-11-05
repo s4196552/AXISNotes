@@ -22,6 +22,8 @@ export interface AiBlockSpec {
   pos: number;
   /** The text selected when the block opened, if any. */
   selection?: { from: number; to: number; text: string };
+  /** The skill the block runs (see src/features/skills), if any. */
+  skill?: string;
 }
 
 export const openAiBlockEffect = StateEffect.define<AiBlockSpec>();
@@ -141,7 +143,7 @@ export function aiBlocks(path: string): Extension {
 }
 
 /** Open an AI block on the cursor's line, with the selection (if any) as context. */
-export function openAiBlock(view: EditorView, pos?: number) {
+export function openAiBlock(view: EditorView, pos?: number, opts: { skill?: string } = {}) {
   const sel = view.state.selection.main;
   const id = crypto.randomUUID();
   view.dispatch({
@@ -151,6 +153,7 @@ export function openAiBlock(view: EditorView, pos?: number) {
       selection: sel.empty
         ? undefined
         : { from: sel.from, to: sel.to, text: view.state.sliceDoc(sel.from, sel.to) },
+      ...(opts.skill ? { skill: opts.skill } : {}),
     }),
   });
   return id;

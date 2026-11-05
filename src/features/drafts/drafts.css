@@ -1,0 +1,58 @@
+.draft-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg));
+  font-size: 13px;
+}
+.draft-banner-text {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.draft-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+}
+.draft-field input,
+.draft-field select {
+  max-width: 220px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+.draft-banner button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.web-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow: auto;
+}
+.web-view-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 560px;
+  padding: 24px;
+}
+.web-view-body button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

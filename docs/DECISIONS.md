@@ -2,6 +2,20 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-06: Drafts, Quick Chat and AI skills (T-173, T-174, T-175)
+
+- **Drafts (T-174):**
+  - AI-made files that the user hasn't kept yet live in `.axisnotes/drafts/`, which is hidden, so they stay out of the tree, search and links. Saving moves the file into a folder and discarding sends it to the OS trash, so nothing new is needed on disk and the user's notes stay plain files.
+  - HTML pages (quizzes, flash cards, lessons) open in the default browser through `open_in_browser`. That command only accepts `.html`/`.htm` vault files. Pages never run inside the app's webview, where they could reach Tauri IPC.
+- **Quick Chat (T-173):** the Agent's window shows the panel and posts the text. The request runs in the main window through the same `aiRun` path, so privacy rules, the request log and the Agent's states apply. The main window resizes the Agent's window (`core:window:allow-set-size` on `main` only).
+- **Skills (T-175):**
+  - A skill is a `SKILL.md`: YAML frontmatter with `name` and `description`, as in the Agent Skills folder layout, plus AXIS's `title`, `output` (markdown, html, chat or files) and `reads` (note or folder), followed by the instructions. Any provider and model can run one, since it is just a system prompt.
+  - Six skills are built in: Mind map, Practice test, Flash cards, Grill me, Handoff and Teach me.
+  - `Skills/<name>/SKILL.md` in the vault adds a skill, or replaces a built-in of the same name. "Copy the built-in AI skills into the vault" writes the built-ins there to edit, and "Make an AI skill from this note" turns a note into one. Other AI tools can read them as files.
+  - Output checks: an HTML page is pulled from the reply. Teach's files must be plain `.md`/`.html` names in the starting folder, at most 12 files of 512 KB each. If a reply doesn't fit, the model is asked once more with the problems. Teach replaces existing files of the same name (its Progress.md) only after the user presses Save, which lists which files are new and which replace one.
+  - A folder skill (Teach) reads the starting folder's notes through `folderScope`, so "AI: never" notes are left out. Rust still checks every attached note.
+- No new dependencies.
+
 ## 2026-11-05: AI block, folder context and the Agent (T-163, T-170, T-171)
 
 - **AI block (T-163):** a CodeMirror block widget, not text, so nothing reaches the file until the user inserts an answer. Block state lives in a zustand store, so a block keeps its prompt and its streaming answer if CodeMirror recreates the widget. The last model and effort chosen are remembered per vault in `localStorage`, on this device only.

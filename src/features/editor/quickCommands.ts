@@ -62,6 +62,7 @@ import { minimalChange } from "./targets";
 import { toggleMark } from "./inlineMarks";
 import { pickAndEmbed } from "./media";
 import { openAiBlock } from "../ai/aiBlock";
+import { skillIcon, skillList } from "../skills/skillIcons";
 
 // The command menu (Ctrl+/, or an optional typed trigger) and `:` emoji, with
 // configurable triggers. The other typed menus (`@@`, `((`, `::`, `{{`) are in triggers.ts.
@@ -648,6 +649,7 @@ export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
   },
 ];
 const CUSTOM_GROUP = "Custom";
+const SKILLS_GROUP = "Skills";
 const FILTERED: CompletionSection = { name: "Filtered results", rank: 0 };
 export const TURN_INTO = "Turn into";
 
@@ -760,6 +762,7 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
   const place = (section: CompletionSection, order: number) =>
     filtering ? { section: FILTERED } : { section, boost: -order };
   const custom: CompletionSection = { name: CUSTOM_GROUP, rank: COMMAND_GROUPS.length };
+  const skills: CompletionSection = { name: SKILLS_GROUP, rank: COMMAND_GROUPS.length + 1 };
   // Turn into: offered while filtering, when the line already has text to keep.
   const turnable = filtering && lineAround(context.state, start, context.pos).text !== "";
   const commands = SLASH_COMMANDS.filter(
@@ -786,6 +789,17 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
         { label: c.label, icon: Zap, description: c.insert.replace("{{cursor}}", "").trim() },
         place(custom, i),
         (view, to) => insert(view, start, to, c.insert.replace("{{cursor}}", "|")),
+      ),
+    ),
+    // Skills run in an AI block, with whichever model the block is set to.
+    ...(levelIds ? [] : skillList()).map((s, i) =>
+      option(
+        { label: s.title, icon: skillIcon(s.id), description: s.description },
+        { ...place(skills, i), detail: `/${s.id}` },
+        (view, to) => {
+          view.dispatch({ changes: { from: start, to, insert: "" }, selection: { anchor: start } });
+          openAiBlock(view, start, { skill: s.id });
+        },
       ),
     ),
   ];
