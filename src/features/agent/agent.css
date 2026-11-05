@@ -1,0 +1,282 @@
+/* The Agent (T-171). Its own palette: the Agent's window doesn't load the app's theme. */
+.agent-figure {
+  --agent-face: #d9ddff;
+  --agent-ink: #232651;
+  --agent-accent: #4f5bd5;
+  --agent-bubble-bg: #ffffff;
+  position: relative;
+  display: grid;
+  place-items: end center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+@media (prefers-color-scheme: dark) {
+  .agent-figure {
+    --agent-face: #3a3f7a;
+    --agent-ink: #e6e8ff;
+    --agent-accent: #8a93ff;
+    --agent-bubble-bg: #1c1d21;
+  }
+}
+
+.agent-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* The built-in figure is drawn at 112 px and scaled. */
+.agent-bot {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 112px;
+  height: 104px;
+  margin-left: -56px;
+  transform-origin: 50% 100%;
+}
+.agent-face {
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--agent-ink);
+  border-radius: 30px;
+  background: var(--agent-face);
+}
+.agent-antenna {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  width: 3px;
+  height: 20px;
+  margin-left: -1.5px;
+  background: var(--agent-ink);
+}
+.agent-antenna::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: -5px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--agent-accent);
+}
+.agent-eye {
+  position: absolute;
+  top: 38px;
+  width: 14px;
+  height: 20px;
+  border-radius: 8px;
+  background: var(--agent-ink);
+  transition:
+    height 0.2s,
+    top 0.2s;
+}
+.agent-eye-l {
+  left: 30px;
+}
+.agent-eye-r {
+  right: 30px;
+}
+.agent-mouth {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  width: 22px;
+  height: 8px;
+  margin-left: -11px;
+  border-bottom: 3px solid var(--agent-ink);
+  border-radius: 0 0 12px 12px;
+}
+.agent-gear {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 22px;
+  height: 22px;
+  border: 4px dotted var(--agent-accent);
+  border-radius: 50%;
+  animation: agent-spin 1.6s linear infinite;
+}
+.agent-bubble {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 22px;
+  padding: 1px 6px;
+  border: 1.5px solid var(--agent-ink);
+  border-radius: 10px;
+  background: var(--agent-bubble-bg);
+  color: var(--agent-accent);
+  font:
+    600 12px/1.3 "Segoe UI",
+    system-ui,
+    sans-serif;
+  text-align: center;
+}
+
+.agent-figure[data-state="idle"] .agent-eye {
+  animation: agent-blink 4s infinite;
+}
+.agent-figure[data-state="sleeping"] .agent-eye {
+  top: 46px;
+  height: 4px;
+  border-radius: 2px;
+}
+.agent-figure[data-state="sleeping"] .agent-bot,
+.agent-figure[data-state="sleeping"] .agent-image {
+  animation: agent-breathe 3.2s ease-in-out infinite;
+}
+.agent-figure[data-state="thinking"] .agent-eye {
+  top: 30px;
+  height: 14px;
+}
+.agent-figure[data-state="thinking"] .agent-antenna::after {
+  animation: agent-pulse 1s ease-in-out infinite;
+}
+.agent-figure[data-state="working"] .agent-bot,
+.agent-figure[data-state="working"] .agent-image {
+  animation: agent-bounce 0.6s ease-in-out infinite;
+}
+.agent-figure[data-state="working"] .agent-eye {
+  top: 42px;
+  height: 10px;
+}
+.agent-figure[data-state="done"] .agent-eye {
+  top: 40px;
+  height: 10px;
+  border: 3px solid var(--agent-ink);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+}
+.agent-figure[data-state="done"] .agent-mouth {
+  width: 30px;
+  height: 14px;
+  margin-left: -15px;
+}
+.agent-figure[data-state="needsYou"] .agent-eye {
+  top: 44px;
+  height: 6px;
+  transform: rotate(18deg);
+}
+.agent-figure[data-state="needsYou"] .agent-eye-r {
+  transform: rotate(-18deg);
+}
+.agent-figure[data-state="needsYou"] .agent-mouth {
+  bottom: 16px;
+  border-top: 3px solid var(--agent-ink);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+}
+.agent-figure[data-state="needsYou"] .agent-bubble {
+  color: #c2384b;
+}
+
+@keyframes agent-blink {
+  0%,
+  94%,
+  100% {
+    top: 38px;
+    height: 20px;
+  }
+  97% {
+    top: 46px;
+    height: 3px;
+  }
+}
+@keyframes agent-breathe {
+  50% {
+    translate: 0 3px;
+  }
+}
+@keyframes agent-pulse {
+  50% {
+    transform: scale(1.5);
+    opacity: 0.6;
+  }
+}
+@keyframes agent-bounce {
+  50% {
+    translate: 0 -8px;
+  }
+}
+@keyframes agent-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-figure *,
+  .agent-figure *::after {
+    animation: none !important;
+  }
+}
+
+/* The Agent's own window: see-through, nothing but the figure. */
+html.agent-window,
+html.agent-window body,
+html.agent-window #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent !important;
+}
+.agent-window-root {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  cursor: grab;
+}
+
+/* In a browser (no second window), the Agent floats inside the page. */
+.agent-inline {
+  position: fixed;
+  z-index: 900;
+  cursor: grab;
+  touch-action: none;
+}
+.agent-inline-menu {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+}
+.agent-inline-menu button {
+  padding: 5px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-inline-menu button:hover {
+  background: var(--bg-hover);
+}
+
+/* Settings → Agent */
+.agent-settings-states {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+}
+.agent-settings-states figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding-top: 18px;
+  font-size: 12px;
+}

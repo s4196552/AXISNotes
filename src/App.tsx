@@ -1,4 +1,5 @@
 import { type CSSProperties, Suspense, useEffect } from "react";
+import { AgentBridge } from "./features/agent/AgentBridge";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
@@ -287,6 +288,7 @@ export default function App() {
       <WindowControls />
       <Modals />
       <UpdateBanner />
+      <AgentBridge />
       <footer className="statusbar">
         <span>{activePath ?? ""}</span>
         {indexing && (

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  Bot,
   CalendarDays,
   Images,
   Info,
@@ -34,6 +35,7 @@ import { SLASH_COMMANDS } from "../editor/quickCommands";
 import { allCommands, shortcutOf } from "../commands/registry";
 import { formatHotkey } from "../commands/hotkeys";
 import { AiSettingsPanel } from "../ai/AiSettings";
+import { AgentSettingsPanel } from "../agent/AgentSettingsPanel";
 import { ClipperSettings } from "../clipper/ClipperSettings";
 import { UpdatesSettings } from "../updates/UpdatesSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
@@ -55,6 +57,7 @@ export type Section =
   | "commands"
   | "hotkeys"
   | "ai"
+  | "agent"
   | "clipper"
   | "updates"
   | "about";
@@ -69,6 +72,7 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "commands", label: "Quick commands", icon: SquareSlash },
   { id: "hotkeys", label: "Keyboard shortcuts", icon: Keyboard },
   { id: "ai", label: "AI", icon: Sparkles },
+  { id: "agent", label: "Agent", icon: Bot },
   { id: "clipper", label: "Web clipper", icon: Scissors },
   { id: "updates", label: "Updates", icon: RefreshCw },
   { id: "about", label: "About", icon: Info },
@@ -112,6 +116,8 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
         return <Commands config={config} set={set} />;
       case "ai":
         return <AiSettingsPanel />;
+      case "agent":
+        return <AgentSettingsPanel />;
       case "clipper":
         return <ClipperSettings />;
       case "updates":

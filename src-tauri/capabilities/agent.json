@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "agent",
+  "description": "The Agent's window: it only listens for what to draw, posts clicks and menu choices to the main window, moves itself and shows a context menu.",
+  "windows": ["agent"],
+  "permissions": [
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-start-dragging",
+    "core:menu:default"
+  ]
+}

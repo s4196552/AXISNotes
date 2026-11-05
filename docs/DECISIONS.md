@@ -2,6 +2,19 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-05: AI block, folder context and the Agent (T-163, T-170, T-171)
+
+- **AI block (T-163):** a CodeMirror block widget, not text, so nothing reaches the file until the user inserts an answer. Block state lives in a zustand store, so a block keeps its prompt and its streaming answer if CodeMirror recreates the widget. The last model and effort chosen are remembered per vault in `localStorage`, on this device only.
+- **Folder context (T-170):** the webview chooses which notes to attach and leaves out "AI: never" notes, listing them. Rust still reads every attached note and checks its rule, failing closed. A request takes at most 100 notes.
+- **Agent (T-171):**
+  - **Activity:** every AI run goes through `backend.aiRun`. A wrapper (`src/ipc/aiActivity.ts`) announces start, first text and end, with no content, so the Agent covers every AI feature without changes to each one.
+  - **State:** the main window works out the state (`agentModel.ts`). Timers fire only when the state would change by itself; nothing polls.
+  - **Its own window:** a second Tauri window loads the same bundle with `?agent`. It is transparent, borderless, always on top and kept off the taskbar, and sized to the figure so no invisible area takes clicks. Its capability (`capabilities/agent.json`) allows events, window getters, dragging and a context menu. It receives only what to draw and posts back clicks and menu choices. It never reads notes or calls providers.
+  - **Lifetime:** closing the main window quits the app (Rust `on_window_event`). Turning the Agent off unmounts the bridge, which closes the window and stops every listener and timer.
+  - **Entry point:** `main.tsx` now loads `App` (or `AgentApp`) with a dynamic import, so the Agent's window doesn't evaluate the whole app.
+  - **In a browser:** with no second window available, the Agent floats inside the page.
+- No new dependencies.
+
 ## 2026-10-29: Optional ChatGPT subscription connection (T-141)
 
 - Add a separate `chatgpt` provider for the official Sign in with ChatGPT public-client flow. Eligible users explicitly approve plan usage; ordinary API-key providers retain their own billing. There is no universal way to apply every provider's chat subscription to an API key.
