@@ -2,6 +2,14 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-05: Split panes with draggable tabs (T-164)
+
+- The main area holds split panes like Obsidian's. Dragging a tab onto another pane's tab row moves it there; onto a pane's middle moves it in; onto an edge (the outer quarter) splits that pane on that side. A pane whose last tab closes or leaves goes away. The tab menu and command palette also offer "Split right", "Split down" and "Close pane".
+- `src/app/panes.ts` keeps a tree of row/column splits with each pane's own `TabsState`. The store keeps the focused pane's tabs in `tabs`, as before, so every existing tab action, shortcut and caller works on the focused pane unchanged. Pressing or focusing inside a pane makes it the focused one.
+- Panes are positioned absolutely from the tree, rather than nested in DOM splits, so splitting or closing one never remounts the others' editors.
+- Each pane's tabs are saved per vault under `axisnotes.panes:<root>`. `axisnotes.tabs:<root>` still holds the focused pane's tabs, so an older build reopens with those.
+- The same note can show in two panes. After one saves, the other reloads it, or shows the "changed on disk" banner if it has unsaved edits. Only the focused pane's editor takes commands and shows its word count. No new dependency.
+
 ## 2026-10-29: Optional ChatGPT subscription connection (T-141)
 
 - Add a separate `chatgpt` provider for the official Sign in with ChatGPT public-client flow. Eligible users explicitly approve plan usage; ordinary API-key providers retain their own billing. There is no universal way to apply every provider's chat subscription to an API key.

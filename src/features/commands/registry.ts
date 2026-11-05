@@ -291,6 +291,10 @@ registerCommands([
     run: () => useAppStore.getState().reopenClosedTab(),
   },
   { id: "pin-tab", label: "Pin/unpin tab", run: () => useAppStore.getState().togglePinTab() },
+  // Split panes, like Obsidian's (tabs can also be dragged onto a pane's edge).
+  { id: "split-right", label: "Split right", run: () => useAppStore.getState().splitPane("right") },
+  { id: "split-down", label: "Split down", run: () => useAppStore.getState().splitPane("bottom") },
+  { id: "close-pane", label: "Close pane", run: () => useAppStore.getState().closePane() },
   {
     id: "close-other-tabs",
     label: "Close other tabs",

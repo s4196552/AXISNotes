@@ -22,7 +22,8 @@ import {
   trackClosingWrite,
   type UnsavedDocument,
 } from "../files/unsavedWork";
-import { setActiveEditor } from "./activeEditor";
+import { clearActiveEditor, noteSaved, onNoteSaved, setActiveEditor } from "./activeEditor";
+import { usePane } from "../../app/paneContext";
 import { links, refreshLinks, wikilinkCompletions } from "./links";
 import { anchorCompletions, embeds } from "./embeds";
 import { mediaInput } from "./media";
@@ -156,6 +157,12 @@ export function Editor({ path }: EditorProps) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [status, setStatus] = useState<SaveStatus>("loading");
+  // With split panes, only the focused pane's note takes commands and shows its counts.
+  const { focused } = usePane();
+  const focusedRef = useRef(focused);
+  useLayoutEffect(() => {
+    focusedRef.current = focused;
+  }, [focused]);
   const [banner, setBannerState] = useState<Banner>(null);
   const [ready, setReady] = useState(false);
   const [props, setProps] = useState<Props>({});
@@ -243,6 +250,7 @@ export function Editor({ path }: EditorProps) {
         try {
           const res = await backend.writeFile(path, content, force ? undefined : mtime.current);
           mtime.current = res.modifiedMs;
+          noteSaved(path, v); // the same note in another pane follows
           useAppStore.getState().bumpIndex(); // tags/links may have changed
           if (v.state.doc.toString() === content) {
             dirty.current = false;
@@ -418,7 +426,7 @@ export function Editor({ path }: EditorProps) {
         created.scrollDOM.classList.add("note-scroller");
         created.scrollDOM.prepend(pageTopHost);
         view.current = created;
-        setActiveEditor(created, path);
+        if (focusedRef.current) setActiveEditor(created, path);
         syncProps(created.state);
         countNow(created.state);
         setStatus("saved");
@@ -465,15 +473,34 @@ export function Editor({ path }: EditorProps) {
       }
       created?.destroy();
       view.current = null;
-      setActiveEditor(null);
+      clearActiveEditor(created);
     };
   }, [path, save, scheduleSave, syncProps, scheduleCount, countNow, pageTopHost]);
 
-  // Jump to a heading/block/line requested by the link that opened this note.
+  // The focused pane's note is the one commands edit.
+  useEffect(() => {
+    if (focused && ready && view.current) setActiveEditor(view.current, path);
+  }, [focused, ready, path]);
+
+  // The same note, saved from another pane: show its text (or warn, with edits here).
+  useEffect(
+    () =>
+      onNoteSaved((saved, from) => {
+        if (saved !== path || from === view.current || !view.current) return;
+        if (dirty.current) {
+          clearTimer();
+          setBanner("conflict");
+        } else void reloadFromDisk().catch(() => setBanner("removed"));
+      }),
+    [path, reloadFromDisk, setBanner],
+  );
+
+  // Jump to a heading/block/line requested by the link that opened this note (in the
+  // focused pane, should the note show in another too).
   const pendingTarget = useAppStore((s) => s.pendingTarget);
   useEffect(() => {
     const v = view.current;
-    if (!ready || !v || pendingTarget?.path !== path) return;
+    if (!ready || !v || !focused || pendingTarget?.path !== path) return;
     const pos = findTarget(v.state, pendingTarget);
     useAppStore.getState().clearPendingTarget();
     if (pos !== null) {
@@ -483,7 +510,7 @@ export function Editor({ path }: EditorProps) {
       });
       v.focus();
     }
-  }, [ready, pendingTarget, path]);
+  }, [ready, focused, pendingTarget, path]);
 
   useEffect(() => {
     view.current?.dispatch({
@@ -615,7 +642,7 @@ export function Editor({ path }: EditorProps) {
   return (
     <div className="editor">
       {createPortal(pageTop, pageTopHost)}
-      {statusSlot && createPortal(docStatus, statusSlot)}
+      {statusSlot && focused && createPortal(docStatus, statusSlot)}
 
       {banner === "conflict" && (
         <div className="editor-banner" role="alert">
