@@ -66,6 +66,7 @@ import {
   templateCompletions,
 } from "./triggers";
 import { math } from "./math";
+import { aiBlocks } from "../ai/aiBlock";
 
 function quickConfig(): QuickCommandConfig {
   const config = useConfig.getState().config;
@@ -358,6 +359,7 @@ export function Editor({ path }: EditorProps) {
             }),
             commandMenuAnchor,
             embeds(path),
+            aiBlocks(path),
             mediaInput,
             quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
             outlinerKeys,

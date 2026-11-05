@@ -701,9 +701,9 @@ describe("command menu sections", () => {
     const shown = currentCompletions(view.state);
     expect(shown.slice(0, 4).map((c) => c.label)).toEqual([
       "Text",
+      "AI",
       "Heading 1",
       "Heading 2",
-      "Heading 3",
     ]);
     expect([...new Set(shown.map(sectionOf))]).toEqual([
       "Basic blocks",
