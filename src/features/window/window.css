@@ -59,7 +59,7 @@
   height: 38px;
   border-bottom: 1px solid var(--border);
 }
-.content.right-hidden .tabbar-row {
+.content.right-hidden .pane[data-edge-top][data-edge-right] .tabbar-row {
   padding-right: calc(78px + var(--frame-controls));
 }
 .content.right-hidden .side-panels-toggle:not(.left) {

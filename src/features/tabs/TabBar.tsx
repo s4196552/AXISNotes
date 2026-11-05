@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ArrowRightToLine,
+  Columns2,
   CopyX,
   FilePlus,
   House,
@@ -17,15 +18,18 @@ import {
   Pin,
   PinOff,
   Plus,
+  Rows2,
   Ungroup,
   X,
 } from "lucide-react";
-import { useAppStore } from "../../app/store";
+import { tabsOf, useAppStore } from "../../app/store";
+import { zoneAt } from "../../app/panes";
 import { useFitToViewport } from "../../app/menuPosition";
 import { useConfig } from "../../app/config";
 import { useAreaZoomProps } from "../../app/zoom";
 import { usePointerDrag } from "../../app/usePointerDrag";
 import {
+  activeTab,
   findGroup,
   GROUP_COLORS,
   isEmpty,
@@ -33,10 +37,12 @@ import {
   shownTabs,
   type Tab,
   type TabGroup,
+  type TabsState,
 } from "../../app/tabs";
 import { groupLabel, kindIcon, TAB_PANEL_ID, tabTitle } from "./tabInfo";
 import { EntryIcon } from "../icons/EntryIcon";
 import { NavButtons } from "./NavButtons";
+import { type TabDrop, useTabDrop } from "./tabDrop";
 import "./tabs.css";
 
 const tabDomId = (id: string) => `tab-${id}`;
@@ -44,14 +50,24 @@ const chipDomId = (id: string) => `tab-group-${id}`;
 
 /** What's being dragged: a tab, or a whole group by its chip. */
 type Drag = { kind: "tab" | "group"; id: string };
-/**
- * Where it would land: list position, the group a dropped tab joins (null: none), and the
- * element showing the drop marker (a tab or chip DOM id, or "end").
- */
-type Drop = { index: number; group: string | null; mark: string; side: "before" | "after" };
 
-export function TabBar() {
-  const tabs = useAppStore((s) => s.tabs);
+/**
+ * One pane's tab row (see panes.ts). A tab dragged to another pane's tab row moves there;
+ * dragged onto a pane's content, it moves into that pane (its middle) or splits it (an
+ * edge). Groups move within their own row. Without props, it's the focused pane's row.
+ */
+export function TabBar(props: {
+  paneId?: string;
+  tabs?: TabsState;
+  focused?: boolean;
+  /** Whether the row's empty part moves the window (the top row of the main area). */
+  titleBar?: boolean;
+}) {
+  const focusedTabs = useAppStore((s) => s.tabs);
+  const focusedPane = useAppStore((s) => s.panes.focused);
+  const tabs = props.tabs ?? focusedTabs;
+  const paneId = props.paneId ?? focusedPane;
+  const focused = props.focused ?? true;
   const store = useAppStore.getState;
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [editor, setEditor] = useState<{ x: number; y: number; id: string } | null>(null);
@@ -114,38 +130,74 @@ export function TabBar() {
     requestAnimationFrame(() => document.getElementById(tabDomId(id))?.focus());
   };
 
-  const atEnd: Drop = { index: tabs.list.length, group: null, mark: "end", side: "after" };
-
-  /** Where a dragged tab or group lands with the pointer at x, y. */
-  const dropFor = (x: number, y: number): Drop | null => {
-    const el = document.elementFromPoint(x, y);
-    if (!bar.current || !el || !bar.current.contains(el)) return null;
+  /** Where a drop at x on `el` lands in pane `pane`'s tab row (whose tabs are `list`). */
+  const barDrop = (el: Element, x: number, pane: string, list: TabsState): TabDrop => {
     const tabEl = el.closest<HTMLElement>('[role="tab"]');
-    const i = tabEl ? tabs.list.findIndex((t) => tabDomId(t.id) === tabEl.id) : -1;
+    const i = tabEl ? list.list.findIndex((t) => tabDomId(t.id) === tabEl.id) : -1;
     if (tabEl && i !== -1) {
       const r = tabEl.getBoundingClientRect();
       const after = x > r.left + r.width / 2;
       // A tab dropped next to a grouped tab joins its group.
       return {
+        kind: "bar",
+        pane,
         index: after ? i + 1 : i,
-        group: tabs.list[i]!.group,
+        group: list.list[i]!.group,
         mark: tabEl.id,
         side: after ? "after" : "before",
       };
     }
     // Dropped on a group's chip: just before that group, never inside it.
     const chip = el.closest<HTMLElement>(".tab-group-chip");
-    const first = chip ? tabs.list.findIndex((t) => t.group && chipDomId(t.group) === chip.id) : -1;
-    if (chip && first !== -1) return { index: first, group: null, mark: chip.id, side: "before" };
-    return atEnd;
+    const first = chip ? list.list.findIndex((t) => t.group && chipDomId(t.group) === chip.id) : -1;
+    if (chip && first !== -1) {
+      return { kind: "bar", pane, index: first, group: null, mark: chip.id, side: "before" };
+    }
+    return { kind: "bar", pane, index: list.list.length, group: null, mark: "end", side: "after" };
   };
 
+  /** Where a dragged tab or group lands with the pointer at x, y. */
+  const dropFor = (x: number, y: number, item: Drag): TabDrop | null => {
+    const el = document.elementFromPoint(x, y);
+    if (!el || !bar.current) return null;
+    const row = el.closest(".tabbar-row");
+    const paneEl = el.closest<HTMLElement>("[data-pane-id]");
+    const own = !!row && row === bar.current.closest(".tabbar-row");
+    const pane = own ? paneId : paneEl?.dataset.paneId;
+    if (!pane) return null;
+    if (row) {
+      if (item.kind === "group" && !own) return null;
+      const list = own ? tabs : tabsOf(store(), pane);
+      return list ? barDrop(el, x, pane, list) : null;
+    }
+    // Onto a pane's content: its middle moves the tab in, an edge splits the pane.
+    const panel = el.closest<HTMLElement>(".tab-panel");
+    if (item.kind === "group" || !panel || !paneEl) return null;
+    const zone = zoneAt(panel.getBoundingClientRect(), x, y);
+    if (pane === paneId && (zone === "center" || tabs.list.length < 2)) return null;
+    return { kind: "split", pane, zone };
+  };
+
+  const dragSource = useRef(false);
+  useEffect(
+    () => () => {
+      if (dragSource.current) useTabDrop.setState({ target: null });
+    },
+    [],
+  );
   const {
     press,
     dragging,
     target: dropAt,
-  } = usePointerDrag<Drag, Drop>(dropFor, (drag, at) => {
-    if (drag.kind === "tab") {
+  } = usePointerDrag<Drag, TabDrop>(dropFor, (drag, at) => {
+    // The drop may close this row's pane before its effects would clear the marker.
+    dragSource.current = false;
+    useTabDrop.setState({ target: null });
+    if (at.kind === "split") {
+      store().dropTabOnPane(drag.id, paneId, at.pane, at.zone);
+    } else if (at.pane !== paneId) {
+      store().moveTabToPane(drag.id, paneId, at.pane, at.index, at.group);
+    } else if (drag.kind === "tab") {
       const from = tabs.list.findIndex((t) => t.id === drag.id);
       // Dropping after itself moves it one less to the right.
       store().moveTab(drag.id, from < at.index ? at.index - 1 : at.index, at.group);
@@ -154,8 +206,22 @@ export function TabBar() {
     }
   });
 
+  // Share where this row's drag would land, so the pane under the pointer can show it.
+  useEffect(() => {
+    if (dragging) {
+      dragSource.current = true;
+      useTabDrop.setState({ target: dropAt });
+    } else if (dragSource.current) {
+      dragSource.current = false;
+      useTabDrop.setState({ target: null });
+    }
+  }, [dragging, dropAt]);
+
+  const shownDrop = useTabDrop((s) =>
+    s.target?.kind === "bar" && s.target.pane === paneId ? s.target : null,
+  );
   const marker = (mark: string) =>
-    dropAt?.mark === mark && dragging ? `drop-${dropAt.side}` : undefined;
+    shownDrop?.mark === mark ? `drop-${shownDrop.side}` : undefined;
 
   // Tabs in order, each group's chip before its first tab; a collapsed group's tabs hidden.
   const items: ReactNode[] = [];
@@ -194,8 +260,12 @@ export function TabBar() {
 
   return (
     // The row is the window's title bar: its empty part moves the window (see WindowControls).
-    <div className="tabbar-row" data-tauri-drag-region {...zoomProps}>
-      <NavButtons />
+    <div
+      className="tabbar-row"
+      data-tauri-drag-region={props.titleBar === false ? undefined : ""}
+      {...zoomProps}
+    >
+      <NavButtons tab={activeTab(tabs)} listen={focused} />
       <div
         ref={bar}
         className={["tabbar", marker("end") && "drop-end"].filter(Boolean).join(" ")}
@@ -487,6 +557,17 @@ function TabMenu(props: {
         item(tab.pinned ? "Unpin" : "Pin", tab.pinned ? PinOff : Pin, () =>
           store().togglePinTab(tab.id),
         )}
+      {!many && <div className="tab-menu-sep" role="separator" />}
+      {!many &&
+        item("Split right", Columns2, () => {
+          store().activateTab(tab.id);
+          store().splitPane("right");
+        })}
+      {!many &&
+        item("Split down", Rows2, () => {
+          store().activateTab(tab.id);
+          store().splitPane("bottom");
+        })}
     </div>
   );
 }

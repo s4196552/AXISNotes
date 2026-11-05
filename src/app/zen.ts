@@ -102,15 +102,15 @@ function holding(el: Element | null) {
 
 /** Whether the revealed part should stay for a pointer at x, y: near its box, or held. */
 function stays(edge: ZenEdge, x: number, y: number) {
-  const el = document.querySelector(REVEALED[edge]);
-  const r = el?.getBoundingClientRect();
-  const inside =
-    !!r &&
-    x >= r.left - SLACK &&
-    x <= r.right + SLACK &&
-    y >= r.top - SLACK &&
-    y <= r.bottom + SLACK;
-  return inside || holding(el);
+  // Split panes each have a tab row: any of them keeps the top showing.
+  const els = Array.from(document.querySelectorAll(REVEALED[edge]));
+  if (!els.length) return holding(null);
+  return els.some((el) => {
+    const r = el.getBoundingClientRect();
+    const inside =
+      x >= r.left - SLACK && x <= r.right + SLACK && y >= r.top - SLACK && y <= r.bottom + SLACK;
+    return inside || holding(el);
+  });
 }
 
 /** While in Zen mode, reveal the panels and tab row from the window's edges. */

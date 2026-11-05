@@ -6,6 +6,8 @@ import { markNewVault, rememberVault } from "./recentVaults";
 import { showLeftPanel } from "./layout";
 import * as T from "./tabs";
 import type { GroupColor, TabsState, View } from "./tabs";
+import * as P from "./panes";
+import type { DropZone, Workspace } from "./panes";
 
 /** Where to put the cursor after opening a note. */
 export interface OpenTarget {
@@ -34,8 +36,16 @@ export interface AppState {
   notes: NoteRef[];
   /** Bumped whenever indexed data may have changed; panels re-query on change. */
   indexVersion: number;
-  /** Open tabs (see tabs.ts). `activePath` and `mainView` mirror the active tab. */
+  /**
+   * The focused pane's tabs (see tabs.ts). `activePath` and `mainView` mirror its active
+   * tab. Every tab action works on these.
+   */
   tabs: TabsState;
+  /**
+   * Split panes (see panes.ts). The focused pane's entry in `panes.tabs` can be stale:
+   * `tabs` is the one to use (see `tabsOf`).
+   */
+  panes: Workspace;
   /** Vault-relative path of the note open in the editor. */
   activePath: string | null;
   /** Consumed by the editor for `path` after it loads. */
@@ -98,6 +108,22 @@ export interface AppState {
   toggleTabGroup(groupId: string): void;
   newTabInGroup(groupId: string): void;
   moveTabGroup(groupId: string, to: number): void;
+  /** Make a pane the one tab actions, links and the file tree open into. */
+  focusPane(id: string): void;
+  /** Move a tab from one pane's tab row into another's, at `index`. */
+  moveTabToPane(
+    tabId: string,
+    from: string,
+    to: string,
+    index: number,
+    group?: string | null,
+  ): void;
+  /** Drop a tab on a pane: its middle moves the tab in; an edge splits the pane there. */
+  dropTabOnPane(tabId: string, from: string, target: string, zone: DropZone): void;
+  /** "Split right" / "Split down": the pane's active tab again in a new pane beside it. */
+  splitPane(zone: Exclude<DropZone, "center">, pane?: string): void;
+  closePane(id?: string): void;
+  resizeSplit(splitId: string, sizes: number[]): void;
   clearPendingTarget(): void;
   /**
    * Follow a wikilink written in note `from` (inner text like `Note#Heading|alias`).
@@ -135,6 +161,21 @@ function withTabs(tabs: TabsState) {
   return { tabs, activePath: tab.view === "dashboard" ? null : tab.path, mainView: tab.view };
 }
 
+/** The workspace with the focused pane's live tabs in it. */
+export function workspaceOf(s: Pick<AppState, "tabs" | "panes">): Workspace {
+  return { ...s.panes, tabs: { ...s.panes.tabs, [s.panes.focused]: s.tabs } };
+}
+
+/** Pane `id`'s tabs (the live ones for the focused pane). */
+export function tabsOf(s: Pick<AppState, "tabs" | "panes">, id: string): TabsState | undefined {
+  return id === s.panes.focused ? s.tabs : s.panes.tabs[id];
+}
+
+/** State for a new workspace: it, plus its focused pane's tabs. */
+function withPanes(w: Workspace) {
+  return { panes: w, ...withTabs(w.tabs[w.focused]!) };
+}
+
 /** Every file and folder path in the tree ("" being the vault itself). */
 function pathsIn(tree: VaultEntry): Set<string> {
   const out = new Set<string>([""]);
@@ -153,21 +194,38 @@ const HOME = { path: "", view: "dashboard" } as const satisfies T.Loc;
  * went), Home takes its place if the vault is set to (Settings → Home & daily notes).
  */
 function homeIfLastClosed(before: TabsState) {
-  const { tabs, openDashboard } = useAppStore.getState();
-  const tab = T.activeTab(tabs);
-  if (!T.isEmpty(tab) || before.list.some((t) => t.id === tab.id)) return;
-  if (useConfig.getState().config.home.onLastTabClose) openDashboard(HOME.path);
+  const { tabs, panes, openDashboard, closePane } = useAppStore.getState();
+  if (!P.emptied(before, tabs)) return;
+  // In a split, a pane whose last tab closed goes, like Obsidian's.
+  if (P.paneCount(panes) > 1) closePane(panes.focused);
+  else if (useConfig.getState().config.home.onLastTabClose) openDashboard(HOME.path);
+}
+
+/**
+ * Apply `f` to every pane's tabs, closing the panes it leaves without tabs, other than the
+ * focused one (homeIfLastClosed sees to that).
+ */
+function everyPane(s: AppState, f: (tabs: TabsState) => TabsState): Workspace | null {
+  const before = workspaceOf(s);
+  let w = P.mapTabs(before, f);
+  for (const id of P.paneIds(w.root)) {
+    if (id !== w.focused && P.emptied(before.tabs[id]!, w.tabs[id]!)) w = P.closePane(w, id);
+  }
+  return w === before ? null : w;
 }
 
 /** Set after restoring a vault's tabs: drop tabs for missing files once the tree is in. */
 let pruneRestoredTabs = false;
+
+const initialPanes = P.singlePane();
 
 export const useAppStore = create<AppState>((set, get) => ({
   vault: null,
   tree: null,
   notes: [],
   indexVersion: 0,
-  tabs: T.initialTabs(),
+  tabs: initialPanes.tabs[initialPanes.focused]!,
+  panes: initialPanes,
   activePath: null,
   pendingTarget: null,
   leftPanel: "files",
@@ -213,9 +271,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         pruneRestoredTabs = false;
         const paths = pathsIn(tree);
         const before = get().tabs;
-        const tabs = T.dropPaths(before, (p) => paths.has(p));
-        if (tabs !== before) {
-          set(withTabs(tabs));
+        const w = everyPane(get(), (t) => T.dropPaths(t, (p) => paths.has(p)));
+        if (w) {
+          set(withPanes(w));
           homeIfLastClosed(before);
         }
       }
@@ -310,6 +368,32 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ ...withTabs(T.newTabInGroup(get().tabs, groupId)), pendingTarget: null }),
   moveTabGroup: (groupId, to) => set(withTabs(T.moveGroup(get().tabs, groupId, to))),
 
+  focusPane(id) {
+    const w = workspaceOf(get());
+    if (w.focused === id || !w.tabs[id]) return;
+    set({ ...withPanes(P.focusPane(w, id)), pendingTarget: null });
+  },
+  moveTabToPane: (tabId, from, to, index, group = null) =>
+    set({
+      ...withPanes(P.moveToPane(workspaceOf(get()), tabId, from, to, index, group)),
+      pendingTarget: null,
+    }),
+  dropTabOnPane: (tabId, from, target, zone) =>
+    set({
+      ...withPanes(P.dropOnPane(workspaceOf(get()), tabId, from, target, zone)),
+      pendingTarget: null,
+    }),
+  splitPane(zone, pane) {
+    const w = workspaceOf(get());
+    set({ ...withPanes(P.splitPane(w, pane ?? w.focused, zone)), pendingTarget: null });
+  },
+  closePane(id) {
+    const w = workspaceOf(get());
+    set({ ...withPanes(P.closePane(w, id ?? w.focused)), pendingTarget: null });
+  },
+  resizeSplit: (splitId, sizes) =>
+    set({ panes: P.resizeSplit(workspaceOf(get()), splitId, sizes) }),
+
   clearPendingTarget() {
     set({ pendingTarget: null });
   },
@@ -362,7 +446,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // a path following too. Otherwise the active tab decides.
     const loose = active !== T.activeTab(tabs).path;
     set({
-      ...withTabs(T.renamePath(tabs, from, to)),
+      ...withPanes(P.mapTabs(workspaceOf(get()), (t) => T.renamePath(t, from, to))),
       ...(loose && active && isSameOrInside(active, from)
         ? { activePath: to + active.slice(from.length) }
         : {}),
@@ -373,7 +457,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { activePath: active, tabs } = get();
     const loose = active !== T.activeTab(tabs).path;
     set({
-      ...withTabs(T.removePath(tabs, path)),
+      ...withPanes(everyPane(get(), (t) => T.removePath(t, path)) ?? workspaceOf(get())),
       ...(loose && active && isSameOrInside(active, path) ? { activePath: null } : {}),
     });
     homeIfLastClosed(tabs);
@@ -393,12 +477,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 // ---- Tabs are kept per vault on this device ----
 
 const TABS_KEY = "axisnotes.tabs:";
+/** The split panes and each pane's tabs; TABS_KEY keeps the focused pane's, as before. */
+const PANES_KEY = "axisnotes.panes:";
 
-function loadTabs(root: string): TabsState {
+function loadPanes(root: string): Workspace {
   try {
-    return T.deserialize(localStorage.getItem(TABS_KEY + root));
+    return (
+      P.deserialize(localStorage.getItem(PANES_KEY + root)) ??
+      P.singlePane(T.deserialize(localStorage.getItem(TABS_KEY + root)))
+    );
   } catch {
-    return T.initialTabs();
+    return P.singlePane();
   }
 }
 
@@ -408,12 +497,13 @@ useAppStore.subscribe((s, prev) => {
     // Another vault (or none): its own tabs, checked against its files once they're listed.
     pruneRestoredTabs = root !== undefined;
     useAppStore.setState({
-      ...withTabs(root ? loadTabs(root) : T.initialTabs()),
+      ...withPanes(root ? loadPanes(root) : P.singlePane()),
       pendingTarget: null,
     });
-  } else if (root && s.tabs !== prev.tabs) {
+  } else if (root && (s.tabs !== prev.tabs || s.panes !== prev.panes)) {
     try {
       localStorage.setItem(TABS_KEY + root, T.serialize(s.tabs));
+      localStorage.setItem(PANES_KEY + root, P.serialize(workspaceOf(s)));
     } catch {
       // Storage full or blocked: tabs just won't come back next time.
     }

@@ -1,0 +1,91 @@
+/* Split panes in the main area (Workspace.tsx). Each pane is placed by its share of the
+   area; a 1px line separates neighbours, with a wider invisible handle for resizing. */
+.workspace {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.pane {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.pane:not([data-edge-left]) {
+  border-left: 1px solid var(--border);
+}
+.pane:not([data-edge-top]) {
+  border-top: 1px solid var(--border);
+}
+/* In a split, the focused pane's tab row says so: its active tab stands out. */
+.workspace:not(.single) .pane:not(.focused) .tab.active {
+  opacity: 0.75;
+}
+
+.pane-divider {
+  position: absolute;
+  z-index: 6;
+  touch-action: none;
+}
+.pane-divider.row {
+  width: 7px;
+  margin-left: -3px;
+  cursor: col-resize;
+}
+.pane-divider.column {
+  height: 7px;
+  margin-top: -3px;
+  cursor: row-resize;
+}
+.pane-divider:hover,
+body.pane-resizing .pane-divider:active {
+  background: linear-gradient(var(--accent), var(--accent)) center / 2px 100% no-repeat;
+}
+.pane-divider.column:hover,
+body.pane-resizing .pane-divider.column:active {
+  background-size: 100% 2px;
+}
+/* While resizing, the pointer keeps its cursor over the panes, and their notes don't
+   select text. */
+body.pane-resizing {
+  user-select: none;
+}
+body.pane-resizing.row * {
+  cursor: col-resize !important;
+}
+body.pane-resizing.column * {
+  cursor: row-resize !important;
+}
+
+/* Where a dragged tab would land on a pane's content: the half it would split off, or the
+   whole pane for moving the tab in. */
+.pane-drop-zone {
+  position: absolute;
+  z-index: 50;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-radius: 6px;
+  transition:
+    inset 120ms ease,
+    width 120ms ease,
+    height 120ms ease;
+}
+.pane-drop-zone.center {
+  inset: 6px;
+}
+.pane-drop-zone.left {
+  inset: 6px 50% 6px 6px;
+}
+.pane-drop-zone.right {
+  inset: 6px 6px 6px 50%;
+}
+.pane-drop-zone.top {
+  inset: 6px 6px 50% 6px;
+}
+.pane-drop-zone.bottom {
+  inset: 50% 6px 6px 6px;
+}
