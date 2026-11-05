@@ -4,6 +4,7 @@ import { emitTo, listen } from "@tauri-apps/api/event";
 import { Menu, MenuItem } from "@tauri-apps/api/menu";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Effect, getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { open } from "@tauri-apps/plugin-dialog";
 import type {
   AgentMessage,
@@ -198,14 +199,13 @@ export function createTauriBackend(): Backend {
     // see-through, borderless, always on top and kept off the taskbar; its capability
     // (capabilities/agent.json) only lets it listen, post messages, drag and show a menu.
     agentHost: {
-      async open(at, size) {
+      async open(at, width, height) {
         if (await WebviewWindow.getByLabel(AGENT_WINDOW)) return;
-        const side = Math.round(size * 1.25);
         const w = new WebviewWindow(AGENT_WINDOW, {
           url: "index.html?agent",
           title: "AXISNotes Agent",
-          width: side,
-          height: side,
+          width,
+          height,
           ...(at ? { x: at.x, y: at.y } : {}),
           resizable: false,
           decorations: false,
@@ -225,6 +225,11 @@ export function createTauriBackend(): Backend {
         await (await WebviewWindow.getByLabel(AGENT_WINDOW))?.destroy();
       },
       send: (view) => emitTo(AGENT_WINDOW, AGENT_VIEW_EVENT, view),
+      async resize(width, height) {
+        await (
+          await WebviewWindow.getByLabel(AGENT_WINDOW)
+        )?.setSize(new LogicalSize(width, height));
+      },
       onMessage: (cb) => listen<AgentMessage>(AGENT_MESSAGE_EVENT, (e) => cb(e.payload)),
       async focusMain() {
         const w = getCurrentWindow();

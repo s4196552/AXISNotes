@@ -13,6 +13,18 @@ import {
 import { loadAgentPosition, useAgentSettings } from "./agentSettings";
 import { loadAgentImages, useAgentImagesVersion, useAgentImageUrls } from "./agentImages";
 import { AgentFigure } from "./AgentFigure";
+import { AgentChatButton, AgentChatPanel, type ChatActions } from "./AgentChatPanel";
+import {
+  chatToDraft,
+  chatView,
+  closeChat,
+  openChat,
+  sendChat,
+  setChatUsesNote,
+  stopChat,
+  useAgentChat,
+  agentWindowSize,
+} from "./agentChat";
 
 // Runs in the main window while the Agent is on. It works out the Agent's state from AI
 // activity and the clock, and shows it: in its own always-on-top window on the desktop
@@ -33,8 +45,9 @@ function compute(): Shown {
       detail: at.detail,
       size: s.size,
       imagesVersion: useAgentImagesVersion.getState().version,
+      chat: chatView(),
     },
-    visible: s.mode === "always" || BUSY_STATES.includes(at.state),
+    visible: s.mode === "always" || BUSY_STATES.includes(at.state) || useAgentChat.getState().open,
   };
 }
 
@@ -65,6 +78,9 @@ function useAgentView(): Shown {
       useAgentActivity.subscribe(refresh),
       useAgentSettings.subscribe(refresh),
       useAgentImagesVersion.subscribe(refresh),
+      useAgentChat.subscribe(refresh),
+      // The open note's name shows in Quick Chat.
+      useAppStore.subscribe((a, b) => a.activePath !== b.activePath && refresh()),
     ];
     // Using the app keeps the Agent awake.
     const onUse = () => noteUserActivity();
@@ -97,11 +113,22 @@ function hideAgent() {
     .notify("The Agent is hidden. Turn it back on in Settings → Agent or the command palette.");
 }
 
+const report = (e: unknown) =>
+  useAppStore
+    .getState()
+    .notify(e instanceof Error ? e.message : String((e as { message?: unknown })?.message ?? e));
+
 function handle(m: AgentMessage, send: () => void) {
   if (m.kind === "ready") send();
   else if (m.kind === "open") void openFromAgent();
   else if (m.kind === "sleep") sleepNow();
   else if (m.kind === "hide") hideAgent();
+  else if (m.kind === "chat-open") openChat();
+  else if (m.kind === "chat-close") closeChat();
+  else if (m.kind === "chat-send") void sendChat(m.text);
+  else if (m.kind === "chat-stop") stopChat();
+  else if (m.kind === "chat-use-note") setChatUsesNote(m.on);
+  else if (m.kind === "chat-draft") void chatToDraft().catch(report);
 }
 
 export function AgentBridge() {
@@ -124,7 +151,8 @@ function WindowAgent() {
   useEffect(() => {
     if (!visible) return;
     let closed = false;
-    void host.open(loadAgentPosition(), view.size).then(
+    const { width, height } = agentWindowSize(view.size, latest.current.chat !== null);
+    void host.open(loadAgentPosition(), width, height).then(
       () => !closed && void host.send(latest.current),
       () => {},
     );
@@ -133,6 +161,14 @@ function WindowAgent() {
       void host.close();
     };
   }, [host, visible, view.size]);
+
+  // Grow for Quick Chat, shrink back when it closes.
+  const chatOpen = view.chat !== null;
+  useEffect(() => {
+    if (!visible) return;
+    const { width, height } = agentWindowSize(view.size, chatOpen);
+    void host.resize(width, height).catch(() => {});
+  }, [host, visible, view.size, chatOpen]);
 
   useEffect(() => {
     if (visible) void host.send(view).catch(() => {});
@@ -179,6 +215,14 @@ function InlineAgent() {
   const drag = useRef<{ x: number; y: number; right: number; bottom: number; moved: boolean }>(
     null,
   );
+  const chat: ChatActions = {
+    open: openChat,
+    close: closeChat,
+    send: (t) => void sendChat(t),
+    stop: stopChat,
+    useNote: setChatUsesNote,
+    draft: () => void chatToDraft().catch(report),
+  };
 
   if (!visible) return null;
   return (
@@ -250,6 +294,10 @@ function InlineAgent() {
         image={images[view.state]}
         detail={view.detail}
       />
+      <div className="agent-under">
+        <AgentChatButton on={chat} open={view.chat !== null} />
+      </div>
+      {view.chat && <AgentChatPanel chat={view.chat} on={chat} />}
     </div>
   );
 }
