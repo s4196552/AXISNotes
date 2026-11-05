@@ -106,7 +106,8 @@ function handle(m: AgentMessage, send: () => void) {
 
 export function AgentBridge() {
   const mode = useAgentSettings((s) => s.mode);
-  if (mode === "off") return null;
+  // Automated end-to-end runs drive one window; a second one would get in their way.
+  if (mode === "off" || navigator.webdriver) return null;
   return backend.agentHost ? <WindowAgent /> : <InlineAgent />;
 }
 
