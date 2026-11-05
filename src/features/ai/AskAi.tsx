@@ -9,8 +9,11 @@ import {
   isBackendError,
 } from "../../ipc";
 import { useAppStore } from "../../app/store";
+import { useConfig } from "../../app/config";
+import { folderScope, MAX_FOLDER_NOTES } from "./folderScope";
 import { getActiveEditor } from "../editor/activeEditor";
 import { editNote } from "../files/editNote";
+import { createUniqueNote } from "../commands/actions";
 import "./ai.css";
 
 // Ask an AI model about the open note (or a selection). Shows where the request goes and
@@ -22,6 +25,8 @@ export interface AskAiProps {
   path?: string;
   /** Selected text in that note, if any. */
   selection?: string;
+  /** A folder whose notes to offer as context ("" = the vault's top level). */
+  folder?: string;
   onClose(): void;
 }
 
@@ -33,6 +38,9 @@ type Phase =
   | { kind: "error"; message: string; blocked: boolean };
 
 const noteName = (path: string) => path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
+const folderName = (folder: string) =>
+  folder ? folder.slice(folder.lastIndexOf("/") + 1) : "Vault";
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
 const errorOf = (e: unknown): Phase => ({
   kind: "error",
@@ -40,7 +48,7 @@ const errorOf = (e: unknown): Phase => ({
   blocked: isBackendError(e) && e.code === "Blocked",
 });
 
-export function AskAi({ path, selection, onClose }: AskAiProps) {
+export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
   const [prompt, setPrompt] = useState("");
   const [useNote, setUseNote] = useState(Boolean(path) && !selection);
   const [useSelection, setUseSelection] = useState(Boolean(selection));
@@ -50,6 +58,15 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [answer, setAnswer] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isFolder = folder !== undefined;
+  const [useFolder, setUseFolder] = useState(true);
+  const [subfolders, setSubfolders] = useState(false);
+  const notes = useAppStore((s) => s.notes);
+  const rules = useConfig((s) => s.config.ai.folders);
+  const scope = useMemo(
+    () => (isFolder ? folderScope(notes, folder, subfolders, rules) : null),
+    [isFolder, notes, folder, subfolders, rules],
+  );
 
   useEffect(() => {
     backend.aiSettings().then(
@@ -69,16 +86,20 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
           content: [
             {
               type: "text",
-              text: "You are a helpful assistant inside a Markdown note-taking app. Answer in Markdown.",
+              text:
+                "You are a helpful assistant inside a Markdown note-taking app. Answer in Markdown." +
+                (scope && useFolder
+                  ? ` The attached notes are the notes in the folder "${folderName(folder!)}"; mention a note by its name when you use it.`
+                  : ""),
             },
           ],
         },
         { role: "user", content: [{ type: "text", text: context + prompt }] },
       ],
-      attach: useNote && path ? [path] : [],
+      attach: scope ? (useFolder ? scope.include : []) : useNote && path ? [path] : [],
       sources: useSelection && selection && path ? [path] : [],
     };
-  }, [prompt, useNote, useSelection, selection, path, effort]);
+  }, [prompt, useNote, useSelection, selection, path, effort, scope, useFolder, folder]);
 
   // Preview where the request would go (debounced while typing).
   useEffect(() => {
@@ -152,6 +173,23 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
     }
   };
 
+  /** Save a folder answer as a new note in that folder, and open it. */
+  const saveAsNote = async () => {
+    try {
+      const created = await createUniqueNote(
+        folder ?? "",
+        "AI answer",
+        `${answer.trim()}\n`,
+        ".md",
+      );
+      await useAppStore.getState().refreshTree();
+      useAppStore.getState().openFile(created);
+      onClose();
+    } catch (e) {
+      setPhase(errorOf(e));
+    }
+  };
+
   const running = phase.kind === "running";
   const canInsert = Boolean(path && getActiveEditor()?.path === path);
 
@@ -176,7 +214,13 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
             ref={inputRef}
             className="ask-ai-input"
             aria-label="Question"
-            placeholder={path ? `Ask about ${noteName(path)}…` : "Ask anything…"}
+            placeholder={
+              isFolder
+                ? `Ask about the notes in ${folderName(folder)}…`
+                : path
+                  ? `Ask about ${noteName(path)}…`
+                  : "Ask anything…"
+            }
             autoFocus
             rows={3}
             value={prompt}
@@ -190,7 +234,29 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
             }}
           />
           <div className="ask-ai-options">
-            {path && (
+            {scope && (
+              <>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={useFolder}
+                    disabled={running}
+                    onChange={(e) => setUseFolder(e.target.checked)}
+                  />
+                  Include {plural(scope.include.length, "note")} in “{folderName(folder!)}”
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={subfolders}
+                    disabled={running}
+                    onChange={(e) => setSubfolders(e.target.checked)}
+                  />
+                  Subfolders
+                </label>
+              </>
+            )}
+            {path && !isFolder && (
               <label>
                 <input
                   type="checkbox"
@@ -223,6 +289,25 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
               <option value="deep">Deep</option>
             </select>
           </div>
+
+          {scope && useFolder && (scope.never.length > 0 || scope.overLimit > 0) && (
+            <p className="ask-ai-skipped muted" aria-label="Left out">
+              {scope.never.length > 0 && (
+                <span title={scope.never.join("\n")}>
+                  {plural(scope.never.length, "note")} marked “AI: never” left out.
+                </span>
+              )}
+              {scope.overLimit > 0 && (
+                <span>
+                  {" "}
+                  Only the first {MAX_FOLDER_NOTES} notes are sent; {scope.overLimit} more left out.
+                </span>
+              )}
+            </p>
+          )}
+          {scope && useFolder && scope.include.length === 0 && (
+            <p className="ask-ai-skipped muted">This folder has no notes the AI may read.</p>
+          )}
 
           <div className="ask-ai-plan" aria-live="polite" aria-label="Destination">
             {plan && (
@@ -286,7 +371,8 @@ export function AskAi({ path, selection, onClose }: AskAiProps) {
                 <Copy size={13} /> Copy
               </button>
               {canInsert && <button onClick={insert}>Insert at cursor</button>}
-              {path && <button onClick={() => void append()}>Append to note</button>}
+              {path && !isFolder && <button onClick={() => void append()}>Append to note</button>}
+              {isFolder && <button onClick={() => void saveAsNote()}>Save as a note here</button>}
             </>
           )}
           <span className="ask-ai-spacer" />
