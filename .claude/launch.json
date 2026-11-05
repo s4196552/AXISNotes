@@ -2,6 +2,30 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "axis-T-171",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", ".worktrees/T-171", "exec", "vite", "--port", "1871", "--strictPort"],
+      "port": 1871
+    },
+    {
+      "name": "axis-T-164",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", ".worktrees/T-164", "exec", "vite", "--port", "1764"],
+      "port": 1764
+    },
+    {
+      "name": "axis-T-170",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", ".worktrees/T-170", "exec", "vite", "--port", "1870", "--strictPort"],
+      "port": 1870
+    },
+    {
+      "name": "axis-T-163",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-C", ".worktrees/T-163", "exec", "vite", "--port", "1863", "--strictPort"],
+      "port": 1863
+    },
+    {
       "name": "axis-T-120",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["-C", "../axis-T-120", "exec", "vite", "--port", "1820"],
