@@ -153,32 +153,6 @@
   font-weight: 600;
 }
 
-/* Per-theme character in the miniatures. */
-[data-theme-preview="glass"] .tp-shell {
-  gap: 4px;
-  padding: 4px;
-}
-[data-theme-preview="glass"] :is(.tp-side, .tp-main) {
-  border: 1px solid var(--glass-edge);
-  border-radius: 7px;
-  backdrop-filter: var(--glass-blur);
-}
-[data-theme-preview="glass"] .tp-active {
-  background: var(--accent);
-}
-[data-theme-preview="retro"] .tp-active {
-  outline: 1px solid var(--border);
-}
-[data-theme-preview="retro"] .tp-pill {
-  border-radius: 1px;
-  box-shadow: 1.5px 1.5px 0 var(--border);
-}
-[data-theme-preview="contrast"] .tp-line {
-  opacity: 1;
-}
-[data-theme-preview="contrast"] .tp-active {
-  outline: 1px solid var(--accent);
-}
 /* Translucent: a desktop wallpaper shows through the miniature at the chosen opacity. */
 .tp[data-theme-preview="translucent"] {
   background:

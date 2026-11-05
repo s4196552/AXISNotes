@@ -1,5 +1,12 @@
 import { backend, type OsWindowEffect } from "../ipc";
-import type { AxisConfig, EditorWidth, FoldArrow, HeadingColors, WindowEffect } from "./config";
+import {
+  type AxisConfig,
+  type EditorWidth,
+  type FoldArrow,
+  type HeadingColors,
+  REMOVED_THEMES,
+  type WindowEffect,
+} from "./config";
 
 // Applies the theme and CSS snippets from the vault config to the document.
 // Built-in modes set `data-theme`; user themes and snippets are injected <style> tags.
@@ -14,11 +21,7 @@ export const BUILTIN_THEMES = [
   "light",
   "dark",
   "axis:darker",
-  "axis:minimal",
-  "axis:glass",
   "axis:translucent",
-  "axis:contrast",
-  "axis:retro",
 ] as const;
 export type BuiltinTheme = (typeof BUILTIN_THEMES)[number];
 
@@ -31,23 +34,20 @@ export const THEME_INFO: Record<
   light: { label: "Light", note: "The classic AXISNotes look", mode: "light" },
   dark: { label: "Dark", note: "Easy on the eyes at night", mode: "dark" },
   "axis:darker": { label: "Darker", note: "Near-black, for OLED screens", mode: "dark" },
-  "axis:minimal": { label: "Minimal", note: "Monochrome ink, no distractions", mode: "light" },
-  "axis:glass": { label: "Glass", note: "Frosted panels; follows light/dark", mode: "system" },
   "axis:translucent": {
     label: "Translucent",
     note: "See your desktop through it; opacity is yours",
     mode: "system",
   },
-  "axis:contrast": {
-    label: "High contrast",
-    note: "Black, white and yellow; strong edges",
-    mode: "dark",
-  },
-  "axis:retro": { label: "Retro", note: "Cream paper, ink lines, typewriter type", mode: "light" },
 };
 
 export function isBuiltinTheme(theme: string): theme is BuiltinTheme {
   return (BUILTIN_THEMES as readonly string[]).includes(theme);
+}
+
+/** The theme to show for a saved id: a removed built-in becomes its kept counterpart. */
+export function keptTheme(theme: string): string {
+  return REMOVED_THEMES.get(theme) ?? theme;
 }
 
 /** The `data-theme` / `data-theme-preview` value the CSS uses for a built-in theme. */
@@ -95,12 +95,12 @@ export function onThemeChange(listener: () => void): () => void {
 
 export async function applyAppearance(config: Pick<AxisConfig, "theme" | "snippets">) {
   const root = document.documentElement;
-  const { theme } = config;
+  const theme = keptTheme(config.theme);
   const builtin = isBuiltinTheme(theme);
   if (builtin && theme !== "system") root.dataset.theme = themeCssName(theme);
   else delete root.dataset.theme;
 
-  const themeCss = builtin ? "" : await readCss("themes", config.theme);
+  const themeCss = builtin ? "" : await readCss("themes", theme);
   styleTag(THEME_STYLE_ID).textContent = themeCss;
 
   const wanted = new Set(config.snippets);
@@ -431,7 +431,8 @@ export async function applyTranslucency(
 }
 
 /** The effective light/dark mode, for "toggle theme". */
-export function effectiveMode(theme: string): "light" | "dark" {
+export function effectiveMode(saved: string): "light" | "dark" {
+  const theme = keptTheme(saved);
   const mode = isBuiltinTheme(theme) ? THEME_INFO[theme].mode : "system";
   if (mode !== "system") return mode;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";

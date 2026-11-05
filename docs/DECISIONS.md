@@ -2,6 +2,14 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-06: Theme revamp, step one: four built-in themes removed (T-176)
+
+- **High contrast, Retro, Glass and Minimal are gone** (their tokens, structural CSS, picker tiles and miniatures). Light, Dark, Match system, Darker and Translucent stay, as do user themes and CSS snippets. This supersedes those four from the 2026-10-09 entry (T-067).
+- **A vault that saved one gets the kept theme of the same mode**, mapped by `REMOVED_THEMES` in `src/app/config.ts`: Minimal and Retro become Light, High contrast becomes Dark, Glass becomes Match system (it followed the OS).
+  - The config is migrated on load, and is saved with the new id on the user's next change.
+  - `applyAppearance` and `effectiveMode` map the old ids too, so a stale id never leaves the app unstyled or looks for a user theme called `axis:retro`.
+  - Only the `axis:`-prefixed ids are mapped, so a user's own `retro.css` (saved as `retro`) still loads.
+
 ## 2026-11-06: Drafts, Quick Chat and AI skills (T-173, T-174, T-175)
 
 - **Drafts (T-174):**

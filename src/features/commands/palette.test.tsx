@@ -134,9 +134,9 @@ describe("command palette", () => {
     render(<Modals />);
     fireEvent.keyDown(openPalette("choose theme"), { key: "Enter" });
     const input = screen.getByRole("combobox", { name: "Choose theme" });
-    fireEvent.change(input, { target: { value: "retro" } });
+    fireEvent.change(input, { target: { value: "darker" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    await waitFor(() => expect(useConfig.getState().config.theme).toBe("axis:retro"));
+    await waitFor(() => expect(useConfig.getState().config.theme).toBe("axis:darker"));
   });
 });
 

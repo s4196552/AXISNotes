@@ -32,7 +32,7 @@ beforeEach(async () => {
 
 describe("built-in themes", () => {
   it("set data-theme for every built-in except Match system; a user theme loads its CSS", async () => {
-    for (const name of ["darker", "minimal", "glass", "translucent", "contrast", "retro"]) {
+    for (const name of ["darker", "translucent"]) {
       await applyAppearance({ theme: `axis:${name}`, snippets: [] });
       expect(document.documentElement.dataset.theme).toBe(name);
     }
@@ -49,42 +49,32 @@ describe("built-in themes", () => {
     await applyAppearance({ theme: "retro", snippets: [] });
     expect(document.documentElement.dataset.theme).toBeUndefined();
     expect(document.getElementById("axis-user-theme")?.textContent).toContain("#123456");
-    await applyAppearance({ theme: "axis:retro", snippets: [] });
-    expect(document.documentElement.dataset.theme).toBe("retro");
+    await applyAppearance({ theme: "axis:darker", snippets: [] });
+    expect(document.documentElement.dataset.theme).toBe("darker");
     expect(document.getElementById("axis-user-theme")?.textContent).toBe("");
   });
 
-  it("keep Glass's blur off panes and dialogs, so their fixed menus aren't moved or clipped", () => {
-    // `backdrop-filter` makes an element the containing block of fixed-position children.
+  it("never give panes or dialogs their own stacking context, so a menu isn't covered", () => {
     const css = readFileSync("src/styles/themes.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-      // Nor a stacking context per pane, which would let the next pane cover a menu.
       if (/\.(sidebar|content|modal)(?!-)/.test(rule[1]!))
         expect(rule[2]).not.toMatch(/isolation:/);
-      if (!/backdrop-filter:\s*var\(--glass-blur\)/.test(rule[2]!)) continue;
-      for (const sel of rule[1]!.split(/,(?![^(]*\))/)) {
-        if (/\.(sidebar|content|modal)(?!-)/.test(sel)) expect(sel.trim()).toMatch(/::before$/);
-      }
     }
   });
 
   it("know whether they're light or dark (toggle theme, canvas, diagrams)", () => {
     expect(effectiveMode("axis:darker")).toBe("dark");
-    expect(effectiveMode("axis:contrast")).toBe("dark");
-    expect(effectiveMode("axis:minimal")).toBe("light");
-    expect(effectiveMode("axis:retro")).toBe("light");
-    // Glass and Translucent follow the OS, like Match system (jsdom reports light).
-    expect(effectiveMode("axis:glass")).toBe(effectiveMode("system"));
+    // Translucent follows the OS, like Match system (jsdom reports light).
     expect(effectiveMode("axis:translucent")).toBe(effectiveMode("system"));
   });
 
   it("tell listeners when the theme changes, until they unsubscribe", async () => {
     const listener = vi.fn();
     const stop = onThemeChange(listener);
-    await applyAppearance({ theme: "axis:retro", snippets: [] });
+    await applyAppearance({ theme: "axis:darker", snippets: [] });
     expect(listener).toHaveBeenCalledTimes(1);
     stop();
-    await applyAppearance({ theme: "axis:glass", snippets: [] });
+    await applyAppearance({ theme: "dark", snippets: [] });
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
@@ -92,7 +82,7 @@ describe("built-in themes", () => {
     const css = readFileSync("src/styles/themes.css", "utf8");
     const tokens = ["--bg", "--bg-sidebar", "--bg-elevated", "--bg-hover", "--bg-active", "--fg"];
     const more = ["--fg-muted", "--border", "--accent", "--accent-fg", "--danger", "--code-bg"];
-    for (const theme of ["darker", "minimal", "glass", "translucent", "contrast", "retro"]) {
+    for (const theme of ["darker", "translucent"]) {
       const block = new RegExp(
         String.raw`:root\[data-theme="${theme}"\],\s*\[data-theme-preview="${theme}"\]\s*\{([^}]*)\}`,
       ).exec(css)?.[1];
@@ -139,7 +129,7 @@ describe("Translucent", () => {
     await applyTranslucency("axis:translucent", { ...look, windowOpacity: 55 });
     expect(fx).toHaveBeenCalledTimes(calls);
     // Any other theme: solid, no effect.
-    await applyTranslucency("axis:glass", look);
+    await applyTranslucency("dark", look);
     expect(alpha()).toBe("1");
     expect(fx).toHaveBeenLastCalledWith(null);
   });
@@ -157,7 +147,7 @@ describe("Translucent", () => {
     expect(lens[0]!.querySelector("feDisplacementMap")).not.toBeNull();
     await applyTranslucency("axis:translucent", look);
     expect(root.dataset.glass).toBeUndefined();
-    await applyTranslucency("axis:glass", liquid);
+    await applyTranslucency("dark", liquid);
     expect(root.dataset.glass).toBeUndefined();
     // The styles reference the filter by the id appearance.ts gives it.
     expect(readFileSync("src/styles/themes.css", "utf8")).toContain("url(#axis-liquid-lens)");
@@ -165,7 +155,7 @@ describe("Translucent", () => {
 
   it("sends effect changes one at a time, in order, however fast they come", async () => {
     h.b.canBeTranslucent = () => true;
-    await applyTranslucency("axis:glass", look); // start from no effect
+    await applyTranslucency("dark", look); // start from no effect
     const log: string[] = [];
     vi.spyOn(h.b, "setWindowEffect").mockImplementation(async (fx) => {
       log.push(`start ${fx}`);
@@ -314,18 +304,76 @@ describe("Settings → Appearance → Theme", () => {
     }
     expect(within(group).getByRole("radio", { name: "Match system" })).toBeChecked();
     // Each built-in tile previews itself with its own tokens.
-    expect(group.querySelector('[data-theme-preview="retro"]')).not.toBeNull();
+    expect(group.querySelector('[data-theme-preview="darker"]')).not.toBeNull();
     expect(
       group.querySelectorAll('[data-theme-preview="light"], [data-theme-preview="dark"]'),
     ).toHaveLength(4); // Light, Dark, and both halves of Match system
 
     fireEvent.click(await within(group).findByRole("radio", { name: "Nord" }));
-    fireEvent.click(within(group).getByRole("radio", { name: "Glass" }));
+    fireEvent.click(within(group).getByRole("radio", { name: "Darker" }));
     await waitFor(async () =>
       expect(JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).theme).toBe(
-        "axis:glass",
+        "axis:darker",
       ),
     );
-    expect(within(group).getByRole("radio", { name: "Glass" })).toBeChecked();
+    expect(within(group).getByRole("radio", { name: "Darker" })).toBeChecked();
+  });
+
+  it("no longer offers High contrast, Retro, Glass or Minimal, or has styles for them", () => {
+    render(<Settings section="appearance" onClose={vi.fn()} />);
+    const group = screen.getByRole("radiogroup", { name: "Theme" });
+    for (const name of ["High contrast", "Retro", "Glass", "Minimal"])
+      expect(within(group).queryByRole("radio", { name })).toBeNull();
+    const css = [
+      "src/styles/theme.css",
+      "src/styles/themes.css",
+      "src/features/settings/themePicker.css",
+    ]
+      .map((f) => readFileSync(f, "utf8"))
+      .join("\n");
+    for (const id of ["contrast", "retro", "glass", "minimal"])
+      expect(css).not.toMatch(new RegExp(`data-theme(-preview)?="${id}"`));
+  });
+});
+
+describe("removed themes (0.3.58)", () => {
+  const load = async (theme: string) => {
+    await h.b.writeFile(".axisnotes/config.json", JSON.stringify({ theme }));
+    await useConfig.getState().load();
+    return useConfig.getState().config.theme;
+  };
+
+  it("a vault saved with one falls back to its light/dark counterpart on load", async () => {
+    expect(await load("axis:minimal")).toBe("light");
+    expect(await load("axis:retro")).toBe("light");
+    expect(await load("axis:contrast")).toBe("dark");
+    expect(await load("axis:glass")).toBe("system");
+    // Kept themes and a user's own same-named theme are untouched.
+    expect(await load("axis:darker")).toBe("axis:darker");
+    expect(await load("retro")).toBe("retro");
+    expect(await load("constructor")).toBe("constructor");
+  });
+
+  it("still styles the app, without an error, if an old id reaches it", async () => {
+    const warn = vi.spyOn(console, "warn");
+    await applyAppearance({ theme: "axis:contrast", snippets: [] });
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.getElementById("axis-user-theme")?.textContent).toBe("");
+    await applyAppearance({ theme: "axis:retro", snippets: [] });
+    expect(document.documentElement.dataset.theme).toBe("light");
+    await applyAppearance({ theme: "axis:glass", snippets: [] });
+    expect(document.documentElement.dataset.theme).toBeUndefined(); // Match system
+    expect(document.getElementById("axis-user-theme")?.textContent).toBe("");
+    expect(effectiveMode("axis:contrast")).toBe("dark");
+    expect(effectiveMode("axis:minimal")).toBe("light");
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("Settings then shows the counterpart as the chosen theme", async () => {
+    await load("axis:contrast");
+    render(<Settings section="appearance" onClose={vi.fn()} />);
+    const group = screen.getByRole("radiogroup", { name: "Theme" });
+    expect(within(group).getByRole("radio", { name: "Dark" })).toBeChecked();
   });
 });
