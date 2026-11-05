@@ -6,17 +6,7 @@ import { Key } from "webdriverio";
 const vault = process.env.AXIS_E2E_VAULT!;
 const config = () =>
   JSON.parse(fs.readFileSync(path.join(vault, ".axisnotes/config.json"), "utf8"));
-const themes = [
-  "system",
-  "light",
-  "dark",
-  "axis:darker",
-  "axis:minimal",
-  "axis:glass",
-  "axis:translucent",
-  "axis:contrast",
-  "axis:retro",
-];
+const themes = ["system", "light", "dark", "axis:darker", "axis:translucent"];
 const screenshot = async (name: string) => {
   const dir = path.resolve(".agents/qa/T-128");
   fs.mkdirSync(dir, { recursive: true });

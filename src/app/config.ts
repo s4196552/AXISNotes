@@ -180,6 +180,24 @@ export function migrateWindowEffect(raw: unknown): unknown {
   return { ...raw, appearance: { ...a, windowEffect: "clear" } };
 }
 
+/**
+ * Built-in themes removed in 0.3.58 (T-176), each with the kept theme of the same light/dark
+ * mode. A user's own `retro.css` is saved as `retro`, not `axis:retro`, so it is untouched.
+ */
+export const REMOVED_THEMES: ReadonlyMap<string, string> = new Map([
+  ["axis:minimal", "light"],
+  ["axis:retro", "light"],
+  ["axis:contrast", "dark"],
+  ["axis:glass", "system"],
+]);
+
+/** A saved theme that was removed becomes its light/dark counterpart. Runs before merging. */
+export function migrateRemovedThemes(raw: unknown): unknown {
+  if (!isObject(raw) || typeof raw.theme !== "string") return raw;
+  const kept = REMOVED_THEMES.get(raw.theme);
+  return kept ? { ...raw, theme: kept } : raw;
+}
+
 /** Deep-merge `raw` over the defaults, ignoring values of the wrong type. */
 export function mergeConfig(raw: unknown): AxisConfig & Record<string, unknown> {
   const merge = (def: unknown, val: unknown): unknown => {
@@ -211,7 +229,9 @@ export const useConfig = create<ConfigState>((set, get) => ({
   async load() {
     try {
       const file = await backend.readFile(CONFIG_PATH);
-      const raw = migrateWindowEffect(migrateTriggers(JSON.parse(file.content || "{}")));
+      const raw = migrateRemovedThemes(
+        migrateWindowEffect(migrateTriggers(JSON.parse(file.content || "{}"))),
+      );
       set({ config: mergeConfig(raw), loaded: true });
     } catch (e) {
       // Missing or invalid: fall back to defaults (written on first change).
