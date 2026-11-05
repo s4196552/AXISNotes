@@ -45,6 +45,7 @@ import { useAppStore } from "../../app/store";
 import { useFitToViewport } from "../../app/menuPosition";
 import { type EntryColors, type FolderIcon, useConfig } from "../../app/config";
 import { useUi } from "../commands/ui";
+import { isNotePath } from "../../lib/markdown";
 import { EntryIcon } from "../icons/EntryIcon";
 import { hasDashboard } from "../dashboard/dashboardModel";
 import { remapIcons } from "../files/renameEntry";
@@ -920,6 +921,26 @@ export function FileTree() {
               )}
               {menu.entry && (
                 <>
+                  {(menu.entry.kind === "dir" || isNotePath(menu.entry.path)) && (
+                    <MenuItem
+                      label={
+                        menu.entry.kind === "dir"
+                          ? "Ask AI about this folder"
+                          : "Ask AI about this note"
+                      }
+                      icon={Sparkles}
+                      onClick={() =>
+                        useUi
+                          .getState()
+                          .open(
+                            menu.entry!.kind === "dir"
+                              ? { kind: "ask", folder: menu.entry!.path }
+                              : { kind: "ask", path: menu.entry!.path },
+                          )
+                      }
+                      close={setMenu}
+                    />
+                  )}
                   <AiRuleItems path={menu.entry.path} close={setMenu} />
                   <MenuItem
                     label="Rename"
