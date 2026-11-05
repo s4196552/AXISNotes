@@ -97,6 +97,12 @@ export function dismiss() {
 const noteName = (path?: string) =>
   path ? path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "") : "";
 
+/** An error message short enough for the Agent's tooltip. */
+const shorten = (m?: string) => {
+  const t = (m ?? "").replace(/\s+/g, " ").trim();
+  return t.length > 90 ? `${t.slice(0, 89)}…` : t;
+};
+
 export interface AgentStateAt {
   state: AgentState;
   detail: string;
@@ -124,7 +130,7 @@ export function agentStateAt(a: AgentActivity, now: number, sleepMs: number): Ag
             : "Done"
           : a.last.status === "blocked"
             ? "Not sent: a privacy rule blocked it"
-            : "Something went wrong";
+            : shorten(a.last.message) || "Something went wrong";
       return {
         state: a.last.status === "ok" ? "done" : "needsYou",
         detail,

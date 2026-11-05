@@ -290,7 +290,7 @@ describe("settings sections", () => {
     render(<Settings onClose={vi.fn()} />);
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
     const buttons = nav.querySelectorAll("button");
-    expect(buttons.length).toBe(12);
+    expect(buttons.length).toBe(13);
     for (const b of buttons) {
       expect(b.querySelector("svg[aria-hidden='true']")).not.toBeNull();
       expect(b.textContent).not.toBe("");

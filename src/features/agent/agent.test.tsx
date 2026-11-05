@@ -48,6 +48,12 @@ describe("agentStateAt", () => {
       detail: "Not sent: a privacy rule blocked it",
     });
     expect(agentStateAt(a, NEEDS_YOU_MS, 10 * MIN).state).toBe("idle");
+    const failed = applyActivity(
+      a,
+      { kind: "end", runId: "r", status: "error", message: "No AI provider is set up." },
+      0,
+    );
+    expect(agentStateAt(failed, 1, 10 * MIN).detail).toBe("No AI provider is set up.");
   });
 
   it("a cancelled run just ends; working wins over thinking with two runs", () => {
