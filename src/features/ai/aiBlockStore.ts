@@ -30,6 +30,14 @@ export interface AiBlockState {
   choice: AiChoice;
   phase: AiBlockPhase;
   answer: string;
+  /** The skill this block runs (its id), or null for a plain prompt. */
+  skill?: string | null;
+  /** A chat skill's conversation so far. */
+  turns?: { role: "user" | "assistant"; text: string }[];
+  /** A page skill's checked HTML. */
+  html?: string | null;
+  /** A files skill's checked files and message. */
+  files?: { message: string; files: { path: string; content: string }[] } | null;
 }
 
 interface AiBlocksStore {

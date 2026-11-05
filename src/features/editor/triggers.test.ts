@@ -709,6 +709,7 @@ describe("command menu sections", () => {
       "Diagrams and pen",
       "Page style",
       "Custom",
+      "Skills",
     ]);
 
     type(view, "list");

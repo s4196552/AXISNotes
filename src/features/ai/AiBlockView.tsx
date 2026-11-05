@@ -25,6 +25,10 @@ import {
   useAiBlocks,
 } from "./aiBlockStore";
 import { ModelPicker } from "./ModelPicker";
+import { freshSkill, useSkills } from "../skills/skills";
+import { runSkill, skillRequest } from "../skills/skillRun";
+import { ChatActions, ChatTranscript, FilesResult, PageResult } from "../skills/SkillResult";
+import { skillIcon } from "../skills/skillIcons";
 
 // One AI block in a note: a prompt, what the request reads (this note, the selection),
 // the model and effort, then the streamed answer to insert, retry or discard. The note
@@ -49,9 +53,13 @@ const errorPhase = (e: unknown): AiBlockPhase => ({
   blocked: isBackendError(e) && e.code === "Blocked",
 });
 
-function initialState(hasSelection: boolean): AiBlockState {
+function initialState(hasSelection: boolean, skill: string | null): AiBlockState {
   const vault = useAppStore.getState().vault?.root;
   return {
+    skill,
+    turns: [],
+    html: null,
+    files: null,
     prompt: "",
     useNote: !hasSelection,
     useSelection: hasSelection,
@@ -70,10 +78,13 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
   const [planError, setPlanError] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const fresh = useRef(!useAiBlocks.getState().blocks[id]);
+  const skill =
+    useSkills((s) => (state?.skill ? s.skills.find((k) => k.id === state.skill) : undefined)) ??
+    null;
 
   useEffect(() => {
     if (useAiBlocks.getState().blocks[id]) return;
-    useAiBlocks.getState().init(id, initialState(Boolean(selection?.text)));
+    useAiBlocks.getState().init(id, initialState(Boolean(selection?.text), spec?.skill ?? null));
     // Without a remembered choice, start from the effort set in Settings → AI.
     if (!loadChoice(useAppStore.getState().vault?.root))
       backend.aiSettings().then(
@@ -83,7 +94,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           }),
         () => {},
       );
-  }, [id, path, selection?.text]);
+  }, [id, path, selection?.text, spec?.skill]);
 
   useEffect(() => {
     if (fresh.current && state) {
@@ -96,6 +107,16 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
 
   const request = useMemo((): AiRunRequest | null => {
     if (!state) return null;
+    if (skill)
+      return skillRequest({
+        skill,
+        prompt: state.prompt,
+        turns: state.turns ?? [],
+        path,
+        useNote: state.useNote,
+        selectionText: state.useSelection ? selection?.text : undefined,
+        choice: state.choice,
+      });
     const sel = state.useSelection && selection?.text;
     const context = sel ? `Selected text:\n"""\n${selection.text}\n"""\n\n` : "";
     return {
@@ -110,7 +131,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       attach: state.useNote ? [path] : [],
       sources: sel ? [path] : [],
     };
-  }, [state, selection, path]);
+  }, [state, selection, path, skill]);
 
   // Where the request would go (debounced while typing).
   useEffect(() => {
@@ -142,7 +163,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
 
   async function run(confirmed = false) {
     const cur = useAiBlocks.getState().blocks[id];
-    if (!cur || !cur.prompt.trim() || cur.phase.kind === "running" || !request) return;
+    if (!cur || (!cur.prompt.trim() && !skill) || cur.phase.kind === "running" || !request) return;
     if (!confirmed) {
       const p = await backend.aiPlan(request).catch(() => null);
       if (p?.needsConfirm) {
@@ -150,6 +171,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         return;
       }
     }
+    if (skill) return runTheSkill(cur);
     const runId = crypto.randomUUID();
     patch({ answer: "", phase: { kind: "running", runId, thinking: true } });
     try {
@@ -157,6 +179,55 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         useAiBlocks.getState().appendAnswer(id, d),
       );
       patch({ answer: result.text, phase: { kind: "done", result } });
+    } catch (e) {
+      if (!useAiBlocks.getState().blocks[id]) return; // closed meanwhile
+      patch({
+        phase: isBackendError(e) && e.code === "Cancelled" ? { kind: "idle" } : errorPhase(e),
+      });
+    }
+  }
+
+  async function runTheSkill(cur: AiBlockState) {
+    const s = (await freshSkill(skill!.id)) ?? skill!;
+    const req = skillRequest({
+      skill: s,
+      prompt: cur.prompt,
+      turns: cur.turns ?? [],
+      path,
+      useNote: cur.useNote,
+      selectionText: cur.useSelection ? selection?.text : undefined,
+      choice: cur.choice,
+    });
+    const asked = cur.prompt.trim() || (s.output === "chat" ? "Start the interview." : "");
+    patch({
+      answer: "",
+      html: null,
+      files: null,
+      phase: { kind: "running", runId: "", thinking: true },
+    });
+    try {
+      const out = await runSkill(
+        s,
+        req,
+        (runId) => patch({ answer: "", phase: { kind: "running", runId, thinking: true } }),
+        (d) => useAiBlocks.getState().appendAnswer(id, d),
+      );
+      if (!useAiBlocks.getState().blocks[id]) return;
+      const done = { kind: "done" as const, result: out.result };
+      if (out.kind === "html") patch({ html: out.html, answer: "", phase: done });
+      else if (out.kind === "files") patch({ files: out.files, answer: "", phase: done });
+      else if (s.output === "chat")
+        patch({
+          turns: [
+            ...(cur.turns ?? []),
+            { role: "user", text: asked },
+            { role: "assistant", text: out.result.text },
+          ],
+          answer: "",
+          prompt: "",
+          phase: done,
+        });
+      else patch({ answer: out.result.text, phase: done });
     } catch (e) {
       if (!useAiBlocks.getState().blocks[id]) return; // closed meanwhile
       patch({
@@ -211,7 +282,13 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           ref={input}
           className="ai-block-input"
           aria-label="AI prompt"
-          placeholder="Ask AI to write, summarise, explain…"
+          placeholder={
+            !skill
+              ? "Ask AI to write, summarise, explain…"
+              : skill.output === "chat" && state.turns?.length
+                ? "Reply…"
+                : "Anything to add? (optional)"
+          }
           rows={1}
           value={state.prompt}
           disabled={running}
@@ -229,6 +306,24 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       </div>
 
       <div className="ai-block-row">
+        {skill && (
+          <span className="ai-chip ai-skill" title={skill.description}>
+            {(() => {
+              const Icon = skillIcon(skill.id);
+              return <Icon size={12} aria-hidden />;
+            })()}
+            Skill: {skill.title}
+            <button
+              type="button"
+              className="ai-skill-remove"
+              aria-label={`Stop using the ${skill.title} skill`}
+              disabled={running}
+              onClick={() => patch({ skill: null, turns: [], html: null, files: null })}
+            >
+              <X size={11} />
+            </button>
+          </span>
+        )}
         <button
           type="button"
           className="ai-chip ai-scope"
@@ -242,7 +337,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           }
         >
           {state.useNote ? "Reads: " : "Not reading: "}
-          {noteName(path)}
+          {skill?.reads === "folder" ? `notes in ${folderOf(path) || "the vault"}` : noteName(path)}
         </button>
         {selection?.text && (
           <button
@@ -287,11 +382,12 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           <button
             type="button"
             className="ai-chip primary"
-            disabled={!state.prompt.trim()}
+            disabled={!state.prompt.trim() && !skill}
             onClick={() => void run()}
             title="Enter"
           >
-            Run <CornerDownLeft size={11} aria-hidden />
+            {skill?.output === "chat" && state.turns?.length ? "Reply" : "Run"}{" "}
+            <CornerDownLeft size={11} aria-hidden />
           </button>
         )}
       </div>
@@ -318,15 +414,51 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         </p>
       )}
 
-      {(state.answer || running) && (
-        <div className="ai-block-answer" aria-label="Answer" aria-busy={running}>
-          {running && phase.thinking && !state.answer && <span className="muted">Thinking…</span>}
-          {state.answer}
-          {running && <span className="ask-ai-caret" aria-hidden />}
-        </div>
+      {skill?.output === "chat" && (state.turns?.length || running) ? (
+        <ChatTranscript turns={state.turns ?? []} answer={running ? state.answer : ""} />
+      ) : skill && (skill.output === "html" || skill.output === "files") ? (
+        running && (
+          <p className="ai-block-summary muted" aria-label="Answer" aria-busy>
+            {state.answer
+              ? `Writing… ${state.answer.length.toLocaleString()} characters`
+              : "Thinking…"}
+          </p>
+        )
+      ) : (
+        (state.answer || running) && (
+          <div className="ai-block-answer" aria-label="Answer" aria-busy={running}>
+            {running && phase.thinking && !state.answer && <span className="muted">Thinking…</span>}
+            {state.answer}
+            {running && <span className="ask-ai-caret" aria-hidden />}
+          </div>
+        )
       )}
 
-      {phase.kind === "done" && (
+      {phase.kind === "done" && skill?.output === "html" && state.html && (
+        <PageResult
+          skill={skill}
+          html={state.html}
+          path={path}
+          onDone={() => closeAiBlock(view, id, false)}
+        />
+      )}
+      {phase.kind === "done" && skill?.output === "files" && state.files && (
+        <FilesResult files={state.files} path={path} onDone={() => closeAiBlock(view, id, false)} />
+      )}
+      {skill?.output === "chat" && !running && (state.turns?.length ?? 0) > 0 && (
+        <ChatActions
+          skill={skill}
+          turns={state.turns ?? []}
+          path={path}
+          onWrapUp={() => {
+            patch({ prompt: "wrap up" });
+            void run();
+          }}
+          onDone={() => closeAiBlock(view, id, false)}
+          onDiscard={close}
+        />
+      )}
+      {phase.kind === "done" && (!skill || skill.output === "markdown") && (
         <div className="ai-block-actions">
           <button type="button" className="primary" onClick={() => insert(false)}>
             Insert

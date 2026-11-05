@@ -69,6 +69,8 @@ export const COMMAND_ICONS: Record<string, LucideIcon> = {
   "ask-ai": Sparkles,
   "ai-block": Sparkles,
   "toggle-agent": Bot,
+  "skills-copy": WandSparkles,
+  "skill-from-note": WandSparkles,
   "fix-writing": WandSparkles,
   handwriting: PenLine,
   diagram: Waypoints,
