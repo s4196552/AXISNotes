@@ -75,6 +75,7 @@ export function createTauriBackend(): Backend {
     renameEntry: (from, to) => invoke("rename_entry", { from, to }),
     trashEntry: (path) => invoke("trash_entry", { path }),
     revealEntry: (path) => invoke("reveal_entry", { path }),
+    openInBrowser: (path) => invoke("open_in_browser", { path }),
     search: (query, limit) => invoke("search", { query, limit }),
     listTags: () => invoke("list_tags"),
     listPropertyKeys: () => invoke("list_property_keys"),

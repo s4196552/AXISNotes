@@ -25,6 +25,7 @@ import {
   FolderPlus,
   HardDrive,
   Film,
+  Globe,
   Image,
   LayoutDashboard,
   Lock,
@@ -1129,9 +1130,11 @@ const TreeRow = memo(function TreeRow({
           ? Image
           : docKind(entry.name) === "media"
             ? Film
-            : openable
-              ? FileText
-              : File;
+            : docKind(entry.name) === "web"
+              ? Globe
+              : openable
+                ? FileText
+                : File;
   const classes = [
     "filetree-row",
     selected && "selected",

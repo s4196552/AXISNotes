@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { EditorView } from "@codemirror/view";
 import {
   Copy,
+  FileText,
   CornerDownLeft,
   HardDrive,
   RotateCcw,
@@ -13,6 +14,7 @@ import {
 import { type AiPlan, type AiRunRequest, backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { aiBlockSpec, closeAiBlock, insertionFor } from "./aiBlock";
+import { createDraft, folderOf } from "../drafts/drafts";
 import {
   type AiBlockPhase,
   type AiBlockState,
@@ -334,6 +336,21 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
               Replace selection
             </button>
           )}
+          <button
+            type="button"
+            onClick={() =>
+              void createDraft({
+                title: state.prompt.split(/\r?\n/)[0] ?? "",
+                content: `${state.answer.trim()}\n`,
+                folder: folderOf(path),
+              }).then(
+                () => closeAiBlock(view, id, false),
+                (e: unknown) => patch({ phase: errorPhase(e) }),
+              )
+            }
+          >
+            <FileText size={12} /> Open as draft
+          </button>
           <button type="button" onClick={() => void navigator.clipboard?.writeText(state.answer)}>
             <Copy size={12} /> Copy
           </button>

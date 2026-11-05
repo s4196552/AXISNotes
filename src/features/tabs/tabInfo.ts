@@ -1,4 +1,5 @@
 import {
+  Globe,
   Clock,
   File,
   FileText,
@@ -42,6 +43,8 @@ export function kindIcon(loc: Loc): LucideIcon | null {
       return PenTool;
     case "image":
       return Image;
+    case "web":
+      return Globe;
     case "other":
       return File;
     default:

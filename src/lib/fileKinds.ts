@@ -1,6 +1,6 @@
 // Which view opens a vault file, decided by extension.
 
-export type DocKind = "markdown" | "grid" | "canvas" | "image" | "media" | "other";
+export type DocKind = "markdown" | "grid" | "canvas" | "image" | "media" | "web" | "other";
 
 export const GRID_EXT = ".axgrid";
 export const CANVAS_EXT = ".axcanvas";
@@ -22,6 +22,7 @@ export function docKind(path: string): DocKind | null {
   const lower = path.toLowerCase();
   const kind = KINDS.find(([ext]) => lower.endsWith(ext))?.[1];
   if (kind) return kind;
+  if (/\.html?$/.test(lower)) return "web";
   if (IMAGE_RE.test(lower)) return "image";
   if (MEDIA_RE.test(lower)) return "media";
   if (OTHER_RE.test(lower)) return "other";

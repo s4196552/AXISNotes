@@ -532,6 +532,54 @@ pub fn reveal_entry(state: State<AppState>, path: String) -> AppResult<()> {
     Ok(())
 }
 
+/// Whether a vault path is a web page AXISNotes may hand to the default browser.
+pub fn is_html_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.ends_with(".html") || lower.ends_with(".htm")
+}
+
+/// Open a vault `.html` file (an AI-made quiz or flash-card page) in the default browser.
+/// Only web pages: anything else is refused, so this can't launch programs.
+#[tauri::command]
+pub fn open_in_browser(state: State<AppState>, path: String) -> AppResult<()> {
+    if !is_html_path(&path) {
+        return Err(AppError::InvalidName(format!("{path} is not a web page")));
+    }
+    let v = state.vault()?;
+    let abs = v.resolve(&path)?;
+    if !abs.is_file() {
+        return Err(AppError::NotFound(path));
+    }
+    let opener = if cfg!(windows) {
+        "explorer"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    let mut child = std::process::Command::new(opener)
+        .arg(&abs)
+        .spawn()
+        .map_err(|e| AppError::Io(format!("couldn't open the browser: {e}")))?;
+    // explorer exits 1 even when it worked; only reap it.
+    std::thread::spawn(move || child.wait());
+    Ok(())
+}
+
+#[cfg(test)]
+mod open_in_browser_tests {
+    use super::is_html_path;
+
+    #[test]
+    fn only_web_pages_open_in_the_browser() {
+        assert!(is_html_path("Biology/Flashcards.html"));
+        assert!(is_html_path(".axisnotes/drafts/Quiz.HTM"));
+        assert!(!is_html_path("tool.exe"));
+        assert!(!is_html_path("notes.md"));
+        assert!(!is_html_path("page.html.exe"));
+    }
+}
+
 #[tauri::command]
 pub async fn search(
     state: State<'_, AppState>,

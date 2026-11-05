@@ -68,6 +68,8 @@ import {
 } from "./triggers";
 import { math } from "./math";
 import { aiBlocks } from "../ai/aiBlock";
+import { DraftBanner } from "../drafts/DraftBanner";
+import { isDraft } from "../drafts/drafts";
 
 function quickConfig(): QuickCommandConfig {
   const config = useConfig.getState().config;
@@ -681,6 +683,7 @@ export function Editor({ path }: EditorProps) {
         </div>
       )}
 
+      {isDraft(path) && <DraftBanner path={path} flush={() => save(true)} />}
       <div ref={host} className={`editor-host page-${pageStyle(props)}`} />
     </div>
   );
