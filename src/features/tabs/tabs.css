@@ -6,12 +6,16 @@
   align-items: flex-end;
   gap: 2px;
   height: 38px;
-  /* Room at the right end for the Zen mode and right panel buttons. */
-  padding: 0 78px 0 8px;
+  padding: 0 8px;
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border);
 }
-.content.left-hidden .tabbar-row {
+/* Room at the right end for the Zen mode and right panel buttons, on the row in the main
+   area's top right corner (the only row when there's one pane). */
+.pane[data-edge-top][data-edge-right] .tabbar-row {
+  padding-right: 78px;
+}
+.content.left-hidden .pane[data-edge-top][data-edge-left] .tabbar-row {
   padding-left: 44px;
 }
 .tabbar {

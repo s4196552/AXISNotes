@@ -1,4 +1,4 @@
-import { type CSSProperties, Suspense, useEffect } from "react";
+import { type CSSProperties, useEffect } from "react";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
 import { useConfig } from "./app/config";
@@ -13,32 +13,14 @@ import { installZoom, useAreaZoomProps } from "./app/zoom";
 import { installFileDrops } from "./features/editor/media";
 import { Modals } from "./features/commands/Modals";
 import { WelcomeScreen } from "./features/vault/WelcomeScreen";
-import { Editor } from "./features/editor";
 import { setStatusSlot } from "./features/editor/statusSlot";
-import { lazyNamed } from "./app/lazy";
-import { loadFunctions } from "./lib/formula/functions";
-import { ImageView, UnsupportedView } from "./features/files/ImageView";
 import { useClipNotices } from "./features/clipper/useClipNotices";
 import { UpdateBanner } from "./features/updates/UpdateBanner";
 import { checkOnLaunch } from "./features/updates/updates";
 import { guardWindowClose } from "./features/files/closeGuard";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
-import { docKind } from "./lib/fileKinds";
 import { closeOverlay, isPanelOpen, PANE_LAYOUT, useLayout } from "./app/layout";
-import { activeTab } from "./app/tabs";
-
-// Views other than the note editor load on first use (grids also need the formula
-// function library before they render).
-const Grid = lazyNamed(
-  () => Promise.all([import("./features/grid/Grid"), loadFunctions()]).then(([m]) => m),
-  "Grid",
-);
-const Canvas = lazyNamed(() => import("./features/canvas/Canvas"), "Canvas");
-const GraphView = lazyNamed(() => import("./features/graph/GraphView"), "GraphView");
-const TasksView = lazyNamed(() => import("./features/tasks/TasksView"), "TasksView");
-const TimeReport = lazyNamed(() => import("./features/time/TimeReport"), "TimeReport");
-const Dashboard = lazyNamed(() => import("./features/dashboard/Dashboard"), "Dashboard");
 import { RunningTimer } from "./features/time/TimerControls";
 import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
@@ -46,16 +28,12 @@ import { PanelToggle } from "./features/panels/PanelToggle";
 import { ZenToggle } from "./features/panels/ZenToggle";
 import { useZenEdges } from "./app/zen";
 import { usePresence } from "./features/panels/presence";
-import { TabBar } from "./features/tabs/TabBar";
-import { TAB_PANEL_ID } from "./features/tabs/tabInfo";
-import { NewTab } from "./features/tabs/NewTab";
+import { Workspace } from "./features/panes/Workspace";
 import { WindowControls } from "./features/window/WindowControls";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
   const activePath = useAppStore((s) => s.activePath);
-  const mainView = useAppStore((s) => s.mainView);
-  const tabPath = useAppStore((s) => activeTab(s.tabs).path);
   const error = useAppStore((s) => s.error);
   const notice = useAppStore((s) => s.notice);
   const indexing = useAppStore((s) => s.indexing);
@@ -186,7 +164,6 @@ export default function App() {
   // Ctrl + mouse wheel zooms each of these on its own (see app/zoom.ts).
   // The side panels zoom their content, not their header and toolbars.
   const leftZoom = useAreaZoomProps("left", { content: true });
-  const mainZoom = useAreaZoomProps("main");
   const rightZoom = useAreaZoomProps("right", { content: true });
 
   if (!vault)
@@ -242,33 +219,8 @@ export default function App() {
         {zen && backend.windowFrame && (
           <div className="zen-drag-bar" data-tauri-drag-region title="Drag to move or snap" />
         )}
-        <TabBar />
-        <div className="tab-panel" id={TAB_PANEL_ID} role="tabpanel" {...mainZoom}>
-          <Suspense fallback={<div className="empty muted">Loading…</div>}>
-            {mainView === "graph" ? (
-              <GraphView />
-            ) : mainView === "tasks" ? (
-              <TasksView />
-            ) : mainView === "time" ? (
-              <TimeReport />
-            ) : mainView === "dashboard" ? (
-              <Dashboard key={tabPath ?? ""} folder={tabPath ?? ""} />
-            ) : activePath && docKind(activePath) === "grid" ? (
-              <Grid key={activePath} path={activePath} />
-            ) : activePath && docKind(activePath) === "canvas" ? (
-              <Canvas key={activePath} path={activePath} />
-            ) : activePath &&
-              (docKind(activePath) === "image" || docKind(activePath) === "media") ? (
-              <ImageView key={activePath} path={activePath} />
-            ) : activePath && docKind(activePath) === "other" ? (
-              <UnsupportedView key={activePath} path={activePath} />
-            ) : activePath ? (
-              <Editor key={activePath} path={activePath} />
-            ) : (
-              <NewTab />
-            )}
-          </Suspense>
-        </div>
+        {/* Split panes, each with its own tab row (see features/panes). */}
+        <Workspace />
       </main>
       {/* The right side (with its live graph) only runs while showing or sliding away. */}
       {rightMounted && (

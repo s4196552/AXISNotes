@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { useFitToViewport } from "../../app/menuPosition";
-import { activeTab, type Loc } from "../../app/tabs";
+import { activeTab, type Loc, type Tab } from "../../app/tabs";
 import { formatHotkey } from "../commands/hotkeys";
 import { allCommands, shortcutOf } from "../commands/registry";
 import { kindIcon, tabTitle } from "./tabInfo";
@@ -22,13 +22,21 @@ type Side = keyof typeof SIDES;
  * Back and Forward through the files and views the active tab has shown, like a browser's.
  * Right-click either button for its list of places; the mouse's side buttons work too.
  */
-export function NavButtons() {
-  const tab = useAppStore((s) => activeTab(s.tabs));
+export function NavButtons(props: {
+  /** The tab whose history the buttons show (default: the focused pane's active tab). */
+  tab?: Tab;
+  /** Whether the mouse's side buttons act here (once, for the focused pane). */
+  listen?: boolean;
+}) {
+  const focusedTab = useAppStore((s) => activeTab(s.tabs));
+  const tab = props.tab ?? focusedTab;
+  const listen = props.listen ?? true;
   const [menu, setMenu] = useState<{ side: Side; x: number; y: number } | null>(null);
   // Re-render when shortcuts are remapped in Settings, so the tooltips stay right.
   useConfig((s) => s.config.hotkeys);
 
   useEffect(() => {
+    if (!listen) return;
     const isSide = (e: MouseEvent) => e.button === MOUSE_BACK || e.button === MOUSE_FORWARD;
     // Stop the webview acting on the side buttons itself.
     const onDown = (e: MouseEvent) => {
@@ -47,7 +55,7 @@ export function NavButtons() {
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("mouseup", onUp);
     };
-  }, []);
+  }, [listen]);
 
   useEffect(() => {
     if (!menu) return;
