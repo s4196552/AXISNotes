@@ -15,6 +15,9 @@ const BUBBLE: Record<AgentState, string> = {
   needsYou: "!",
 };
 
+/** The built-in figure's full drawn height, antenna included (see agent.css). */
+const BOT_HEIGHT = 134;
+
 export interface AgentFigureProps {
   state: AgentState;
   /** Width and height in pixels. */
@@ -50,7 +53,7 @@ export function AgentFigure({ state, size, image, detail }: AgentFigureProps) {
           <img className="agent-image" src={image.url} alt="" draggable={false} />
         )
       ) : (
-        <div className="agent-bot" style={{ transform: `scale(${size / 112})` }} aria-hidden>
+        <div className="agent-bot" style={{ transform: `scale(${size / BOT_HEIGHT})` }} aria-hidden>
           <div className="agent-antenna" />
           <div className="agent-face" />
           <div className="agent-eye agent-eye-l" />
