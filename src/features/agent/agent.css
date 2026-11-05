@@ -1,24 +1,31 @@
-/* The Agent (T-171). Its own palette: the Agent's window doesn't load the app's theme. */
-.agent-figure {
+/* The Agent (T-171). Its own palette: the Agent's window doesn't load the app's theme.
+   Set on the figure and on everything that holds it, so the Quick Chat icon under the
+   Agent uses the same colours (light or dark) as the Agent itself. */
+.agent-figure,
+.agent-window-root,
+.agent-inline {
   --agent-face: #d9ddff;
   --agent-ink: #232651;
   --agent-accent: #4f5bd5;
   --agent-bubble-bg: #ffffff;
-  position: relative;
-  display: grid;
-  place-items: end center;
-  user-select: none;
-  -webkit-user-select: none;
 }
 @media (prefers-color-scheme: dark) {
-  .agent-figure {
+  .agent-figure,
+  .agent-window-root,
+  .agent-inline {
     --agent-face: #3a3f7a;
     --agent-ink: #e6e8ff;
     --agent-accent: #8a93ff;
     --agent-bubble-bg: #1c1d21;
   }
 }
-
+.agent-figure {
+  position: relative;
+  display: grid;
+  place-items: end center;
+  user-select: none;
+  -webkit-user-select: none;
+}
 .agent-image {
   width: 100%;
   height: 100%;
@@ -26,7 +33,9 @@
   pointer-events: none;
 }
 
-/* The built-in figure is drawn at 112 px and scaled. */
+/* The built-in figure is drawn 112 px wide and 134 px tall (104 px face plus the 30 px
+   antenna above it) and scaled to the Agent's size (AgentFigure), so the antenna stays
+   inside the Agent's box instead of being cut off at the top of its window. */
 .agent-bot {
   position: absolute;
   left: 50%;
@@ -357,14 +366,20 @@ html.agent-window #root {
 .agent-chat-button {
   display: grid;
   place-items: center;
+  box-sizing: border-box;
   width: 30px;
   height: 30px;
+  /* The app's button style adds 6px 12px padding, which pushed the icon off centre. */
+  padding: 0;
   border: 1.5px solid var(--agent-ink, #232651);
   border-radius: 50%;
   background: var(--agent-face, #d9ddff);
   color: var(--agent-ink, #232651);
   cursor: pointer;
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.18);
+}
+.agent-chat-button svg {
+  display: block;
 }
 .agent-chat-button:hover {
   background: var(--agent-accent, #4f5bd5);
