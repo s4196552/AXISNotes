@@ -43,6 +43,7 @@ import {
   PanelLeft,
   PenLine,
   SeparatorHorizontal,
+  Sparkles,
   SquareCode,
   Strikethrough,
   Table,
@@ -60,6 +61,7 @@ import { codeFence } from "./code";
 import { minimalChange } from "./targets";
 import { toggleMark } from "./inlineMarks";
 import { pickAndEmbed } from "./media";
+import { openAiBlock } from "../ai/aiBlock";
 
 // The command menu (Ctrl+/, or an optional typed trigger) and `:` emoji, with
 // configurable triggers. The other typed menus (`@@`, `((`, `::`, `{{`) are in triggers.ts.
@@ -494,6 +496,16 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     run: (v, f, t) => insert(v, f, t, "```mermaid\nflowchart TD\n  A[Start] --> B|\n```"),
   },
   {
+    id: "ai",
+    label: "AI",
+    icon: Sparkles,
+    description: "Ask AI, then insert its answer here",
+    run: (v, f, t) => {
+      v.dispatch({ changes: { from: f, to: t, insert: "" }, selection: { anchor: f } });
+      openAiBlock(v, f);
+    },
+  },
+  {
     id: "handwriting",
     label: "Handwriting to text…",
     icon: PenLine,
@@ -597,6 +609,7 @@ export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
     name: "Basic blocks",
     ids: [
       "text",
+      "ai",
       "h1",
       "h2",
       "h3",

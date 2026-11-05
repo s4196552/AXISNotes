@@ -22,6 +22,7 @@ import { insertCode } from "../editor/code";
 import { toggleMark } from "../editor/inlineMarks";
 import { EditorView } from "@codemirror/view";
 import { openCommandMenu } from "../editor/quickCommands";
+import { openAiBlock } from "../ai/aiBlock";
 import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { useUpdates } from "../updates/updates";
 import { toggleLeftPanel, toggleRightPanel, toggleSidePanels } from "../../app/layout";
@@ -158,6 +159,19 @@ registerCommands([
     label: "Ask AI about this note",
     shortcut: { key: "j", mod: true },
     run: openAskAi,
+  },
+  {
+    id: "ai-block",
+    label: "AI block at the cursor",
+    run: () => {
+      const active = getActiveEditor();
+      if (!active) {
+        useAppStore.getState().notify("Open a note to add an AI block.");
+        return;
+      }
+      active.view.focus();
+      openAiBlock(active.view);
+    },
   },
   {
     id: "fix-writing",
