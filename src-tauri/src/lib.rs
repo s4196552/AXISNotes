@@ -41,6 +41,11 @@ pub fn run() {
         // Files dropped from outside: remember them (only these may be imported), then tell
         // the page where they landed.
         .on_window_event(|window, event| {
+            // Closing the main window quits, even while the Agent's window is open.
+            if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+                return;
+            }
             if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, position }) = event {
                 *window.state::<commands::DroppedFiles>().0.lock().unwrap() = paths.clone();
                 let _ = window.emit(

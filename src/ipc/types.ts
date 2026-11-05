@@ -504,6 +504,13 @@ export interface Backend {
    * system frame. Absent in a browser, which has its own.
    */
   windowFrame?: WindowFrame;
+  /**
+   * The Agent's own always-on-top window, driven from the main window. Absent in a
+   * browser, where the Agent floats inside the page instead.
+   */
+  agentHost?: AgentWindowHost;
+  /** For the code running inside the Agent's window. */
+  agentSide?: AgentWindowSide;
   /** Font families installed on this computer, sorted. */
   listFonts(): Promise<string[]>;
 
@@ -625,4 +632,47 @@ export interface WindowFrame {
   startDragging(): Promise<void>;
   /** Called after each resize, maximize and restore. Returns an unsubscribe function. */
   onResized(cb: () => void): Promise<() => void>;
+}
+
+// ---- The Agent (T-171): an animated figure that shows what the AI is doing ----
+
+export type AgentState = "idle" | "sleeping" | "thinking" | "working" | "done" | "needsYou";
+
+/** What the Agent's window draws; sent by the main window. */
+export interface AgentView {
+  state: AgentState;
+  /** Short words for the speech bubble and tooltip, e.g. "Done · Biology". */
+  detail: string;
+  /** Width and height of the figure, in CSS pixels. */
+  size: number;
+  /**
+   * Which version of the user's images to draw. The images themselves stay in the
+   * webview's storage on this device, which both windows read.
+   */
+  imagesVersion: number;
+}
+
+/** What the Agent's window asks the main window to do. */
+export type AgentMessage =
+  { kind: "ready" } | { kind: "open" } | { kind: "sleep" } | { kind: "hide" };
+
+export interface AgentWindowHost {
+  /** Open the Agent's window (if it isn't open) at a screen position, or the default. */
+  open(at: { x: number; y: number } | null, size: number): Promise<void>;
+  close(): Promise<void>;
+  send(view: AgentView): Promise<void>;
+  onMessage(cb: (m: AgentMessage) => void): Promise<() => void>;
+  /** Bring the main window to the front. */
+  focusMain(): Promise<void>;
+}
+
+export interface AgentWindowSide {
+  onView(cb: (v: AgentView) => void): Promise<() => void>;
+  post(m: AgentMessage): Promise<void>;
+  /** Move the window with the press under way, as a title bar would. */
+  startDragging(): Promise<void>;
+  /** Called with the window's top-left corner (logical pixels) after it moves. */
+  onMoved(cb: (at: { x: number; y: number }) => void): Promise<() => void>;
+  /** A native context menu; resolves with the chosen item's id, or null. */
+  showMenu(items: { id: string; label: string }[]): Promise<string | null>;
 }

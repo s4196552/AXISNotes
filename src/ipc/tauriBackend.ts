@@ -1,9 +1,13 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { listen } from "@tauri-apps/api/event";
+import { emitTo, listen } from "@tauri-apps/api/event";
+import { Menu, MenuItem } from "@tauri-apps/api/menu";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Effect, getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import type {
+  AgentMessage,
+  AgentView,
   AiRunResult,
   Backend,
   Clipped,
@@ -22,6 +26,9 @@ export const AI_DELTA_EVENT = "ai://delta";
 export const CLIPPED_EVENT = "clipper://clipped";
 export const FILES_DROPPED_EVENT = "attachments://dropped";
 export const IMPORT_PROGRESS_EVENT = "import://progress";
+export const AGENT_WINDOW = "agent";
+export const AGENT_VIEW_EVENT = "agent://view";
+export const AGENT_MESSAGE_EVENT = "agent://message";
 
 export function createTauriBackend(): Backend {
   // The open vault's root, for file URLs (kept in sync by open/create/current).
@@ -185,6 +192,71 @@ export function createTauriBackend(): Backend {
       isFullscreen: () => getCurrentWindow().isFullscreen(),
       startDragging: () => getCurrentWindow().startDragging(),
       onResized: (cb) => getCurrentWindow().onResized(() => cb()),
+    },
+    // The Agent's window loads this same app with `?agent` (see src/main.tsx). It is
+    // see-through, borderless, always on top and kept off the taskbar; its capability
+    // (capabilities/agent.json) only lets it listen, post messages, drag and show a menu.
+    agentHost: {
+      async open(at, size) {
+        if (await WebviewWindow.getByLabel(AGENT_WINDOW)) return;
+        const side = Math.round(size * 1.25);
+        const w = new WebviewWindow(AGENT_WINDOW, {
+          url: "index.html?agent",
+          title: "AXISNotes Agent",
+          width: side,
+          height: side,
+          ...(at ? { x: at.x, y: at.y } : {}),
+          resizable: false,
+          decorations: false,
+          transparent: true,
+          shadow: false,
+          alwaysOnTop: true,
+          skipTaskbar: true,
+          focus: false,
+          visibleOnAllWorkspaces: true,
+        });
+        await new Promise<void>((resolve, reject) => {
+          void w.once("tauri://created", () => resolve());
+          void w.once("tauri://error", (e) => reject(new Error(String(e.payload))));
+        });
+      },
+      async close() {
+        await (await WebviewWindow.getByLabel(AGENT_WINDOW))?.destroy();
+      },
+      send: (view) => emitTo(AGENT_WINDOW, AGENT_VIEW_EVENT, view),
+      onMessage: (cb) => listen<AgentMessage>(AGENT_MESSAGE_EVENT, (e) => cb(e.payload)),
+      async focusMain() {
+        const w = getCurrentWindow();
+        await w.unminimize();
+        await w.show();
+        await w.setFocus();
+      },
+    },
+    agentSide: {
+      onView: (cb) => listen<AgentView>(AGENT_VIEW_EVENT, (e) => cb(e.payload)),
+      post: (m) => emitTo("main", AGENT_MESSAGE_EVENT, m),
+      startDragging: () => getCurrentWindow().startDragging(),
+      async onMoved(cb) {
+        const w = getCurrentWindow();
+        return w.onMoved(async ({ payload }) => {
+          const scale = await w.scaleFactor();
+          cb({ x: Math.round(payload.x / scale), y: Math.round(payload.y / scale) });
+        });
+      },
+      async showMenu(items) {
+        let picked: string | null = null;
+        const menu = await Menu.new({
+          items: await Promise.all(
+            items.map((i) =>
+              MenuItem.new({ id: i.id, text: i.label, action: () => (picked = i.id) }),
+            ),
+          ),
+        });
+        await menu.popup();
+        // The item's action arrives just after the menu closes.
+        await new Promise((r) => setTimeout(r, 150));
+        return picked;
+      },
     },
     listFonts: () => invoke("list_fonts"),
     async onIndexProgress(cb) {

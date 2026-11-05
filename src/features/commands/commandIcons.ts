@@ -1,4 +1,5 @@
 import {
+  Bot,
   Maximize2,
   Bold,
   Italic,
@@ -67,6 +68,7 @@ export const COMMAND_ICONS: Record<string, LucideIcon> = {
   tasks: ListChecks,
   "ask-ai": Sparkles,
   "ai-block": Sparkles,
+  "toggle-agent": Bot,
   "fix-writing": WandSparkles,
   handwriting: PenLine,
   diagram: Waypoints,

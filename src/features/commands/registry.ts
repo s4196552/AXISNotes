@@ -23,6 +23,7 @@ import { toggleMark } from "../editor/inlineMarks";
 import { EditorView } from "@codemirror/view";
 import { openCommandMenu } from "../editor/quickCommands";
 import { openAiBlock } from "../ai/aiBlock";
+import { useAgentSettings } from "../agent/agentSettings";
 import { OWN_ZOOM, zoomIn, zoomOut, zoomReset } from "../../app/zoom";
 import { useUpdates } from "../updates/updates";
 import { toggleLeftPanel, toggleRightPanel, toggleSidePanels } from "../../app/layout";
@@ -171,6 +172,14 @@ registerCommands([
       }
       active.view.focus();
       openAiBlock(active.view);
+    },
+  },
+  {
+    id: "toggle-agent",
+    label: "Show or hide the Agent",
+    run: () => {
+      const s = useAgentSettings.getState();
+      s.update({ mode: s.mode === "off" ? "always" : "off" });
     },
   },
   {
