@@ -699,12 +699,7 @@ describe("command menu sections", () => {
     openCommandMenu(view);
     await vi.waitFor(() => expect(currentCompletions(view.state).length).toBeGreaterThan(0));
     const shown = currentCompletions(view.state);
-    expect(shown.slice(0, 4).map((c) => c.label)).toEqual([
-      "Text",
-      "AI",
-      "Heading 1",
-      "Heading 2",
-    ]);
+    expect(shown.slice(0, 4).map((c) => c.label)).toEqual(["Text", "AI", "Heading 1", "Heading 2"]);
     expect([...new Set(shown.map(sectionOf))]).toEqual([
       "Basic blocks",
       "Text style",
