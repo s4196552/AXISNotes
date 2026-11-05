@@ -1,5 +1,6 @@
 import type { AgentState } from "../../ipc";
 import { STATE_LABELS } from "./agentModel";
+import type { AgentImage } from "./agentImages";
 import "./agent.css";
 
 // The Agent itself: the user's image for the current state if they picked one, else the
@@ -18,8 +19,8 @@ export interface AgentFigureProps {
   state: AgentState;
   /** Width and height in pixels. */
   size: number;
-  /** The user's image for this state. */
-  image?: string;
+  /** The user's image (or sprite strip) for this state. */
+  image?: AgentImage;
   detail?: string;
 }
 
@@ -35,7 +36,19 @@ export function AgentFigure({ state, size, image, detail }: AgentFigureProps) {
       style={{ width: size, height: size }}
     >
       {image ? (
-        <img className="agent-image" src={image} alt="" draggable={false} />
+        image.frames > 1 ? (
+          <div
+            className="agent-image agent-sprite"
+            style={{
+              backgroundImage: `url("${image.url}")`,
+              backgroundSize: `${image.frames * 100}% 100%`,
+              animationDuration: `${image.frames / image.fps}s`,
+              animationTimingFunction: `steps(${image.frames}, jump-none)`,
+            }}
+          />
+        ) : (
+          <img className="agent-image" src={image.url} alt="" draggable={false} />
+        )
       ) : (
         <div className="agent-bot" style={{ transform: `scale(${size / 112})` }} aria-hidden>
           <div className="agent-antenna" />

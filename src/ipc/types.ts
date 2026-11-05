@@ -645,8 +645,11 @@ export interface AgentView {
   detail: string;
   /** Width and height of the figure, in CSS pixels. */
   size: number;
-  /** Image URL for each state the user picked one for. */
-  images: Partial<Record<AgentState, string>>;
+  /**
+   * Which version of the user's images to draw. The images themselves stay in the
+   * webview's storage on this device, which both windows read.
+   */
+  imagesVersion: number;
 }
 
 /** What the Agent's window asks the main window to do. */

@@ -10,7 +10,8 @@ import {
   trackAiActivity,
   useAgentActivity,
 } from "./agentModel";
-import { loadAgentPosition, useAgentImages, useAgentSettings } from "./agentSettings";
+import { loadAgentPosition, useAgentSettings } from "./agentSettings";
+import { loadAgentImages, useAgentImagesVersion, useAgentImageUrls } from "./agentImages";
 import { AgentFigure } from "./AgentFigure";
 
 // Runs in the main window while the Agent is on. It works out the Agent's state from AI
@@ -31,7 +32,7 @@ function compute(): Shown {
       state: at.state,
       detail: at.detail,
       size: s.size,
-      images: useAgentImages.getState().images,
+      imagesVersion: useAgentImagesVersion.getState().version,
     },
     visible: s.mode === "always" || BUSY_STATES.includes(at.state),
   };
@@ -63,7 +64,7 @@ function useAgentView(): Shown {
     const unsubscribe = [
       useAgentActivity.subscribe(refresh),
       useAgentSettings.subscribe(refresh),
-      useAgentImages.subscribe(refresh),
+      useAgentImagesVersion.subscribe(refresh),
     ];
     // Using the app keeps the Agent awake.
     const onUse = () => noteUserActivity();
@@ -172,6 +173,8 @@ function InlineAgent() {
   const { view, visible } = useAgentView();
   const [pos, setPos] = useState(loadInline);
   const [menu, setMenu] = useState(false);
+  const images = useAgentImageUrls((s) => s.images);
+  useEffect(() => void loadAgentImages(view.imagesVersion), [view.imagesVersion]);
   const drag = useRef<{ x: number; y: number; right: number; bottom: number; moved: boolean }>(
     null,
   );
@@ -243,7 +246,7 @@ function InlineAgent() {
       <AgentFigure
         state={view.state}
         size={view.size}
-        image={view.images[view.state]}
+        image={images[view.state]}
         detail={view.detail}
       />
     </div>

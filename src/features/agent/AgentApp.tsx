@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { type AgentView, backend } from "../../ipc";
 import { saveAgentPosition } from "./agentSettings";
+import { loadAgentImages, useAgentImageUrls } from "./agentImages";
 import { AgentFigure } from "./AgentFigure";
 
 // The page inside the Agent's own window (src/main.tsx renders it for `?agent`). It only
@@ -16,6 +17,7 @@ const MENU = [
 export function AgentApp() {
   const side = backend.agentSide;
   const [view, setView] = useState<AgentView | null>(null);
+  const images = useAgentImageUrls((s) => s.images);
   const press = useRef<{ x: number; y: number; dragging: boolean } | null>(null);
 
   useEffect(() => {
@@ -32,6 +34,11 @@ export function AgentApp() {
       stop.forEach((u) => u());
     };
   }, [side]);
+
+  const version = view?.imagesVersion;
+  useEffect(() => {
+    if (version !== undefined) void loadAgentImages(version);
+  }, [version]);
 
   if (!side || !view) return null;
   return (
@@ -63,7 +70,7 @@ export function AgentApp() {
       <AgentFigure
         state={view.state}
         size={view.size}
-        image={view.images[view.state]}
+        image={images[view.state]}
         detail={view.detail}
       />
     </div>

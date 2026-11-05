@@ -280,3 +280,59 @@ html.agent-window #root {
   padding-top: 18px;
   font-size: 12px;
 }
+
+/* A sprite strip: frames side by side, stepped through left to right. */
+.agent-sprite {
+  background-repeat: no-repeat;
+  background-position: 0% 0;
+  animation-name: agent-sprite;
+  animation-iteration-count: infinite;
+}
+.agent-figure[data-state="working"] .agent-sprite,
+.agent-figure[data-state="sleeping"] .agent-sprite {
+  animation-name: agent-sprite;
+}
+@keyframes agent-sprite {
+  to {
+    background-position: 100% 0;
+  }
+}
+
+.agent-images h3 {
+  margin: 18px 0 4px;
+  font-size: 14px;
+}
+.agent-slot {
+  width: 132px;
+}
+.agent-slot figcaption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+}
+.agent-slot-name {
+  max-width: 128px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-slot-actions {
+  display: flex;
+  gap: 4px;
+}
+.agent-slot-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.agent-slot-sprite {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.agent-slot-sprite input {
+  width: 52px;
+  margin: 0 4px;
+}

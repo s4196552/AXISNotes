@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import type { AgentView } from "../../ipc";
 
 // The Agent's settings and window position. They belong to this device, not the vault,
 // so they live in the webview's storage (shared by the main window and the Agent's
@@ -84,6 +83,3 @@ export function loadAgentPosition(): { x: number; y: number } | null {
 export function saveAgentPosition(at: { x: number; y: number }) {
   write(POSITION_KEY, at);
 }
-
-/** The images the user picked for each state (see Settings → Agent). */
-export const useAgentImages = create<{ images: AgentView["images"] }>(() => ({ images: {} }));
