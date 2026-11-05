@@ -398,6 +398,7 @@ function renderModal(modal: NonNullable<ReturnType<typeof useUi.getState>["modal
         <AskAi
           path={modal.path}
           selection={modal.selection}
+          folder={modal.folder}
           onClose={() => useUi.getState().close()}
         />
       );

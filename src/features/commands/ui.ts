@@ -11,7 +11,7 @@ export type Modal =
   | { kind: "getting-started" }
   | { kind: "icon"; path: string }
   | { kind: "colors"; path: string }
-  | { kind: "ask"; path?: string; selection?: string }
+  | { kind: "ask"; path?: string; selection?: string; folder?: string }
   | { kind: "handwriting"; path: string }
   | { kind: "import" }
   | { kind: "move"; path: string }
