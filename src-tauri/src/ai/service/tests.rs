@@ -345,6 +345,55 @@ async fn keys_stay_in_the_keystore() {
     assert!(e.service.set_key("nope", "x").is_err());
 }
 
+#[tokio::test]
+async fn a_key_pasted_as_the_endpoint_is_refused_and_cleared_from_disk() {
+    let e = env(vec![], std_providers(), &[]);
+    // Saving a key in the endpoint box is refused with a message that says so.
+    let mut s = e.service.settings();
+    s.providers[0].base_url = "sk-proj-abcdefghijklmnopqrstuvwxyz0123456789".into();
+    let err = e.service.save_settings(s).unwrap_err().to_string();
+    assert!(err.contains("looks like an API key"), "{err}");
+    let mut s = e.service.settings();
+    s.providers[0].base_url = "api.example.com/v1".into();
+    assert!(e.service.save_settings(s).is_err());
+    // Real endpoints, with surrounding spaces trimmed, still save.
+    let mut s = e.service.settings();
+    s.providers[0].base_url = "  http://localhost:11434/v1 ".into();
+    e.service.save_settings(s).unwrap();
+    assert_eq!(
+        e.service.settings().providers[0].base_url,
+        "http://localhost:11434/v1"
+    );
+
+    // A file written by an older version, with the key as the endpoint, is cleaned on load.
+    let text = std::fs::read_to_string(&e.settings_path)
+        .unwrap()
+        .replace("http://localhost:11434/v1", "sk-proj-leaked-secret-value");
+    std::fs::write(&e.settings_path, text).unwrap();
+    let reopened = AiService::new(
+        e.settings_path.clone(),
+        e.log_path.clone(),
+        Arc::new(Registry::bundled()),
+        e.keys.clone(),
+        e.fx.clone(),
+    );
+    assert_eq!(reopened.settings().providers[0].base_url, "");
+    assert!(!std::fs::read_to_string(&e.settings_path)
+        .unwrap()
+        .contains("sk-proj-leaked"));
+}
+
+#[tokio::test]
+async fn keys_with_spaces_or_line_breaks_inside_are_refused() {
+    let e = env(vec![], std_providers(), &[]);
+    assert!(e.service.set_key("openai", "sk-abc\ndef").is_err());
+    assert!(e.service.set_key("openai", "sk-abc def").is_err());
+    assert!(e.service.set_key("openai", "sk-abc\u{200b}def").is_err());
+    assert_eq!(e.keys.get("openai").unwrap(), None);
+    e.service.set_key("openai", "  sk-abc-def\n").unwrap();
+    assert_eq!(e.keys.get("openai").unwrap().as_deref(), Some("sk-abc-def"));
+}
+
 /// Phase 5: handwriting goes to a vision model as an image in JSON mode, and the same
 /// request works with two different vision providers (recorded answers).
 #[tokio::test]

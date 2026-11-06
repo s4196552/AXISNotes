@@ -49,6 +49,28 @@ describe("AI settings", () => {
     );
   });
 
+  it("moves a key pasted into the endpoint box to the key box instead of saving it", async () => {
+    render(<AiSettingsPanel />);
+    await addProvider("openai");
+    const card = await screen.findByRole("group", { name: "Provider OpenAI" });
+    const endpoint = within(card).getByLabelText("Endpoint of OpenAI");
+    fireEvent.change(endpoint, { target: { value: "sk-proj-abcdefghijklmnopqrstuvwxyz0123" } });
+    fireEvent.blur(endpoint);
+    expect(endpoint).toHaveValue("");
+    expect(within(card).getByLabelText("API key for OpenAI")).toHaveValue(
+      "sk-proj-abcdefghijklmnopqrstuvwxyz0123",
+    );
+    expect(within(card).getByRole("status")).toHaveTextContent("moved to the key box");
+    expect(JSON.stringify(await h.b.aiSettings())).not.toContain("sk-proj");
+
+    // A real endpoint still saves.
+    fireEvent.change(endpoint, { target: { value: "https://proxy.example.com/v1" } });
+    fireEvent.blur(endpoint);
+    await waitFor(async () =>
+      expect(JSON.stringify(await h.b.aiSettings())).toContain("proxy.example.com"),
+    );
+  });
+
   it("marks local providers and picks models per task", async () => {
     render(<AiSettingsPanel />);
     await addProvider("ollama");
