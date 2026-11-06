@@ -66,12 +66,60 @@ impl Default for AiSettings {
     }
 }
 
+/// Why `url` can't be a provider endpoint, or None if it can (empty = the default).
+pub fn endpoint_problem(url: &str) -> Option<String> {
+    let url = url.trim();
+    if url.is_empty() {
+        return None;
+    }
+    let lower = url.to_ascii_lowercase();
+    let rest = lower
+        .strip_prefix("https://")
+        .or_else(|| lower.strip_prefix("http://"));
+    let ok = rest.is_some_and(|r| {
+        let host = r.split(['/', '?', '#']).next().unwrap_or("");
+        !host.is_empty() && url.chars().all(|c| c.is_ascii_graphic())
+    });
+    if ok {
+        return None;
+    }
+    Some(if looks_like_key(url) {
+        "That looks like an API key, not an endpoint. Paste it in the API key box and leave the endpoint empty.".into()
+    } else {
+        "The endpoint must be a web address starting with https:// (or http:// for a local server), or empty for the default.".into()
+    })
+}
+
+/// A secret pasted into the wrong box: no scheme, no spaces, long or key-prefixed.
+pub fn looks_like_key(s: &str) -> bool {
+    let s = s.trim();
+    !s.contains("://")
+        && !s.contains(char::is_whitespace)
+        && (s.starts_with("sk-")
+            || s.starts_with("sk_")
+            || s.starts_with("AIza")
+            || (s.len() >= 32 && !s.contains('/') && !s.contains('.')))
+}
+
 impl AiSettings {
     pub fn load(path: &Path) -> Self {
         std::fs::read_to_string(path)
             .ok()
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or_default()
+    }
+
+    /// Clear endpoints that aren't web addresses (for example an API key pasted into the
+    /// endpoint box, which would otherwise sit in this plain-text file). True if any changed.
+    pub fn clear_bad_endpoints(&mut self) -> bool {
+        let mut changed = false;
+        for p in &mut self.providers {
+            if endpoint_problem(&p.base_url).is_some() {
+                p.base_url.clear();
+                changed = true;
+            }
+        }
+        changed
     }
 
     pub fn save(&self, path: &Path) -> AppResult<()> {

@@ -28,6 +28,16 @@ const KINDS = Object.keys(KIND_LABELS) as AiProviderKind[];
 const TASKS = Object.keys(TASK_LABELS) as AiTask[];
 const message = (e: unknown) => (isBackendError(e) ? e.message : String(e));
 
+/** An API key pasted into the endpoint box (mirrors `looks_like_key` in settings.rs). */
+const looksLikeKey = (s: string) => {
+  const t = s.trim();
+  return (
+    !t.includes("://") &&
+    !/\s/.test(t) &&
+    (/^(sk-|sk_|AIza)/.test(t) || (t.length >= 32 && !t.includes("/") && !t.includes(".")))
+  );
+};
+
 function uniqueId(kind: AiProviderKind, taken: AiProviderConfig[]): string {
   if (!taken.some((p) => p.id === kind)) return kind;
   for (let i = 2; ; i++) if (!taken.some((p) => p.id === `${kind}-${i}`)) return `${kind}-${i}`;
@@ -212,14 +222,29 @@ function ProviderCard(p: {
       ) : (
         <>
           <div className="ai-provider-row">
+            <label className="ai-endpoint-label" htmlFor={`ai-endpoint-${provider.id}`}>
+              Endpoint
+            </label>
             <input
+              id={`ai-endpoint-${provider.id}`}
               aria-label={`Endpoint of ${label}`}
               placeholder={provider.defaultBaseUrl || "https://your-endpoint/v1"}
               defaultValue={provider.baseUrl}
-              onBlur={(e) =>
-                e.target.value.trim() !== provider.baseUrl &&
-                p.onChange({ baseUrl: e.target.value.trim() })
-              }
+              onBlur={(e) => {
+                const value = e.target.value.trim();
+                if (looksLikeKey(value)) {
+                  // A key in the wrong box: move it to the key box instead of saving it
+                  // as an endpoint (which would also write it to a plain-text file).
+                  e.target.value = provider.baseUrl;
+                  setKey(value);
+                  setTest({
+                    ok: false,
+                    text: "That's an API key, so it was moved to the key box. Press Save key.",
+                  });
+                  return;
+                }
+                if (value !== provider.baseUrl) p.onChange({ baseUrl: value });
+              }}
             />
           </div>
           <div className="ai-provider-row">

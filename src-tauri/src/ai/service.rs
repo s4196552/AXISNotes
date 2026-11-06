@@ -141,7 +141,11 @@ impl AiService {
         keys: Arc<dyn KeyStore>,
         transport: Arc<dyn Transport>,
     ) -> Self {
-        let settings = AiSettings::load(&settings_path);
+        let mut settings = AiSettings::load(&settings_path);
+        if settings.clear_bad_endpoints() {
+            // Rewrite now so a secret pasted as an endpoint doesn't stay on disk.
+            let _ = settings.save(&settings_path);
+        }
         AiService {
             sessions: super::subscription::Sessions::new(
                 keys.clone(),
@@ -194,6 +198,12 @@ impl AiService {
                 return Err(AppError::InvalidName(format!("provider id {:?}", p.id)));
             }
         }
+        for cfg in &mut next.providers {
+            cfg.base_url = cfg.base_url.trim().to_string();
+            if let Some(problem) = super::settings::endpoint_problem(&cfg.base_url) {
+                return Err(AppError::Blocked(format!("{}: {problem}", cfg.name)));
+            }
+        }
         for cfg in &next.providers {
             if cfg.kind == super::ProviderKind::ChatGpt && !cfg.base_url.trim().is_empty() {
                 return Err(AppError::Blocked(
@@ -244,6 +254,11 @@ impl AiService {
         }
         if key.trim().is_empty() {
             return self.keys.delete(provider_id);
+        }
+        if !key.trim().chars().all(|c| c.is_ascii_graphic()) {
+            return Err(AppError::Blocked(
+                "That key has spaces, line breaks or special characters in it. Copy the key again from the provider's site and paste only the key.".into(),
+            ));
         }
         self.keys.set(provider_id, key)
     }

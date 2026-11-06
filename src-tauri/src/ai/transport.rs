@@ -89,6 +89,15 @@ impl ReqwestTransport {
 }
 
 fn network_error(e: reqwest::Error) -> AiError {
+    if e.is_builder() {
+        // The request couldn't be built: a malformed endpoint, or a key with characters
+        // that can't go in a header. Say so instead of reqwest's bare "builder error".
+        return AiError::Unavailable(
+            "the request couldn't be made: check that the endpoint is a web address \
+             (or empty for the default) and paste the API key again"
+                .into(),
+        );
+    }
     // reqwest's Display may include the URL; ours never carry keys in the URL.
     AiError::Unavailable(e.without_url().to_string())
 }
