@@ -7,6 +7,7 @@ import {
   Keyboard,
   LayoutTemplate,
   type LucideIcon,
+  Paintbrush,
   Palette,
   Paperclip,
   Plus,
@@ -50,6 +51,7 @@ import "./settings.css";
 
 export type Section =
   | "appearance"
+  | "colours"
   | "packs"
   | "spelling"
   | "daily"
@@ -65,6 +67,7 @@ export type Section =
 
 const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "colours", label: "Colours", icon: Paintbrush },
   { id: "packs", label: "Icon & image packs", icon: Images },
   { id: "spelling", label: "Spelling", icon: SpellCheck },
   { id: "daily", label: "Home & daily notes", icon: CalendarDays },
@@ -95,6 +98,8 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
     switch (id) {
       case "appearance":
         return <Appearance config={config} set={set} />;
+      case "colours":
+        return <Colours config={config} set={set} />;
       case "packs":
         return <PacksSettings />;
       case "spelling":
@@ -374,6 +379,24 @@ function FontSelect(p: {
   );
 }
 
+/** Settings → Colours: the user's own sidebar and note-area colours over the theme. */
+function Colours({ config, set }: SectionProps) {
+  const setAppColors = (appColors: AxisConfig["appearance"]["appColors"]) =>
+    set((c) => ({ ...c, appearance: { ...c.appearance, appColors } }));
+  return (
+    <Field
+      label="App colours"
+      hint={
+        config.theme === "axis:translucent"
+          ? "Translucent shows your desktop, so these apply with the other themes."
+          : "Your own colours for the sidebars and the note area, over the theme. Text left on Auto is dark on light colours and light on dark ones."
+      }
+    >
+      <AppColorPicker value={config.appearance.appColors} onChange={setAppColors} />
+    </Field>
+  );
+}
+
 function Appearance({ config, set }: SectionProps) {
   const [themes, setThemes] = useState<string[]>([]);
   const [snippets, setSnippets] = useState<string[]>([]);
@@ -396,16 +419,6 @@ function Appearance({ config, set }: SectionProps) {
         onChange={(theme) => set((c) => ({ ...c, theme }))}
       />
       {config.theme === "axis:translucent" && <Translucency a={a} setA={setA} />}
-      <Field
-        label="App colours"
-        hint={
-          config.theme === "axis:translucent"
-            ? "Translucent shows your desktop, so these apply with the other themes."
-            : "Your own colours for the sidebars and the note area, over the theme. Text left on Auto is dark on light colours and light on dark ones."
-        }
-      >
-        <AppColorPicker value={a.appColors} onChange={(appColors) => setA({ appColors })} />
-      </Field>
       <Field
         label="Zoom"
         hint="Everything gets bigger or smaller. Also Ctrl + = / Ctrl + − / Ctrl + 0. Ctrl + mouse wheel zooms only the part of the window under the pointer (a side panel, the tabs or the main view); Ctrl + 0 resets those too."

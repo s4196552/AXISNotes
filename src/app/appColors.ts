@@ -1,6 +1,6 @@
 import type { AppColors, HeadingColors } from "./config";
 
-// App colours (Settings → Appearance): the user's own background and text colours for the
+// App colours (Settings → Colours): the user's own background and text colours for the
 // sidebars (both side panels and the status bar) and the main note area, on top of the
 // theme. Each surface gets the theme's colour tokens rebuilt from its two colours, scoped
 // to its own elements, so a light sidebar beside a dark note area keeps readable text,

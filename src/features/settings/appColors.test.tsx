@@ -155,12 +155,12 @@ describe("app colour styles", () => {
   });
 });
 
-describe("Settings → Appearance → App colours", () => {
+describe("Settings → Colours → App colours", () => {
   const saved = async () =>
     JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).appearance.appColors;
 
   it("a preset sets all four colours; each can be edited; the reset clears them", async () => {
-    render(<Settings section="appearance" onClose={vi.fn()} />);
+    render(<Settings section="colours" onClose={vi.fn()} />);
     const presets = screen.getByRole("radiogroup", { name: "App colour presets" });
     expect(within(presets).getAllByRole("radio")).toHaveLength(12);
     expect(screen.getByRole("button", { name: "Use theme colours" })).toBeDisabled();
@@ -200,7 +200,7 @@ describe("Settings → Appearance → App colours", () => {
         },
       },
     });
-    render(<Settings section="appearance" onClose={vi.fn()} />);
+    render(<Settings section="colours" onClose={vi.fn()} />);
     expect(screen.getByRole("status")).toHaveTextContent(/Main text is low contrast \(1\.9:1\)/);
     fireEvent.input(screen.getByLabelText("Main text"), { target: { value: "#333333" } });
     await waitFor(() => expect(screen.queryByText(/low contrast/)).toBeNull());
