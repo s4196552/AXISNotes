@@ -61,7 +61,7 @@ function ContrastWarning(p: { surface: string; bg: string; fg: string }) {
 }
 
 /**
- * Settings → Appearance → App colours: presets, the four colours, and a reset. Sidebars
+ * Settings → Colours → App colours: presets, the four colours, and a reset. Sidebars
  * are both side panels and the status bar; Main is the note area with its tabs.
  */
 export function AppColorPicker(p: { value: AppColors; onChange(colors: AppColors): void }) {

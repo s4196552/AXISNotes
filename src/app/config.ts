@@ -70,7 +70,7 @@ export interface AxisConfig {
     /** Translucent theme: how opaque the window is (percent), and what shows behind it. */
     windowOpacity: number;
     windowEffect: WindowEffect;
-    /** Sidebar and main area colours over the theme (Settings → Appearance → App colours). */
+    /** Sidebar and main area colours over the theme (Settings → Colours). */
     appColors: AppColors;
   };
   folderIcons: Record<string, FolderIcon>;
