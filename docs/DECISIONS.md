@@ -2,6 +2,21 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-06: App colours: the user's own sidebar and note-area colours (T-178)
+
+- **Settings → Appearance → App colours** sets four colours over any theme except Translucent:
+  - sidebar background and text (both side panels and the status bar);
+  - main background and text (the note area with its tabs).
+  - Twelve two-surface presets have plain names of their own. Every preset's text meets 4.5:1 on its background; Cream's sidebar text was darkened from the suggested `#586e75` (4.39:1) to `#52676e` (4.86:1).
+- **Stored as `appearance.appColors`** (`#rrggbb`, or "" for the theme's) in `.axisnotes/config.json`, like the other appearance settings. With nothing set, no stylesheet is added. Anything that isn't a hex colour is ignored, so a hand-edited value can't inject CSS.
+- **Each surface's theme tokens are rebuilt from its two colours** and scoped to its own elements (`.content`; `.sidebar` and `.statusbar`). This keeps a light sidebar beside a dark note area readable.
+  - The rebuilt tokens are text, muted text, borders, hovers, the active row, code and selection backgrounds, and `color-scheme` (so the `light-dark()` syntax, callout and heading colours pick the right half).
+  - Muted text fades no further than 3.5:1.
+  - Text left unset is dark on light backgrounds and light on dark ones.
+  - A text colour below 4.5:1 shows a warning but is allowed.
+- **Headings 1–6 and `color` are re-pointed per surface.** Both are inherited as values already resolved on `:root`, so without this a surface kept the theme's text and heading colours. A heading-colour preset still wins over the surface's own headings.
+- **Off for Translucent.** That theme's panes are tints over the desktop, and solid colours would hide it. Settings says so.
+
 ## 2026-11-06: Theme revamp, step one: four built-in themes removed (T-176)
 
 - **High contrast, Retro, Glass and Minimal are gone** (their tokens, structural CSS, picker tiles and miniatures). Light, Dark, Match system, Darker and Translucent stay, as do user themes and CSS snippets. This supersedes those four from the 2026-10-09 entry (T-067).

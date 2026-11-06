@@ -10,6 +10,7 @@ import {
   applyTypography,
   onTransparencyEffectsChange,
 } from "./app/appearance";
+import { applyAppColors } from "./app/appColors";
 import { installZoom, useAreaZoomProps } from "./app/zoom";
 import { installFileDrops } from "./features/editor/media";
 import { Modals } from "./features/commands/Modals";
@@ -122,6 +123,11 @@ export default function App() {
     apply();
     return onTransparencyEffectsChange(apply);
   }, [theme, windowOpacity, windowEffect]);
+  const { appColors, headingColors } = typography;
+  useEffect(
+    () => applyAppColors(theme, appColors, headingColors),
+    [theme, appColors, headingColors],
+  );
 
   // Zoom applies to the welcome screen too, so it doesn't wait for a vault.
   useEffect(() => installZoom(), []);

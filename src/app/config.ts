@@ -37,6 +37,18 @@ export type FoldArrow = "triangle" | "chevron" | "arrow" | "circle" | "plus" | "
 /** A colour preset for headings 1–6 (see `HEADING_COLORS`); "theme" keeps the theme's. */
 export type HeadingColors = "theme" | "accent" | "rainbow" | "amber" | "ocean" | "forest" | "berry";
 
+/**
+ * The user's own colours for the sidebars and the main note area (see app/appColors.ts),
+ * each `#rrggbb` or "" for the theme's. Text left "" follows its background.
+ */
+export interface AppColors {
+  sidebarBg: string;
+  sidebarFg: string;
+  mainBg: string;
+  mainFg: string;
+}
+export const NO_APP_COLORS: AppColors = { sidebarBg: "", sidebarFg: "", mainBg: "", mainFg: "" };
+
 /** What Windows draws behind the see-through window (Translucent theme). */
 export type WindowEffect = "clear" | "blur" | "frosted" | "liquid" | "mica" | "micaAlt";
 
@@ -58,6 +70,8 @@ export interface AxisConfig {
     /** Translucent theme: how opaque the window is (percent), and what shows behind it. */
     windowOpacity: number;
     windowEffect: WindowEffect;
+    /** Sidebar and main area colours over the theme (Settings → Appearance → App colours). */
+    appColors: AppColors;
   };
   folderIcons: Record<string, FolderIcon>;
   /** Background and text colours of file-tree rows, by vault path. */
@@ -127,6 +141,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     headingColors: "theme",
     windowOpacity: 80,
     windowEffect: "frosted",
+    appColors: NO_APP_COLORS,
   },
   folderIcons: {},
   entryColors: {},
