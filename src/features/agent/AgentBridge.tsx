@@ -243,7 +243,8 @@ function InlineAgent() {
         d.moved = true;
         setPos({
           right: Math.max(0, Math.min(window.innerWidth - view.size, d.right - dx)),
-          bottom: Math.max(0, Math.min(window.innerHeight - view.size, d.bottom - dy)),
+          // The Quick Chat row (40 px) sits under the figure, so keep both on screen.
+          bottom: Math.max(0, Math.min(window.innerHeight - view.size - 40, d.bottom - dy)),
         });
       }}
       onPointerUp={() => {
