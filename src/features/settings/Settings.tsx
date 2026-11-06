@@ -42,6 +42,7 @@ import { HotkeysSettings } from "./HotkeysSettings";
 import { ThemePicker } from "./ThemePicker";
 import { filterSettings, hasAll, HIDDEN, wordsOf } from "./settingsSearch";
 import { FoldArrowPicker } from "./FoldArrowPicker";
+import { AppColorPicker } from "./AppColorPicker";
 import { HeadingColorPicker } from "./HeadingColorPicker";
 import { About } from "./About";
 import { PacksSettings } from "../packs/PacksSettings";
@@ -395,6 +396,16 @@ function Appearance({ config, set }: SectionProps) {
         onChange={(theme) => set((c) => ({ ...c, theme }))}
       />
       {config.theme === "axis:translucent" && <Translucency a={a} setA={setA} />}
+      <Field
+        label="App colours"
+        hint={
+          config.theme === "axis:translucent"
+            ? "Translucent shows your desktop, so these apply with the other themes."
+            : "Your own colours for the sidebars and the note area, over the theme. Text left on Auto is dark on light colours and light on dark ones."
+        }
+      >
+        <AppColorPicker value={a.appColors} onChange={(appColors) => setA({ appColors })} />
+      </Field>
       <Field
         label="Zoom"
         hint="Everything gets bigger or smaller. Also Ctrl + = / Ctrl + − / Ctrl + 0. Ctrl + mouse wheel zooms only the part of the window under the pointer (a side panel, the tabs or the main view); Ctrl + 0 resets those too."
