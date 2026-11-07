@@ -14,7 +14,7 @@ import {
 import { type AiPlan, type AiRunRequest, backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { aiBlockSpec, closeAiBlock, insertionFor } from "./aiBlock";
-import { createDraft, folderOf } from "../drafts/drafts";
+import { createDraft } from "../drafts/drafts";
 import {
   type AiBlockPhase,
   type AiBlockState,
@@ -33,7 +33,7 @@ import {
   useSkills,
   withFormat,
 } from "../skills/skills";
-import { runSkill, skillRequest } from "../skills/skillRun";
+import { homeFolder, runSkill, skillRequest } from "../skills/skillRun";
 import { ChatActions, ChatTranscript, FilesResult, PageResult } from "../skills/SkillResult";
 import { skillIcon } from "../skills/skillIcons";
 // The block is the first AI view many sessions open: load its styles with it.
@@ -129,6 +129,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         turns: state.turns ?? [],
         path,
         useNote: state.useNote,
+        sources: spec?.sources,
         selectionText: state.useSelection ? selection?.text : undefined,
         choice: state.choice,
       });
@@ -146,7 +147,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       attach: state.useNote ? [path] : [],
       sources: sel ? [path] : [],
     };
-  }, [state, selection, path, skill]);
+  }, [state, selection, path, skill, spec?.sources]);
 
   // Where the request would go (debounced while typing).
   useEffect(() => {
@@ -210,6 +211,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       turns: cur.turns ?? [],
       path,
       useNote: cur.useNote,
+      sources: spec?.sources,
       selectionText: cur.useSelection ? selection?.text : undefined,
       choice: cur.choice,
     });
@@ -387,7 +389,11 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           }
         >
           {state.useNote ? "Reads: " : "Not reading: "}
-          {skill?.reads === "folder" ? `notes in ${folderOf(path) || "the vault"}` : noteName(path)}
+          {spec?.sources?.length
+            ? `${spec.sources.length} ${spec.sources.length === 1 ? "note" : "notes"}`
+            : skill?.reads === "folder"
+              ? `notes in ${homeFolder(path) || "the vault"}`
+              : noteName(path)}
         </button>
         {selection?.text && (
           <button
@@ -525,7 +531,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
               void createDraft({
                 title: state.prompt.split(/\r?\n/)[0] ?? "",
                 content: `${state.answer.trim()}\n`,
-                folder: folderOf(path),
+                folder: homeFolder(path),
               }).then(
                 () => closeAiBlock(view, id, false),
                 (e: unknown) => patch({ phase: errorPhase(e) }),

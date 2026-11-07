@@ -10,7 +10,7 @@ import { useConfig } from "../../app/config";
 import { InvalidAnswer } from "../../lib/aiJson";
 import { createUniqueNote } from "../commands/actions";
 import { folderScope } from "../ai/folderScope";
-import { folderOf } from "../drafts/drafts";
+import { folderOf, isDraft, suggestedFolder } from "../drafts/drafts";
 import {
   extractHtml,
   parseSkillFiles,
@@ -35,6 +35,8 @@ export interface SkillRequestInput {
   /** The note the block is in. */
   path: string;
   useNote: boolean;
+  /** Notes to read instead of the block's note (a skill run on files picked in the tree). */
+  sources?: string[];
   selectionText?: string;
   choice: { provider?: string; model?: string; effort: AiRunRequest["effort"] };
 }
@@ -53,12 +55,18 @@ const START: Record<Skill["output"], string> = {
 };
 
 /** The notes a skill reads: its note, or every note in the note's folder. */
-export function skillAttach(skill: Skill, path: string, useNote: boolean): string[] {
+export function skillAttach(
+  skill: Skill,
+  path: string,
+  useNote: boolean,
+  sources?: string[],
+): string[] {
   if (!useNote) return [];
+  if (sources?.length) return [...sources];
   if (skill.reads !== "folder") return [path];
   const scope = folderScope(
     useAppStore.getState().notes,
-    folderOf(path),
+    homeFolder(path),
     false,
     useConfig.getState().config.ai.folders,
   );
@@ -79,7 +87,7 @@ export function skillRequest(o: SkillRequestInput): AiRunRequest {
     provider: o.choice.provider,
     model: o.choice.model,
     messages,
-    attach: skillAttach(o.skill, o.path, o.useNote),
+    attach: skillAttach(o.skill, o.path, o.useNote, o.sources),
     sources: o.selectionText ? [o.path] : [],
     ...(o.skill.output === "files" ? { json: true } : {}),
     // Pages and lessons are long.
@@ -139,10 +147,19 @@ export async function runSkill(
 
 const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name);
 
+/**
+ * Where a skill's results go: the note's folder, or for a draft (a skill run on files
+ * picked in the tree) the folder it was made for, not the hidden drafts folder.
+ */
+export const homeFolder = (path: string) =>
+  isDraft(path) ? suggestedFolder(path) : folderOf(path);
+
 /** Save a skill's web page next to its note, as "<note> - <skill>.html". */
 export async function savePageNextTo(path: string, skill: Skill, html: string): Promise<string> {
   const note = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
-  const saved = await createUniqueNote(folderOf(path), `${note} - ${skill.title}`, html, ".html");
+  // A draft made for the run is already named after the skill.
+  const name = isDraft(path) ? note : `${note} - ${skill.title}`;
+  const saved = await createUniqueNote(homeFolder(path), name, html, ".html");
   await useAppStore.getState().refreshTree();
   return saved;
 }
