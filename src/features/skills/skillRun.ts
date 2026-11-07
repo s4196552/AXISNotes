@@ -190,3 +190,65 @@ export function transcript(skill: Skill, turns: Turn[]): string {
   for (const t of turns) lines.push(`**${t.role === "user" ? "Me" : "AI"}:** ${t.text.trim()}`, "");
   return `${lines.join("\n").trim()}\n`;
 }
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** A turn's Markdown as simple HTML: paragraphs, lists, bold and inline code. */
+function turnHtml(md: string): string {
+  const inline = (t: string) =>
+    escapeHtml(t)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>");
+  const out: string[] = [];
+  let list: string[] | null = null;
+  const flush = () => {
+    if (list) out.push(`<ul>${list.map((i) => `<li>${i}</li>`).join("")}</ul>`);
+    list = null;
+  };
+  for (const line of md.trim().split("\n")) {
+    const item = /^\s*[-*]\s+(.*)$/.exec(line);
+    if (item) (list ??= []).push(inline(item[1]!));
+    else {
+      flush();
+      if (line.trim()) out.push(`<p>${inline(line.trim())}</p>`);
+    }
+  }
+  flush();
+  return out.join("\n");
+}
+
+/** A Grill me conversation as a self-contained web page, made here (not by the model). */
+export function transcriptHtml(skill: Skill, turns: Turn[]): string {
+  const title = escapeHtml(skill.title);
+  const body = turns
+    .map(
+      (t) =>
+        `<section class="${t.role === "user" ? "me" : "ai"}"><h2>${t.role === "user" ? "Me" : "AI"}</h2>\n${turnHtml(t.text)}</section>`,
+    )
+    .join("\n");
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
+<style>
+:root { color-scheme: light dark; --bg: #ffffff; --fg: #1f2328; --muted: #656d76; --me: #eef2ff; --ai: #f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0d1117; --fg: #e6edf3; --muted: #8d96a0; --me: #1c2541; --ai: #161b22; } }
+body { margin: 0 auto; max-width: 760px; padding: 24px 16px; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, sans-serif; }
+h1 { font-size: 1.6rem; }
+section { border-radius: 10px; padding: 8px 16px; margin: 12px 0; }
+section.me { background: var(--me); }
+section.ai { background: var(--ai); }
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 8px 0 0; }
+code { font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<h1>${title}</h1>
+${body}
+</body>
+</html>
+`;
+}
