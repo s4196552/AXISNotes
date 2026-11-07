@@ -25,10 +25,19 @@ import {
   useAiBlocks,
 } from "./aiBlockStore";
 import { ModelPicker } from "./ModelPicker";
-import { freshSkill, useSkills } from "../skills/skills";
+import {
+  defaultFormat,
+  FORMAT_LABELS,
+  formatsOf,
+  freshSkill,
+  useSkills,
+  withFormat,
+} from "../skills/skills";
 import { runSkill, skillRequest } from "../skills/skillRun";
 import { ChatActions, ChatTranscript, FilesResult, PageResult } from "../skills/SkillResult";
 import { skillIcon } from "../skills/skillIcons";
+// The block is the first AI view many sessions open: load its styles with it.
+import "./ai.css";
 
 // One AI block in a note: a prompt, what the request reads (this note, the selection),
 // the model and effort, then the streamed answer to insert, retry or discard. The note
@@ -78,9 +87,15 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
   const [planError, setPlanError] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const fresh = useRef(!useAiBlocks.getState().blocks[id]);
-  const skill =
+  const baseSkill =
     useSkills((s) => (state?.skill ? s.skills.find((k) => k.id === state.skill) : undefined)) ??
     null;
+  // The skill as it runs in the chosen format (Markdown, HTML or, for Teach, both).
+  const skill = useMemo(
+    () => (baseSkill ? withFormat(baseSkill, state?.format) : null),
+    [baseSkill, state?.format],
+  );
+  const format = baseSkill ? (state?.format ?? defaultFormat(baseSkill)) : null;
 
   useEffect(() => {
     if (useAiBlocks.getState().blocks[id]) return;
@@ -188,7 +203,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
   }
 
   async function runTheSkill(cur: AiBlockState) {
-    const s = (await freshSkill(skill!.id)) ?? skill!;
+    const s = withFormat((await freshSkill(baseSkill!.id)) ?? baseSkill!, cur.format);
     const req = skillRequest({
       skill: s,
       prompt: cur.prompt,
@@ -318,10 +333,45 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
               className="ai-skill-remove"
               aria-label={`Stop using the ${skill.title} skill`}
               disabled={running}
-              onClick={() => patch({ skill: null, turns: [], html: null, files: null })}
+              onClick={() =>
+                patch({ skill: null, format: null, turns: [], html: null, files: null })
+              }
             >
               <X size={11} />
             </button>
+          </span>
+        )}
+        {baseSkill && format && (
+          <span className="ai-format" role="group" aria-label="Format">
+            {formatsOf(baseSkill).map((f) => (
+              <button
+                key={f}
+                type="button"
+                aria-pressed={format === f}
+                disabled={running}
+                title={
+                  f === "both"
+                    ? "A Markdown lesson note and an HTML practice page"
+                    : f === "html"
+                      ? "A web page that opens in your browser"
+                      : "A Markdown note"
+                }
+                onClick={() =>
+                  // A finished page or file list was made in the other format: clear it.
+                  baseSkill.output === "chat"
+                    ? patch({ format: f })
+                    : patch({
+                        format: f,
+                        html: null,
+                        files: null,
+                        answer: "",
+                        phase: { kind: "idle" },
+                      })
+                }
+              >
+                {FORMAT_LABELS[f]}
+              </button>
+            ))}
           </span>
         )}
         <button
@@ -448,6 +498,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       {skill?.output === "chat" && !running && (state.turns?.length ?? 0) > 0 && (
         <ChatActions
           skill={skill}
+          format={format === "html" ? "html" : "markdown"}
           turns={state.turns ?? []}
           path={path}
           onWrapUp={() => {

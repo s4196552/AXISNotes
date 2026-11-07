@@ -187,6 +187,79 @@ export async function skillFromNote(path: string): Promise<string> {
 
 // ---- What a skill asks the model for, and what comes back ----
 
+// ---- Markdown or HTML ----
+
+/** What a run makes: a Markdown note, an HTML page, or (Teach) both. */
+export type SkillFormat = "markdown" | "html" | "both";
+
+export const FORMAT_LABELS: Record<SkillFormat, string> = {
+  markdown: "Markdown",
+  html: "HTML",
+  both: "Both",
+};
+
+/** The formats a skill can be run in. Every skill offers Markdown and HTML. */
+export const formatsOf = (s: Skill): SkillFormat[] =>
+  s.output === "files" ? ["both", "markdown", "html"] : ["markdown", "html"];
+
+/** The format a skill runs in unless the user picks another. */
+export const defaultFormat = (s: Skill): SkillFormat =>
+  s.output === "html" ? "html" : s.output === "files" ? "both" : "markdown";
+
+// A SKILL.md can say how to answer in each format, in sections headed "## Format: Markdown",
+// "## Format: HTML" or "## Format: Both". The rest of the file is shared. When the chosen
+// format has no section, a general instruction for that format is added instead.
+const FORMAT_HEADING = /^##\s*format:\s*(markdown|html|both)\s*$/i;
+
+function splitFormats(instructions: string): {
+  shared: string;
+  sections: Partial<Record<SkillFormat, string>>;
+} {
+  const shared: string[] = [];
+  const sections: Partial<Record<SkillFormat, string[]>> = {};
+  let current: string[] = shared;
+  for (const line of instructions.split("\n")) {
+    const m = FORMAT_HEADING.exec(line.trim());
+    if (m) {
+      current = sections[m[1]!.toLowerCase() as SkillFormat] = [];
+    } else if (current !== shared && /^#{1,2}\s/.test(line)) {
+      current = shared;
+      shared.push(line);
+    } else current.push(line);
+  }
+  const out: Partial<Record<SkillFormat, string>> = {};
+  for (const [k, v] of Object.entries(sections)) out[k as SkillFormat] = v.join("\n").trim();
+  return { shared: shared.join("\n").trim(), sections: out };
+}
+
+const GENERIC: Record<SkillFormat, string> = {
+  markdown:
+    "Answer in Markdown only (headings, lists, tables, callouts; no HTML). Reply with only the result, no introduction or closing remarks.",
+  html: "Answer as one self-contained HTML page: one inline <style> and, if needed, one inline <script>; no external files, fonts, images or network requests, so it works offline when opened from disk. Readable on a phone, follows the system's light or dark mode, visible keyboard focus. Reply with only the HTML document, starting with <!doctype html>.",
+  both: "",
+};
+
+/**
+ * The skill as it runs in `format`: its instructions keep the shared part and that
+ * format's section, and a page/note skill makes a page or a note to match.
+ */
+export function withFormat(s: Skill, format: SkillFormat | null | undefined): Skill {
+  const f = format && formatsOf(s).includes(format) ? format : defaultFormat(s);
+  const { shared, sections } = splitFormats(s.instructions);
+  const own = sections[f];
+  // A conversation stays a conversation; its format is how it's kept (see `transcriptHtml`).
+  const generic = s.output === "chat" || f === defaultFormat(s) ? "" : GENERIC[f];
+  const extra = own ?? generic;
+  const instructions = extra ? `${shared}\n\n${extra}` : shared;
+  const output: SkillOutput =
+    s.output === "markdown" || s.output === "html"
+      ? f === "html"
+        ? "html"
+        : "markdown"
+      : s.output;
+  return { ...s, output, instructions };
+}
+
 /** The system message for a run: the skill's instructions and the reply format. */
 export function skillSystem(s: Skill): string {
   const base =

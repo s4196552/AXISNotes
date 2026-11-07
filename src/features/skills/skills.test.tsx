@@ -18,9 +18,13 @@ import {
   parseSkill,
   parseSkillFiles,
   skillFromNote,
+  defaultFormat,
+  formatsOf,
+  skillSystem,
   useSkills,
+  withFormat,
 } from "./skills";
-import { skillAttach, skillRequest } from "./skillRun";
+import { skillAttach, skillRequest, transcriptHtml } from "./skillRun";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -259,5 +263,114 @@ describe("running skills from an AI block", () => {
         /\*\*Me:\*\* Students\n\n\*\*AI:\*\* Scope: what is out of scope\?/,
       ),
     );
+  });
+});
+
+describe("Markdown or HTML for every skill", () => {
+  it("offers both formats for every skill, and Both for Teach", () => {
+    expect(BUILTIN_SKILLS.map((k) => [k.id, formatsOf(k), defaultFormat(k)])).toEqual([
+      ["mindmap", ["markdown", "html"], "markdown"],
+      ["test", ["markdown", "html"], "html"],
+      ["flashcards", ["markdown", "html"], "html"],
+      ["grill-me", ["markdown", "html"], "markdown"],
+      ["handoff", ["markdown", "html"], "markdown"],
+      ["teach", ["both", "markdown", "html"], "both"],
+    ]);
+  });
+
+  it("keeps the shared instructions and only the chosen format's section", () => {
+    const md = withFormat(byId("mindmap"), "markdown");
+    expect(md.output).toBe("markdown");
+    expect(md.instructions).toMatch(/Mermaid `mindmap` code block/);
+    expect(md.instructions).not.toMatch(/HTML page|## Format/);
+    const page = withFormat(byId("mindmap"), "html");
+    expect(page.output).toBe("html");
+    expect(page.instructions).toMatch(/self-contained HTML page/);
+    expect(page.instructions).toMatch(/Use 2 to 4 levels/);
+    expect(page.instructions).not.toMatch(/Mermaid `mindmap`/);
+
+    const cards = withFormat(byId("flashcards"), "markdown");
+    expect(cards.output).toBe("markdown");
+    expect(cards.instructions).toMatch(/\[!question\]-/);
+    expect(cards.instructions).not.toMatch(/<!doctype html>/);
+    expect(withFormat(byId("flashcards"), null).output).toBe("html");
+
+    const lesson = withFormat(byId("teach"), "markdown");
+    expect(lesson.output).toBe("files");
+    expect(lesson.instructions).toMatch(/Don't write any \.html file/);
+    expect(withFormat(byId("teach"), "html").instructions).toMatch(/Don't write a lesson \.md/);
+    expect(withFormat(byId("teach"), "both").instructions).toMatch(
+      /Lesson N - <short title>\.html/,
+    );
+
+    // A conversation stays one whatever is picked; the format is how it's kept.
+    expect(withFormat(byId("grill-me"), "html")).toEqual(byId("grill-me"));
+  });
+
+  it("gives a skill without format sections a general instruction for the other format", () => {
+    const own = parseSkill(
+      ["---", "name: summary", "output: markdown", "---", "Summarise the note."].join("\n"),
+      "Skills/summary/SKILL.md",
+    )!;
+    expect(withFormat(own, "markdown").instructions).toBe("Summarise the note.");
+    const page = withFormat(own, "html");
+    expect(page.output).toBe("html");
+    expect(skillSystem(page)).toMatch(
+      /Summarise the note\.\n\nAnswer as one self-contained HTML page/,
+    );
+  });
+
+  it("makes flash cards as a Markdown note when Markdown is picked", async () => {
+    setAiResponder((req) => {
+      lastRequest.req = req;
+      return ["# Cells", "", "> [!question]- What makes ATP?", "> Mitochondria."].join("\n");
+    });
+    const v = mount("# Cells\n\n", "Bio/Cells.md", 9);
+    act(() => void openAiBlock(v, undefined, { skill: "flashcards" }));
+    const block = await screen.findByRole("group", { name: "AI block" });
+    const formats = within(block).getByRole("group", { name: "Format" });
+    expect(within(formats).getByRole("button", { name: "HTML" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(within(formats).getByRole("button", { name: "Markdown" }));
+    expect(within(formats).getByRole("button", { name: "Markdown" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
+    await within(block).findByRole("button", { name: /Insert/ });
+    expect(within(block).queryByText(/Made a web page/)).not.toBeInTheDocument();
+    const system = lastRequest.req!.messages[0]!.content[0]!;
+    expect(system.type === "text" && system.text).toMatch(/folded callout/);
+    expect(lastRequest.req!.maxOutputTokens).toBeUndefined();
+  });
+
+  it("keeps a Grill me conversation as a web page when HTML is picked", async () => {
+    setAiResponder(() => "Goals: who is this for? <b>now</b>");
+    const v = mount("Plan\n", "Bio/Cells.md", 0);
+    act(() => void openAiBlock(v, undefined, { skill: "grill-me" }));
+    const block = await screen.findByRole("group", { name: "AI block" });
+    fireEvent.click(within(block).getByRole("button", { name: "HTML" }));
+    fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
+    await within(block).findByRole("button", { name: /Wrap up/ });
+    fireEvent.click(within(block).getByRole("button", { name: /Open as draft/ }));
+    await waitFor(() =>
+      expect(h.b.files()[".axisnotes/drafts/Grill me - Cells.html"]).toMatch(/^<!doctype html>/),
+    );
+    const page = h.b.files()[".axisnotes/drafts/Grill me - Cells.html"]!;
+    expect(page).toContain("Goals: who is this for? &lt;b&gt;now&lt;/b&gt;");
+    expect(page).not.toContain("<b>now</b>");
+  });
+
+  it("builds the conversation page with lists and bold, and escapes everything", () => {
+    const html = transcriptHtml(byId("grill-me"), [
+      { role: "user", text: "Use <script>" },
+      { role: "assistant", text: ["**Decisions**", "- Ship it", "- Test `x`"].join("\n") },
+    ]);
+    expect(html).toContain("<p>Use &lt;script&gt;</p>");
+    expect(html).toContain("<p><strong>Decisions</strong></p>");
+    expect(html).toContain("<ul><li>Ship it</li><li>Test <code>x</code></li></ul>");
+    expect(html).not.toMatch(/<script/);
   });
 });

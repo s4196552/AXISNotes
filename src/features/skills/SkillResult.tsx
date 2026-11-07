@@ -4,7 +4,14 @@ import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { createDraft, folderOf } from "../drafts/drafts";
 import type { Skill, SkillFiles } from "./skills";
-import { planFiles, savePageNextTo, transcript, type Turn, writeFiles } from "./skillRun";
+import {
+  planFiles,
+  savePageNextTo,
+  transcript,
+  transcriptHtml,
+  type Turn,
+  writeFiles,
+} from "./skillRun";
 
 // What a finished skill run offers, by kind: a web page (open, keep as a draft, or save
 // beside the note), a Teach session's files (save into the folder), or a Grill me
@@ -160,6 +167,7 @@ export function ChatTranscript({ turns, answer }: { turns: Turn[]; answer: strin
 
 export function ChatActions({
   skill,
+  format = "markdown",
   turns,
   path,
   onWrapUp,
@@ -167,6 +175,8 @@ export function ChatActions({
   onDiscard,
 }: {
   skill: Skill;
+  /** Keep the conversation as a Markdown note or an HTML page. */
+  format?: "markdown" | "html";
   turns: Turn[];
   path: string;
   onWrapUp(): void;
@@ -183,7 +193,8 @@ export function ChatActions({
         onClick={() =>
           void createDraft({
             title: `${skill.title} - ${path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "")}`,
-            content: transcript(skill, turns),
+            content: format === "html" ? transcriptHtml(skill, turns) : transcript(skill, turns),
+            ...(format === "html" ? { ext: ".html" } : {}),
             folder: folderOf(path),
           }).then(onDone, fail)
         }

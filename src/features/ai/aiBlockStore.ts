@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { SkillFormat } from "../skills/skills";
 import { type AiEffort, type AiModel, type AiPlan, type AiRunResult, backend } from "../../ipc";
 
 // State of each AI block in the editor, kept outside React so a block keeps its prompt
@@ -32,6 +33,8 @@ export interface AiBlockState {
   answer: string;
   /** The skill this block runs (its id), or null for a plain prompt. */
   skill?: string | null;
+  /** The format the skill makes (Markdown, HTML or both); null for the skill's own. */
+  format?: SkillFormat | null;
   /** A chat skill's conversation so far. */
   turns?: { role: "user" | "assistant"; text: string }[];
   /** A page skill's checked HTML. */
