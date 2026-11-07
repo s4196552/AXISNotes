@@ -86,6 +86,7 @@ pub fn run() {
             commands::trash_entry,
             commands::reveal_entry,
             commands::open_in_browser,
+            pages::open_web_link,
             commands::search,
             commands::list_tags,
             commands::list_property_keys,

@@ -479,6 +479,8 @@ export interface Backend {
   revealEntry(path: string): Promise<void>;
   /** Open a vault `.html` file in the default browser (other files are refused). */
   openInBrowser(path: string): Promise<void>;
+  /** Open an http(s) link from a vault web page in the default browser (T-192). */
+  openWebLink(url: string): Promise<void>;
   /** Subscribe to changes made outside the app. Returns an unsubscribe function. */
   onVaultChanged(cb: (changes: VaultChange[]) => void): Promise<() => void>;
   /** Progress of catching the index up after a vault opens (big vaults open first and are

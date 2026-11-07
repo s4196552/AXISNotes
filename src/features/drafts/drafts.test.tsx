@@ -5,6 +5,7 @@ import { useAppStore } from "../../app/store";
 import { docKind } from "../../lib/fileKinds";
 import { DraftBanner } from "./DraftBanner";
 import { PAGE_SANDBOX, WebFileView } from "./WebFileView";
+import { pageLink } from "./pageLinks";
 import { createDraft, draftName, isDraft, saveDraft, vaultFolders } from "./drafts";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
@@ -119,5 +120,69 @@ describe("web pages", () => {
 
   it("refuses to open anything but a web page", async () => {
     await expect(h.b.openInBrowser("School/Bio.md")).rejects.toMatchObject({ code: "InvalidName" });
+  });
+});
+
+describe("links in web pages", () => {
+  const page = "http://axispage.localhost/School/Quiz%20one.html";
+
+  it("sends web links to the browser and vault links to a tab", () => {
+    expect(pageLink("https://example.com/a?b=1#c", page)).toEqual({
+      web: "https://example.com/a?b=1#c",
+    });
+    expect(pageLink("http://axispage.localhost/School/Lab/Week%201.md#x", page)).toEqual({
+      vault: "School/Lab/Week 1.md",
+    });
+    expect(
+      pageLink("axispage://localhost/School/Bio.md", "axispage://localhost/School/Q.html"),
+    ).toEqual({
+      vault: "School/Bio.md",
+    });
+    for (const bad of [
+      "javascript:alert(1)",
+      "file:///C:/Windows/notepad.exe",
+      "https://exa mple.com/",
+      "http://axispage.localhost/%E0%A4%A",
+      "http://axispage.localhost/",
+      42,
+      null,
+      "https://example.com/" + "a".repeat(5000),
+    ])
+      expect(pageLink(bad, page)).toBeNull();
+  });
+
+  it("follows a link only from its own frame, after a click in it, once a second", async () => {
+    vi.spyOn(h.b, "pageUrl").mockImplementation((p) => `http://axispage.localhost/${p}`);
+    const web = vi.spyOn(h.b, "openWebLink").mockResolvedValue();
+    render(<WebFileView path="School/Quiz.html" />);
+    const frame = screen.getByTitle("Quiz.html") as HTMLIFrameElement;
+    const post = (axisnotesLink: string, source: Window | null = frame.contentWindow) =>
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", { data: { axisnotesLink }, source }));
+      });
+
+    post("https://example.com/"); // the page hasn't been clicked: it's loading, say
+    expect(web).not.toHaveBeenCalled();
+
+    frame.focus();
+    expect(document.activeElement).toBe(frame);
+    post("https://example.com/", window); // not from the page
+    expect(web).not.toHaveBeenCalled();
+    post("https://example.com/");
+    expect(web).toHaveBeenCalledWith("https://example.com/");
+    post("https://example.com/again"); // too soon after
+    expect(web).toHaveBeenCalledTimes(1);
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(Date.now() + 1500);
+      post("http://axispage.localhost/School/Bio.md");
+      expect(useAppStore.getState().activePath).toBe("School/Bio.md");
+      vi.setSystemTime(Date.now() + 1500);
+      post("http://axispage.localhost/School/Missing.md");
+      expect(useAppStore.getState().notice).toMatch(/School\/Missing.md isn't in the vault/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

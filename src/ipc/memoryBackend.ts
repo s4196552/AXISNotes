@@ -709,6 +709,10 @@ export function createMemoryBackend(
       window.open(url, "_blank", "noopener");
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     },
+    async openWebLink(url) {
+      if (!/^https?:\/\//i.test(url)) fail("InvalidName", "Only web links (http or https) open.");
+      window.open(url, "_blank", "noopener");
+    },
     // The in-memory index is always up to date.
     onIndexProgress: async () => () => {},
     // The browser preview zooms with CSS; the desktop app zooms the webview itself.
