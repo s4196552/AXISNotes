@@ -199,6 +199,32 @@ describe("resizing side panels", () => {
     expect(maxWidth("left", 800)).toBe(456);
     expect(useConfig.getState().config).toEqual(DEFAULT_CONFIG);
   });
+
+  it("boxy layout puts the panels edge to edge with square corners, and back", () => {
+    const { container } = render(<App />);
+    const shell = container.querySelector<HTMLElement>(".shell")!;
+    expect(shell).not.toHaveClass("boxy");
+    act(() =>
+      useConfig.setState((s) => ({
+        config: { ...s.config, appearance: { ...s.config.appearance, boxy: true } },
+      })),
+    );
+    expect(shell).toHaveClass("boxy");
+    expect(document.documentElement.dataset.boxy).toBe("");
+    expect(shell.style.getPropertyValue("--pane-inset")).toBe("0px");
+    expect(shell.style.getPropertyValue("--pane-gap")).toBe("0px");
+    expect(shell.style.getPropertyValue("--pane-radius")).toBe("0px");
+    // No insets or gaps to leave room for (2 × 8 + 2 × 8 px with both panels open).
+    expect(maxWidth("left", 1024)).toBe(392 + 32);
+    act(() =>
+      useConfig.setState((s) => ({
+        config: { ...s.config, appearance: { ...s.config.appearance, boxy: false } },
+      })),
+    );
+    expect(shell).not.toHaveClass("boxy");
+    expect(document.documentElement.dataset.boxy).toBeUndefined();
+    expect(shell.style.getPropertyValue("--pane-radius")).toBe(`${PANE_LAYOUT.radius}px`);
+  });
 });
 
 describe("compact windows (side panels over the note)", () => {

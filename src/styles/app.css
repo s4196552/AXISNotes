@@ -664,3 +664,22 @@ body.pointer-dragging * {
     padding-top: 6vh;
   }
 }
+
+/* Boxy layout (Settings → Appearance): the panels meet edge to edge with square corners,
+   split by single lines, instead of floating as rounded cards. Text, icons and controls
+   keep their own look. */
+.shell.boxy .sidebar,
+.shell.boxy .content {
+  border: none;
+  border-radius: 0;
+}
+.shell.boxy:not(.compact) .sidebar-slot.left > .sidebar {
+  border-right: 1px solid var(--border);
+}
+.shell.boxy:not(.compact) .sidebar-slot.right > .sidebar {
+  border-left: 1px solid var(--border);
+}
+/* Over the note (narrow window, Zen mode) a panel still needs an edge. */
+.shell.boxy.compact .sidebar {
+  border: 1px solid var(--border);
+}
