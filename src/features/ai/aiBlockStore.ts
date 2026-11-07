@@ -120,13 +120,25 @@ export const EFFORT_LABELS: Record<AiEffort, string> = {
 
 const modelCache = new Map<string, Promise<AiModel[]>>();
 
-/** A provider's models (fetched once per session; the built-in list if that fails). */
+/**
+ * A provider's models (fetched once per session; the built-in list if that fails). A list
+ * that couldn't be fetched isn't kept, so the next look asks the provider again.
+ */
 export function modelsOf(providerId: string): Promise<AiModel[]> {
   let p = modelCache.get(providerId);
   if (!p) {
+    const forget = () => {
+      if (modelCache.get(providerId) === p) modelCache.delete(providerId);
+    };
     p = backend.aiListModels(providerId).then(
-      (r) => r.models,
-      () => [],
+      (r) => {
+        if (r.error) forget();
+        return r.models;
+      },
+      () => {
+        forget();
+        return [];
+      },
     );
     modelCache.set(providerId, p);
   }

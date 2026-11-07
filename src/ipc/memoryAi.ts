@@ -56,6 +56,7 @@ const MODELS: Partial<Record<AiProviderKind, AiModel[]>> = {
   openai: [
     { id: "gpt-6-astra", name: "GPT-6 Astra", vision: true, json: true, context: null },
     { id: "gpt-6-sol", name: "GPT-6 Sol", vision: true, json: true, context: 272000 },
+    { id: "gpt-6.1-sol", name: "GPT-6.1 Sol", vision: true, json: true, context: null },
     { id: "gpt-6-luna", name: "GPT-6 Luna", vision: false, json: true, context: null },
   ],
   anthropic: [

@@ -440,3 +440,129 @@ async fn chatgpt_plan_requires_completed_and_reports_usage_limits_after_deltas()
         assert!(a.stream(&request("account-model"),&mut |_| true).await.is_err());
     }
 }
+
+#[test]
+fn stream_errors_show_the_providers_reason_in_any_shape() {
+    use crate::ai::codec::stream_error;
+    // Top level, nested in `error`, and inside `response.error`.
+    let top = stream_error(
+        &json!({"type":"error","code":"insufficient_quota","message":"You exceeded your current quota."}),
+    );
+    assert_eq!(
+        top.to_string(),
+        "unexpected response: You exceeded your current quota. (insufficient_quota)"
+    );
+    let nested = stream_error(
+        &json!({"type":"error","error":{"type":"invalid_request_error","code":"model_not_found","message":"The model does not exist."}}),
+    );
+    assert_eq!(
+        nested.to_string(),
+        "unexpected response: The model does not exist. (model_not_found)"
+    );
+    let failed = stream_error(
+        &json!({"type":"response.failed","response":{"error":{"code":"server_error","message":"Something broke."}}}),
+    );
+    assert_eq!(
+        failed.to_string(),
+        "unexpected response: Something broke. (server_error)"
+    );
+    // Nothing to go on still says so in words.
+    let empty = stream_error(&json!({"type":"error"}));
+    assert!(empty.to_string().contains("without giving a reason"));
+    // A named parameter is something the adapter can drop and retry.
+    let param = stream_error(
+        &json!({"type":"error","error":{"message":"Unsupported value: 'reasoning.effort'","param":"reasoning.effort"}}),
+    );
+    assert!(
+        matches!(param, AiError::Invalid { param: Some(ref p), .. } if p == "reasoning.effort")
+    );
+}
+
+#[tokio::test]
+async fn a_rejected_parameter_inside_the_stream_is_dropped_and_retried() {
+    let refused = "event: error\ndata: {\"type\":\"error\",\"error\":{\"message\":\"Unsupported parameter: 'reasoning.effort'\",\"param\":\"reasoning.effort\"}}\n\n";
+    let (a, fx) = adapter(
+        ProviderKind::OpenAi,
+        Some("test-key"),
+        vec![(200, refused), (200, fixture!("openai_responses.sse"))],
+    );
+    let mut req = request("gpt-6.1-sol");
+    req.effort = Some(Effort::Balanced);
+    let mut seen = String::new();
+    let c = a
+        .stream(&req, &mut |d| {
+            seen.push_str(d);
+            true
+        })
+        .await
+        .unwrap();
+    assert_eq!(c.text, ANSWER);
+    assert_eq!(seen, ANSWER);
+    let requests = fx.requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests[1]
+        .body
+        .as_ref()
+        .unwrap()
+        .get("reasoning")
+        .is_none());
+}
+
+#[tokio::test]
+async fn a_model_that_may_not_stream_is_asked_again_without_streaming() {
+    let refused = "event: error\ndata: {\"type\":\"error\",\"error\":{\"code\":\"unsupported_value\",\"message\":\"Your organization must be verified to stream this model.\"}}\n\n";
+    let (a, fx) = adapter(
+        ProviderKind::OpenAi,
+        Some("test-key"),
+        vec![(200, refused), (200, fixture!("openai_responses.json"))],
+    );
+    let mut seen = String::new();
+    let c = a
+        .stream(&request("gpt-6.1-sol"), &mut |d| {
+            seen.push_str(d);
+            true
+        })
+        .await
+        .unwrap();
+    assert_eq!(c.text, ANSWER);
+    assert_eq!(seen, ANSWER, "the whole answer still reaches the block");
+    let requests = fx.requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0].body.as_ref().unwrap()["stream"], true);
+    assert_ne!(requests[1].body.as_ref().unwrap()["stream"], true);
+}
+
+#[tokio::test]
+async fn other_stream_errors_are_not_repeated() {
+    let quota = "event: error\ndata: {\"type\":\"error\",\"error\":{\"code\":\"insufficient_quota\",\"message\":\"You exceeded your current quota.\"}}\n\n";
+    let (a, fx) = adapter(ProviderKind::OpenAi, Some("test-key"), vec![(200, quota)]);
+    let err = a
+        .stream(&request("gpt-6-sol"), &mut |_| true)
+        .await
+        .unwrap_err();
+    assert!(err
+        .to_string()
+        .contains("You exceeded your current quota. (insufficient_quota)"));
+    assert_eq!(fx.requests.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn openai_list_hides_non_chat_models_and_puts_known_ones_first() {
+    let list = r#"{"data":[{"id":"whisper-1"},{"id":"chat-latest"},{"id":"text-embedding-3-large"},{"id":"gpt-6.1-sol"},{"id":"tts-1"},{"id":"gpt-6-sol"},{"id":"dall-e-3"},{"id":"gpt-image-2.5-flare"},{"id":"gpt-6-astra"},{"id":"o9-mini"}]}"#;
+    let (a, _) = adapter(ProviderKind::OpenAi, Some("test-key"), vec![(200, list)]);
+    let models = a.list_models().await.unwrap();
+    let ids: Vec<&str> = models.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        [
+            "gpt-6-astra",
+            "gpt-6-sol",
+            "gpt-6.1-sol",
+            "chat-latest",
+            "o9-mini"
+        ]
+    );
+    let sol = models.iter().find(|m| m.id == "gpt-6.1-sol").unwrap();
+    assert_eq!(sol.name, "GPT-6.1 Sol");
+    assert!(sol.vision);
+}

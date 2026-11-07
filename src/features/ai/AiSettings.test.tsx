@@ -45,7 +45,7 @@ describe("AI settings", () => {
 
     fireEvent.click(within(card).getByRole("button", { name: /Test connection/ }));
     await waitFor(() =>
-      expect(within(card).getByRole("status")).toHaveTextContent("Connected · 3 models"),
+      expect(within(card).getByRole("status")).toHaveTextContent("Connected · 4 models"),
     );
   });
 

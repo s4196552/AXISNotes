@@ -3,7 +3,7 @@
 
 use serde_json::{json, Value};
 
-use super::{data_url, error_message, join_url, u32_at, Codec, Flags, StreamAcc};
+use super::{data_url, join_url, stream_error, u32_at, Codec, Flags, StreamAcc};
 use crate::ai::sse::Event;
 use crate::ai::transport::HttpRequest;
 use crate::ai::{AiError, Completion, ModelInfo, Part, Request, Role, Usage};
@@ -156,21 +156,7 @@ impl Codec for OpenAiResponses {
                 acc.done = true;
                 Ok(None)
             }
-            "response.failed" => Err(AiError::Protocol(
-                data.pointer("/response/error/message")
-                    .and_then(Value::as_str)
-                    .unwrap_or("response failed")
-                    .to_string(),
-            )),
-            "error" => Err(AiError::Protocol(
-                error_message(&json!({ "error": data }))
-                    .or_else(|| {
-                        data.get("message")
-                            .and_then(Value::as_str)
-                            .map(String::from)
-                    })
-                    .unwrap_or_else(|| "stream error".into()),
-            )),
+            "response.failed" | "response.error" | "error" => Err(stream_error(&data)),
             _ => Ok(None),
         }
     }

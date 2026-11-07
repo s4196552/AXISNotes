@@ -160,7 +160,40 @@ impl Registry {
     }
 
     pub fn is_text_model(&self, kind: ProviderKind, id: &str) -> bool {
-        self.spec(kind, id).is_none_or(|s| s.image != Some(true))
+        if self.spec(kind, id).is_some_and(|s| s.image == Some(true)) {
+            return false;
+        }
+        // OpenAI's list also has speech, image, embedding and old completion models, which
+        // can't answer in a note and bury the chat models.
+        const NOT_CHAT: &[&str] = &[
+            "embedding",
+            "tts",
+            "whisper",
+            "dall-e",
+            "moderation",
+            "transcribe",
+            "realtime",
+            "audio",
+            "babbage",
+            "davinci",
+            "sora",
+            "gpt-image",
+        ];
+        let id = id.to_ascii_lowercase();
+        kind != ProviderKind::OpenAi || !NOT_CHAT.iter().any(|w| id.contains(w))
+    }
+
+    /// Order a provider's list: models this file knows (with names and capabilities)
+    /// first, in the file's order, then the rest by id.
+    pub fn order(&self, kind: ProviderKind, models: &mut [ModelInfo]) {
+        let rank = |id: &str| {
+            self.file
+                .providers
+                .get(&kind)
+                .and_then(|p| p.models.iter().position(|s| s.id == id))
+                .unwrap_or(usize::MAX)
+        };
+        models.sort_by(|a, b| rank(&a.id).cmp(&rank(&b.id)).then_with(|| a.id.cmp(&b.id)));
     }
 
     /// Default model for a task: the configured one if the provider offers it, else a
