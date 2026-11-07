@@ -2,6 +2,16 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-07: Skill web pages stay copyable (T-191)
+
+- **Every HTML page a skill makes gets a small guard, first in its `<head>`** (`src/features/skills/copyable.ts`). This covers page skills (flash cards, practice tests, mind maps) and the `.html` files of a Teach session.
+  - The guard makes all text selectable, overriding any `user-select: none`.
+  - Listeners on `window` in the capture phase run before the page's own handlers for copy, cut, paste, select, the right-click menu and Ctrl/⌘+A/C/V/X, and skip them. The page therefore can't cancel these, but the browser's own action and the `input` events that follow a paste still happen.
+  - A click that ends a text selection isn't passed to the page, so selecting a card's text doesn't flip it. Clicks on buttons, links and fields always pass.
+  - Why: model-written pages often turn these off, for example to make cards flip on click. A rule in the prompt alone can't be relied on, so it's also stated (`COPYABLE_RULE`) and enforced.
+- **Pages made before this keep their old behaviour.** Saved files are never rewritten. Running the skill again makes a copyable page.
+- **"Copy text"** sits beside a page result and on any web page opened in the vault. It copies the page's text as on disk, one block per line. Pages still never run inside the app, so text that a page's script writes isn't included; the app says so and suggests copying from the browser.
+
 ## 2026-11-06: App colours: the user's own sidebar and note-area colours (T-178)
 
 - **Settings → Appearance → App colours** sets four colours over any theme except Translucent:

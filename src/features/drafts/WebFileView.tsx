@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, FolderOpen } from "lucide-react";
+import { Copy, ExternalLink, FolderOpen } from "lucide-react";
 import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { DraftBanner } from "./DraftBanner";
 import { isDraft } from "./drafts";
+import { copyPageText } from "../skills/copyable";
 import "./drafts.css";
 
 // A web page in the vault (an AI-made quiz or flash-card deck). AXISNotes doesn't run
@@ -36,7 +37,7 @@ export function WebFileView({ path }: { path: string }) {
         <h1 className="editor-title">{name}</h1>
         <p className="muted">
           A web page{size !== null && ` (${Math.max(1, Math.round(size / 1024))} KB)`}. It opens in
-          your browser, where its buttons and quizzes work.
+          your browser, where its buttons and quizzes work and you can select and copy its text.
         </p>
         <button
           type="button"
@@ -44,6 +45,17 @@ export function WebFileView({ path }: { path: string }) {
           onClick={() => void backend.openInBrowser(path).catch(report)}
         >
           <ExternalLink size={14} /> Open in browser
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void backend
+              .readFile(path)
+              .then((f) => copyPageText(f.content))
+              .then((m) => useAppStore.getState().notify(m), report)
+          }
+        >
+          <Copy size={14} /> Copy text
         </button>
         {!draft && (
           <button type="button" onClick={() => void backend.revealEntry(path).catch(report)}>

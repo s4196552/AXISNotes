@@ -4,6 +4,7 @@ import { useAppStore } from "../../app/store";
 import { splitFrontmatter } from "../../lib/markdown";
 import { InvalidAnswer, parseAnswer } from "../../lib/aiJson";
 import { BUILTIN_SKILL_FILES } from "./builtinSkills";
+import { COPYABLE_RULE, makeCopyable } from "./copyable";
 
 // Skills: reusable instructions for the AI, run from the command menu (/mindmap,
 // /flashcards…) with any provider and model. Each skill is a `SKILL.md`: YAML
@@ -265,17 +266,22 @@ export function skillSystem(s: Skill): string {
   const base =
     "You are running a skill inside AXISNotes, a Markdown note-taking app. " +
     "The user's notes are attached. Follow the skill's instructions exactly.";
-  return `${base}\n\n# Skill: ${s.title}\n\n${s.instructions}`;
+  // A page-making run is also told to leave its text copyable (makeCopyable enforces it).
+  const pages = s.output === "html" || s.output === "files" ? `\n\n${COPYABLE_RULE}` : "";
+  return `${base}${pages}\n\n# Skill: ${s.title}\n\n${s.instructions}`;
 }
 
-/** The HTML document in a reply (code fences and chatter around it are dropped). */
+/**
+ * The HTML document in a reply (code fences and chatter around it are dropped), with the
+ * guard that keeps its text selectable and copyable.
+ */
 export function extractHtml(answer: string): string {
   const fenced = /```(?:html)?\s*\n([\s\S]*?)```/i.exec(answer);
   const body = fenced ? fenced[1]! : answer;
   const start = body.search(/<!doctype html|<html[\s>]/i);
   const end = body.toLowerCase().lastIndexOf("</html>");
   if (start === -1) throw new InvalidAnswer(["the reply has no HTML document (<!doctype html>…)"]);
-  return (end > start ? body.slice(start, end + 7) : body.slice(start)).trim() + "\n";
+  return makeCopyable((end > start ? body.slice(start, end + 7) : body.slice(start)).trim() + "\n");
 }
 
 export interface SkillFile {
@@ -317,7 +323,8 @@ export function parseSkillFiles(answer: string): SkillFiles {
     if (seen.has(path.toLowerCase())) problems.push(`files[${i}].path repeats ${path}`);
     seen.add(path.toLowerCase());
     if (f.content.length > MAX_FILE_BYTES) problems.push(`files[${i}] is too large`);
-    return { path, content: f.content.endsWith("\n") ? f.content : `${f.content}\n` };
+    const content = f.content.endsWith("\n") ? f.content : `${f.content}\n`;
+    return { path, content: /\.html?$/i.test(path) ? makeCopyable(content) : content };
   });
   if (problems.length) throw new InvalidAnswer(problems);
   return { message: v.message ?? "", files };
