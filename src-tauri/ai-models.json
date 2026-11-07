@@ -27,6 +27,13 @@
           "price": { "input": 2, "output": 10 }
         },
         {
+          "id": "gpt-6.1-sol",
+          "name": "GPT-6.1 Sol",
+          "vision": true,
+          "json": true,
+          "price": { "input": 2, "output": 10 }
+        },
+        {
           "id": "gpt-6-luna",
           "name": "GPT-6 Luna",
           "vision": false,

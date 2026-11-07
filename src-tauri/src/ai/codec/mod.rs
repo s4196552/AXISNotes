@@ -111,6 +111,72 @@ fn error_message(body: &Value) -> Option<String> {
         .or_else(|| e.as_str().map(String::from))
 }
 
+/// An error that arrives inside a stream (`error`, `response.error`, `response.failed`).
+/// The details sit in different places: `{message, code, param}` at the top, inside an
+/// `error` object, or in `response.error`. All of them are read, so the user sees the
+/// provider's reason instead of "stream error"; a named parameter can be dropped and retried.
+pub fn stream_error(data: &Value) -> AiError {
+    let places = [
+        Some(data),
+        data.get("error").filter(|e| e.is_object()),
+        data.pointer("/response/error").filter(|e| e.is_object()),
+    ];
+    let field = |name: &str| {
+        places
+            .iter()
+            .flatten()
+            .find_map(|p| p.get(name).and_then(Value::as_str))
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| s.trim().to_string())
+    };
+    let code = field("code");
+    let message = field("message")
+        .or_else(|| data.get("error").and_then(Value::as_str).map(String::from))
+        .unwrap_or_else(|| "the stream stopped without giving a reason".into());
+    let message = match &code {
+        Some(c) if !message.contains(c.as_str()) => format!("{message} ({c})"),
+        _ => message,
+    };
+    let param = field("param").or_else(|| {
+        KNOWN_PARAMS
+            .iter()
+            .find(|p| message.contains(*p))
+            .map(|p| p.to_string())
+    });
+    match param {
+        Some(p) => AiError::Invalid {
+            message,
+            param: Some(p),
+        },
+        None => AiError::Protocol(message),
+    }
+}
+
+/// Whether a failure says this model or account can't stream (for example OpenAI's
+/// "organization must be verified to stream this model"), so a plain request may work.
+pub fn stream_refused(err: &AiError) -> bool {
+    let (message, param) = match err {
+        AiError::Invalid { message, param } => (message.as_str(), param.as_deref()),
+        AiError::Protocol(m) | AiError::Auth(m) => (m.as_str(), None),
+        _ => return false,
+    };
+    if param.is_some_and(|p| p == "stream") {
+        return true;
+    }
+    let m = message.to_ascii_lowercase();
+    m.contains("stream")
+        && !m.contains("stream_options")
+        && [
+            "verif",
+            "not supported",
+            "unsupported",
+            "not allowed",
+            "not permitted",
+        ]
+        .iter()
+        .any(|w| m.contains(w))
+}
+
 /// Map an HTTP error response to an `AiError`.
 pub fn error_from(status: u16, body: &[u8]) -> AiError {
     let json: Value = serde_json::from_slice(body).unwrap_or(Value::Null);

@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use serde_json::Value;
 
-use super::codec::{codec_for, drop_param, error_from, Codec, Flags, StreamAcc};
+use super::codec::{codec_for, drop_param, error_from, stream_refused, Codec, Flags, StreamAcc};
 use super::registry::Registry;
 use super::sse::SseParser;
 use super::transport::{HttpResponse, Transport};
@@ -70,7 +70,6 @@ impl Adapter {
             .map_err(|e| AiError::Protocol(format!("response is not JSON: {e}")))
     }
 
-    #[allow(dead_code)] // used by `complete`
     async fn complete_once(&self, req: &Request, flags: Flags) -> AiResult<Completion> {
         let http = self
             .codec
@@ -172,10 +171,21 @@ impl AiProvider for Adapter {
             let mut r = self.prepared(req);
             let mut flags = Flags::default();
             let mut emitted = false;
-            match self.stream_once(&r, flags, on_delta, &mut emitted).await {
-                // Only retry if nothing reached the caller yet.
-                Err(e) if !emitted && Self::retry_without(&e, &mut r, &mut flags) => {
-                    self.stream_once(&r, flags, on_delta, &mut emitted).await
+            let mut result = self.stream_once(&r, flags, on_delta, &mut emitted).await;
+            // Only retry if nothing reached the caller yet: first without a parameter the
+            // provider rejected, then (when it refuses to stream) as a plain request.
+            if let Err(e) = &result {
+                if !emitted && Self::retry_without(e, &mut r, &mut flags) {
+                    result = self.stream_once(&r, flags, on_delta, &mut emitted).await;
+                }
+            }
+            match result {
+                Err(e) if !emitted && self.kind != ProviderKind::ChatGpt && stream_refused(&e) => {
+                    let c = self.complete_once(&r, flags).await?;
+                    if !c.text.is_empty() && !on_delta(&c.text) {
+                        return Err(AiError::Cancelled);
+                    }
+                    Ok(c)
                 }
                 other => other,
             }
@@ -195,11 +205,13 @@ impl AiProvider for Adapter {
             if self.kind == ProviderKind::ChatGpt {
                 return Ok(models);
             }
-            Ok(models
+            let mut models: Vec<ModelInfo> = models
                 .into_iter()
                 .filter(|m| self.registry.is_text_model(self.kind, &m.id))
                 .map(|m| self.registry.enrich(self.kind, m))
-                .collect())
+                .collect();
+            self.registry.order(self.kind, &mut models);
+            Ok(models)
         })
     }
 }
