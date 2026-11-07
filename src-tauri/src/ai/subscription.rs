@@ -86,6 +86,8 @@ fn permitted(scope: &str) -> bool {
 struct State {
     epochs: HashMap<String, u64>,
     pending: HashMap<String, Arc<AtomicBool>>,
+    /// The sign-in link of each pending sign-in, for the user to copy into a browser.
+    links: HashMap<String, String>,
 }
 pub struct Sessions {
     keys: Arc<dyn KeyStore>,
@@ -266,8 +268,18 @@ impl Sessions {
             .is_some_and(|v| Arc::ptr_eq(v, &cancel))
         {
             state.pending.remove(id);
+            state.links.remove(id);
         }
         result
+    }
+    /// The link of a sign-in that is waiting for the browser, if there is one.
+    pub fn pending_link(&self, id: &str) -> Option<String> {
+        let state = self.state.lock().unwrap();
+        state
+            .pending
+            .contains_key(id)
+            .then(|| state.links.get(id).cloned())
+            .flatten()
     }
     async fn authorize(
         &self,
@@ -314,11 +326,17 @@ impl Sessions {
         if initial {
             url.query_pairs_mut()
                 .append_pair("agent_name_hint", "AXISNotes");
-        } else if !record.id_token.is_empty() {
+        }
+        // The link offered for copying leaves out the identity token hint: it's only a
+        // hint, and the token shouldn't end up on the clipboard or in the webview.
+        let link = url.to_string();
+        if !initial && !record.id_token.is_empty() {
             url.query_pairs_mut()
                 .append_pair("id_token_hint", &record.id_token);
         }
-        open_browser(url.as_str())?;
+        self.state.lock().unwrap().links.insert(id.into(), link);
+        // If no browser opens, the user can still copy the link, so keep waiting.
+        let _ = open_browser(url.as_str());
         let expected = state.clone();
         let callback =
             tauri::async_runtime::spawn_blocking(move || {
@@ -759,6 +777,31 @@ mod tests {
         apply_tokens(&mut r, &v, true).unwrap();
         assert_eq!(r.refresh_token, "rotated");
         assert!(permitted(&r.scope));
+    }
+    #[test]
+    fn the_sign_in_link_is_offered_only_while_a_sign_in_waits() {
+        let keys = Arc::new(super::super::keys::MemoryKeys::default());
+        let dir = tempfile::tempdir().unwrap();
+        let sessions = Sessions::new(keys, dir.path().join("session.lock"));
+        assert_eq!(sessions.pending_link("plan"), None);
+        {
+            let mut state = sessions.state.lock().unwrap();
+            state
+                .pending
+                .insert("plan".into(), Arc::new(AtomicBool::new(false)));
+            state.links.insert(
+                "plan".into(),
+                "https://auth.openai.com/api/accounts/authorize?state=s".into(),
+            );
+        }
+        assert_eq!(
+            sessions.pending_link("plan").as_deref(),
+            Some("https://auth.openai.com/api/accounts/authorize?state=s")
+        );
+        assert_eq!(sessions.pending_link("other"), None);
+        // Once the sign-in is no longer pending, a stale link isn't offered.
+        sessions.state.lock().unwrap().pending.remove("plan");
+        assert_eq!(sessions.pending_link("plan"), None);
     }
     #[test]
     fn cancel_fences_late_credentials() {

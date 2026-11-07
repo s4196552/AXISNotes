@@ -10,6 +10,10 @@ export function SubscriptionConnection({
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // While a sign-in waits for the browser: its link, to copy if no browser opened.
+  const [waiting, setWaiting] = useState(false);
+  const [link, setLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const active = useRef(true);
   const signingIn = useRef(false);
   useEffect(() => {
@@ -19,6 +23,31 @@ export function SubscriptionConnection({
       if (signingIn.current) void backend.aiSubscriptionCancel(provider.id).catch(() => {});
     };
   }, [provider.id]);
+  useEffect(() => {
+    if (!waiting) return;
+    let stop = false;
+    const look = () =>
+      void backend.aiSubscriptionSignInLink(provider.id).then(
+        (l) => {
+          if (stop) return;
+          if (l) setLink(l);
+          else timer = window.setTimeout(look, 300);
+        },
+        () => {},
+      );
+    let timer = window.setTimeout(look, 0);
+    return () => {
+      stop = true;
+      window.clearTimeout(timer);
+    };
+  }, [waiting, provider.id]);
+  const copyLink = () => {
+    if (!link) return;
+    void navigator.clipboard?.writeText(link).then(
+      () => active.current && setCopied(true),
+      () => active.current && setMessage("Couldn't copy. Select the link and press Ctrl+C."),
+    );
+  };
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
     setMessage(null);
@@ -57,10 +86,14 @@ export function SubscriptionConnection({
           onClick={() =>
             void run(async () => {
               signingIn.current = true;
+              setLink(null);
+              setCopied(false);
+              setWaiting(true);
               try {
                 await backend.aiSubscriptionSignIn(provider.id);
               } finally {
                 signingIn.current = false;
+                if (active.current) setWaiting(false);
               }
             })
           }
@@ -100,6 +133,25 @@ export function SubscriptionConnection({
           Manage usage
         </button>
       </div>
+      {waiting && link && (
+        <div className="ai-signin-link">
+          <p className="settings-hint muted">
+            Browser didn't open, or opened the wrong one? Copy this link into the browser where you
+            use ChatGPT. Sign in there and come back here.
+          </p>
+          <div className="ai-provider-row">
+            <input
+              readOnly
+              aria-label="ChatGPT sign-in link"
+              value={link}
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <button type="button" onClick={copyLink}>
+              {copied ? "Copied" : "Copy link"}
+            </button>
+          </div>
+        </div>
+      )}
       {message && (
         <p role="alert" className="ai-error">
           {message}

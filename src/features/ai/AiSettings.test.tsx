@@ -174,6 +174,35 @@ describe("ChatGPT plan connections", () => {
     unmount();
     expect(cancel).toHaveBeenCalledWith("chatgpt");
   });
+  it("shows the sign-in link to copy while it waits, and hides it after", async () => {
+    const link = "https://auth.openai.com/api/accounts/authorize?client_id=x&state=s";
+    let finish = () => {};
+    vi.spyOn(h.b, "aiSubscriptionSignIn").mockImplementation(
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    );
+    // The link is ready a moment after the sign-in starts, as in the app.
+    let calls = 0;
+    vi.spyOn(h.b, "aiSubscriptionSignInLink").mockImplementation(async () =>
+      ++calls > 1 ? link : null,
+    );
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(<AiSettingsPanel />);
+    await addProvider("chatgpt");
+    const card = await screen.findByRole("group", { name: "Provider ChatGPT plan (Plus / Pro)" });
+    expect(within(card).queryByLabelText("ChatGPT sign-in link")).not.toBeInTheDocument();
+    fireEvent.click(within(card).getByRole("button", { name: "Continue with ChatGPT" }));
+    const field = await within(card).findByLabelText("ChatGPT sign-in link");
+    expect(field).toHaveValue(link);
+    expect(field).toHaveAttribute("readonly");
+    fireEvent.click(within(card).getByRole("button", { name: "Copy link" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(link));
+    expect(await within(card).findByRole("button", { name: "Copied" })).toBeInTheDocument();
+    finish();
+    await waitFor(() =>
+      expect(within(card).queryByLabelText("ChatGPT sign-in link")).not.toBeInTheDocument(),
+    );
+  });
   it("does not preview subscription requests through an API-key fallback", async () => {
     const { settings } = await h.b.aiSettings();
     await h.b.aiSaveSettings({

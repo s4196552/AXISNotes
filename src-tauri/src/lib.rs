@@ -97,6 +97,7 @@ pub fn run() {
             ai_commands::ai_set_key,
             ai_commands::ai_subscription_sign_in,
             ai_commands::ai_subscription_cancel,
+            ai_commands::ai_subscription_sign_in_link,
             ai_commands::ai_subscription_disconnect,
             ai_commands::ai_subscription_usage,
             ai_commands::ai_delete_key,

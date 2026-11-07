@@ -538,6 +538,8 @@ export interface Backend {
   aiSettings(): Promise<AiSettingsView>;
   aiSubscriptionSignIn(providerId: string): Promise<void>;
   aiSubscriptionCancel(providerId: string): Promise<void>;
+  /** The sign-in link while a ChatGPT sign-in waits for the browser, so it can be copied. */
+  aiSubscriptionSignInLink(providerId: string): Promise<string | null>;
   aiSubscriptionDisconnect(providerId: string): Promise<void>;
   aiSubscriptionUsage(): Promise<void>;
   aiSaveSettings(settings: AiSettings): Promise<AiSettingsView>;

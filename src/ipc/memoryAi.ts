@@ -24,6 +24,7 @@ type AiBackend = Pick<
   | "aiSettings"
   | "aiSubscriptionSignIn"
   | "aiSubscriptionCancel"
+  | "aiSubscriptionSignInLink"
   | "aiSubscriptionDisconnect"
   | "aiSubscriptionUsage"
   | "aiSaveSettings"
@@ -252,6 +253,9 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
       );
     },
     async aiSubscriptionCancel() {},
+    async aiSubscriptionSignInLink() {
+      return null;
+    },
     async aiSubscriptionDisconnect(id) {
       keys.delete(id);
     },
