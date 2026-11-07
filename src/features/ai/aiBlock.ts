@@ -25,6 +25,8 @@ export interface AiBlockSpec {
   selection?: { from: number; to: number; text: string };
   /** The skill the block runs (see src/features/skills), if any. */
   skill?: string;
+  /** The notes the block reads instead of its own (a skill run on files picked in the tree). */
+  sources?: string[];
 }
 
 export const openAiBlockEffect = StateEffect.define<AiBlockSpec>();
@@ -130,6 +132,15 @@ const aiBlockDecorations = StateField.define<DecorationSet>({
 // parked here by note path, their requests keep running (they write to the block store,
 // not to the editor), and the next editor for that note shows them again, answer and all.
 const parked = new Map<string, AiBlockSpec[]>();
+/** New blocks waiting for their note to open (see `queueAiBlock`). */
+const queued = new Map<string, AiBlockSpec[]>();
+
+/** Open a new block in the note at `path` when its editor next opens. */
+export function queueAiBlock(path: string, spec: Omit<AiBlockSpec, "id">): string {
+  const id = crypto.randomUUID();
+  queued.set(path, [...(queued.get(path) ?? []), { ...spec, id }]);
+  return id;
+}
 
 /** Park the blocks when the editor closes; they come back with the note. */
 const keep = ViewPlugin.define((view) => {
@@ -148,11 +159,12 @@ const keep = ViewPlugin.define((view) => {
 /** The parked blocks of `path` (taken, so they come back in one editor only). */
 function unpark(path: string, state: EditorState): AiBlockSpec[] {
   const blocks = parked.get(path) ?? [];
+  const fresh = queued.get(path) ?? [];
   parked.delete(path);
+  queued.delete(path);
   const max = state.doc.length;
   const store = useAiBlocks.getState();
-  return blocks
-    .filter((b) => store.blocks[b.id]) // closed meanwhile
+  return [...blocks.filter((b) => store.blocks[b.id]), ...fresh] // parked ones closed meanwhile go
     .map((b) => ({
       ...b,
       pos: Math.min(b.pos, max),

@@ -72,6 +72,9 @@ import {
 import { rowColorProps, rowColors } from "./rowColorsModel";
 import { useExpanded } from "./useExpanded";
 import { ancestorsOf, useRevealRequest } from "./reveal";
+import { useSkills } from "../skills/skills";
+import { skillIcon } from "../skills/skillIcons";
+import { runSkillOnPicked, skillsForPicked } from "../skills/skillOnFiles";
 import "./filetree.css";
 
 interface MenuState {
@@ -876,13 +879,16 @@ export function FileTree() {
           onMouseDown={(e) => e.stopPropagation()}
         >
           {many ? (
-            <MenuItem
-              label={`Delete ${many.length} items`}
-              icon={Trash2}
-              danger
-              onClick={() => void trashMany(many)}
-              close={setMenu}
-            />
+            <>
+              <SkillItems paths={many} close={setMenu} />
+              <MenuItem
+                label={`Delete ${many.length} items`}
+                icon={Trash2}
+                danger
+                onClick={() => void trashMany(many)}
+                close={setMenu}
+              />
+            </>
           ) : (
             <>
               <MenuItem
@@ -941,6 +947,9 @@ export function FileTree() {
                       }
                       close={setMenu}
                     />
+                  )}
+                  {menu.entry.kind === "dir" && (
+                    <SkillItems paths={[menu.entry.path]} close={setMenu} />
                   )}
                   <AiRuleItems path={menu.entry.path} close={setMenu} />
                   <MenuItem
@@ -1052,6 +1061,33 @@ function AiRuleItems({ path, close }: { path: string; close(v: null): void }) {
         />
       ))}
     </>
+  );
+}
+
+/** "Make a practice test from these 12 notes" and the like: every AI skill, on what's picked. */
+function SkillItems({ paths, close }: { paths: string[]; close(v: null): void }) {
+  const skills = useSkills((s) => s.skills);
+  const offered = skillsForPicked(skills, paths);
+  if (!offered.length) return null;
+  const what =
+    paths.length === 1
+      ? `"${paths[0]!.slice(paths[0]!.lastIndexOf("/") + 1)}"`
+      : `${paths.length} items`;
+  return (
+    <div role="group" aria-label={`AI skills on ${what}`} className="filetree-menu-group">
+      <div className="filetree-menu-label" aria-hidden>
+        AI skill on {what}
+      </div>
+      {offered.map((s) => (
+        <MenuItem
+          key={s.id}
+          label={s.title}
+          icon={skillIcon(s.id)}
+          onClick={() => void runSkillOnPicked(s, paths)}
+          close={close}
+        />
+      ))}
+    </div>
   );
 }
 

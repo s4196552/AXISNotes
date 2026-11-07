@@ -25,6 +25,8 @@ import {
   withFormat,
 } from "./skills";
 import { skillAttach, skillRequest, transcriptHtml } from "./skillRun";
+import { commonFolder, pickedNotes, runSkillOnPicked, skillsForPicked } from "./skillOnFiles";
+import { aiBlockField, discardParkedBlocks } from "../ai/aiBlock";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -372,5 +374,69 @@ describe("Markdown or HTML for every skill", () => {
     expect(html).toContain("<p><strong>Decisions</strong></p>");
     expect(html).toContain("<ul><li>Ship it</li><li>Test <code>x</code></li></ul>");
     expect(html).not.toMatch(/<script/);
+  });
+});
+
+describe("skills on files picked in the tree", () => {
+  afterEach(() => discardParkedBlocks());
+
+  it("reads picked notes and every note in picked folders, minus 'AI: never' ones", () => {
+    expect(pickedNotes(["Bio/Genes.md", "Bio/Cells.md"])).toEqual({
+      include: ["Bio/Cells.md", "Bio/Genes.md"],
+      never: [],
+      overLimit: 0,
+    });
+    expect(pickedNotes(["Bio"])).toEqual({
+      include: ["Bio/Cells.md", "Bio/Genes.md"],
+      never: ["Bio/Private.md"],
+      overLimit: 0,
+    });
+    expect(commonFolder(["Bio/Cells.md", "Bio/Genes.md"])).toBe("Bio");
+    expect(commonFolder(["Bio"])).toBe("Bio");
+    expect(commonFolder(["Bio/Cells.md", "Notes.md"])).toBe("");
+    // Teach me needs one folder as its workspace.
+    expect(
+      skillsForPicked(BUILTIN_SKILLS, ["Bio/Cells.md", "Bio/Genes.md"]).map((s) => s.id),
+    ).not.toContain("teach");
+    expect(skillsForPicked(BUILTIN_SKILLS, ["Bio"]).map((s) => s.id)).toContain("teach");
+  });
+
+  it("refuses when everything picked is 'AI: never'", async () => {
+    const notify = vi.spyOn(useAppStore.getState(), "notify");
+    expect(await runSkillOnPicked(byId("test"), ["Bio/Private.md"])).toBeNull();
+    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/AI: never/));
+  });
+
+  it("makes a practice test from several notes in a draft, saved next to them", async () => {
+    setAiResponder((req) => {
+      lastRequest.req = req;
+      return "<!doctype html><html><body>Test</body></html>";
+    });
+    const open = vi.spyOn(h.b, "openInBrowser").mockResolvedValue();
+    const draft = await runSkillOnPicked(byId("test"), ["Bio/Cells.md", "Bio/Genes.md"]);
+    expect(draft).toBe(".axisnotes/drafts/Practice test - 2 notes.md");
+    expect(useAppStore.getState().activePath).toBe(draft);
+    expect(h.b.files()[draft!]).toContain("Made from [[Cells]], [[Genes]].");
+
+    // The note's editor opens with the skill's block already in it, reading the picked notes.
+    const v = mount(h.b.files()[draft!]!, draft!, 0);
+    expect(v.state.field(aiBlockField)).toEqual([
+      expect.objectContaining({ skill: "test", sources: ["Bio/Cells.md", "Bio/Genes.md"] }),
+    ]);
+    const block = await screen.findByRole("group", { name: "AI block" });
+    expect(
+      within(block).getByRole("button", { name: /Reads: 2 notes/ }),
+    ).toBeInTheDocument();
+    fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
+    expect(await within(block).findByText(/Made a web page/)).toBeInTheDocument();
+    expect(lastRequest.req!.attach).toEqual(["Bio/Cells.md", "Bio/Genes.md"]);
+    fireEvent.click(within(block).getByRole("button", { name: /Save next to the note/ }));
+    // Into the picked notes' folder, not the hidden drafts folder.
+    await waitFor(() =>
+      expect(h.b.files()["Bio/Practice test - 2 notes.html"]).toBe(
+        "<!doctype html><html><body>Test</body></html>\n",
+      ),
+    );
+    await waitFor(() => expect(open).toHaveBeenCalledWith("Bio/Practice test - 2 notes.html"));
   });
 });

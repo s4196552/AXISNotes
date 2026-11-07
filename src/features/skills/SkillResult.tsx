@@ -2,9 +2,10 @@ import { useState } from "react";
 import { ExternalLink, FilePlus2, FileText, FolderInput, Trash2 } from "lucide-react";
 import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
-import { createDraft, folderOf } from "../drafts/drafts";
+import { createDraft } from "../drafts/drafts";
 import type { Skill, SkillFiles } from "./skills";
 import {
+  homeFolder,
   planFiles,
   savePageNextTo,
   transcript,
@@ -36,7 +37,7 @@ export function PageResult({
       title: `${skill.title}`,
       content: html,
       ext: ".html",
-      folder: folderOf(path),
+      folder: homeFolder(path),
       open: false,
     });
     await backend.openInBrowser(draft);
@@ -69,7 +70,7 @@ export function PageResult({
               title: skill.title,
               content: html,
               ext: ".html",
-              folder: folderOf(path),
+              folder: homeFolder(path),
             }).then(onDone, fail)
           }
         >
@@ -89,7 +90,7 @@ export function FilesResult({
   path: string;
   onDone(): void;
 }) {
-  const folder = folderOf(path);
+  const folder = homeFolder(path);
   const planned = planFiles(folder, files.files);
   const [busy, setBusy] = useState(false);
   const save = async () => {
@@ -195,7 +196,7 @@ export function ChatActions({
             title: `${skill.title} - ${path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "")}`,
             content: format === "html" ? transcriptHtml(skill, turns) : transcript(skill, turns),
             ...(format === "html" ? { ext: ".html" } : {}),
-            folder: folderOf(path),
+            folder: homeFolder(path),
           }).then(onDone, fail)
         }
       >

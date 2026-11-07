@@ -303,3 +303,18 @@ body.filetree-dragging * {
   justify-content: flex-end;
   gap: 8px;
 }
+/* "AI skill on 12 items": the skills, as a labelled group in the menu. */
+.filetree-menu-group {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+}
+.filetree-menu-label {
+  padding: 4px 10px 2px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
