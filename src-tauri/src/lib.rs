@@ -9,6 +9,7 @@ mod import;
 mod index;
 mod migrate;
 mod packs;
+mod pages;
 mod updates;
 mod updates_commands;
 mod vault;
@@ -27,6 +28,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(commands::AppState::default())
         .manage(commands::DroppedFiles::default())
+        // Vault web pages, shown in a sandboxed frame (see pages.rs).
+        .register_uri_scheme_protocol(pages::SCHEME, |ctx, request| {
+            let vault = ctx
+                .app_handle()
+                .state::<commands::AppState>()
+                .current()
+                .ok();
+            pages::respond(vault.as_ref(), &request)
+        })
         .setup(|app| {
             ai_commands::manage(app.handle());
             clipper_commands::manage(app.handle());

@@ -190,7 +190,11 @@ describe("running skills from an AI block", () => {
         "<!doctype html><html><body>Cards</body></html>\n",
       ),
     );
-    await waitFor(() => expect(open).toHaveBeenCalledWith("Bio/Cells - Flash cards.html"));
+    // The saved page opens in a tab, not the browser.
+    await waitFor(() =>
+      expect(useAppStore.getState().activePath).toBe("Bio/Cells - Flash cards.html"),
+    );
+    expect(open).not.toHaveBeenCalled();
   });
 
   it("asks again once when the page is missing", async () => {
@@ -424,9 +428,7 @@ describe("skills on files picked in the tree", () => {
       expect.objectContaining({ skill: "test", sources: ["Bio/Cells.md", "Bio/Genes.md"] }),
     ]);
     const block = await screen.findByRole("group", { name: "AI block" });
-    expect(
-      within(block).getByRole("button", { name: /Reads: 2 notes/ }),
-    ).toBeInTheDocument();
+    expect(within(block).getByRole("button", { name: /Reads: 2 notes/ })).toBeInTheDocument();
     fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
     expect(await within(block).findByText(/Made a web page/)).toBeInTheDocument();
     expect(lastRequest.req!.attach).toEqual(["Bio/Cells.md", "Bio/Genes.md"]);
@@ -437,6 +439,10 @@ describe("skills on files picked in the tree", () => {
         "<!doctype html><html><body>Test</body></html>\n",
       ),
     );
-    await waitFor(() => expect(open).toHaveBeenCalledWith("Bio/Practice test - 2 notes.html"));
+    // The saved page opens in a tab, not the browser.
+    await waitFor(() =>
+      expect(useAppStore.getState().activePath).toBe("Bio/Practice test - 2 notes.html"),
+    );
+    expect(open).not.toHaveBeenCalled();
   });
 });
