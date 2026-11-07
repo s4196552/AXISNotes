@@ -10,6 +10,7 @@ import { type EditorState, Facet, StateEffect, StateField } from "@codemirror/st
 import type { EditorView } from "@codemirror/view";
 import {
   AlignJustify,
+  Blocks,
   Bold,
   CalendarClock,
   CalendarDays,
@@ -29,22 +30,28 @@ import {
   Heading4,
   Heading5,
   Heading6,
+  Image,
   ImagePlus,
   Info,
   Italic,
   LayoutTemplate,
   Link,
+  Link2,
   List,
   ListCollapse,
   ListOrdered,
   ListTodo,
   type LucideIcon,
   Network,
+  Notebook,
   PanelLeft,
   PenLine,
+  PenTool,
+  Search,
   SeparatorHorizontal,
   Sparkles,
   SquareCode,
+  SquarePlus,
   Strikethrough,
   Table,
   TextQuote,
@@ -650,12 +657,46 @@ export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
 ];
 const CUSTOM_GROUP = "Custom";
 const SKILLS_GROUP = "Skills";
-const FILTERED: CompletionSection = { name: "Filtered results", rank: 0 };
+
+/** The icon beside each section's heading in the command menu. */
+export const SECTION_ICONS: Record<string, LucideIcon> = {
+  "Basic blocks": Blocks,
+  "Text style": Type,
+  Links: Link2,
+  Media: Image,
+  Insert: SquarePlus,
+  "Diagrams and pen": PenTool,
+  "Page style": Notebook,
+  [CUSTOM_GROUP]: Zap,
+  [SKILLS_GROUP]: Sparkles,
+  "Filtered results": Search,
+};
+
+/** A section heading with its icon, styled like CodeMirror's own (`completion-section`). */
+function sectionHeader(section: CompletionSection): HTMLElement {
+  const el = document.createElement("completion-section");
+  el.className = "cm-commandSection";
+  const icon = SECTION_ICONS[section.name];
+  if (icon) el.append(lucideSvg(icon, 13));
+  const label = document.createElement("span");
+  label.textContent = section.name;
+  el.append(label);
+  return el;
+}
+
+/** A command-menu section: its name, place and icon heading. */
+const section = (name: string, rank: number): CompletionSection => ({
+  name,
+  rank,
+  header: sectionHeader,
+});
+
+const FILTERED: CompletionSection = section("Filtered results", 0);
 export const TURN_INTO = "Turn into";
 
 const placeOf = new Map(
   COMMAND_GROUPS.flatMap((g, rank) =>
-    g.ids.map((id, order) => [id, { section: { name: g.name, rank }, order }] as const),
+    g.ids.map((id, order) => [id, { section: section(g.name, rank), order }] as const),
   ),
 );
 
@@ -761,8 +802,8 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
   const levelIds = level ? [`h${level}`, `toggle-h${level}`] : null;
   const place = (section: CompletionSection, order: number) =>
     filtering ? { section: FILTERED } : { section, boost: -order };
-  const custom: CompletionSection = { name: CUSTOM_GROUP, rank: COMMAND_GROUPS.length };
-  const skills: CompletionSection = { name: SKILLS_GROUP, rank: COMMAND_GROUPS.length + 1 };
+  const custom = section(CUSTOM_GROUP, COMMAND_GROUPS.length);
+  const skills = section(SKILLS_GROUP, COMMAND_GROUPS.length + 1);
   // Turn into: offered while filtering, when the line already has text to keep.
   const turnable = filtering && lineAround(context.state, start, context.pos).text !== "";
   const commands = SLASH_COMMANDS.filter(
