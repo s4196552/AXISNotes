@@ -21,6 +21,9 @@ import type {
 } from "./types";
 import { IMAGE_EXTENSIONS } from "../lib/attachments";
 
+/** Serves vault web pages to sandboxed frames: `SCHEME` in src-tauri/src/pages.rs. */
+const PAGE_PROTOCOL = "axispage";
+
 export const VAULT_CHANGED_EVENT = "vault://changed";
 export const INDEX_PROGRESS_EVENT = "index://progress";
 export const AI_DELTA_EVENT = "ai://delta";
@@ -132,6 +135,12 @@ export function createTauriBackend(): Backend {
       if (!root) return null;
       const sep = root.includes("\\") ? "\\" : "/";
       return convertFileSrc(root.replace(/[\\/]+$/, "") + sep + path.split("/").join(sep));
+    },
+    pageUrl(path) {
+      if (!root || !/\.html?$/i.test(path)) return null;
+      // "http://axispage.localhost/" on Windows, "axispage://localhost/" elsewhere. Each
+      // folder stays its own URL segment, so a page's relative links find its neighbours.
+      return convertFileSrc("", PAGE_PROTOCOL) + path.split("/").map(encodeURIComponent).join("/");
     },
     // The bytes go as the raw request body; names travel in (escaped) headers.
     saveAttachment: (dir, name, bytes, vaultRoot) =>

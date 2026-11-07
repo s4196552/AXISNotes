@@ -388,6 +388,8 @@ export function createMemoryBackend(
     onClipped: async () => () => {},
     // Pasted media lives in memory as blobs, shown through object URLs. SVG files are
     // text, so the browser preview can show them too; other images need the app.
+    // The browser preview has no page protocol; pages open in a new tab instead.
+    pageUrl: () => null,
     fileUrl(path) {
       const blob = blobUrls.get(normalize(path));
       if (blob) return blob;

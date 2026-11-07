@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, ExternalLink, FilePlus2, FileText, FolderInput, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, FilePlus2, FileText, FolderInput, Globe, Trash2 } from "lucide-react";
 import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { createDraft } from "../drafts/drafts";
@@ -15,9 +15,9 @@ import {
   writeFiles,
 } from "./skillRun";
 
-// What a finished skill run offers, by kind: a web page (open, keep as a draft, or save
-// beside the note), a Teach session's files (save into the folder), or a Grill me
-// conversation (keep it as a draft).
+// What a finished skill run offers, by kind: a web page (open it in a tab as a draft, save
+// it beside the note, or open it in the browser), a Teach session's files (save into the
+// folder), or a Grill me conversation (keep it as a draft).
 
 const say = (m: string) => useAppStore.getState().notify(m);
 const fail = (e: unknown) => say(isBackendError(e) || e instanceof Error ? e.message : String(e));
@@ -33,24 +33,27 @@ export function PageResult({
   path: string;
   onDone(): void;
 }) {
-  const open = async () => {
-    const draft = await createDraft({
-      title: `${skill.title}`,
+  // A draft page; it opens in a tab unless it is going to the browser.
+  const draft = (open: boolean) =>
+    createDraft({
+      title: skill.title,
       content: html,
       ext: ".html",
       folder: homeFolder(path),
-      open: false,
+      open,
     });
-    await backend.openInBrowser(draft);
-  };
   return (
     <>
       <p className="ai-block-summary muted">
         Made a web page ({Math.max(1, Math.round(html.length / 1024))} KB).
       </p>
       <div className="ai-block-actions">
-        <button type="button" className="primary" onClick={() => void open().catch(fail)}>
-          <ExternalLink size={12} /> Open in browser
+        <button
+          type="button"
+          className="primary"
+          onClick={() => void draft(true).then(onDone, fail)}
+        >
+          <Globe size={12} /> Open page
         </button>
         <button
           type="button"
@@ -58,7 +61,7 @@ export function PageResult({
             void savePageNextTo(path, skill, html).then((p) => {
               say(`Saved ${p}.`);
               onDone();
-              void backend.openInBrowser(p).catch(fail);
+              useAppStore.getState().openFile(p);
             }, fail)
           }
         >
@@ -67,15 +70,12 @@ export function PageResult({
         <button
           type="button"
           onClick={() =>
-            void createDraft({
-              title: skill.title,
-              content: html,
-              ext: ".html",
-              folder: homeFolder(path),
-            }).then(onDone, fail)
+            void draft(false)
+              .then((d) => backend.openInBrowser(d))
+              .catch(fail)
           }
         >
-          <FileText size={12} /> Open as draft
+          <ExternalLink size={12} /> Open in browser
         </button>
         <button type="button" onClick={() => void copyPageText(html).then(say, fail)}>
           <Copy size={12} /> Copy text
@@ -139,13 +139,10 @@ export function FilesResult({
                 content: page.content,
                 ext: ".html",
                 folder,
-                open: false,
-              })
-                .then((d) => backend.openInBrowser(d))
-                .catch(fail)
+              }).catch(fail)
             }
           >
-            <ExternalLink size={12} /> Try the practice page
+            <Globe size={12} /> Try the practice page
           </button>
         )}
       </div>

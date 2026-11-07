@@ -191,7 +191,11 @@ describe("running skills from an AI block", () => {
         makeCopyable("<!doctype html><html><body>Cards</body></html>\n"),
       ),
     );
-    await waitFor(() => expect(open).toHaveBeenCalledWith("Bio/Cells - Flash cards.html"));
+    // The saved page opens in a tab, not the browser.
+    await waitFor(() =>
+      expect(useAppStore.getState().activePath).toBe("Bio/Cells - Flash cards.html"),
+    );
+    expect(open).not.toHaveBeenCalled();
   });
 
   it("asks again once when the page is missing", async () => {
@@ -438,6 +442,10 @@ describe("skills on files picked in the tree", () => {
         makeCopyable("<!doctype html><html><body>Test</body></html>\n"),
       ),
     );
-    await waitFor(() => expect(open).toHaveBeenCalledWith("Bio/Practice test - 2 notes.html"));
+    // The saved page opens in a tab, not the browser.
+    await waitFor(() =>
+      expect(useAppStore.getState().activePath).toBe("Bio/Practice test - 2 notes.html"),
+    );
+    expect(open).not.toHaveBeenCalled();
   });
 });

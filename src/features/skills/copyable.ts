@@ -77,8 +77,8 @@ const BLOCK =
 const LINE = /^(li|tr|dt|dd)$/i;
 
 /**
- * The text of a page as it is on disk, one block per line, for "Copy text". Scripts don't
- * run here (pages never run inside the app), so text a script writes isn't included.
+ * The text of a page as saved, one block per line, for "Copy text". The file is parsed, not
+ * run, so text a script writes isn't included (select it in the page itself instead).
  */
 export function pageText(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");

@@ -10,7 +10,26 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - A click that ends a text selection isn't passed to the page, so selecting a card's text doesn't flip it. Clicks on buttons, links and fields always pass.
   - Why: model-written pages often turn these off, for example to make cards flip on click. A rule in the prompt alone can't be relied on, so it's also stated (`COPYABLE_RULE`) and enforced.
 - **Pages made before this keep their old behaviour.** Saved files are never rewritten. Running the skill again makes a copyable page.
-- **"Copy text"** sits beside a page result and on any web page opened in the vault. It copies the page's text as on disk, one block per line. Pages still never run inside the app, so text that a page's script writes isn't included; the app says so and suggests copying from the browser.
+- **"Copy text"** sits beside a page result and on any web page opened in the vault. It copies the page's saved text, one block per line, read from the file without running it. Text that a page's script writes isn't included, and the app says so. That text can still be selected and copied in the page itself: in its tab, where the in-app frame (T-190) runs the guard as well, or in the browser.
+
+## 2026-11-07: Web pages shown inside the app (T-190)
+
+The user asked to view vault HTML in the app instead of the default browser. This supersedes the T-174 rule that pages never run inside the app.
+
+- **`axispage://localhost/<vault path>`** (`http://axispage.localhost/…` on Windows), registered in `src-tauri/src/pages.rs`, serves vault `.html`/`.htm` pages and the CSS, JS, images and fonts they link to. Notes, grids, config and every other type get a 403. Paths outside the vault are refused, and only GET is answered. Files larger than 25 MB aren't served.
+- **The page shows in a sandboxed `<iframe>`** in its tab (`WebFileView`), with `sandbox="allow-scripts allow-forms allow-modals"`. It never gets `allow-same-origin`, popups or top navigation, so it runs with a null origin and can't touch the app's DOM.
+  - This is the security boundary. Tauri treats every protocol the app registers as local (`is_local_url`), so a page running _as_ `axispage` could call every command.
+  - With a null origin, Tauri's IPC protocol rejects the call ("Origin header is not a valid URL"). Its invoke key is given only to the top-level page.
+- **The response's CSP repeats the sandbox and blocks the network:**
+  - `sandbox allow-scripts allow-forms allow-modals; default-src 'none'`;
+  - scripts, styles, images, fonts and media from the page's own origin, inline, `data:` and `blob:`;
+  - `form-action 'none'`, `base-uri 'none'`.
+  - There is no `connect-src`, so `fetch`, XHR and WebSocket are all refused. Pages remain self-contained files, as the AI skills already write them.
+- **The app's CSP gains `frame-src http://axispage.localhost axispage://localhost`.**
+- **Open in browser stays** in the page's toolbar, for links to the web and for pages that need the network. The browser preview (memory backend) has no page protocol and still shows the old "Open in browser" card.
+- **AI skill pages open in a tab**: Open page, Save next to the note and Try the practice page. Open in browser is a secondary button.
+- **Checked on the real app (2026-11-07)**: see `.agents/reviews/T-190.md` for the probe page's results.
+- **Tauri still injects its IPC bridge into the frame on Windows** (`__TAURI_INTERNALS__`, `window.ipc`, `chrome.webview` exist there). In the real app no command ran from the page through `invoke`, either `postMessage` bridge or a direct request to the IPC endpoint. Re-run `.agents/qa/T-190/probe.html` after Tauri or wry upgrades, and never give the frame `allow-same-origin`.
 
 ## 2026-11-06: App colours: the user's own sidebar and note-area colours (T-178)
 
@@ -39,7 +58,7 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
 - **Drafts (T-174):**
   - AI-made files that the user hasn't kept yet live in `.axisnotes/drafts/`, which is hidden, so they stay out of the tree, search and links. Saving moves the file into a folder and discarding sends it to the OS trash, so nothing new is needed on disk and the user's notes stay plain files.
-  - HTML pages (quizzes, flash cards, lessons) open in the default browser through `open_in_browser`. That command only accepts `.html`/`.htm` vault files. Pages never run inside the app's webview, where they could reach Tauri IPC.
+  - HTML pages (quizzes, flash cards, lessons) open in the default browser through `open_in_browser`. That command only accepts `.html`/`.htm` vault files. Pages never run inside the app's webview, where they could reach Tauri IPC. (Superseded 2026-11-07 by T-190: pages show in the app in a sandboxed, null-origin frame.)
 - **Quick Chat (T-173):** the Agent's window shows the panel and posts the text. The request runs in the main window through the same `aiRun` path, so privacy rules, the request log and the Agent's states apply. The main window resizes the Agent's window (`core:window:allow-set-size` on `main` only).
 - **Skills (T-175):**
   - A skill is a `SKILL.md`: YAML frontmatter with `name` and `description`, as in the Agent Skills folder layout, plus AXIS's `title`, `output` (markdown, html, chat or files) and `reads` (note or folder), followed by the instructions. Any provider and model can run one, since it is just a system prompt.

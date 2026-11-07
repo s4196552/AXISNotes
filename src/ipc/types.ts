@@ -575,6 +575,11 @@ export interface Backend {
   /** A URL the webview can load a vault file from (images, video), or null if not possible. */
   fileUrl(path: string): string | null;
   /**
+   * A URL that serves a vault `.html` page (and the files it links to) for a sandboxed
+   * frame, or null where pages can't be shown in the app (T-190).
+   */
+  pageUrl(path: string): string | null;
+  /**
    * Save pasted media as `dir/name` (or `name 1`, … if taken); returns its vault path.
    * `vaultRoot` as for `writeFile`.
    */
