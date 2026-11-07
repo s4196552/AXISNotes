@@ -5,8 +5,10 @@ import {
   CompletionContext,
   type CompletionResult,
   currentCompletions,
+  selectedCompletionIndex,
   startCompletion,
 } from "@codemirror/autocomplete";
+import { commandMenuTabs, jumpSection, menuSections } from "./commandMenuTabs";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
@@ -726,6 +728,59 @@ describe("command menu sections", () => {
     await vi.waitFor(() =>
       expect(sectionOf(currentCompletions(view.state)[0]!)).toBe("Basic blocks"),
     );
+  });
+
+  it("has a jump bar of its sections with icons; ← → jump between them, ↑ ↓ stay in the list", async () => {
+    const view = viewWith("", { extra: [commandMenuTabs] });
+    openCommandMenu(view);
+    await vi.waitFor(() => expect(menuSections(view.state)?.length).toBeGreaterThan(5));
+    const sections = menuSections(view.state)!;
+    expect(sections.map((s) => s.name).slice(0, 3)).toEqual([
+      "Basic blocks",
+      "Text style",
+      "Links",
+    ]);
+    // The bar is drawn in the menu, one tab per section, each with its icon.
+    await vi.waitFor(() =>
+      expect(view.dom.querySelectorAll(".cm-commandTabs .cm-commandTab").length).toBe(
+        sections.length,
+      ),
+    );
+    const tabs = [...view.dom.querySelectorAll<HTMLElement>(".cm-commandTab")];
+    expect(tabs.every((t) => t.querySelector("svg"))).toBe(true);
+    expect(tabs[0]).toHaveAttribute("aria-current", "true");
+    // The section headings in the list have their icons too.
+    expect(view.dom.querySelector("completion-section.cm-commandSection svg")).not.toBeNull();
+
+    const key = (k: string) =>
+      view.contentDOM.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+    key("ArrowRight");
+    expect(selectedCompletionIndex(view.state)).toBe(sections[1]!.index);
+    expect(sectionOf(currentCompletions(view.state)[sections[1]!.index]!)).toBe("Text style");
+    key("ArrowDown");
+    expect(selectedCompletionIndex(view.state)).toBe(sections[1]!.index + 1);
+    key("ArrowLeft");
+    expect(selectedCompletionIndex(view.state)).toBe(sections[0]!.index);
+    key("ArrowLeft"); // wraps to the last section
+    expect(selectedCompletionIndex(view.state)).toBe(sections[sections.length - 1]!.index);
+    await vi.waitFor(() =>
+      expect(view.dom.querySelectorAll(".cm-commandTab")[sections.length - 1]).toHaveAttribute(
+        "aria-current",
+        "true",
+      ),
+    );
+    // A click on a tab jumps there too.
+    view.dom.querySelectorAll<HTMLElement>(".cm-commandTab")[2]!.click();
+    expect(selectedCompletionIndex(view.state)).toBe(sections[2]!.index);
+
+    // While filtering there's one section: no bar, and ← → move the cursor as usual.
+    type(view, "list");
+    await vi.waitFor(() => expect(menuSections(view.state)).toBeNull());
+    await vi.waitFor(() => expect(view.dom.querySelector(".cm-commandTabs")).toBeNull());
+    const before = view.state.selection.main.head;
+    expect(jumpSection(view, 1)).toBe(false);
+    expect(view.state.selection.main.head).toBe(before);
+    view.destroy();
   });
 
   it("keeps the menu open when several letters arrive before it re-ranks", async () => {
