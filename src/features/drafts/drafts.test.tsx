@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
 import { docKind } from "../../lib/fileKinds";
 import { DraftBanner } from "./DraftBanner";
-import { WebFileView } from "./WebFileView";
+import { PAGE_SANDBOX, WebFileView } from "./WebFileView";
 import { createDraft, draftName, isDraft, saveDraft, vaultFolders } from "./drafts";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
@@ -69,11 +69,50 @@ describe("drafts", () => {
 });
 
 describe("web pages", () => {
-  it("opens in the browser, with the draft banner for drafts", async () => {
+  it("shows the page in a sandboxed frame, with the draft banner for drafts", async () => {
     const path = await createDraft({ title: "Quiz", content: "<h1>Quiz</h1>", ext: ".html" });
+    vi.spyOn(h.b, "pageUrl").mockImplementation((p) => `http://axispage.localhost/${p}`);
     const open = vi.spyOn(h.b, "openInBrowser").mockResolvedValue();
     render(<WebFileView path={path} />);
     expect(screen.getByRole("region", { name: "Draft" })).toBeInTheDocument();
+    const frame = screen.getByTitle("Quiz.html");
+    expect(frame.tagName).toBe("IFRAME");
+    expect(frame.getAttribute("src")).toBe(
+      "http://axispage.localhost/.axisnotes/drafts/Quiz.html?r=0",
+    );
+    // A null origin: no allow-same-origin, and no popups that could escape the sandbox.
+    expect(frame.getAttribute("sandbox")).toBe(PAGE_SANDBOX);
+    expect(PAGE_SANDBOX).not.toMatch(/same-origin|popups|top-navigation/);
+    expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reload page" }));
+    expect(frame.getAttribute("src")).toMatch(/\?r=1$/);
+    fireEvent.click(screen.getByRole("button", { name: /Open in browser/ }));
+    expect(open).toHaveBeenCalledWith(".axisnotes/drafts/Quiz.html");
+  });
+
+  it("reloads when the file changes outside the app", async () => {
+    let emit: (c: { kind: "modified"; paths: string[] }[]) => void = () => {};
+    vi.spyOn(h.b, "pageUrl").mockImplementation((p) => `http://axispage.localhost/${p}`);
+    vi.spyOn(h.b, "onVaultChanged").mockImplementation(async (cb) => {
+      emit = cb;
+      return () => {};
+    });
+    render(<WebFileView path="School/Quiz.html" />);
+    const frame = screen.getByTitle("Quiz.html");
+    await waitFor(() => expect(h.b.onVaultChanged).toHaveBeenCalled());
+    act(() => emit([{ kind: "modified", paths: ["School/Other.html"] }]));
+    expect(frame.getAttribute("src")).toMatch(/\?r=0$/);
+    act(() => emit([{ kind: "modified", paths: ["School/Quiz.html"] }]));
+    expect(frame.getAttribute("src")).toMatch(/\?r=1$/);
+    expect(screen.getByRole("button", { name: "Show in folder" })).toBeInTheDocument();
+  });
+
+  it("offers the browser where pages can't be shown in the app", async () => {
+    const path = await createDraft({ title: "Quiz", content: "<h1>Quiz</h1>", ext: ".html" });
+    const open = vi.spyOn(h.b, "openInBrowser").mockResolvedValue();
+    render(<WebFileView path={path} />);
+    expect(document.querySelector("iframe")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Open in browser/ }));
     expect(open).toHaveBeenCalledWith(".axisnotes/drafts/Quiz.html");
   });

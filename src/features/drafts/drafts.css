@@ -43,6 +43,39 @@
   height: 100%;
   overflow: auto;
 }
+.web-view.has-frame {
+  gap: 0;
+  overflow: hidden;
+}
+.web-view-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.web-view-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.web-view-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* Pages are made for a white sheet; one that styles dark mode paints over it. */
+.web-view-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #fff;
+}
 .web-view-body {
   display: flex;
   flex-direction: column;
