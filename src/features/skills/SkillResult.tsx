@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { ExternalLink, FilePlus2, FileText, FolderInput, Globe, Trash2 } from "lucide-react";
+import { Copy, ExternalLink, FilePlus2, FileText, FolderInput, Globe, Trash2 } from "lucide-react";
 import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { createDraft } from "../drafts/drafts";
+import { copyPageText } from "./copyable";
 import type { Skill, SkillFiles } from "./skills";
 import {
   homeFolder,
@@ -75,6 +76,9 @@ export function PageResult({
           }
         >
           <ExternalLink size={12} /> Open in browser
+        </button>
+        <button type="button" onClick={() => void copyPageText(html).then(say, fail)}>
+          <Copy size={12} /> Copy text
         </button>
       </div>
     </>

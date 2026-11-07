@@ -25,6 +25,7 @@ import {
   withFormat,
 } from "./skills";
 import { skillAttach, skillRequest, transcriptHtml } from "./skillRun";
+import { makeCopyable } from "./copyable";
 import { commonFolder, pickedNotes, runSkillOnPicked, skillsForPicked } from "./skillOnFiles";
 import { aiBlockField, discardParkedBlocks } from "../ai/aiBlock";
 
@@ -125,7 +126,7 @@ describe("skill files", () => {
   it("pulls the page out of a reply and checks a Teach session's files", () => {
     expect(
       extractHtml("Here you go:\n```html\n<!doctype html><html><body>Hi</body></html>\n```"),
-    ).toBe("<!doctype html><html><body>Hi</body></html>\n");
+    ).toBe(makeCopyable("<!doctype html><html><body>Hi</body></html>\n"));
     expect(() => extractHtml("No page here")).toThrow(/no HTML document/);
     const ok = parseSkillFiles('{"message":"Hi","files":[{"path":"Progress.md","content":"p"}]}');
     expect(ok).toEqual({ message: "Hi", files: [{ path: "Progress.md", content: "p\n" }] });
@@ -187,7 +188,7 @@ describe("running skills from an AI block", () => {
     fireEvent.click(within(block).getByRole("button", { name: /Save next to the note/ }));
     await waitFor(() =>
       expect(h.b.files()["Bio/Cells - Flash cards.html"]).toBe(
-        "<!doctype html><html><body>Cards</body></html>\n",
+        makeCopyable("<!doctype html><html><body>Cards</body></html>\n"),
       ),
     );
     // The saved page opens in a tab, not the browser.
@@ -235,7 +236,9 @@ describe("running skills from an AI block", () => {
     );
     fireEvent.click(within(block).getByRole("button", { name: /Save to Bio/ }));
     await waitFor(() => expect(h.b.files()["Bio/Progress.md"]).toBe("- [x] Lesson 1\n"));
-    expect(h.b.files()["Bio/Lesson 1 - Cells.html"]).toBe("<!doctype html><p>Quiz</p>\n");
+    expect(h.b.files()["Bio/Lesson 1 - Cells.html"]).toBe(
+      makeCopyable("<!doctype html><p>Quiz</p>\n"),
+    );
     await waitFor(() => expect(useAppStore.getState().activePath).toBe("Bio/Lesson 1 - Cells.md"));
   });
 
@@ -436,7 +439,7 @@ describe("skills on files picked in the tree", () => {
     // Into the picked notes' folder, not the hidden drafts folder.
     await waitFor(() =>
       expect(h.b.files()["Bio/Practice test - 2 notes.html"]).toBe(
-        "<!doctype html><html><body>Test</body></html>\n",
+        makeCopyable("<!doctype html><html><body>Test</body></html>\n"),
       ),
     );
     // The saved page opens in a tab, not the browser.

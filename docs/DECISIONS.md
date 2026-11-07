@@ -2,13 +2,23 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-07: Skill web pages stay copyable (T-191)
+
+- **Every HTML page a skill makes gets a small guard, first in its `<head>`** (`src/features/skills/copyable.ts`). This covers page skills (flash cards, practice tests, mind maps) and the `.html` files of a Teach session.
+  - The guard makes all text selectable, overriding any `user-select: none`.
+  - Listeners on `window` in the capture phase run before the page's own handlers for copy, cut, paste, select, the right-click menu and Ctrl/⌘+A/C/V/X, and skip them. The page therefore can't cancel these, but the browser's own action and the `input` events that follow a paste still happen.
+  - A click that ends a text selection isn't passed to the page, so selecting a card's text doesn't flip it. Clicks on buttons, links and fields always pass.
+  - Why: model-written pages often turn these off, for example to make cards flip on click. A rule in the prompt alone can't be relied on, so it's also stated (`COPYABLE_RULE`) and enforced.
+- **Pages made before this keep their old behaviour.** Saved files are never rewritten. Running the skill again makes a copyable page.
+- **"Copy text"** sits beside a page result and on any web page opened in the vault. It copies the page's saved text, one block per line, read from the file without running it. Text that a page's script writes isn't included, and the app says so. That text can still be selected and copied in the page itself: in its tab, where the in-app frame (T-190) runs the guard as well, or in the browser.
+
 ## 2026-11-07: Web pages shown inside the app (T-190)
 
 The user asked to view vault HTML in the app instead of the default browser. This supersedes the T-174 rule that pages never run inside the app.
 
 - **`axispage://localhost/<vault path>`** (`http://axispage.localhost/…` on Windows), registered in `src-tauri/src/pages.rs`, serves vault `.html`/`.htm` pages and the CSS, JS, images and fonts they link to. Notes, grids, config and every other type get a 403. Paths outside the vault are refused, and only GET is answered. Files larger than 25 MB aren't served.
 - **The page shows in a sandboxed `<iframe>`** in its tab (`WebFileView`), with `sandbox="allow-scripts allow-forms allow-modals"`. It never gets `allow-same-origin`, popups or top navigation, so it runs with a null origin and can't touch the app's DOM.
-  - This is the security boundary. Tauri treats every protocol the app registers as local (`is_local_url`), so a page running *as* `axispage` could call every command.
+  - This is the security boundary. Tauri treats every protocol the app registers as local (`is_local_url`), so a page running _as_ `axispage` could call every command.
   - With a null origin, Tauri's IPC protocol rejects the call ("Origin header is not a valid URL"). Its invoke key is given only to the top-level page.
 - **The response's CSP repeats the sandbox and blocks the network:**
   - `sandbox allow-scripts allow-forms allow-modals; default-src 'none'`;

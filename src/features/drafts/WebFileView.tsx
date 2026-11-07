@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, FolderOpen, Globe, RotateCw } from "lucide-react";
+import { Copy, ExternalLink, FolderOpen, Globe, RotateCw } from "lucide-react";
 import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { DraftBanner } from "./DraftBanner";
 import { isDraft } from "./drafts";
+import { copyPageText } from "../skills/copyable";
 import "./drafts.css";
 
 // A web page in the vault (an AI-made quiz, flash cards, a lesson, or any .html file),
@@ -44,10 +45,23 @@ export function WebFileView({ path }: { path: string }) {
     useAppStore.getState().notify(isBackendError(e) ? e.message : String(e));
   const openInBrowser = () => void backend.openInBrowser(path).catch(report);
   const reveal = () => void backend.revealEntry(path).catch(report);
+  // The page's text as saved (T-191); text its script writes isn't included.
+  const copyText = () =>
+    void backend
+      .readFile(path)
+      .then((f) => copyPageText(f.content))
+      .then((m) => useAppStore.getState().notify(m), report);
 
   if (!url)
     return (
-      <BrowserOnly path={path} name={name} draft={draft} onOpen={openInBrowser} onReveal={reveal} />
+      <BrowserOnly
+        path={path}
+        name={name}
+        draft={draft}
+        onOpen={openInBrowser}
+        onReveal={reveal}
+        onCopy={copyText}
+      />
     );
 
   return (
@@ -68,6 +82,9 @@ export function WebFileView({ path }: { path: string }) {
         </button>
         <button type="button" title="Open in your default browser" onClick={openInBrowser}>
           <ExternalLink size={14} /> Open in browser
+        </button>
+        <button type="button" title="Copy the page's text" onClick={copyText}>
+          <Copy size={14} /> Copy text
         </button>
         {!draft && (
           <button type="button" aria-label="Show in folder" title="Show in folder" onClick={reveal}>
@@ -94,6 +111,7 @@ function BrowserOnly(p: {
   draft: boolean;
   onOpen(): void;
   onReveal(): void;
+  onCopy(): void;
 }) {
   const [size, setSize] = useState<number | null>(null);
   useEffect(() => {
@@ -113,10 +131,13 @@ function BrowserOnly(p: {
         <h1 className="editor-title">{p.name}</h1>
         <p className="muted">
           A web page{size !== null && ` (${Math.max(1, Math.round(size / 1024))} KB)`}. It opens in
-          your browser, where its buttons and quizzes work.
+          your browser, where its buttons and quizzes work and you can select and copy its text.
         </p>
         <button type="button" className="primary" onClick={p.onOpen}>
           <ExternalLink size={14} /> Open in browser
+        </button>
+        <button type="button" onClick={p.onCopy}>
+          <Copy size={14} /> Copy text
         </button>
         {!p.draft && (
           <button type="button" onClick={p.onReveal}>
