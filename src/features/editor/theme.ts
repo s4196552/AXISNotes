@@ -109,6 +109,49 @@ const editorTheme = EditorView.theme({
     fontSize: "11.5px",
     fontWeight: "600",
   },
+  // A section heading with its icon (see sectionHeader in quickCommands.ts).
+  ".cm-tooltip.cm-tooltip-autocomplete > ul > completion-section.cm-commandSection": {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  },
+  ".cm-commandSection > svg": {
+    flex: "none",
+    opacity: "0.85",
+  },
+  // The jump bar above the command menu's list (commandMenuTabs.ts).
+  ".cm-tooltip.cm-tooltip-autocomplete > .cm-commandTabs": {
+    display: "flex",
+    gap: "2px",
+    padding: "4px",
+    overflowX: "auto",
+    scrollbarWidth: "none",
+    borderBottom: "1px solid var(--border)",
+  },
+  ".cm-commandTab": {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "5px",
+    flex: "none",
+    padding: "3px 8px",
+    border: "none",
+    borderRadius: "var(--radius-sm)",
+    background: "transparent",
+    color: "var(--fg-muted)",
+    font: "inherit",
+    fontSize: "11.5px",
+    fontWeight: "600",
+    whiteSpace: "nowrap",
+    cursor: "pointer",
+  },
+  ".cm-commandTab:hover": {
+    background: "var(--bg-hover)",
+    color: "var(--fg)",
+  },
+  ".cm-commandTab[aria-current]": {
+    background: "var(--bg-active)",
+    color: "var(--accent)",
+  },
   ".cm-commandMarkdown": {
     gridArea: "hint",
     paddingLeft: "1em",

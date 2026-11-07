@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { commandMenuTabs } from "./commandMenuTabs";
 import { createPortal } from "react-dom";
 import { ListTree, Sparkles, WandSparkles } from "lucide-react";
 import { autocompletion } from "@codemirror/autocomplete";
@@ -368,6 +369,7 @@ export function Editor({ path }: EditorProps) {
               addToOptions: commandMenuRender,
             }),
             commandMenuAnchor,
+            commandMenuTabs,
             embeds(path),
             aiBlocks(path),
             mediaInput,
