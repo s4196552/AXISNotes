@@ -698,7 +698,7 @@ pub fn open_usage() -> AppResult<()> {
 /// Windows uses `rundll32 url.dll,FileProtocolHandler`, which hands the link to the
 /// default browser as is. `explorer <url>` was used before, but Explorer mangles long links
 /// with a query string and then opens the Documents folder instead of the browser.
-fn browser_command(url: &str) -> Option<(&'static str, Vec<String>)> {
+pub(crate) fn browser_command(url: &str) -> Option<(&'static str, Vec<String>)> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return None;
     }

@@ -80,6 +80,7 @@ export function createTauriBackend(): Backend {
     trashEntry: (path) => invoke("trash_entry", { path }),
     revealEntry: (path) => invoke("reveal_entry", { path }),
     openInBrowser: (path) => invoke("open_in_browser", { path }),
+    openWebLink: (url) => invoke("open_web_link", { url }),
     search: (query, limit) => invoke("search", { query, limit }),
     listTags: () => invoke("list_tags"),
     listPropertyKeys: () => invoke("list_property_keys"),

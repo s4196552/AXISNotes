@@ -17,6 +17,7 @@ use std::borrow::Cow;
 use tauri::http::{header, Request, Response, StatusCode};
 
 use crate::attachments::percent_decode;
+use crate::error::{AppError, AppResult};
 use crate::vault::{Vault, IMAGE_EXTENSIONS};
 
 /// The protocol name. Must match `PAGE_PROTOCOL` in `src/ipc/tauriBackend.ts` and the
@@ -49,6 +50,50 @@ fn page_policy() -> String {
         "base-uri 'none'".to_string(),
     ]
     .join("; ")
+}
+
+/// Added to every page (T-192). The frame may only show vault files, so following a web
+/// link inside it ends on an error page. A click on a link the page leaves alone (not
+/// `preventDefault`-ed by its own script) is handed to the app instead, which opens web
+/// links in the default browser and vault files in a tab. Links within the same page
+/// (`#section`) still scroll it.
+const LINK_SCRIPT: &str = r##"
+<script data-axisnotes-links>(function () {
+  addEventListener("click", function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+    if (!a) return;
+    var href = a.href;
+    if (!/^(https?|axispage):/i.test(href)) return;
+    if (href.split("#")[0] === location.href.split("#")[0] && /#/.test(href)) return;
+    e.preventDefault();
+    parent.postMessage({ axisnotesLink: href }, "*");
+  });
+})();</script>
+"##;
+
+/// Open a web link from a page in the default browser. Only `http(s)` links, so a page
+/// can't launch files or programs; the app checks the request came from a page the user
+/// just clicked in.
+#[tauri::command]
+pub fn open_web_link(url: String) -> AppResult<()> {
+    if url.len() > 4096 || url.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err(AppError::InvalidName("That isn't a web link.".into()));
+    }
+    let (program, args) = crate::ai::subscription::browser_command(&url)
+        .ok_or_else(|| AppError::InvalidName("Only web links (http or https) open.".into()))?;
+    let mut command = std::process::Command::new(program);
+    command.args(args);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000); // no console window
+    }
+    let mut child = command
+        .spawn()
+        .map_err(|e| AppError::Io(format!("couldn't open the browser: {e}")))?;
+    std::thread::spawn(move || child.wait());
+    Ok(())
 }
 
 /// The content type for a file a page may load, or `None` for anything else.
@@ -120,10 +165,14 @@ pub fn respond(vault: Option<&Vault>, request: &Request<Vec<u8>>) -> Response<Co
             "That file is too big to show.",
         );
     }
-    let bytes = match std::fs::read(&abs) {
+    let mut bytes = match std::fs::read(&abs) {
         Ok(b) => b,
         Err(_) => return plain(StatusCode::NOT_FOUND, "File not found."),
     };
+    if kind.starts_with("text/html") {
+        // After the page's own markup; the parser puts it at the end of the body.
+        bytes.extend_from_slice(LINK_SCRIPT.as_bytes());
+    }
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, kind)
@@ -162,7 +211,11 @@ mod tests {
             "http://axispage.localhost/Bio/Quiz%20page.html?r=2",
         );
         assert_eq!(r.status(), StatusCode::OK);
-        assert_eq!(&r.body()[..], b"<p>Quiz</p>");
+        // The page as saved, then the link handler (T-192).
+        let body = std::str::from_utf8(r.body()).unwrap();
+        assert!(body.starts_with("<p>Quiz</p>\n<script data-axisnotes-links>"));
+        assert!(body.ends_with("</script>\n"));
+        assert!(body.contains("parent.postMessage({ axisnotesLink: href }"));
         assert_eq!(
             r.headers()[header::CONTENT_TYPE],
             "text/html; charset=utf-8"
@@ -185,6 +238,8 @@ mod tests {
         let r = get(Some(&v), "axispage://localhost/Bio/cell.png");
         assert_eq!(r.status(), StatusCode::OK);
         assert_eq!(r.headers()[header::CONTENT_TYPE], "image/png");
+        // Only pages get the link handler; other files are served byte for byte.
+        assert_eq!(&r.body()[..], &[137u8, 80, 78, 71]);
     }
 
     #[test]
@@ -217,5 +272,21 @@ mod tests {
             respond(Some(&v), &post).status(),
             StatusCode::METHOD_NOT_ALLOWED
         );
+    }
+
+    #[test]
+    fn opens_only_web_links_in_the_browser() {
+        // Refused before anything is launched.
+        for bad in [
+            "C:/Windows/notepad.exe",
+            "file:///C:/Windows/notepad.exe",
+            "axispage://localhost/Bio/Quiz.html",
+            "javascript:alert(1)",
+            "https://example.com/a b",
+            "https://example.com/\nx",
+        ] {
+            assert!(open_web_link(bad.to_string()).is_err(), "{bad}");
+        }
+        assert!(open_web_link(format!("https://example.com/{}", "a".repeat(5000))).is_err());
     }
 }

@@ -12,6 +12,22 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
 - **Pages made before this keep their old behaviour.** Saved files are never rewritten. Running the skill again makes a copyable page.
 - **"Copy text"** sits beside a page result and on any web page opened in the vault. It copies the page's saved text, one block per line, read from the file without running it. Text that a page's script writes isn't included, and the app says so. That text can still be selected and copied in the page itself: in its tab, where the in-app frame (T-190) runs the guard as well, or in the browser.
 
+## 2026-11-08: Links in web pages shown in the app (T-192)
+
+- **The problem:** a web link clicked in a page shown in the app (T-190) sent the frame to a site its `frame-src` doesn't allow, leaving a blocked-page icon until Reload. `target="_blank"` links did nothing, because the sandbox has no popups.
+- **The page protocol appends a small link handler to every `.html` it serves** (`LINK_SCRIPT` in `src-tauri/src/pages.rs`). The file on disk is unchanged.
+  - The handler runs on a left click on an `http(s)` or `axispage` link that the page's own script didn't `preventDefault`, without Ctrl, Shift, Alt or Meta.
+  - It cancels the navigation and posts `{ axisnotesLink: href }` to the parent.
+  - Links within the same page (`#section`) still scroll it.
+- **`WebFileView` takes a link only when all of these hold:**
+  - the message comes from its own frame's window;
+  - the frame has focus, which it gets when the user clicks in it, so a page can't open links by itself while it loads;
+  - it is at least one second after the last one taken.
+- **Where a link goes:**
+  - **Web links** open in the default browser through the new `open_web_link` command. That command takes only `http(s)` URLs (with no whitespace or control characters, up to 4096 bytes) and reuses T-182's `browser_command` (`rundll32 url.dll,FileProtocolHandler` on Windows).
+  - **Vault links** (other pages, notes, images) open in a tab when the file is in the file tree; otherwise a notice says the file isn't in the vault.
+- **Not a new capability:** a page could always ask the user to press Open in browser. The sandbox, the null origin and the CSP from T-190 are unchanged; the frame still has no `allow-popups`.
+
 ## 2026-11-07: Web pages shown inside the app (T-190)
 
 The user asked to view vault HTML in the app instead of the default browser. This supersedes the T-174 rule that pages never run inside the app.

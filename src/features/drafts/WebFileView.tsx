@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, ExternalLink, FolderOpen, Globe, RotateCw } from "lucide-react";
 import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { DraftBanner } from "./DraftBanner";
 import { isDraft } from "./drafts";
+import { LINK_GAP_MS, pageLink } from "./pageLinks";
+import { findEntry } from "../filetree/treeModel";
 import { copyPageText } from "../skills/copyable";
 import "./drafts.css";
 
@@ -21,6 +23,7 @@ export function WebFileView({ path }: { path: string }) {
   const draft = isDraft(path);
   const url = backend.pageUrl(path);
   const [reloads, setReloads] = useState(0);
+  const frame = useRef<HTMLIFrameElement>(null);
 
   // Edited outside the app (or rewritten by a skill): show the new version.
   useEffect(() => {
@@ -40,6 +43,33 @@ export function WebFileView({ path }: { path: string }) {
       unlisten?.();
     };
   }, [path, url]);
+
+  // Links clicked in the page (its link handler posts them, see pages.rs). Only taken from
+  // this frame, while it has focus, which it gets when the user clicks in it: a page can't
+  // open links on its own as it loads.
+  useEffect(() => {
+    if (!url) return;
+    let last = 0;
+    const onMessage = (e: MessageEvent) => {
+      const f = frame.current;
+      if (!f || e.source !== f.contentWindow || document.activeElement !== f) return;
+      const data: unknown = e.data;
+      if (!data || typeof data !== "object" || !("axisnotesLink" in data)) return;
+      const link = pageLink(data.axisnotesLink, url);
+      if (!link || Date.now() - last < LINK_GAP_MS) return;
+      last = Date.now();
+      const notify = useAppStore.getState().notify;
+      if ("web" in link) {
+        backend
+          .openWebLink(link.web)
+          .catch((err: unknown) => notify(isBackendError(err) ? err.message : String(err)));
+      } else if (findEntry(useAppStore.getState().tree, link.vault)) {
+        useAppStore.getState().openFile(link.vault);
+      } else notify(`${link.vault} isn't in the vault.`);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [url]);
 
   const report = (e: unknown) =>
     useAppStore.getState().notify(isBackendError(e) ? e.message : String(e));
@@ -93,6 +123,7 @@ export function WebFileView({ path }: { path: string }) {
         )}
       </div>
       <iframe
+        ref={frame}
         className="web-view-frame"
         title={name}
         // A new query string reloads the frame; the page protocol ignores it.

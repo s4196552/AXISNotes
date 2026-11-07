@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -196,6 +196,32 @@ describe("running skills from an AI block", () => {
       expect(useAppStore.getState().activePath).toBe("Bio/Cells - Flash cards.html"),
     );
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it("opens a made page as a draft in a tab, or as a draft in the browser", async () => {
+    setAiResponder(() => "<!doctype html><html><body>Cards</body></html>");
+    const browser = vi.spyOn(h.b, "openInBrowser").mockResolvedValue();
+    const run = async () => {
+      const v = mount("# Cells\n\n", "Bio/Cells.md", 9);
+      act(() => void openAiBlock(v, undefined, { skill: "flashcards" }));
+      const block = await screen.findByRole("group", { name: "AI block" });
+      fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
+      await within(block).findByText(/Made a web page/);
+      return block;
+    };
+
+    fireEvent.click(within(await run()).getByRole("button", { name: /Open page/ }));
+    const draft = ".axisnotes/drafts/Flash cards.html";
+    await waitFor(() => expect(useAppStore.getState().activePath).toBe(draft));
+    expect(h.b.files()[draft]).toContain("<body>Cards</body>");
+    expect(browser).not.toHaveBeenCalled();
+
+    cleanup();
+    fireEvent.click(within(await run()).getByRole("button", { name: /Open in browser/ }));
+    await waitFor(() =>
+      expect(browser).toHaveBeenCalledWith(".axisnotes/drafts/Flash cards 1.html"),
+    );
+    expect(useAppStore.getState().activePath).toBe(draft); // the tab didn't change
   });
 
   it("asks again once when the page is missing", async () => {
