@@ -11,6 +11,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { backend } from "../../ipc";
 import { AiBlock } from "./AiBlockView";
 import { useAiBlocks } from "./aiBlockStore";
+import { useAppStore } from "../../app/store";
 
 // AI blocks: a prompt box placed in the note (from "AI" in the command menu's Basic
 // blocks). The block is a CodeMirror widget, not text, so nothing is written to the
@@ -125,21 +126,71 @@ const aiBlockDecorations = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
-/** Stop the blocks' requests and forget their state when the editor closes. */
-const cleanup = ViewPlugin.define((view) => ({
-  destroy() {
-    const store = useAiBlocks.getState();
-    for (const b of view.state.field(aiBlockField, false) ?? []) {
+// A note's editor closes whenever another tab is shown. Its blocks aren't lost: they're
+// parked here by note path, their requests keep running (they write to the block store,
+// not to the editor), and the next editor for that note shows them again, answer and all.
+const parked = new Map<string, AiBlockSpec[]>();
+
+/** Park the blocks when the editor closes; they come back with the note. */
+const keep = ViewPlugin.define((view) => {
+  const path = view.state.field(pathFacet);
+  let blocks = view.state.field(aiBlockField, false) ?? [];
+  return {
+    update(u) {
+      blocks = u.state.field(aiBlockField, false) ?? [];
+    },
+    destroy() {
+      if (blocks.length) parked.set(path, blocks);
+    },
+  };
+});
+
+/** The parked blocks of `path` (taken, so they come back in one editor only). */
+function unpark(path: string, state: EditorState): AiBlockSpec[] {
+  const blocks = parked.get(path) ?? [];
+  parked.delete(path);
+  const max = state.doc.length;
+  const store = useAiBlocks.getState();
+  return blocks
+    .filter((b) => store.blocks[b.id]) // closed meanwhile
+    .map((b) => ({
+      ...b,
+      pos: Math.min(b.pos, max),
+      selection: b.selection && {
+        ...b.selection,
+        from: Math.min(b.selection.from, max),
+        to: Math.min(b.selection.to, max),
+      },
+    }));
+}
+
+/** Close every block of `path` that's parked: stop its request and forget it. */
+export function discardParkedBlocks(path?: string) {
+  const store = useAiBlocks.getState();
+  for (const [p, blocks] of parked) {
+    if (path !== undefined && p !== path) continue;
+    for (const b of blocks) {
       const phase = store.blocks[b.id]?.phase;
       if (phase?.kind === "running") void backend.aiCancel(phase.runId);
       store.remove(b.id);
     }
-  },
-}));
+    parked.delete(p);
+  }
+}
 
-/** AI blocks for the note at `path`. */
+// Parked blocks belong to the vault they were opened in.
+useAppStore.subscribe((s, prev) => {
+  if (s.vault?.root !== prev.vault?.root) discardParkedBlocks();
+});
+
+/** AI blocks for the note at `path`, with any it had when it was last open. */
 export function aiBlocks(path: string): Extension {
-  return [pathFacet.init(() => path), aiBlockField, aiBlockDecorations, cleanup];
+  return [
+    pathFacet.init(() => path),
+    aiBlockField.init((state) => unpark(path, state)),
+    aiBlockDecorations,
+    keep,
+  ];
 }
 
 /** Open an AI block on the cursor's line, with the selection (if any) as context. */
