@@ -99,6 +99,10 @@
 .filetree-row.dragged {
   opacity: 0.45;
 }
+/* Cut, waiting to be pasted (T-194). */
+.filetree-row.cut {
+  opacity: 0.5;
+}
 .filetree-root-drop {
   position: absolute;
   z-index: 2;

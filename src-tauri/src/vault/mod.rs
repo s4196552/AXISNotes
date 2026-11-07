@@ -435,6 +435,61 @@ impl Vault {
         trash::delete(&abs).map_err(|e| AppError::Io(e.to_string()))
     }
 
+    /// Copy a file or folder into the folder `dir` ("" is the vault root), returning the
+    /// copy. It keeps its name when that is free there, else becomes `Name copy`,
+    /// `Name copy 2`, … (before any extension), so nothing is ever overwritten. A folder
+    /// can't be copied into itself. Folder links inside a copied folder are skipped.
+    pub fn copy_entry(&self, from: &str, dir: &str) -> AppResult<VaultEntry> {
+        let src = self.resolve_entry(from)?;
+        let meta = fs::metadata(&src).map_err(|_| AppError::NotFound(from.to_string()))?;
+        let dir_abs = self.resolve(dir)?;
+        if !dir_abs.is_dir() {
+            return Err(AppError::NotFound(dir.to_string()));
+        }
+        if meta.is_dir() && dir_abs.starts_with(&src) {
+            return Err(AppError::InvalidName(format!(
+                "cannot copy {from} into itself"
+            )));
+        }
+        let name = src
+            .file_name()
+            .ok_or_else(|| AppError::InvalidName(from.to_string()))?
+            .to_string_lossy()
+            .into_owned();
+        let dst = dir_abs.join(self.free_copy_name(&dir_abs, &name, meta.is_dir())?);
+        if meta.is_dir() {
+            if let Err(e) = copy_dir(&src, &dst) {
+                // Only the half-made copy goes; the original is untouched.
+                let _ = fs::remove_dir_all(&dst);
+                return Err(e.into());
+            }
+        } else {
+            fs::copy(&src, &dst)?;
+        }
+        self.entry_for(&dst, true)
+    }
+
+    /// `name` if nothing in `dir_abs` has it, else `stem copy.ext`, `stem copy 2.ext`, …
+    /// (a folder's name is never split at a dot).
+    fn free_copy_name(&self, dir_abs: &Path, name: &str, is_dir: bool) -> AppResult<String> {
+        validate_name(name)?;
+        let (stem, ext) = match name.rfind('.') {
+            Some(i) if i > 0 && !is_dir => (&name[..i], &name[i..]),
+            _ => (name, ""),
+        };
+        for n in 0..10_000 {
+            let candidate = match n {
+                0 => name.to_string(),
+                1 => format!("{stem} copy{ext}"),
+                _ => format!("{stem} copy {n}{ext}"),
+            };
+            if fs::symlink_metadata(dir_abs.join(&candidate)).is_err() {
+                return Ok(candidate);
+            }
+        }
+        Err(AppError::AlreadyExists(name.to_string()))
+    }
+
     /// A free vault path for `file_name` inside `folder` ("" is the vault root):
     /// `photo.png`, else `photo 1.png`, `photo 2.png`, …
     pub fn free_path(&self, folder: &str, file_name: &str) -> AppResult<String> {
@@ -484,6 +539,23 @@ impl Vault {
 pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif"];
 /// The largest image that can be copied in.
 pub const MAX_IMAGE_BYTES: u64 = 25 * 1024 * 1024;
+
+/// Copy the folder `from` to the new folder `to`. Linked folders inside are skipped, so
+/// a link back up the tree can't make the copy endless; linked files are copied.
+fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+    fs::create_dir(to)?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            copy_dir(&entry.path(), &target)?;
+        } else if kind.is_file() || (kind.is_symlink() && entry.path().is_file()) {
+            fs::copy(entry.path(), &target)?;
+        }
+    }
+    Ok(())
+}
 
 fn too_large() -> AppError {
     AppError::Io("the image is larger than 25 MB".into())
@@ -672,6 +744,69 @@ pub(crate) mod tests {
         ));
         // Case-only rename is allowed.
         v.rename_entry("c.md", "C.md").unwrap();
+    }
+
+    #[test]
+    fn copies_files_and_folders_under_free_names() {
+        let (_d, v) = vault();
+        v.create_file("Biology.md", "cells").unwrap();
+        v.create_file("School/Maths.md", "sums").unwrap();
+        v.create_file("School/Week 1/Notes.md", "w1").unwrap();
+        v.create_dir("Archive").unwrap();
+
+        // Into another folder: same name. Into its own folder: "copy", then "copy 2".
+        assert_eq!(
+            v.copy_entry("Biology.md", "Archive").unwrap().path,
+            "Archive/Biology.md"
+        );
+        assert_eq!(
+            v.copy_entry("Biology.md", "").unwrap().path,
+            "Biology copy.md"
+        );
+        assert_eq!(
+            v.copy_entry("Biology.md", "").unwrap().path,
+            "Biology copy 2.md"
+        );
+        assert_eq!(v.read_file("Biology copy 2.md").unwrap().content, "cells");
+        assert_eq!(v.read_file("Biology.md").unwrap().content, "cells");
+
+        // A folder comes with everything in it; a dotted folder name isn't split.
+        let e = v.copy_entry("School", "").unwrap();
+        assert_eq!(e.path, "School copy");
+        assert_eq!(e.children.as_ref().map(Vec::len), Some(2));
+        assert_eq!(
+            v.read_file("School copy/Week 1/Notes.md").unwrap().content,
+            "w1"
+        );
+        v.create_dir("v1.2").unwrap();
+        assert_eq!(v.copy_entry("v1.2", "").unwrap().path, "v1.2 copy");
+        // Into a sibling folder of itself is fine; into itself or below is not.
+        assert_eq!(
+            v.copy_entry("School", "Archive").unwrap().path,
+            "Archive/School"
+        );
+        for dir in ["School", "School/Week 1"] {
+            assert!(matches!(
+                v.copy_entry("School", dir),
+                Err(AppError::InvalidName(_))
+            ));
+        }
+        assert!(matches!(
+            v.copy_entry("missing.md", ""),
+            Err(AppError::NotFound(_))
+        ));
+        assert!(matches!(
+            v.copy_entry("Biology.md", "nope"),
+            Err(AppError::NotFound(_))
+        ));
+        assert!(matches!(
+            v.copy_entry("../x", ""),
+            Err(AppError::OutsideVault(_))
+        ));
+        assert!(matches!(
+            v.copy_entry("Biology.md", "../x"),
+            Err(AppError::OutsideVault(_))
+        ));
     }
 
     #[test]
