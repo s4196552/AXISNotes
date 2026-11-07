@@ -1287,3 +1287,34 @@ body.cm-image-drag-copy * {
   color: var(--danger, #d1242f);
   font-family: var(--font-mono, monospace);
 }
+
+/* Coloured code (editor/codeColors.ts): `green`code`` inline, or a ```green block. The
+   colours follow light and dark mode; syntax colours don't apply to coloured code. */
+.cm-tint-green {
+  --code-color: light-dark(#2b8a3e, #69db7c);
+}
+.cm-tint-yellow {
+  --code-color: light-dark(#a87b00, #ffd43b);
+}
+.cm-tint-orange {
+  --code-color: light-dark(#d9480f, #ffa94d);
+}
+.cm-tint-red {
+  --code-color: light-dark(#c92a2a, #ff6b6b);
+}
+.cm-tint-violet {
+  --code-color: light-dark(#7048e8, #b197fc);
+}
+.cm-tint-blue {
+  --code-color: light-dark(#1971c2, #74c0fc);
+}
+.cm-tint-green,
+.cm-tint-yellow,
+.cm-tint-orange,
+.cm-tint-red,
+.cm-tint-violet,
+.cm-tint-blue,
+:is(.cm-tint-green, .cm-tint-yellow, .cm-tint-orange, .cm-tint-red, .cm-tint-violet, .cm-tint-blue)
+  * {
+  color: var(--code-color) !important;
+}

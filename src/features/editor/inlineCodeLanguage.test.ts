@@ -27,7 +27,7 @@ function state(doc: string, at = doc.length) {
 /** The code each tagged span holds, with its language's name. */
 function spans(doc: string) {
   const s = state(doc);
-  return taggedCode(s).map((t) => [t.language.name, s.sliceDoc(t.codeFrom, t.codeTo)]);
+  return taggedCode(s).map((t) => [t.language?.name ?? t.color, s.sliceDoc(t.codeFrom, t.codeTo)]);
 }
 
 const views: EditorView[] = [];
@@ -146,5 +146,27 @@ describe("language-tagged inline code", () => {
     expect(v.state.doc.toString()).toBe("`Java`String x != y -> *z* + `q`;``");
     type(v, " a != b");
     expect(v.state.doc.toString()).toBe("`Java`String x != y -> *z* + `q`;`` a ≠ b");
+  });
+});
+
+describe("coloured inline code", () => {
+  it("takes a colour name in place of a language", () => {
+    expect(spans("Sit: `green`dog2.sit();`` then `Red`x = 1;`` and `purple`y``")).toEqual([
+      ["green", "dog2.sit();"],
+      ["red", "x = 1;"],
+      ["violet", "y"],
+    ]);
+    // Not a colour or a language: an ordinary code span, as before.
+    expect(spans("`pink`x``")).toEqual([]);
+  });
+
+  it("colours the code and hides the tag and closing backticks off the cursor's line", () => {
+    const v = view("`green`dog2.sit();``\n\nnext");
+    v.dispatch({ selection: { anchor: v.state.doc.length } });
+    const tinted = v.dom.querySelector(".cm-tint-green");
+    expect(tinted?.textContent).toBe("dog2.sit();");
+    expect(v.dom.querySelector(".cm-line")!.textContent).toBe("dog2.sit();");
+    // No syntax colours inside coloured code.
+    expect(tinted?.querySelector("[class*='cm-code-']")).toBeNull();
   });
 });
