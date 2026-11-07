@@ -675,16 +675,32 @@ fn validate_identity(
 pub fn open_usage() -> AppResult<()> {
     open_browser("https://chatgpt.com/#settings/Usage")
 }
-fn open_browser(url: &str) -> AppResult<()> {
-    let program = if cfg!(windows) {
-        "explorer"
+/// The program and arguments that open `url` in the default browser. Only http(s) links.
+///
+/// Windows uses `rundll32 url.dll,FileProtocolHandler`, which hands the link to the
+/// default browser as is. `explorer <url>` was used before, but Explorer mangles long links
+/// with a query string and then opens the Documents folder instead of the browser.
+fn browser_command(url: &str) -> Option<(&'static str, Vec<String>)> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return None;
+    }
+    Some(if cfg!(windows) {
+        (
+            "rundll32.exe",
+            vec!["url.dll,FileProtocolHandler".into(), url.into()],
+        )
     } else if cfg!(target_os = "macos") {
-        "open"
+        ("open", vec![url.into()])
     } else {
-        "xdg-open"
-    };
+        ("xdg-open", vec![url.into()])
+    })
+}
+
+fn open_browser(url: &str) -> AppResult<()> {
+    let (program, args) =
+        browser_command(url).ok_or_else(|| error("Could not open your browser for ChatGPT"))?;
     let mut command = std::process::Command::new(program);
-    command.arg(url);
+    command.args(args);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -699,6 +715,27 @@ fn open_browser(url: &str) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn opens_links_in_the_browser_not_explorer() {
+        let url = "https://auth.openai.com/api/accounts/authorize?client_id=x&response_type=code&scope=openid+profile&state=a%2Cb";
+        let (program, args) = browser_command(url).unwrap();
+        // The whole link reaches the opener as one argument, query string included.
+        assert_eq!(args.last().map(String::as_str), Some(url));
+        if cfg!(windows) {
+            assert_eq!(program, "rundll32.exe");
+            assert_eq!(args[0], "url.dll,FileProtocolHandler");
+        }
+        assert_ne!(program, "explorer");
+        // Anything that isn't a web link is refused, so this can't launch files or programs.
+        for bad in [
+            "C:\\Windows\\notepad.exe",
+            "file:///C:/x.html",
+            "javascript:alert(1)",
+            "",
+        ] {
+            assert!(browser_command(bad).is_none(), "{bad}");
+        }
+    }
     #[test]
     fn rejects_invalid_callbacks() {
         assert!(callback("/auth/callback?code=good&state=expected", "expected").is_ok());
