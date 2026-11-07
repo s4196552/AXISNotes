@@ -286,6 +286,10 @@ impl AiService {
     pub fn subscription_cancel(&self, id: &str) {
         self.sessions.cancel(id);
     }
+    /// The sign-in link while a ChatGPT sign-in waits for the browser.
+    pub fn subscription_sign_in_link(&self, id: &str) -> Option<String> {
+        self.sessions.pending_link(id)
+    }
     pub async fn subscription_disconnect(&self, id: &str) -> AppResult<()> {
         self.subscription_config(id)?;
         self.sessions.disconnect(id).await

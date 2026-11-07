@@ -91,6 +91,8 @@ export function createTauriBackend(): Backend {
     aiSettings: () => invoke("ai_settings"),
     aiSubscriptionSignIn: (providerId) => invoke("ai_subscription_sign_in", { providerId }),
     aiSubscriptionCancel: (providerId) => invoke("ai_subscription_cancel", { providerId }),
+    aiSubscriptionSignInLink: (providerId) =>
+      invoke("ai_subscription_sign_in_link", { providerId }),
     aiSubscriptionDisconnect: (providerId) => invoke("ai_subscription_disconnect", { providerId }),
     aiSubscriptionUsage: () => invoke("ai_subscription_usage"),
     aiSaveSettings: (settings) => invoke("ai_save_settings", { settings }),

@@ -114,6 +114,11 @@ pub async fn ai_subscription_sign_in(ai: State<'_, AiState>, provider_id: String
 pub fn ai_subscription_cancel(ai: State<AiState>, provider_id: String) {
     ai.service.subscription_cancel(&provider_id);
 }
+/// The ChatGPT sign-in link while a sign-in is waiting, so it can be copied.
+#[tauri::command]
+pub fn ai_subscription_sign_in_link(ai: State<AiState>, provider_id: String) -> Option<String> {
+    ai.service.subscription_sign_in_link(&provider_id)
+}
 #[tauri::command]
 pub async fn ai_subscription_disconnect(
     ai: State<'_, AiState>,
