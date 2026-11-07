@@ -22,7 +22,7 @@ import { checkOnLaunch } from "./features/updates/updates";
 import { guardWindowClose } from "./features/files/closeGuard";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
 import { useUi } from "./features/commands/ui";
-import { closeOverlay, isPanelOpen, PANE_LAYOUT, useLayout } from "./app/layout";
+import { closeOverlay, isPanelOpen, paneLayout, useLayout } from "./app/layout";
 import { RunningTimer } from "./features/time/TimerControls";
 import { useTimer } from "./features/time/timer";
 import { LeftSidebar, RightSidebar } from "./features/panels/Sidebars";
@@ -123,11 +123,18 @@ export default function App() {
     apply();
     return onTransparencyEffectsChange(apply);
   }, [theme, windowOpacity, windowEffect]);
-  const { appColors, headingColors } = typography;
+  const { appColors, headingColors, boxy } = typography;
   useEffect(
     () => applyAppColors(theme, appColors, headingColors),
     [theme, appColors, headingColors],
   );
+  // Boxy layout: on the root too, so panel width limits and dialogs can follow it.
+  const pane = paneLayout(boxy);
+  useEffect(() => {
+    const root = document.documentElement;
+    if (boxy) root.dataset.boxy = "";
+    else delete root.dataset.boxy;
+  }, [boxy]);
 
   // Zoom applies to the welcome screen too, so it doesn't wait for a vault.
   useEffect(() => installZoom(), []);
@@ -185,7 +192,7 @@ export default function App() {
   return (
     <div
       // Zen mode lays the panels over the note, as a compact window does.
-      className={zen ? "shell compact zen" : compact ? "shell compact" : "shell"}
+      className={`${zen ? "shell compact zen" : compact ? "shell compact" : "shell"}${boxy ? " boxy" : ""}`}
       data-zen-reveal={zen ? (zenReveal ?? undefined) : undefined}
       // A hidden panel's column is 0 px rather than removed, so it can slide (see .shell).
       style={
@@ -197,9 +204,9 @@ export default function App() {
               : `${showLeft ? leftWidth : 0}px minmax(0, 1fr) ${showRight ? rightWidth : 0}px`,
           "--left-width": `${leftWidth}px`,
           "--right-width": `${rightWidth}px`,
-          "--pane-inset": `${PANE_LAYOUT.inset}px`,
-          "--pane-gap": `${PANE_LAYOUT.gap}px`,
-          "--pane-radius": `${PANE_LAYOUT.radius}px`,
+          "--pane-inset": `${pane.inset}px`,
+          "--pane-gap": `${pane.gap}px`,
+          "--pane-radius": `${pane.radius}px`,
         } as CSSProperties
       }
     >

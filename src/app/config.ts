@@ -72,6 +72,8 @@ export interface AxisConfig {
     windowEffect: WindowEffect;
     /** Sidebar and main area colours over the theme (Settings → Colours). */
     appColors: AppColors;
+    /** Boxy layout: panels edge to edge with square corners, instead of floating cards. */
+    boxy: boolean;
   };
   folderIcons: Record<string, FolderIcon>;
   /** Background and text colours of file-tree rows, by vault path. */
@@ -142,6 +144,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     windowOpacity: 80,
     windowEffect: "frosted",
     appColors: NO_APP_COLORS,
+    boxy: false,
   },
   folderIcons: {},
   entryColors: {},

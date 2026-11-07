@@ -478,6 +478,17 @@ function Appearance({ config, set }: SectionProps) {
           onChange={(uiFont) => setA({ uiFont })}
         />
       </Field>
+      <Field
+        label="Boxy layout"
+        hint="The side panels and the note area meet edge to edge with square corners, split by thin lines, instead of floating as rounded cards."
+      >
+        <input
+          type="checkbox"
+          aria-label="Boxy layout"
+          checked={a.boxy}
+          onChange={(e) => setA({ boxy: e.target.checked })}
+        />
+      </Field>
       <Field label="Editor width" hint="How wide notes are on screen.">
         <select
           aria-label="Editor width"
