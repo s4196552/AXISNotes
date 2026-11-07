@@ -1,4 +1,5 @@
 import { ensureSyntaxTree, LanguageDescription, syntaxTree } from "@codemirror/language";
+import { codeColor, codeColorClass } from "./codeColors";
 import { languages } from "@codemirror/language-data";
 import type { EditorState, Range } from "@codemirror/state";
 import {
@@ -261,6 +262,8 @@ export function buildDecorations(
             // The fences show as typed while a selection is in the block; else the block is
             // a box with its language in the corner. Mermaid blocks draw as diagrams.
             const editing = touched(node.from, node.to) || /^mermaid$/i.test(language.trim());
+            // ```green: the code in that colour, with no language label (codeColors.ts).
+            const tint = codeColor(language);
             const body: { from: number; text: string }[] = [];
             for (let n = first; n <= last; n++) {
               const l = state.doc.line(n);
@@ -269,12 +272,13 @@ export function buildDecorations(
               if (n === first) cls.push("cm-lp-code-first");
               if (n === last) cls.push("cm-lp-code-last");
               if (fence) cls.push(editing ? "cm-lp-fence" : "cm-lp-fence cm-lp-fence-hidden");
+              if (tint && !fence) cls.push(codeColorClass(tint));
               out.push(line(cls.join(" ")).range(l.from));
               if (!fence) body.push({ from: l.from, text: l.text });
             }
             if (!editing) {
               const open = state.doc.line(first);
-              const label = codeLanguageLabel(language);
+              const label = tint ? "" : codeLanguageLabel(language);
               out.push(
                 (label
                   ? Decoration.replace({ widget: new CodeLanguageWidget(label) })

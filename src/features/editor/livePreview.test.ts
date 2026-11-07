@@ -146,6 +146,24 @@ describe("live preview decorations", () => {
     expect(editing.filter((d) => d.kind === "widget" || d.kind === "hide")).toEqual([]);
   });
 
+  it("colours a ```green block's code lines, with no language label", () => {
+    const doc = "x\n```green\nDog dog2 = new Dog();\ndog2.sit();\n```";
+    const away = decorate(doc, 1);
+    expect(away.filter((d) => d.kind === "line").map((d) => d.cls)).toEqual([
+      "cm-lp-codeblock cm-lp-code-first cm-lp-fence cm-lp-fence-hidden",
+      "cm-lp-codeblock cm-tint-green",
+      "cm-lp-codeblock cm-tint-green",
+      "cm-lp-codeblock cm-lp-code-last cm-lp-fence cm-lp-fence-hidden",
+    ]);
+    expect(away.some((d) => d.kind === "widget")).toBe(false);
+    expect(hidden(away)).toContain("```green");
+    // While editing, the fences show as typed and the code stays coloured.
+    const editing = decorate(doc, 3);
+    expect(editing.filter((d) => d.kind === "line").map((d) => d.cls)[1]).toBe(
+      "cm-lp-codeblock cm-tint-green",
+    );
+  });
+
   it("names code languages like Obsidian, and leaves mermaid blocks to the diagrams", () => {
     expect(codeLanguageLabel("python")).toBe("Python");
     expect(codeLanguageLabel("PY")).toBe("Python");

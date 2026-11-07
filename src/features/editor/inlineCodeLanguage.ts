@@ -11,6 +11,7 @@ import {
 import { highlightTree } from "@lezer/highlight";
 import { insideMath } from "./math";
 import { axisHighlight } from "./theme";
+import { type CodeColor, codeColor, codeColorClass } from "./codeColors";
 
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
@@ -20,6 +21,8 @@ type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 // coloured like a fenced block in that language, and off the cursor's line the `Java` span
 // and the closing backticks are hidden. Any language the code blocks know works, by name,
 // alias or file extension (`python`, `js`, `py`, `C++`).
+// A colour name instead of a language colours the whole code: `green`dog2.sit();`` (see
+// codeColors.ts).
 // The file keeps exactly what was typed; other Markdown apps show `Java` as inline code
 // followed by plain text and two backticks.
 
@@ -29,7 +32,10 @@ export interface TaggedCode {
   codeFrom: number;
   codeTo: number;
   to: number;
-  language: LanguageDescription;
+  /** The language the code is coloured as, or null for a colour tag. */
+  language: LanguageDescription | null;
+  /** A colour tag's colour (`green`code``), or null for a language. */
+  color: CodeColor | null;
 }
 
 /** `Java` at the start of the text, and what follows it. */
@@ -81,12 +87,14 @@ function scan(text: string): Scan {
     while (text[i + run] === "`") run++;
     const tag = run === 1 ? TAG.exec(text.slice(i)) : null;
     const codeFrom = tag ? i + tag[0].length : 0;
-    const language = tag && CODE_START.test(text[codeFrom] ?? "") ? findLanguage(tag[1]!) : null;
-    if (language) {
+    const starts = tag !== null && CODE_START.test(text[codeFrom] ?? "");
+    const color = starts ? codeColor(tag[1]!) : null;
+    const language = starts && !color ? findLanguage(tag[1]!) : null;
+    if (language || color) {
       CLOSE.lastIndex = codeFrom;
       const close = CLOSE.exec(text)?.index ?? -1;
       if (close < 0) return { spans, open: "tagged" };
-      spans.push({ from: i, codeFrom, codeTo: close, to: close + 2, language });
+      spans.push({ from: i, codeFrom, codeTo: close, to: close + 2, language, color });
       i = close + 2;
       continue;
     }
@@ -129,6 +137,7 @@ export function taggedCode(
               codeTo: line.from + t.codeTo,
               to: line.from + t.to,
               language: t.language,
+              color: t.color,
             });
       pos = line.to + 1;
     }
@@ -170,6 +179,13 @@ const tokenMark = (cls: string) => {
   return mark;
 };
 
+const tintMarks = new Map<CodeColor, Decoration>();
+const tintMark = (c: CodeColor) => {
+  let mark = tintMarks.get(c);
+  if (!mark) tintMarks.set(c, (mark = Decoration.mark({ class: codeColorClass(c) })));
+  return mark;
+};
+
 /** Decorations for the tagged spans; `load` is called for languages not loaded yet. */
 export function buildTaggedDecorations(
   state: EditorState,
@@ -190,6 +206,11 @@ export function buildTaggedDecorations(
       out.push(hide.range(t.from, t.codeFrom), codeMark.range(t.codeFrom, t.codeTo));
       out.push(hide.range(t.codeTo, t.to));
     }
+    if (t.color) {
+      out.push(tintMark(t.color).range(t.codeFrom, t.codeTo));
+      continue;
+    }
+    if (!t.language) continue;
     const support = t.language.support;
     if (!support) {
       load(t.language);

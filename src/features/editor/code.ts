@@ -3,6 +3,7 @@ import { ensureSyntaxTree } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { EditorSelection } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
+import { CODE_COLORS } from "./codeColors";
 
 /** Suggestions use the installed lazy parser catalogue, including its aliases. */
 export function codeLanguageCompletions(context: CompletionContext): CompletionResult | null {
@@ -18,12 +19,20 @@ export function codeLanguageCompletions(context: CompletionContext): CompletionR
   return {
     from: line.from + match[1]!.length + match[2]!.length,
     to: line.to,
-    options: languages.map((lang) => ({
-      label: lang.name,
-      apply: lang.alias[0] ?? lang.name.toLowerCase(),
-      detail: lang.alias.join(", "),
-      type: "type",
-    })),
+    options: [
+      ...languages.map((lang) => ({
+        label: lang.name,
+        apply: lang.alias[0] ?? lang.name.toLowerCase(),
+        detail: lang.alias.join(", "),
+        type: "type",
+      })),
+      // ```green colours the whole block (codeColors.ts).
+      ...CODE_COLORS.map((c) => ({
+        label: c,
+        detail: "code colour",
+        type: "constant",
+      })),
+    ],
     validFor: /^[\w+#.-]*$/,
   };
 }
