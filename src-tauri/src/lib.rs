@@ -7,6 +7,7 @@ mod commands;
 mod error;
 mod import;
 mod index;
+mod mcp;
 mod migrate;
 mod packs;
 mod pages;
@@ -19,6 +20,11 @@ use tauri::{DragDropEvent, Emitter, Manager, WindowEvent};
 /// If set, this folder is opened as the vault on startup (the UI picks it up via
 /// `current_vault`). Used by the E2E tests, which can't drive the native folder picker.
 const OPEN_VAULT_ENV: &str = "AXIS_OPEN_VAULT";
+
+/// `AXISNotes --mcp --vault <folder>`: serve the vault to Claude over stdio (see `mcp`).
+pub fn mcp_main(args: &[String]) -> i32 {
+    mcp::main(args)
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -118,6 +124,7 @@ pub fn run() {
             ai_commands::ai_run,
             ai_commands::ai_cancel,
             ai_commands::ai_log,
+            mcp::claude_connector_info,
             clipper_commands::clipper_status,
             clipper_commands::clipper_set_enabled,
             clipper_commands::clipper_set_folder,

@@ -117,6 +117,7 @@ export function createTauriBackend(): Backend {
     },
     aiCancel: (runId) => invoke("ai_cancel", { runId }),
     aiLog: (limit) => invoke("ai_log", { limit }),
+    claudeConnectorInfo: () => invoke("claude_connector_info"),
     clipperStatus: () => invoke("clipper_status"),
     clipperSetEnabled: (enabled) => invoke("clipper_set_enabled", { enabled }),
     clipperSetFolder: (folder) => invoke("clipper_set_folder", { folder }),

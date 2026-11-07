@@ -2,6 +2,16 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-08: Claude Desktop and Claude Code connect to a vault over MCP (T-193)
+
+- Anthropic offers no sign-in that lets another app spend a user's Claude plan (unlike the ChatGPT sign-in in T-141), and its terms don't allow apps to offer claude.ai login without approval. So AXISNotes doesn't call Claude on the plan; Claude Desktop or Claude Code (which run on the plan) call AXISNotes instead, through the Model Context Protocol.
+- The connector is the app's own program started as `AXISNotes --mcp --vault <folder>` (`src-tauri/src/mcp/`): JSON-RPC over stdin/stdout, one message per line, no window, no network listener, no new dependency. `main.rs` checks for `--mcp` before Tauri starts. It works with AXISNotes closed; when the app is open, its watcher picks up the connector's writes like any outside edit.
+- Off until the user turns it on (Settings → Claude saves `claude.enabled` / `claude.allowChanges` in `.axisnotes/config.json`); the connector reads that file on every request, so turning it off applies at once. Changes are a second switch; no tool deletes, moves or renames.
+- Claude is cloud AI, so only paths whose AI rule is "any" are shown; everything fails closed (unreadable config refuses all; an unknown rule value counts as "never"; rules match exact-case and any-case, the stricter wins). Paths Claude sends are respelled from the folder listing, and a segment the listing doesn't contain but the file system opens (8.3 short names like `MEDICA~1`) is refused. A hidden note and a missing note get the same answer.
+- Writes are Markdown only, revision-checked (`edit_note` needs the `modifiedMs` from `read_note`; `replace_in_note` needs a unique match and writes against the mtime it read). The daily-note tool uses the vault's folder and format; the daily template isn't applied (templates are expanded in the UI).
+- Each tool call is logged, metadata only (time, tool, path asked for, outcome), to `.axisnotes/claude-activity.jsonl` (trimmed past 256 KB); Settings → Claude shows the latest.
+- Known cost: an AXISNotes update closes running connectors (the installer replaces the program), so Claude shows it disconnected until restarted.
+
 ## 2026-11-07: Skill web pages stay copyable (T-191)
 
 - **Every HTML page a skill makes gets a small guard, first in its `<head>`** (`src/features/skills/copyable.ts`). This covers page skills (flash cards, practice tests, mind maps) and the `.html` files of a Teach session.
