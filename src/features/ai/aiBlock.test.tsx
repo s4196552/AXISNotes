@@ -4,7 +4,7 @@ import { EditorView } from "@codemirror/view";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
-import { aiBlockField, aiBlocks, insertionFor, openAiBlock } from "./aiBlock";
+import { aiBlockField, aiBlocks, discardParkedBlocks, insertionFor, openAiBlock } from "./aiBlock";
 import { useAiBlocks } from "./aiBlockStore";
 import { clearModelCache, promptCallout } from "./aiBlockStore";
 
@@ -52,6 +52,7 @@ beforeEach(async () => {
 afterEach(() => {
   view?.destroy();
   view = null;
+  discardParkedBlocks();
   useAiBlocks.setState({ blocks: {} });
 });
 
@@ -75,6 +76,78 @@ describe("insertionFor", () => {
 
   it("keeps the prompt as a collapsed callout on one line", () => {
     expect(promptCallout("Summarise\nthis")).toBe("> [!ai]- Summarise this\n\n");
+  });
+});
+
+describe("AI blocks on other tabs", () => {
+  it("keep running when the note's tab is left, and come back with the answer", async () => {
+    let finish: (text: string) => void = () => {};
+    let stream: (d: string) => void = () => {};
+    vi.spyOn(h.b, "aiRun").mockImplementation(
+      (_id, _req, onDelta) =>
+        new Promise((resolve) => {
+          stream = onDelta;
+          finish = (text) =>
+            resolve({
+              text,
+              providerId: "ollama",
+              providerName: "Ollama",
+              model: "llama3.3",
+              local: true,
+              usage: null,
+              fallbackFrom: null,
+            });
+        }),
+    );
+    const cancel = vi.spyOn(h.b, "aiCancel");
+    const doc = "# Bio\n\nMitochondria.\n\n";
+    const v = mount(doc, "School/Bio.md", 22);
+    let id = "";
+    act(() => void (id = openAiBlock(v)));
+    const block = await screen.findByRole("group", { name: "AI block" });
+    fireEvent.change(within(block).getByLabelText("AI prompt"), {
+      target: { value: "What makes ATP?" },
+    });
+    fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
+    await waitFor(() => expect(useAiBlocks.getState().blocks[id]?.phase.kind).toBe("running"));
+
+    // Another tab is shown: this note's editor closes.
+    act(() => v.destroy());
+    view = null;
+    await waitFor(() => expect(screen.queryByRole("group", { name: "AI block" })).toBeNull());
+    expect(cancel).not.toHaveBeenCalled();
+
+    // The answer keeps arriving while the note isn't open.
+    act(() => {
+      stream("Mitochondria ");
+      stream("make ATP.");
+      finish("Mitochondria make ATP.");
+    });
+    await waitFor(() => expect(useAiBlocks.getState().blocks[id]?.phase.kind).toBe("done"));
+
+    // Back on the note: the same block, with its answer, ready to insert.
+    const again = mount(doc, "School/Bio.md", 0);
+    expect(again.state.field(aiBlockField).map((b) => b.id)).toEqual([id]);
+    const back = await screen.findByRole("group", { name: "AI block" });
+    expect(within(back).getByLabelText("Answer")).toHaveTextContent("Mitochondria make ATP.");
+    fireEvent.click(within(back).getByRole("button", { name: "Insert" }));
+    expect(again.state.doc.toString()).toBe("# Bio\n\nMitochondria.\n\nMitochondria make ATP.");
+  });
+
+  it("only come back to their own note, and go when the vault changes", async () => {
+    const v = mount("a\n", "School/Bio.md", 0);
+    let id = "";
+    act(() => void (id = openAiBlock(v)));
+    await screen.findByRole("group", { name: "AI block" });
+    act(() => v.destroy());
+    view = null;
+    const other = mount("b\n", "Journal/Day.md", 0);
+    expect(other.state.field(aiBlockField)).toEqual([]);
+    act(() => other.destroy());
+    act(() => useAppStore.setState({ vault: { root: "/other", name: "other" } }));
+    expect(useAiBlocks.getState().blocks[id]).toBeUndefined();
+    view = mount("a\n", "School/Bio.md", 0);
+    expect(view.state.field(aiBlockField)).toEqual([]);
   });
 });
 
