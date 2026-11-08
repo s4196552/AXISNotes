@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, FileText, HardDrive, Send, Sparkles, Square, X } from "lucide-react";
+import {
+  Copy,
+  FileText,
+  HardDrive,
+  MessagesSquare,
+  RotateCcw,
+  Send,
+  Sparkles,
+  Square,
+  X,
+} from "lucide-react";
 import {
   type AiEffort,
   type AiPlan,
@@ -17,6 +27,8 @@ import { createUniqueNote } from "../commands/actions";
 import { createDraft, folderOf } from "../drafts/drafts";
 import { markText } from "../../lib/aiAccess";
 import { raiseNoteRule } from "./keepPrivacy";
+import { allTurns, conversationMarkdown, type Turn, withHistory } from "./conversation";
+import { AnswerText } from "./AnswerText";
 import "./ai.css";
 
 // Ask an AI model about the open note (or a selection). Shows where the request goes and
@@ -60,6 +72,24 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
   const [planError, setPlanError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [answer, setAnswer] = useState("");
+  /** Finished exchanges (question, answer, ...), including the latest once it's done. */
+  const [turns, setTurns] = useState<Turn[]>([]);
+  /** The question the current (or running) answer is for. */
+  const [asked, setAsked] = useState("");
+  // Once a conversation has started, its earlier answers are sent again with each
+  // follow-up: what it reads can't change, or a local-only answer could go to the cloud.
+  const locked = turns.length > 0;
+  /** Exchanges before the current question (the latest done one shows as the answer). */
+  const earlier = phase.kind === "running" ? turns : turns.slice(0, -2);
+
+  /** Start over: forget the conversation (what it reads can be changed again). */
+  const restart = () => {
+    setTurns([]);
+    setAsked("");
+    setAnswer("");
+    setPhase({ kind: "idle" });
+    inputRef.current?.focus();
+  };
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isFolder = folder !== undefined;
   const [useFolder, setUseFolder] = useState(true);
@@ -97,12 +127,12 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
             },
           ],
         },
-        { role: "user", content: [{ type: "text", text: context + prompt }] },
+        ...withHistory(turns, prompt, context).messages,
       ],
       attach: scope ? (useFolder ? scope.include : []) : useNote && path ? [path] : [],
       sources: useSelection && selection && path ? [path] : [],
     };
-  }, [prompt, useNote, useSelection, selection, path, effort, scope, useFolder, folder]);
+  }, [prompt, turns, useNote, useSelection, selection, path, effort, scope, useFolder, folder]);
 
   // Preview where the request would go (debounced while typing).
   useEffect(() => {
@@ -140,11 +170,14 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
     }
     const runId = crypto.randomUUID();
     setAnswer("");
+    setAsked(prompt);
     setPhase({ kind: "running", runId });
     try {
       const result = await backend.aiRun(runId, request, (d) => setAnswer((a) => a + d));
       setAnswer(result.text);
       setPhase({ kind: "done", result });
+      setTurns((t) => allTurns(t, prompt, result.text));
+      setPrompt("");
     } catch (e) {
       if (isBackendError(e) && e.code === "Cancelled") setPhase({ kind: "idle" });
       else setPhase(errorOf(e));
@@ -223,11 +256,13 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
             className="ask-ai-input"
             aria-label="Question"
             placeholder={
-              isFolder
-                ? `Ask about the notes in ${folderName(folder)}…`
-                : path
-                  ? `Ask about ${noteName(path)}…`
-                  : "Ask anything…"
+              locked
+                ? "Ask a follow-up…"
+                : isFolder
+                  ? `Ask about the notes in ${folderName(folder)}…`
+                  : path
+                    ? `Ask about ${noteName(path)}…`
+                    : "Ask anything…"
             }
             autoFocus
             rows={3}
@@ -248,7 +283,7 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
                   <input
                     type="checkbox"
                     checked={useFolder}
-                    disabled={running}
+                    disabled={running || locked}
                     onChange={(e) => setUseFolder(e.target.checked)}
                   />
                   Include {plural(scope.include.length, "note")} in “{folderName(folder!)}”
@@ -257,7 +292,7 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
                   <input
                     type="checkbox"
                     checked={subfolders}
-                    disabled={running}
+                    disabled={running || locked}
                     onChange={(e) => setSubfolders(e.target.checked)}
                   />
                   Subfolders
@@ -269,7 +304,7 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
                 <input
                   type="checkbox"
                   checked={useNote}
-                  disabled={running}
+                  disabled={running || locked}
                   onChange={(e) => setUseNote(e.target.checked)}
                 />
                 Include note “{noteName(path)}”
@@ -280,7 +315,7 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
                 <input
                   type="checkbox"
                   checked={useSelection}
-                  disabled={running}
+                  disabled={running || locked}
                   onChange={(e) => setUseSelection(e.target.checked)}
                 />
                 Include selection
@@ -355,9 +390,27 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
             </p>
           )}
 
+          {earlier.length > 0 && (
+            <div className="ask-ai-history" aria-label="Earlier in this conversation">
+              {earlier.map((t, i) =>
+                t.role === "user" ? (
+                  <p key={i} className="ai-turn ai-turn-user">
+                    <strong>You:</strong> {t.text}
+                  </p>
+                ) : (
+                  <div key={i} className="ai-turn ai-turn-assistant">
+                    <AnswerText text={t.text} from={path ?? ""} onFollow={onClose} />
+                  </div>
+                ),
+              )}
+              <p className="ai-turn ai-turn-user">
+                <strong>You:</strong> {asked}
+              </p>
+            </div>
+          )}
           {(answer || running) && (
             <div className="ask-ai-answer" aria-label="Answer" aria-busy={running}>
-              {answer}
+              <AnswerText text={answer} from={path ?? ""} onFollow={onClose} />
               {running && <span className="ask-ai-caret" aria-hidden />}
             </div>
           )}
@@ -378,7 +431,7 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
               <button
                 onClick={() =>
                   void createDraft({
-                    title: prompt.split(/\r?\n/)[0] ?? "",
+                    title: asked.split(/\r?\n/)[0] ?? "",
                     content: `${answer.trim()}\n`,
                     folder: isFolder ? folder : path ? folderOf(path) : "",
                     rule: answerRule,
@@ -393,7 +446,26 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
               {canInsert && <button onClick={insert}>Insert at cursor</button>}
               {path && !isFolder && <button onClick={() => void append()}>Append to note</button>}
               {isFolder && <button onClick={() => void saveAsNote()}>Save as a note here</button>}
+              {turns.length > 2 && (
+                <button
+                  onClick={() =>
+                    void createDraft({
+                      title: turns[0]!.text.split(/\r?\n/)[0] ?? "",
+                      content: conversationMarkdown(turns[0]!.text.split(/\r?\n/)[0] ?? "", turns),
+                      folder: isFolder ? folder : path ? folderOf(path) : "",
+                      rule: answerRule,
+                    }).then(onClose, (e: unknown) => setPhase(errorOf(e)))
+                  }
+                >
+                  <MessagesSquare size={13} /> Save conversation
+                </button>
+              )}
             </>
+          )}
+          {locked && !running && (
+            <button onClick={restart} title="Forget this conversation and start over">
+              <RotateCcw size={13} /> New question
+            </button>
           )}
           <span className="ask-ai-spacer" />
           {running ? (

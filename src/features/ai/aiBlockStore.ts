@@ -35,8 +35,13 @@ export interface AiBlockState {
   skill?: string | null;
   /** The format the skill makes (Markdown, HTML or both); null for the skill's own. */
   format?: SkillFormat | null;
-  /** A chat skill's conversation so far. */
+  /**
+   * The conversation so far: a chat skill's turns, or a plain prompt's finished
+   * exchanges (including the latest once it's done), sent again with each follow-up.
+   */
   turns?: { role: "user" | "assistant"; text: string }[];
+  /** A plain prompt: the question the current answer is for. */
+  asked?: string;
   /** A page skill's checked HTML. */
   html?: string | null;
   /** A files skill's checked files and message. */

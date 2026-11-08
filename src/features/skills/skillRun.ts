@@ -11,6 +11,7 @@ import { InvalidAnswer } from "../../lib/aiJson";
 import { markText } from "../../lib/aiAccess";
 import { createUniqueNote } from "../commands/actions";
 import { folderScope } from "../ai/folderScope";
+import { conversationMarkdown, type Turn } from "../ai/conversation";
 import { folderOf, isDraft, suggestedFolder } from "../drafts/drafts";
 import {
   extractHtml,
@@ -24,10 +25,7 @@ import {
 // Running a skill from an AI block: what the request reads and asks for, and checking
 // what comes back (an HTML page, or the files a Teach session writes).
 
-export interface Turn {
-  role: "user" | "assistant";
-  text: string;
-}
+export type { Turn } from "../ai/conversation";
 
 export interface SkillRequestInput {
   skill: Skill;
@@ -214,9 +212,7 @@ export async function writeFiles(files: PlannedFile[]): Promise<void> {
 
 /** A Grill me conversation as Markdown, for a draft. */
 export function transcript(skill: Skill, turns: Turn[]): string {
-  const lines = [`# ${skill.title}`, ""];
-  for (const t of turns) lines.push(`**${t.role === "user" ? "Me" : "AI"}:** ${t.text.trim()}`, "");
-  return `${lines.join("\n").trim()}\n`;
+  return conversationMarkdown(skill.title, turns);
 }
 
 const escapeHtml = (s: string) =>

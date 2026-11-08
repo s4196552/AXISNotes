@@ -20,6 +20,14 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - Undoing a new note or a pasted copy takes it back to the trash only while its text is unchanged; a new folder only while it's empty. Otherwise it's refused with a message.
   - A step that fails is dropped with an error, never half-retried.
 - **Where the keys work:** in the tree, and anywhere focus isn't in a text box, the editor (which keeps its own undo), an embedded page or an open dialog.
+## 2026-11-08: Follow-up questions in Ask AI and AI blocks (T-196)
+
+- Ask AI and plain-prompt AI blocks keep a conversation. After an answer the box empties for a follow-up. Each follow-up re-sends the same attached notes (cheap with T-195's prompt caching) and the earlier exchanges (`conversation.ts` `withHistory`).
+- Earlier exchanges are dropped, oldest whole exchange first, past about 8,000 estimated tokens, and a selection the user included rides on the first message kept.
+- While a conversation is open, what it reads (note, folder, selection) is locked. Earlier answers are sent again as plain text, so changing the sources mid-conversation could send a local-only answer to a cloud model; "New question" forgets the conversation and unlocks them.
+- Insert, Append and drafts still use the latest answer. "Save conversation" (after a follow-up) writes a Markdown draft, marked with the answer's rule (T-195). Retry in a block asks the latest question again with the conversation as it was before it.
+- Answers render as light Markdown (`AnswerText`: headings, lists, code blocks, inline styles) built from `InlineText` tokens, never HTML, so an answer can't inject markup; `[[links]]` open their note.
+- `Turn` and the transcript moved from skills to `src/features/ai/conversation.ts`; Grill me uses them unchanged.
 
 ## 2026-11-08: AI output keeps its sources' privacy; allowed models per folder; prompt caching (T-195)
 
