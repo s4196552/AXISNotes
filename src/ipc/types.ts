@@ -319,6 +319,11 @@ export interface ClipperDevice {
   lastUsedMs: number | null;
 }
 
+/** Settings → Claude: the program Claude starts as AXISNotes' MCP connector. */
+export interface ClaudeConnectorInfo {
+  exe: string;
+}
+
 export interface ClipperStatus {
   enabled: boolean;
   /** Listening on 127.0.0.1:port. */
@@ -569,6 +574,9 @@ export interface Backend {
   aiCancel(runId: string): Promise<void>;
   /** Recent AI requests (metadata only), newest first. */
   aiLog(limit?: number): Promise<AiLogEntry[]>;
+
+  /** The connector's program path; null where there is none (browser preview). */
+  claudeConnectorInfo(): Promise<ClaudeConnectorInfo | null>;
 
   clipperStatus(): Promise<ClipperStatus>;
   clipperSetEnabled(enabled: boolean): Promise<ClipperStatus>;

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Bot,
+  Cable,
   CalendarDays,
   Images,
   Info,
@@ -38,6 +39,7 @@ import { formatHotkey } from "../commands/hotkeys";
 import { AiSettingsPanel } from "../ai/AiSettings";
 import { AgentSettingsPanel } from "../agent/AgentSettingsPanel";
 import { ClipperSettings } from "../clipper/ClipperSettings";
+import { ClaudeSettings } from "../claude/ClaudeSettings";
 import { UpdatesSettings } from "../updates/UpdatesSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
 import { ThemePicker } from "./ThemePicker";
@@ -61,6 +63,7 @@ export type Section =
   | "hotkeys"
   | "ai"
   | "agent"
+  | "claude"
   | "clipper"
   | "updates"
   | "about";
@@ -77,6 +80,7 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "hotkeys", label: "Keyboard shortcuts", icon: Keyboard },
   { id: "ai", label: "AI", icon: Sparkles },
   { id: "agent", label: "Agent", icon: Bot },
+  { id: "claude", label: "Claude", icon: Cable },
   { id: "clipper", label: "Web clipper", icon: Scissors },
   { id: "updates", label: "Updates", icon: RefreshCw },
   { id: "about", label: "About", icon: Info },
@@ -124,6 +128,8 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
         return <AiSettingsPanel />;
       case "agent":
         return <AgentSettingsPanel />;
+      case "claude":
+        return <ClaudeSettings />;
       case "clipper":
         return <ClipperSettings />;
       case "updates":
@@ -207,6 +213,7 @@ const LIVE_KEYWORDS: Partial<Record<Section, string>> = {
   updates:
     "check for updates when axisnotes starts install updates automatically updates folder version",
   packs: "icon packs image packs emoji add pack icons images",
+  claude: "claude desktop claude code mcp connector plan subscription copy command config",
 };
 
 function SearchResults(p: {

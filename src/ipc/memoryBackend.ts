@@ -363,6 +363,7 @@ export function createMemoryBackend(
 
   return {
     ...ai,
+    claudeConnectorInfo: async () => null,
     clipperStatus: async () => ({ ...clipper }),
     clipperSetEnabled: async (enabled) => ({ ...clipper, enabled }),
     clipperSetFolder: async (folder) => {

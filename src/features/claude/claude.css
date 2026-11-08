@@ -1,0 +1,67 @@
+.claude-settings h3 {
+  margin: 18px 0 6px;
+  font-size: 13px;
+}
+
+.claude-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.claude-kept {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.claude-kept svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.claude-snippet {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.claude-snippet pre {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre;
+  user-select: text;
+}
+
+.claude-snippet button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.claude-activity {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.claude-activity li {
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+
+.claude-failed {
+  color: var(--fg-muted);
+}
