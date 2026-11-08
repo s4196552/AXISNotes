@@ -80,6 +80,19 @@ import { useSkills } from "../skills/skills";
 import { skillIcon } from "../skills/skillIcons";
 import { runSkillOnPicked, skillsForPicked } from "../skills/skillOnFiles";
 import { clipFor, itemsLabel, useTreeClipboard } from "./clipboard";
+import {
+  batch,
+  beforeDelete,
+  changeSetting,
+  copiesMade,
+  created,
+  record,
+  redoTree,
+  renamed,
+  undoTree,
+  isRedoKey,
+  isUndoKey,
+} from "./undo";
 import "./filetree.css";
 
 interface MenuState {
@@ -250,6 +263,7 @@ export function FileTree() {
               : [".md", ""];
         const path = joinPath(dir, uniqueName(childNames(dir), "Untitled", ext));
         await backend.createFile(path, content);
+        record(created(path, content));
         if (dir) toggle(dir, true);
         const store = useAppStore.getState();
         await store.refreshTree();
@@ -265,6 +279,7 @@ export function FileTree() {
       run(async () => {
         const path = joinPath(dir, uniqueName(childNames(dir), "Untitled folder"));
         await backend.createDir(path);
+        record(created(path, null));
         if (dir) toggle(dir, true);
         await useAppStore.getState().refreshTree();
         setSelected(path);
@@ -277,6 +292,7 @@ export function FileTree() {
     (from: string, to: string) =>
       run(async () => {
         await backend.renameEntry(from, to);
+        record(renamed(from, to));
         updateExpanded((prev) => {
           const next = remapPaths(prev, from, to);
           for (const folder of ancestorsOf(to)) next.add(folder);
@@ -296,7 +312,9 @@ export function FileTree() {
       run(async () => {
         const what = entry.kind === "dir" ? "folder" : "note";
         if (!window.confirm(`Move the ${what} "${displayName(entry)}" to the trash?`)) return;
+        const recordDelete = beforeDelete([entry.path]);
         await backend.trashEntry(entry.path);
+        recordDelete([entry.path]);
         const store = useAppStore.getState();
         await store.refreshTree();
         store.onEntryRemoved(entry.path);
@@ -320,12 +338,14 @@ export function FileTree() {
         if (!window.confirm(`Move ${entries.length} items to the trash?\n\n${names.join("\n")}`))
           return;
         const done: string[] = [];
+        const recordDelete = beforeDelete(entries.map((e) => e.path));
         try {
           for (const e of entries) {
             await backend.trashEntry(e.path);
             done.push(e.path);
           }
         } finally {
+          recordDelete(done);
           const store = useAppStore.getState();
           await store.refreshTree();
           for (const p of done) {
@@ -349,28 +369,38 @@ export function FileTree() {
 
   const saveOrder = useCallback(
     (dir: string, names: string[]) =>
-      useConfig.getState().update((c) => ({ ...c, fileOrder: { ...c.fileOrder, [dir]: names } })),
+      changeSetting(
+        `Reorder ${dir ? `“${baseName(dir)}”` : "the top level"}`,
+        "fileOrder",
+        dir,
+        () =>
+          useConfig
+            .getState()
+            .update((c) => ({ ...c, fileOrder: { ...c.fileOrder, [dir]: names } })),
+      ),
     [],
   );
 
   /** Put `src` before or after `target`, moving it into `target`'s folder first if needed. */
   const place = useCallback(
     (src: string, target: string, side: "before" | "after") =>
-      run(async () => {
-        const dir = parentPath(target);
-        const name = baseName(src);
-        const names = shownNames(dir);
-        if (parentPath(src) !== dir) {
-          if (names.some((n) => n.toLowerCase() === name.toLowerCase())) {
-            const where = dir ? `"${baseName(dir)}"` : "the top level";
-            useAppStore.getState().setError(`"${name}" already exists in ${where}.`);
-            return;
+      run(() =>
+        batch(`Move “${baseName(src)}”`, async () => {
+          const dir = parentPath(target);
+          const name = baseName(src);
+          const names = shownNames(dir);
+          if (parentPath(src) !== dir) {
+            if (names.some((n) => n.toLowerCase() === name.toLowerCase())) {
+              const where = dir ? `"${baseName(dir)}"` : "the top level";
+              useAppStore.getState().setError(`"${name}" already exists in ${where}.`);
+              return;
+            }
+            if (!(await move(src, joinPath(dir, name)))) return;
           }
-          if (!(await move(src, joinPath(dir, name)))) return;
-        }
-        await saveOrder(dir, placeName(names, name, baseName(target), side));
-        setSelected(joinPath(dir, name));
-      }),
+          await saveOrder(dir, placeName(names, name, baseName(target), side));
+          setSelected(joinPath(dir, name));
+        }),
+      ),
     [run, move, shownNames, saveOrder],
   );
 
@@ -392,11 +422,13 @@ export function FileTree() {
   const resetOrder = useCallback(
     (dir: string) =>
       run(() =>
-        useConfig.getState().update((c) => {
-          const fileOrder = { ...c.fileOrder };
-          delete fileOrder[dir];
-          return { ...c, fileOrder };
-        }),
+        changeSetting("Sort A–Z", "fileOrder", dir, () =>
+          useConfig.getState().update((c) => {
+            const fileOrder = { ...c.fileOrder };
+            delete fileOrder[dir];
+            return { ...c, fileOrder };
+          }),
+        ),
       ),
     [run],
   );
@@ -417,60 +449,73 @@ export function FileTree() {
     store.notify(`${verb} ${itemsLabel(list, name)}. Select a folder and press Ctrl+V to paste.`);
   }, []);
 
+  /** "Paste 3 items", for undo. */
+  const pasteLabel = () => {
+    const n = clipFor(useTreeClipboard.getState().clip, useAppStore.getState().vault?.root)?.paths
+      .length;
+    return n && n > 1 ? `Paste ${n} items` : "Paste";
+  };
+
   /** Paste what was copied (as copies, under free names) or cut (moved) into `dir`. */
   const paste = useCallback(
     (dir: string) =>
-      run(async () => {
-        const store = useAppStore.getState();
-        const clipboard = useTreeClipboard.getState();
-        const c = clipFor(clipboard.clip, store.vault?.root);
-        if (!c) return;
-        const items = c.paths.filter((p) => findEntry(store.tree, p));
-        if (!items.length) {
-          clipboard.set(null);
-          store.setError("Nothing to paste: the copied items are no longer in the vault.");
-          return;
-        }
-        const problems: string[] = [];
-        const landed: string[] = [];
-        const left: string[] = [];
-        try {
-          for (const p of items) {
-            const name = baseName(p);
-            const to = joinPath(dir, name);
-            if (dir === p || dir.startsWith(p + "/")) {
-              problems.push(`"${name}" into itself`);
-              left.push(p);
-            } else if (c.mode === "copy") {
-              try {
-                landed.push((await backend.copyEntry(p, dir)).path);
-              } catch (e) {
-                problems.push(`"${name}" (${errorMessage(e)})`);
-              }
-            } else if (parentPath(p) === dir) {
-              landed.push(p); // already there
-            } else if (shownNames(dir).some((n) => n.toLowerCase() === name.toLowerCase())) {
-              const where = dir ? `"${baseName(dir)}"` : "the top level";
-              problems.push(`"${name}" (it already exists in ${where})`);
-              left.push(p);
-            } else if (await move(p, to)) {
-              landed.push(to);
-            } else left.push(p);
+      run(() =>
+        batch(pasteLabel(), async () => {
+          const store = useAppStore.getState();
+          const clipboard = useTreeClipboard.getState();
+          const c = clipFor(clipboard.clip, store.vault?.root);
+          if (!c) return;
+          const items = c.paths.filter((p) => findEntry(store.tree, p));
+          if (!items.length) {
+            clipboard.set(null);
+            store.setError("Nothing to paste: the copied items are no longer in the vault.");
+            return;
           }
-        } finally {
-          if (c.mode === "copy") await useAppStore.getState().refreshTree();
-          // What was cut but couldn't move stays cut, to paste somewhere else.
-          else clipboard.set(left.length ? { ...c, paths: left } : null);
-        }
-        if (dir && landed.length) toggle(dir, true);
-        const focus = landed[landed.length - 1];
-        if (focus) {
-          setSelected(focus);
-          setPicked(landed.length > 1 ? { anchor: landed[0]!, focus, paths: landed } : null);
-        }
-        if (problems.length)
-          useAppStore.getState().setError(`Couldn't paste ${problems.join(", ")}.`);
-      }),
+          const problems: string[] = [];
+          const landed: string[] = [];
+          const left: string[] = [];
+          try {
+            for (const p of items) {
+              const name = baseName(p);
+              const to = joinPath(dir, name);
+              if (dir === p || dir.startsWith(p + "/")) {
+                problems.push(`"${name}" into itself`);
+                left.push(p);
+              } else if (c.mode === "copy") {
+                try {
+                  landed.push((await backend.copyEntry(p, dir)).path);
+                } catch (e) {
+                  problems.push(`"${name}" (${errorMessage(e)})`);
+                }
+              } else if (parentPath(p) === dir) {
+                landed.push(p); // already there
+              } else if (shownNames(dir).some((n) => n.toLowerCase() === name.toLowerCase())) {
+                const where = dir ? `"${baseName(dir)}"` : "the top level";
+                problems.push(`"${name}" (it already exists in ${where})`);
+                left.push(p);
+              } else if (await move(p, to)) {
+                landed.push(to);
+              } else left.push(p);
+            }
+          } finally {
+            if (c.mode === "copy") await useAppStore.getState().refreshTree();
+            // What was cut but couldn't move stays cut, to paste somewhere else.
+            else clipboard.set(left.length ? { ...c, paths: left } : null);
+          }
+          if (c.mode === "copy") {
+            const made = await copiesMade(landed);
+            if (made) record(made);
+          }
+          if (dir && landed.length) toggle(dir, true);
+          const focus = landed[landed.length - 1];
+          if (focus) {
+            setSelected(focus);
+            setPicked(landed.length > 1 ? { anchor: landed[0]!, focus, paths: landed } : null);
+          }
+          if (problems.length)
+            useAppStore.getState().setError(`Couldn't paste ${problems.join(", ")}.`);
+        }),
+      ),
     [run, move, shownNames, toggle],
   );
 
@@ -503,34 +548,35 @@ export function FileTree() {
 
   /** Drop several items: into a folder, or before/after a row, keeping their order. */
   const dropMany = useCallback(
-    async (srcs: string[], over: DropAt) => {
-      // A clash or a failed move is reported and leaves that item where it was.
-      const exists = (p: string) => !!findEntry(useAppStore.getState().tree, p);
-      const moved = (src: string, to: string) => exists(to) && (to === src || !exists(src));
-      const landed: string[] = [];
-      if (over.side === "into") {
-        for (const src of srcs) {
-          const to = joinPath(over.path, baseName(src));
-          if (parentPath(src) !== over.path) await move(src, to);
-          if (moved(src, to)) landed.push(to);
+    (srcs: string[], over: DropAt) =>
+      batch(`Move ${srcs.length} items`, async () => {
+        // A clash or a failed move is reported and leaves that item where it was.
+        const exists = (p: string) => !!findEntry(useAppStore.getState().tree, p);
+        const moved = (src: string, to: string) => exists(to) && (to === src || !exists(src));
+        const landed: string[] = [];
+        if (over.side === "into") {
+          for (const src of srcs) {
+            const to = joinPath(over.path, baseName(src));
+            if (parentPath(src) !== over.path) await move(src, to);
+            if (moved(src, to)) landed.push(to);
+          }
+        } else {
+          // Each goes right after the one placed before it (or before the target, in order).
+          const side = over.side;
+          let target = over.path;
+          for (const src of srcs) {
+            const to = joinPath(parentPath(target), baseName(src));
+            await place(src, target, side);
+            if (!moved(src, to)) break;
+            landed.push(to);
+            if (side === "after") target = to;
+          }
         }
-      } else {
-        // Each goes right after the one placed before it (or before the target, in order).
-        const side = over.side;
-        let target = over.path;
-        for (const src of srcs) {
-          const to = joinPath(parentPath(target), baseName(src));
-          await place(src, target, side);
-          if (!moved(src, to)) break;
-          landed.push(to);
-          if (side === "after") target = to;
-        }
-      }
-      const focus = landed[landed.length - 1];
-      if (!focus) return;
-      setSelected(focus);
-      setPicked(landed.length > 1 ? { anchor: landed[0]!, focus, paths: landed } : null);
-    },
+        const focus = landed[landed.length - 1];
+        if (!focus) return;
+        setSelected(focus);
+        setPicked(landed.length > 1 ? { anchor: landed[0]!, focus, paths: landed } : null);
+      }),
     [move, place],
   );
 
@@ -777,6 +823,21 @@ export function FileTree() {
     [reveal],
   );
 
+  // Ctrl+Z / Ctrl+Y also work when nothing that has its own undo has focus (after a
+  // delete's confirmation, say). The editor, text boxes and open dialogs keep theirs.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || !(isUndoKey(e) || isRedoKey(e))) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.("input, textarea, select, [contenteditable], .cm-editor, iframe")) return;
+      if (document.querySelector(".modal-backdrop, [role=dialog]")) return;
+      e.preventDefault();
+      void (isUndoKey(e) ? undoTree() : redoTree());
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // Keep the selected row in view during keyboard navigation.
   useEffect(() => {
     if (selected === null) return;
@@ -796,6 +857,13 @@ export function FileTree() {
         setPicked(null);
       }
     };
+
+    // Ctrl/Cmd + Z undoes the last file-tree change; Ctrl/Cmd + Y or Shift+Z redoes it.
+    if (isUndoKey(e) || isRedoKey(e)) {
+      e.preventDefault();
+      void (isUndoKey(e) ? undoTree() : redoTree());
+      return;
+    }
 
     // Ctrl/Cmd + C, X and V copy, cut and paste (into the selected folder, or the
     // selected file's folder).
@@ -1177,12 +1245,14 @@ function AiRuleItems({ path, close }: { path: string; close(v: null): void }) {
   const rule = useConfig((s) => s.config.ai.folders[path]);
   const models = useConfig((s) => s.config.ai.models[path]);
   const set = (r: AiRule | null) =>
-    void useConfig.getState().update((c) => {
-      const folders = { ...c.ai.folders };
-      if (r === null) delete folders[path];
-      else folders[path] = r;
-      return { ...c, ai: { ...c.ai, folders } };
-    });
+    void changeSetting(`AI access for “${baseName(path)}”`, "ai.folders", path, () =>
+      useConfig.getState().update((c) => {
+        const folders = { ...c.ai.folders };
+        if (r === null) delete folders[path];
+        else folders[path] = r;
+        return { ...c, ai: { ...c.ai, folders } };
+      }),
+    );
   const items: [AiRule | null, string, LucideIcon][] = [
     [null, "AI access: inherit", Sparkles],
     ["never", "AI access: never", Ban],

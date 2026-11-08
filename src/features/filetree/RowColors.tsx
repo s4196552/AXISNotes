@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { type EntryColors, useConfig } from "../../app/config";
+import { record, settingChanged, settingOf } from "./undo";
 import { ROW_BACKGROUNDS, ROW_TEXT_COLORS, rowColorProps, rowColors } from "./rowColorsModel";
 import "../icons/icons.css";
 import "./filetree.css";
@@ -51,6 +53,18 @@ function Swatches(props: {
 export function RowColorsDialog({ path, onClose }: { path: string; onClose(): void }) {
   const colors = rowColors(useConfig((s) => s.config.entryColors[path])) ?? {};
   const update = useConfig((s) => s.update);
+  // The colours change live while the dialog is open; Ctrl+Z puts back what they were
+  // when it opened, in one step.
+  const [before] = useState(() => settingOf("entryColors", path));
+  useEffect(
+    () => () => {
+      if (JSON.stringify(settingOf("entryColors", path)) !== JSON.stringify(before))
+        record(
+          settingChanged(`Colours for “${path.split("/").pop()}”`, "entryColors", path, before),
+        );
+    },
+    [path, before],
+  );
   const name = path.split("/").pop()!.replace(/\.md$/i, "");
 
   const save = (next: EntryColors) =>

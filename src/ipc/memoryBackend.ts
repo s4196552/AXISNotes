@@ -145,6 +145,8 @@ export function createMemoryBackend(
   vaultName = "Demo Vault",
 ): MemoryBackend {
   const nodes = new Map<string, Node>();
+  /** Deleted items, for restoreEntries (the OS trash in the real app). */
+  const trashed: { path: string; time: number; nodes: [string, Node][] }[] = [];
   const blobUrls = new Map<string, string>();
   const listeners = new Set<(c: VaultChange[]) => void>();
   const closeListeners = new Set<() => void>();
@@ -712,7 +714,22 @@ export function createMemoryBackend(
       const p = normalize(path);
       if (p === "") fail("OutsideVault", path);
       if (!nodes.has(p)) fail("NotFound", path);
-      for (const k of [...nodes.keys()]) if (k === p || k.startsWith(p + "/")) nodes.delete(k);
+      const gone = [...nodes.entries()].filter(([k]) => k === p || k.startsWith(p + "/"));
+      for (const [k] of gone) nodes.delete(k);
+      trashed.push({ path: p, time: Date.now(), nodes: gone });
+    },
+    async restoreEntries(paths, sinceMs) {
+      requireVault();
+      const found = paths.map((path) => {
+        const p = normalize(path);
+        if (nodes.has(p)) fail("AlreadyExists", path);
+        const item = trashed.findLast((t) => t.path === p && t.time >= sinceMs);
+        return item ?? fail("NotFound", `${path} (it isn't in the trash any more)`);
+      });
+      for (const item of found) {
+        for (const [k, n] of item.nodes) nodes.set(k, n);
+        trashed.splice(trashed.indexOf(item), 1);
+      }
     },
     // A browser page has no file manager to show.
     async revealEntry(path) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { type FolderIcon, useConfig } from "../../app/config";
 import { loadEmoji, searchEmoji } from "../editor/quickCommands";
+import { changeSetting } from "../filetree/undo";
 import {
   ICON_COLORS,
   ICONS,
@@ -74,12 +75,18 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
   }, [tab, all, attempt]);
 
   const save = (icon: FolderIcon | null) => {
-    void update((c) => {
-      const folderIcons = { ...c.folderIcons };
-      if (icon) folderIcons[path] = icon;
-      else delete folderIcons[path];
-      return { ...c, folderIcons };
-    });
+    void changeSetting(
+      `Icon for “${path.slice(path.lastIndexOf("/") + 1)}”`,
+      "folderIcons",
+      path,
+      () =>
+        update((c) => {
+          const folderIcons = { ...c.folderIcons };
+          if (icon) folderIcons[path] = icon;
+          else delete folderIcons[path];
+          return { ...c, folderIcons };
+        }),
+    );
     onClose();
   };
   const pick = (icon: string) => save(color ? { icon, color } : { icon });
