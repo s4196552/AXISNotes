@@ -628,11 +628,27 @@
   color: var(--fg);
 }
 
-/* With follow-ups the footer has more buttons: wrap them instead of squeezing. */
-.ask-ai-footer {
-  flex-wrap: wrap;
-  row-gap: 6px;
+/* Ask your vault: the passages sent, cited sources and citations that weren't sent. */
+.ask-ai-found {
+  margin: 4px 0;
+  font-size: 0.9em;
 }
-.ask-ai-footer button {
-  white-space: nowrap;
+.ask-ai-found ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.ask-ai-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+  font-size: 0.9em;
+}
+.cite-unknown {
+  color: var(--fg-muted);
+}
+.cite-unknown::after {
+  content: " (not in sources)";
+  font-size: 0.85em;
+  text-decoration: none;
 }

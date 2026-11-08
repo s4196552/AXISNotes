@@ -7,7 +7,16 @@ import { followLink } from "../commands/actions";
  * `[[links]]` open their note (Ctrl+click: in a new tab), and code, bold, italic and
  * strikethrough are styled. Web links show their label, with the address on hover.
  */
-export function InlineText({ text, from }: { text: string; from: string }) {
+export function InlineText({
+  text,
+  from,
+  isKnown,
+}: {
+  text: string;
+  from: string;
+  /** For AI answers that cite sources: links this rejects are struck through. */
+  isKnown?: (inner: string) => boolean;
+}) {
   const tokens = useMemo(() => tokenizeInline(text), [text]);
   return (
     <>
@@ -30,6 +39,12 @@ export function InlineText({ text, from }: { text: string; from: string }) {
               </span>
             );
           case "wikilink":
+            if (isKnown && !isKnown(t.inner))
+              return (
+                <s key={i} className="cite-unknown" title="Not one of the sources that were sent">
+                  {t.text}
+                </s>
+              );
             return (
               <button
                 key={i}

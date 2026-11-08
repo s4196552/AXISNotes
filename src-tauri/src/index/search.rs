@@ -139,7 +139,7 @@ pub fn parse_query(q: &str) -> Vec<Term> {
         .collect()
 }
 
-fn fts_quote(s: &str) -> String {
+pub(super) fn fts_quote(s: &str) -> String {
     format!("\"{}\"", s.replace('"', "\"\""))
 }
 

@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::ai::privacy::AiRule;
 use crate::attachments;
 use crate::error::{AppError, AppResult};
 use crate::index::graph::GraphData;
@@ -602,6 +603,49 @@ pub async fn search(
     limit: Option<usize>,
 ) -> AppResult<Vec<SearchHit>> {
     state.with_index(|idx| idx.search(&query, limit.unwrap_or(50)))
+}
+
+/// What "Ask your vault" would send for a question: the passages, and how many matching
+/// notes the AI rules left out.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultPassages {
+    passages: Vec<crate::index::passages::Passage>,
+    left_out: usize,
+}
+
+/// Tokens of passages one "Ask your vault" question sends, at most.
+const VAULT_PASSAGE_TOKENS: u32 = 8000;
+
+/// The passages that best answer `question`. Notes under "AI: never" (or marked never) are
+/// always left out; local-only ones only come with `include_local` (and then the request
+/// needs a local model, which the AI layer enforces when it reads them).
+#[tauri::command]
+pub async fn vault_passages(
+    state: State<'_, AppState>,
+    question: String,
+    include_local: bool,
+) -> AppResult<VaultPassages> {
+    let vault = state.vault()?;
+    let rules = crate::ai::privacy::rules(&vault);
+    state.with_index(|idx| {
+        let marks = idx.ai_marks()?;
+        let left_out = std::cell::Cell::new(0usize);
+        let keep = |path: &str| {
+            let rule = crate::ai::privacy::rule_for(&rules, path)
+                .max(marks.get(path).copied().unwrap_or(AiRule::Any));
+            let ok = rule == AiRule::Any || (include_local && rule == AiRule::Local);
+            if !ok {
+                left_out.set(left_out.get() + 1);
+            }
+            ok
+        };
+        let passages = idx.passages(&question, VAULT_PASSAGE_TOKENS, &keep)?;
+        Ok(VaultPassages {
+            passages,
+            left_out: left_out.get(),
+        })
+    })
 }
 
 #[tauri::command]

@@ -419,8 +419,11 @@ body.pointer-dragging * {
 .ask-ai-header,
 .ask-ai-footer {
   display: flex;
+  /* Follow-ups add buttons: wrap them to a second row instead of squeezing. */
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  row-gap: 6px;
   padding: 10px 14px;
 }
 .ask-ai-header {
@@ -436,6 +439,7 @@ body.pointer-dragging * {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
 }
 .ask-ai-spacer {
   flex: 1;

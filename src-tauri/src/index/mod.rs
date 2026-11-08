@@ -3,6 +3,7 @@
 
 pub mod graph;
 pub mod parse;
+pub mod passages;
 pub mod rename;
 pub mod search;
 pub mod tasks;

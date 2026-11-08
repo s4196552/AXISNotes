@@ -195,13 +195,17 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
 
   const ruleOf = (req: AiRunRequest): AiRule => {
     const r = rules();
-    return [...(req.sources ?? []), ...(req.attach ?? [])]
+    return [
+      ...(req.sources ?? []),
+      ...(req.attach ?? []),
+      ...(req.passages ?? []).map((p) => p.path),
+    ]
       .map((p) => {
         const text = readFile(p);
         const mark = text === null ? null : noteMark(p, text);
         return stricter(ruleFor(r, p), mark ?? "any");
       })
-      .reduce<AiRule>(stricter, "any");
+      .reduce<AiRule>(stricter, req.atLeast ?? "any");
   };
 
   const candidates = (req: AiRunRequest, rule: AiRule) => {

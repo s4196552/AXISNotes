@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import type { SkillFormat } from "../skills/skills";
-import { type AiEffort, type AiModel, type AiPlan, type AiRunResult, backend } from "../../ipc";
+import {
+  type AiEffort,
+  type AiModel,
+  type AiPlan,
+  type AiRule,
+  type AiRunResult,
+  backend,
+} from "../../ipc";
 
 // State of each AI block in the editor, kept outside React so a block keeps its prompt
 // and streaming answer when CodeMirror redraws or recreates the block's DOM (scrolling
@@ -42,6 +49,8 @@ export interface AiBlockState {
   turns?: { role: "user" | "assistant"; text: string }[];
   /** A plain prompt: the question the current answer is for. */
   asked?: string;
+  /** The strictest rule of the conversation's answers: follow-ups are held to it. */
+  convRule?: AiRule;
   /** A page skill's checked HTML. */
   html?: string | null;
   /** A files skill's checked files and message. */

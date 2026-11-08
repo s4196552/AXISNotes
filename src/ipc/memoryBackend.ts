@@ -8,13 +8,14 @@ import {
   splitFrontmatter,
   inlineProperties,
 } from "../lib/markdown";
-import { noteMark } from "../lib/aiAccess";
+import { noteMark, stricter } from "../lib/aiAccess";
 import { headingAt } from "../lib/searchText";
 import { compareTasks, findTasks } from "../lib/tasks";
 import { isImagePath } from "../lib/attachments";
 import { svgIsMonochrome } from "../lib/svgMonochrome";
 import { createMemoryAi } from "./memoryAi";
 import type {
+  AiRule,
   Backend,
   BackendError,
   Backlink,
@@ -30,6 +31,7 @@ import type {
   VaultChange,
   VaultEntry,
   VaultInfo,
+  VaultPassage,
 } from "./types";
 import { HL_END, HL_START } from "./types";
 
@@ -365,6 +367,49 @@ export function createMemoryBackend(
   return {
     ...ai,
     claudeConnectorInfo: async () => null,
+    // A simple stand-in for the Rust passage search: whole notes that mention a word of
+    // the question (3+ letters), held to the same rules.
+    async vaultPassages(question, includeLocal) {
+      requireVault();
+      const terms = [
+        ...new Set(
+          question
+            .toLowerCase()
+            .split(/[^\p{L}\p{N}]+/u)
+            .filter((w) => w.length >= 3),
+        ),
+      ];
+      let folders: Record<string, string> = {};
+      try {
+        const cfg = JSON.parse(nodes.get(".axisnotes/config.json")?.content ?? "{}") as {
+          ai?: { folders?: Record<string, string> };
+        };
+        folders = cfg.ai?.folders ?? {};
+      } catch {
+        folders = {};
+      }
+      const folderRule = (path: string): AiRule => {
+        let p = path;
+        for (;;) {
+          const r = folders[p];
+          if (r === "any" || r === "local" || r === "never") return r;
+          if (r !== undefined) return "never";
+          if (!p) return "any";
+          p = p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
+        }
+      };
+      let leftOut = 0;
+      const passages: VaultPassage[] = [];
+      for (const n of notes()) {
+        const lower = n.text.toLowerCase();
+        if (!terms.length || !terms.some((t) => lower.includes(t))) continue;
+        const rule = stricter(folderRule(n.path), noteMark(n.path, n.text) ?? "any");
+        if (rule === "any" || (includeLocal && rule === "local"))
+          passages.push({ path: n.path, heading: null, tokens: Math.ceil(n.text.length / 4) });
+        else leftOut++;
+      }
+      return { passages, leftOut };
+    },
     clipperStatus: async () => ({ ...clipper }),
     clipperSetEnabled: async (enabled) => ({ ...clipper, enabled }),
     clipperSetFolder: async (folder) => {

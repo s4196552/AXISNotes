@@ -12,9 +12,12 @@ import {
 } from "lucide-react";
 import {
   type AiEffort,
+  type AiRule,
   type AiPlan,
   type AiRunRequest,
   type AiRunResult,
+  type PassageRef,
+  type VaultPassages,
   backend,
   isBackendError,
 } from "../../ipc";
@@ -29,6 +32,9 @@ import { markText } from "../../lib/aiAccess";
 import { raiseNoteRule } from "./keepPrivacy";
 import { allTurns, conversationMarkdown, type Turn, withHistory } from "./conversation";
 import { AnswerText } from "./AnswerText";
+import { stricter } from "../../lib/aiAccess";
+import { followLink } from "../commands/actions";
+import { citeOf, citesPassage, passageSummary, VAULT_SYSTEM } from "./vaultAsk";
 import "./ai.css";
 
 // Ask an AI model about the open note (or a selection). Shows where the request goes and
@@ -42,6 +48,8 @@ export interface AskAiProps {
   selection?: string;
   /** A folder whose notes to offer as context ("" = the vault's top level). */
   folder?: string;
+  /** "Ask your vault": find the passages that answer each question and cite them. */
+  vault?: boolean;
   onClose(): void;
 }
 
@@ -63,7 +71,7 @@ const errorOf = (e: unknown): Phase => ({
   blocked: isBackendError(e) && e.code === "Blocked",
 });
 
-export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
+export function AskAi({ path, selection, folder, vault = false, onClose }: AskAiProps) {
   const [prompt, setPrompt] = useState("");
   const [useNote, setUseNote] = useState(Boolean(path) && !selection);
   const [useSelection, setUseSelection] = useState(Boolean(selection));
@@ -76,6 +84,13 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
   const [turns, setTurns] = useState<Turn[]>([]);
   /** The question the current (or running) answer is for. */
   const [asked, setAsked] = useState("");
+  /** The strictest rule of the conversation's answers: follow-ups are held to it. */
+  const [convRule, setConvRule] = useState<AiRule>("any");
+  /** Ask your vault: also use local-only notes (the request then needs a local model). */
+  const [includeLocal, setIncludeLocal] = useState(false);
+  /** Ask your vault: the passages found for the current question. */
+  const [found, setFound] = useState<VaultPassages | null>(null);
+  const [searching, setSearching] = useState(false);
   // Once a conversation has started, its earlier answers are sent again with each
   // follow-up: what it reads can't change, or a local-only answer could go to the cloud.
   const locked = turns.length > 0;
@@ -85,6 +100,8 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
   /** Start over: forget the conversation (what it reads can be changed again). */
   const restart = () => {
     setTurns([]);
+    setConvRule("any");
+    setFound(null);
     setAsked("");
     setAnswer("");
     setPhase({ kind: "idle" });
@@ -108,31 +125,49 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
     );
   }, []);
 
-  const request = useMemo((): AiRunRequest => {
-    const context = useSelection && selection ? `Selected text:\n"""\n${selection}\n"""\n\n` : "";
+  /** The request for the question in the box (with `passages` for Ask your vault). */
+  const buildRequest = (passages: PassageRef[]): AiRunRequest => {
+    const context =
+      !vault && useSelection && selection ? `Selected text:\n"""\n${selection}\n"""\n\n` : "";
+    const system = vault
+      ? VAULT_SYSTEM
+      : "You are a helpful assistant inside a Markdown note-taking app. Answer in Markdown." +
+        (scope && useFolder
+          ? ` The attached notes are the notes in the folder "${folderName(folder!)}"; mention a note by its name when you use it.`
+          : "");
     return {
       task: "chat",
       effort,
       messages: [
-        {
-          role: "system",
-          content: [
-            {
-              type: "text",
-              text:
-                "You are a helpful assistant inside a Markdown note-taking app. Answer in Markdown." +
-                (scope && useFolder
-                  ? ` The attached notes are the notes in the folder "${folderName(folder!)}"; mention a note by its name when you use it.`
-                  : ""),
-            },
-          ],
-        },
+        { role: "system", content: [{ type: "text", text: system }] },
         ...withHistory(turns, prompt, context).messages,
       ],
-      attach: scope ? (useFolder ? scope.include : []) : useNote && path ? [path] : [],
-      sources: useSelection && selection && path ? [path] : [],
+      attach: vault ? [] : scope ? (useFolder ? scope.include : []) : useNote && path ? [path] : [],
+      sources: !vault && useSelection && selection && path ? [path] : [],
+      ...(vault ? { passages: passages.map(({ path, heading }) => ({ path, heading })) } : {}),
+      // Follow-ups re-send earlier answers: hold them to those answers' rule.
+      ...(turns.length ? { atLeast: convRule } : {}),
     };
-  }, [prompt, turns, useNote, useSelection, selection, path, effort, scope, useFolder, folder]);
+  };
+  const request = useMemo(
+    () => buildRequest([]),
+    // buildRequest reads only these.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      prompt,
+      turns,
+      useNote,
+      useSelection,
+      selection,
+      path,
+      effort,
+      scope,
+      useFolder,
+      folder,
+      vault,
+      convRule,
+    ],
+  );
 
   // Preview where the request would go (debounced while typing).
   useEffect(() => {
@@ -158,11 +193,38 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
   }, [request]);
 
   async function send(confirmed = false) {
-    if (!prompt.trim() || phase.kind === "running") return;
+    if (!prompt.trim() || phase.kind === "running" || searching) return;
+    let req = request;
+    if (vault) {
+      // Find the passages for this question (again after a confirm, so they're current).
+      setSearching(true);
+      let result: VaultPassages;
+      try {
+        result = await backend.vaultPassages(prompt, includeLocal);
+      } catch (e) {
+        setSearching(false);
+        setPhase(errorOf(e));
+        return;
+      }
+      setSearching(false);
+      setFound(result);
+      if (!result.passages.length) {
+        setPhase({
+          kind: "error",
+          blocked: false,
+          message:
+            result.leftOut > 0
+              ? `Only notes the AI may not read (${result.leftOut}) match this question.`
+              : "No notes match this question. Try other words.",
+        });
+        return;
+      }
+      req = buildRequest(result.passages);
+    }
     if (!confirmed) {
       // The plan only decides whether to ask first. If it fails (e.g. a privacy rule),
       // the run below reports the authoritative error and records it in the request log.
-      const p = await backend.aiPlan(request).catch(() => null);
+      const p = await backend.aiPlan(req).catch(() => null);
       if (p?.needsConfirm) {
         setPhase({ kind: "confirm", plan: p });
         return;
@@ -173,9 +235,10 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
     setAsked(prompt);
     setPhase({ kind: "running", runId });
     try {
-      const result = await backend.aiRun(runId, request, (d) => setAnswer((a) => a + d));
+      const result = await backend.aiRun(runId, req, (d) => setAnswer((a) => a + d));
       setAnswer(result.text);
       setPhase({ kind: "done", result });
+      setConvRule((r) => stricter(r, result.rule));
       setTurns((t) => allTurns(t, prompt, result.text));
       setPrompt("");
     } catch (e) {
@@ -244,7 +307,7 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
         onKeyDown={(e) => e.key === "Escape" && !running && onClose()}
       >
         <header className="ask-ai-header">
-          <Sparkles size={15} /> <strong>Ask AI</strong>
+          <Sparkles size={15} /> <strong>{vault ? "Ask your vault" : "Ask AI"}</strong>
           <button className="ai-icon" aria-label="Close" onClick={onClose} disabled={running}>
             <X size={15} />
           </button>
@@ -258,11 +321,13 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
             placeholder={
               locked
                 ? "Ask a follow-up…"
-                : isFolder
-                  ? `Ask about the notes in ${folderName(folder)}…`
-                  : path
-                    ? `Ask about ${noteName(path)}…`
-                    : "Ask anything…"
+                : vault
+                  ? "Ask anything about your notes…"
+                  : isFolder
+                    ? `Ask about the notes in ${folderName(folder)}…`
+                    : path
+                      ? `Ask about ${noteName(path)}…`
+                      : "Ask anything…"
             }
             autoFocus
             rows={3}
@@ -277,6 +342,17 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
             }}
           />
           <div className="ask-ai-options">
+            {vault && (
+              <label title="Notes set to “AI: local models only” are left out unless you tick this; then only a model on this computer can answer.">
+                <input
+                  type="checkbox"
+                  checked={includeLocal}
+                  disabled={running || locked}
+                  onChange={(e) => setIncludeLocal(e.target.checked)}
+                />
+                Include local-only notes
+              </label>
+            )}
             {scope && (
               <>
                 <label>
@@ -383,6 +459,22 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
               </button>
             </div>
           )}
+          {vault && searching && <p className="muted ask-ai-found">Searching your notes…</p>}
+          {vault && found && found.passages.length > 0 && (
+            <details className="ask-ai-found" aria-label="Passages sent">
+              <summary className="muted">
+                Using {passageSummary(found.passages)}
+                {found.leftOut > 0 && ` · ${plural(found.leftOut, "note")} left out by AI rules`}
+              </summary>
+              <ul>
+                {found.passages.map((p, i) => (
+                  <li key={i}>
+                    {citeOf(p)} <span className="muted">~{p.tokens} tokens</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           {phase.kind === "error" && (
             <p className="ai-error ask-ai-error" role="alert">
               {phase.blocked && "Not sent: "}
@@ -410,8 +502,33 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
           )}
           {(answer || running) && (
             <div className="ask-ai-answer" aria-label="Answer" aria-busy={running}>
-              <AnswerText text={answer} from={path ?? ""} onFollow={onClose} />
+              <AnswerText
+                text={answer}
+                from={path ?? ""}
+                onFollow={onClose}
+                isKnown={
+                  vault && found ? (inner) => citesPassage(inner, found.passages) : undefined
+                }
+              />
               {running && <span className="ask-ai-caret" aria-hidden />}
+            </div>
+          )}
+          {vault && phase.kind === "done" && found && (
+            <div className="ask-ai-sources" aria-label="Sources">
+              <span className="muted">Sources:</span>
+              {found.passages.map((p, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="inline-wikilink"
+                  onClick={() => {
+                    onClose();
+                    void followLink(citeOf(p), "");
+                  }}
+                >
+                  {citeOf(p).replace(/^.*\//, "")}
+                </button>
+              ))}
             </div>
           )}
           {phase.kind === "done" && (

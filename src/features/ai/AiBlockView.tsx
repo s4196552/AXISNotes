@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { type AiPlan, type AiRunRequest, backend, isBackendError } from "../../ipc";
+import { stricter } from "../../lib/aiAccess";
 import { useAppStore } from "../../app/store";
 import { aiBlockSpec, closeAiBlock, insertionFor } from "./aiBlock";
 import { createDraft } from "../drafts/drafts";
@@ -151,6 +152,8 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         ...withHistory(cur.turns ?? [], cur.prompt, context).messages,
       ],
       attach: cur.useNote ? [path] : [],
+      // Follow-ups re-send earlier answers: hold them to those answers' rule.
+      ...(cur.turns?.length && cur.convRule ? { atLeast: cur.convRule } : {}),
       sources: sel ? [path] : [],
     };
   };
@@ -207,7 +210,14 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
 
   /** Forget the conversation; what the block reads can be changed again. */
   const restart = () => {
-    patch({ turns: [], asked: "", answer: "", prompt: "", phase: { kind: "idle" } });
+    patch({
+      turns: [],
+      asked: "",
+      answer: "",
+      prompt: "",
+      convRule: "any",
+      phase: { kind: "idle" },
+    });
     input.current?.focus();
   };
 
@@ -235,6 +245,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         answer: result.text,
         phase: { kind: "done", result },
         turns: allTurns(cur.turns ?? [], question, result.text),
+        convRule: stricter(cur.convRule ?? "any", result.rule),
         prompt: "",
       });
     } catch (e) {
