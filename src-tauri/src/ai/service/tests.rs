@@ -207,6 +207,135 @@ async fn local_only_folders_go_to_local_providers() {
 }
 
 #[tokio::test]
+async fn ai_output_keeps_the_rule_of_what_it_was_made_from() {
+    // A note in an open folder, marked by an earlier AI answer about a local-only note.
+    let e = env(vec![(200, OPENAI_OK)], std_providers(), &["openai"]);
+    e.vault
+        .write_file(
+            "School/Summary.md",
+            "---\nai-access: local\n---\nFrom my journal",
+            None,
+        )
+        .unwrap();
+    for (sources, attach) in [
+        (vec!["School/Summary.md"], vec![]),
+        (vec![], vec!["School/Summary.md"]),
+    ] {
+        let mut req = ask(&sources);
+        req.attach = attach.into_iter().map(String::from).collect();
+        let (r, _) = run(&e, req).await;
+        assert!(
+            matches!(r, Err(AppError::Blocked(ref m)) if m.contains("local")),
+            "{r:?}"
+        );
+    }
+    assert!(e.fx.requests.lock().unwrap().is_empty());
+    // A mark that can't be read refuses even local models.
+    e.vault
+        .write_file("School/Odd.md", "---\nai-access: sometimes\n---\nx", None)
+        .unwrap();
+    let mut req = ask(&["School/Odd.md"]);
+    req.provider = Some("ollama".into());
+    req.model = Some("llama3.3".into());
+    assert!(matches!(run(&e, req).await.0, Err(AppError::Blocked(_))));
+    // An answer reports the strictest rule it read, for saving it with the right mark.
+    let (r, _) = run(&e, ask(&["School/Bio.md"])).await;
+    assert_eq!(r.unwrap().rule, AiRule::Any);
+    let e = env(
+        vec![(200, CHAT_MODELS), (200, CHAT_OK)],
+        std_providers(),
+        &["openai"],
+    );
+    let mut s = e.service.settings();
+    s.fallback = vec!["ollama".into()];
+    e.service.save_settings(s).unwrap();
+    let (r, _) = run(&e, ask(&["Journal/day.md"])).await;
+    assert_eq!(r.unwrap().rule, AiRule::Local);
+}
+
+#[tokio::test]
+async fn folder_model_allowlists_filter_every_provider_including_fallbacks() {
+    let e = env(
+        vec![(200, ANTHROPIC_OK)],
+        std_providers(),
+        &["openai", "claude"],
+    );
+    e.vault
+        .write_file(
+            ".axisnotes/config.json",
+            r#"{"ai":{"folders":{},"models":{"School":["claude/*"]}}}"#,
+            None,
+        )
+        .unwrap();
+    let mut s = e.service.settings();
+    s.fallback = vec!["claude".into()];
+    e.service.save_settings(s).unwrap();
+    // The chat task's OpenAI model isn't allowed for School notes: Claude answers.
+    let (r, _) = run(&e, ask(&["School/Bio.md"])).await;
+    assert_eq!(r.unwrap().provider_id, "claude");
+    assert!(e
+        .fx
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|r| r.url.contains("anthropic")));
+    // Planning picks the same provider.
+    let plan = e
+        .service
+        .plan(Some(&e.vault), &ask(&["School/Bio.md"]))
+        .await
+        .unwrap();
+    assert_eq!(plan.provider_id, "claude");
+
+    // Lists that leave nothing (here: School allows Claude, Lab only Ollama) refuse the
+    // request, name the folders, send nothing and log it.
+    let e = env(
+        vec![(200, OPENAI_OK)],
+        std_providers(),
+        &["openai", "claude"],
+    );
+    e.vault
+        .write_file(
+            ".axisnotes/config.json",
+            r#"{"ai":{"models":{"School":["claude/*"],"Lab":["ollama/llama3.3"]}}}"#,
+            None,
+        )
+        .unwrap();
+    e.vault.write_file("Lab/run.md", "data", None).unwrap();
+    let mut s = e.service.settings();
+    s.fallback = vec!["claude".into(), "ollama".into()];
+    e.service.save_settings(s).unwrap();
+    let (r, _) = run(&e, ask(&["School/Bio.md", "Lab/run.md"])).await;
+    assert!(
+        matches!(r, Err(AppError::Blocked(ref m)) if m.contains("\"Lab\" allows ollama/llama3.3") && m.contains("\"School\" allows claude/*")),
+        "{r:?}"
+    );
+    // (Ollama's model list may be looked up; no note is sent anywhere.)
+    assert!(e
+        .fx
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .all(|r| r.body.is_none()));
+    assert_eq!(e.service.read_log(1)[0].status, "blocked");
+    // An allowlist that isn't a list of names allows nothing.
+    e.vault
+        .write_file(
+            ".axisnotes/config.json",
+            r#"{"ai":{"models":{"School":"claude"}}}"#,
+            None,
+        )
+        .unwrap();
+    let (r, _) = run(&e, ask(&["School/Bio.md"])).await;
+    assert!(
+        matches!(r, Err(AppError::Blocked(ref m)) if m.contains("no models")),
+        "{r:?}"
+    );
+}
+
+#[tokio::test]
 async fn falls_back_when_a_provider_is_down() {
     let e = env(
         vec![(503, "overloaded"), (200, ANTHROPIC_OK)],

@@ -8,6 +8,7 @@ import {
   splitFrontmatter,
   inlineProperties,
 } from "../lib/markdown";
+import { noteMark } from "../lib/aiAccess";
 import { headingAt } from "../lib/searchText";
 import { compareTasks, findTasks } from "../lib/tasks";
 import { isImagePath } from "../lib/attachments";
@@ -801,11 +802,13 @@ export function createMemoryBackend(
         .map((n) => {
           const fm = splitFrontmatter(n.text);
           const h1 = /^#[ \t]+(.+)$/m.exec(n.text.slice(fm.length));
+          const mark = noteMark(n.path, n.text);
           return {
             path: n.path,
             name: noteName(n.path),
             title: h1?.[1]?.trim() ?? null,
             aliases: aliasesOf(fm.props),
+            ...(mark ? { aiAccess: mark } : {}),
           };
         })
         .sort((a, b) => (a.path < b.path ? -1 : 1));

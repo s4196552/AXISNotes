@@ -8,6 +8,7 @@ import {
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { InvalidAnswer } from "../../lib/aiJson";
+import { markText } from "../../lib/aiAccess";
 import { createUniqueNote } from "../commands/actions";
 import { folderScope } from "../ai/folderScope";
 import { folderOf, isDraft, suggestedFolder } from "../drafts/drafts";
@@ -138,9 +139,19 @@ export async function runSkill(
     });
     checked = parse(result.text);
   }
-  return checked.html !== undefined
-    ? { kind: "html", result, html: checked.html }
-    : { kind: "files", result, files: checked.files! };
+  // What a skill makes keeps the privacy of the notes it read, wherever it's saved.
+  const rule = result.rule;
+  if (checked.html !== undefined)
+    return { kind: "html", result, html: markText("page.html", checked.html, rule) };
+  const files = checked.files!;
+  return {
+    kind: "files",
+    result,
+    files: {
+      ...files,
+      files: files.files.map((f) => ({ ...f, content: markText(f.path, f.content, rule) })),
+    },
+  };
 }
 
 // ---- Keeping what a skill made ----

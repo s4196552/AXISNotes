@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import { type AgentChatView, type AiRunRequest, backend, isBackendError } from "../../ipc";
+import {
+  type AgentChatView,
+  type AiRule,
+  type AiRunRequest,
+  backend,
+  isBackendError,
+} from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { isNotePath } from "../../lib/markdown";
 import { createDraft, folderOf } from "../drafts/drafts";
@@ -16,6 +22,8 @@ interface ChatState {
   error: string | null;
   useNote: boolean;
   runId: string | null;
+  /** The privacy rule of what the answer was made from; its draft is marked with it. */
+  rule: AiRule;
 }
 
 const closed: ChatState = {
@@ -26,6 +34,7 @@ const closed: ChatState = {
   error: null,
   useNote: true,
   runId: null,
+  rule: "any",
 };
 
 export const useAgentChat = create<ChatState>(() => closed);
@@ -96,7 +105,12 @@ export async function sendChat(text: string) {
       useAgentChat.setState((s) => (s.runId === runId ? { answer: s.answer + d } : s)),
     );
     if (useAgentChat.getState().runId === runId)
-      useAgentChat.setState({ answer: result.text, running: false, runId: null });
+      useAgentChat.setState({
+        answer: result.text,
+        running: false,
+        runId: null,
+        rule: result.rule,
+      });
   } catch (e) {
     if (useAgentChat.getState().runId !== runId) return; // closed or replaced meanwhile
     const cancelled = isBackendError(e) && e.code === "Cancelled";
@@ -118,6 +132,7 @@ export async function chatToDraft() {
     title: c.question.split(/\r?\n/)[0] ?? "",
     content: `${c.answer.trim()}\n`,
     folder: note ? folderOf(note) : "",
+    rule: c.rule,
   });
 }
 

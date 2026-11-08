@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 
 use super::access::{not_shared, real_path, Access};
 use super::Server;
+use crate::ai::privacy::{self, AiRule};
 use crate::error::AppError;
 use crate::index::{is_indexed, is_note};
 
@@ -183,8 +184,9 @@ fn app(e: AppError) -> String {
 
 impl Server {
     pub(super) fn run_tool(&mut self, name: &str, args: &Value) -> Result<Value, String> {
-        let access = Access::load(&self.vault)?;
+        let mut access = Access::load(&self.vault)?;
         access.require_on()?;
+        access.marks = self.index()?.ai_marks().map_err(app)?;
         match name {
             "vault_info" => self.vault_info(&access),
             "list_notes" => self.list_notes(&access, args),
@@ -298,7 +300,7 @@ impl Server {
 
     fn shared_note(&self, a: &Access, path: &str, asked: &str) -> Result<String, String> {
         let name = path.rsplit('/').next().unwrap_or(path);
-        if is_indexed(name) && a.can_see(path) {
+        if is_indexed(name) && a.can_see(path) && !self.marked(path) {
             Ok(path.to_string())
         } else {
             Err(not_shared(asked))
@@ -381,12 +383,22 @@ impl Server {
                 "Claude can only write Markdown notes (.md), not \"{asked}\"."
             ));
         }
-        if !a.can_see(&path) {
+        if !a.can_see(&path) || self.marked(&path) {
             return Err(format!(
                 "\"{asked}\" is in a folder AXISNotes keeps from cloud AI, so Claude can't write there."
             ));
         }
         Ok(path)
+    }
+
+    /// The file on disk carries an AI mark stricter than "any" (read now, not from the
+    /// index, so a mark added a moment ago counts; an unreadable file counts as marked).
+    fn marked(&self, path: &str) -> bool {
+        match self.vault.read_file(path) {
+            Ok(f) => privacy::note_mark(path, &f.content).is_some_and(|r| r != AiRule::Any),
+            Err(AppError::NotFound(_)) => false,
+            Err(_) => true,
+        }
     }
 
     fn after_write(&mut self, path: &str) {

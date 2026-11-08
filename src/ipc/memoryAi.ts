@@ -14,6 +14,7 @@ import type {
   BackendError,
   ErrorCode,
 } from "./types";
+import { noteMark, stricter } from "../lib/aiAccess";
 
 // In-memory stand-in for the Rust AI layer (unit tests and browser dev). It mirrors the
 // real rules — privacy, keys, task defaults, fallback — and "answers" by streaming an
@@ -195,8 +196,12 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
   const ruleOf = (req: AiRunRequest): AiRule => {
     const r = rules();
     return [...(req.sources ?? []), ...(req.attach ?? [])]
-      .map((p) => ruleFor(r, p))
-      .reduce<AiRule>((a, b) => (ORDER.indexOf(b) > ORDER.indexOf(a) ? b : a), "any");
+      .map((p) => {
+        const text = readFile(p);
+        const mark = text === null ? null : noteMark(p, text);
+        return stricter(ruleFor(r, p), mark ?? "any");
+      })
+      .reduce<AiRule>(stricter, "any");
   };
 
   const candidates = (req: AiRunRequest, rule: AiRule) => {
@@ -382,6 +387,7 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
         local: isLocal(chosen.p),
         usage: { inputTokens: tokens, outputTokens: Math.ceil(text.length / 4) },
         fallbackFrom: null,
+        rule,
       };
     },
     async aiCancel(runId) {

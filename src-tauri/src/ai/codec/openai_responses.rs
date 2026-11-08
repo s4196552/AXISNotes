@@ -42,6 +42,10 @@ fn usage(v: &Value) -> Option<Usage> {
     Some(Usage {
         input_tokens: u32_at(u, "input_tokens"),
         output_tokens: u32_at(u, "output_tokens"),
+        // OpenAI caches long prompts automatically; already counted in input_tokens.
+        cached_input_tokens: u
+            .get("input_tokens_details")
+            .map_or(0, |d| u32_at(d, "cached_tokens")),
     })
 }
 

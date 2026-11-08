@@ -30,6 +30,9 @@ pub struct Access {
     rules: HashMap<String, AiRule>,
     /// The same rules with lower-case keys (both are checked; the stricter wins).
     folded: HashMap<String, AiRule>,
+    /// Notes' own AI marks from the index (`ai-access`: AI output made from stricter
+    /// notes). Reads and writes also check the file itself.
+    pub marks: HashMap<String, AiRule>,
     pub daily_folder: String,
     pub daily_format: String,
 }
@@ -83,6 +86,7 @@ impl Access {
             write,
             rules,
             folded,
+            marks: HashMap::new(),
             daily_folder: text_at("/dailyNotes/folder", "Daily")
                 .trim_matches('/')
                 .to_string(),
@@ -96,6 +100,7 @@ impl Access {
             write: false,
             rules: HashMap::new(),
             folded: HashMap::new(),
+            marks: HashMap::new(),
             daily_folder: "Daily".into(),
             daily_format: "YYYY-MM-DD".into(),
         }
@@ -120,7 +125,10 @@ impl Access {
 
     /// The AI rule for a vault path: the stricter of its exact-case and any-case rules.
     pub fn rule(&self, path: &str) -> AiRule {
-        rule_for(&self.rules, path).max(rule_for(&self.folded, &path.to_lowercase()))
+        let mark = self.marks.get(path).copied().unwrap_or(AiRule::Any);
+        rule_for(&self.rules, path)
+            .max(rule_for(&self.folded, &path.to_lowercase()))
+            .max(mark)
     }
 
     /// Claude may see this path: access is on, no part of it is hidden (`.axisnotes`,

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Copy, ExternalLink, FilePlus2, FileText, FolderInput, Globe, Trash2 } from "lucide-react";
-import { backend, isBackendError } from "../../ipc";
+import { type AiRule, backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { createDraft } from "../drafts/drafts";
 import { copyPageText } from "./copyable";
@@ -172,6 +172,7 @@ export function ChatActions({
   format = "markdown",
   turns,
   path,
+  rule = "any",
   onWrapUp,
   onDone,
   onDiscard,
@@ -181,6 +182,8 @@ export function ChatActions({
   format?: "markdown" | "html";
   turns: Turn[];
   path: string;
+  /** The privacy rule of what the conversation read; its draft is marked with it. */
+  rule?: AiRule;
   onWrapUp(): void;
   onDone(): void;
   onDiscard(): void;
@@ -198,6 +201,7 @@ export function ChatActions({
             content: format === "html" ? transcriptHtml(skill, turns) : transcript(skill, turns),
             ...(format === "html" ? { ext: ".html" } : {}),
             folder: homeFolder(path),
+            rule,
           }).then(onDone, fail)
         }
       >

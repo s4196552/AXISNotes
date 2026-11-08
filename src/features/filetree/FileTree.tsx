@@ -30,6 +30,7 @@ import {
   Globe,
   Image,
   LayoutDashboard,
+  ListChecks,
   Lock,
   type LucideIcon,
   Palette,
@@ -1174,6 +1175,7 @@ function DashboardItems({ path, close }: { path: string; close(v: null): void })
 /** "AI access" choices for an entry; the current rule is checked. */
 function AiRuleItems({ path, close }: { path: string; close(v: null): void }) {
   const rule = useConfig((s) => s.config.ai.folders[path]);
+  const models = useConfig((s) => s.config.ai.models[path]);
   const set = (r: AiRule | null) =>
     void useConfig.getState().update((c) => {
       const folders = { ...c.ai.folders };
@@ -1197,6 +1199,12 @@ function AiRuleItems({ path, close }: { path: string; close(v: null): void }) {
           close={close}
         />
       ))}
+      <MenuItem
+        icon={ListChecks}
+        label={models ? `Allowed models… (${models.length})` : "Allowed models…"}
+        onClick={() => useUi.getState().open({ kind: "allowed-models", path })}
+        close={close}
+      />
     </>
   );
 }

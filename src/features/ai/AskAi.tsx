@@ -15,6 +15,8 @@ import { getActiveEditor } from "../editor/activeEditor";
 import { editNote } from "../files/editNote";
 import { createUniqueNote } from "../commands/actions";
 import { createDraft, folderOf } from "../drafts/drafts";
+import { markText } from "../../lib/aiAccess";
+import { raiseNoteRule } from "./keepPrivacy";
 import "./ai.css";
 
 // Ask an AI model about the open note (or a selection). Shows where the request goes and
@@ -149,6 +151,9 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
     }
   }
 
+  /** The privacy rule of what the answer was made from (see keepPrivacy.ts). */
+  const answerRule = phase.kind === "done" ? phase.result.rule : "any";
+
   const insert = () => {
     const active = getActiveEditor();
     if (active && active.path === path) {
@@ -158,6 +163,7 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
         changes: { from: at.from, to: at.to, insert: answer },
         selection: { anchor: at.from + answer.length },
       });
+      if (path) void raiseNoteRule(path, answerRule);
       onClose();
       view.focus();
     }
@@ -168,6 +174,7 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
     try {
       await editNote(path, (text) => `${text.replace(/\s*$/, "")}\n\n${answer.trim()}\n`);
       useAppStore.getState().notify(`Added to ${noteName(path)}.`);
+      await raiseNoteRule(path, answerRule);
       onClose();
     } catch (e) {
       setPhase(errorOf(e));
@@ -180,7 +187,7 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
       const created = await createUniqueNote(
         folder ?? "",
         "AI answer",
-        `${answer.trim()}\n`,
+        markText("AI answer.md", `${answer.trim()}\n`, answerRule),
         ".md",
       );
       await useAppStore.getState().refreshTree();
@@ -374,6 +381,7 @@ export function AskAi({ path, selection, folder, onClose }: AskAiProps) {
                     title: prompt.split(/\r?\n/)[0] ?? "",
                     content: `${answer.trim()}\n`,
                     folder: isFolder ? folder : path ? folderOf(path) : "",
+                    rule: answerRule,
                   }).then(onClose, (e: unknown) => setPhase(errorOf(e)))
                 }
               >

@@ -126,14 +126,98 @@ async fn anthropic_uses_the_messages_api() {
     assert_eq!(header(&r, "x-api-key"), Some("sk-ant"));
     assert_eq!(header(&r, "anthropic-version"), Some("2023-06-01"));
     let body = r.body.unwrap();
-    assert_eq!(body["system"], "Be brief.");
+    assert_eq!(body["system"][0]["text"], "Be brief.");
+    assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
     assert_eq!(body["messages"].as_array().unwrap().len(), 1);
+    // One message: nothing before it to cache.
+    assert!(body["messages"][0]["content"][0]
+        .get("cache_control")
+        .is_none());
     assert_eq!(body["thinking"]["budget_tokens"], 4000);
     assert_eq!(body["max_tokens"], 4200);
     assert!(body.get("temperature").is_none()); // not allowed with thinking
 
     let (text, deltas) = stream_all(&a, &request("claude-sonnet-5")).await;
     assert_eq!((text.as_str(), deltas.len()), (ANSWER, 2));
+}
+
+#[tokio::test]
+async fn anthropic_caches_everything_before_the_newest_message() {
+    let (a, fx) = adapter(
+        ProviderKind::Anthropic,
+        Some("sk-ant"),
+        vec![(200, fixture!("anthropic_cached.json"))],
+    );
+    let mut req = request("claude-sonnet-5");
+    req.messages = vec![
+        Message::text(Role::System, "Be brief."),
+        Message::text(Role::User, "<note path=\"School/Bio.md\">long note</note>"),
+        Message::text(Role::User, "What do they make?"),
+        Message::text(Role::Assistant, "ATP."),
+        Message::text(Role::User, PROMPT),
+    ];
+    let c = a.complete(&req).await.unwrap();
+    let body = sent(&fx).body.unwrap();
+    let msgs = body["messages"].as_array().unwrap();
+    let marked: Vec<usize> = (0..msgs.len())
+        .filter(|i| msgs[*i]["content"][0].get("cache_control").is_some())
+        .collect();
+    assert_eq!(
+        marked,
+        [msgs.len() - 2],
+        "only the end of the stable prefix"
+    );
+    // Cached tokens count as input, and are reported apart.
+    let usage = c.usage.unwrap();
+    assert_eq!(
+        (usage.input_tokens, usage.cached_input_tokens),
+        (2060, 2048)
+    );
+}
+
+#[tokio::test]
+async fn openai_and_gemini_report_their_automatic_cache() {
+    let (a, _) = adapter(
+        ProviderKind::OpenAi,
+        Some("sk-test"),
+        vec![(200, fixture!("openai_responses_cached.json"))],
+    );
+    let u = a
+        .complete(&request("gpt-6-sol"))
+        .await
+        .unwrap()
+        .usage
+        .unwrap();
+    assert_eq!((u.input_tokens, u.cached_input_tokens), (2100, 1920));
+    let (g, _) = adapter(
+        ProviderKind::Gemini,
+        Some("AIza-test"),
+        vec![(200, fixture!("gemini_cached.json"))],
+    );
+    let u = g
+        .complete(&request("gemini-3.1-flash"))
+        .await
+        .unwrap()
+        .usage
+        .unwrap();
+    assert_eq!((u.input_tokens, u.cached_input_tokens), (3000, 2800));
+    // Without cache details the count is 0 (and left out when serialized).
+    let (a, _) = adapter(
+        ProviderKind::OpenAi,
+        Some("sk-test"),
+        vec![(200, fixture!("openai_responses.json"))],
+    );
+    let u = a
+        .complete(&request("gpt-6-sol"))
+        .await
+        .unwrap()
+        .usage
+        .unwrap();
+    assert_eq!(u.cached_input_tokens, 0);
+    assert!(serde_json::to_value(&u)
+        .unwrap()
+        .get("cachedInputTokens")
+        .is_none());
 }
 
 #[tokio::test]

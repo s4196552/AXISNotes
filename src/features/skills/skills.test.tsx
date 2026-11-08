@@ -70,7 +70,7 @@ beforeEach(async () => {
     })),
   });
   useConfig.setState((s) => ({
-    config: { ...s.config, ai: { folders: { "Bio/Private.md": "never" } } },
+    config: { ...s.config, ai: { folders: { "Bio/Private.md": "never" }, models: {} } },
   }));
   useSkills.setState({ skills: BUILTIN_SKILLS });
   clearModelCache();

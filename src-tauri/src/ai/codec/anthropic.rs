@@ -30,6 +30,27 @@ fn with_headers(http: HttpRequest, key: Option<&str>) -> HttpRequest {
     }
 }
 
+/// Put a cache breakpoint on a message's last content block.
+fn mark_cache_end(message: &mut Value) {
+    if let Some(last) = message
+        .get_mut("content")
+        .and_then(Value::as_array_mut)
+        .and_then(|c| c.last_mut())
+    {
+        last["cache_control"] = json!({ "type": "ephemeral" });
+    }
+}
+
+/// Anthropic counts cached tokens apart from `input_tokens`; ours include them.
+fn usage_of(u: &Value) -> Usage {
+    let read = u32_at(u, "cache_read_input_tokens");
+    Usage {
+        input_tokens: u32_at(u, "input_tokens") + read + u32_at(u, "cache_creation_input_tokens"),
+        output_tokens: u32_at(u, "output_tokens"),
+        cached_input_tokens: read,
+    }
+}
+
 impl Codec for Anthropic {
     fn request(
         &self,
@@ -76,10 +97,22 @@ impl Codec for Anthropic {
                 json!({ "role": role, "content": content })
             })
             .collect();
+        let mut messages = messages;
+        // Prompt caching: everything before the newest message (attached notes, earlier
+        // turns) is the same next time, so mark its end. Prefixes under the model's
+        // minimum simply aren't cached.
+        if messages.len() >= 2 {
+            let at = messages.len() - 2;
+            mark_cache_end(&mut messages[at]);
+        }
         let max = req.max_output_tokens.unwrap_or(DEFAULT_MAX_TOKENS);
         let mut body = json!({ "model": req.model, "messages": messages, "max_tokens": max });
         if !system.is_empty() {
-            body["system"] = json!(system.join("\n\n"));
+            body["system"] = json!([{
+                "type": "text",
+                "text": system.join("\n\n"),
+                "cache_control": { "type": "ephemeral" },
+            }]);
         }
         match req.effort.and_then(thinking_budget) {
             Some(budget) => {
@@ -112,10 +145,7 @@ impl Codec for Anthropic {
             .filter(|b| b.get("type").and_then(Value::as_str) == Some("text"))
             .filter_map(|b| b.get("text").and_then(Value::as_str))
             .collect();
-        let usage = body.get("usage").map(|u| Usage {
-            input_tokens: u32_at(u, "input_tokens"),
-            output_tokens: u32_at(u, "output_tokens"),
-        });
+        let usage = body.get("usage").map(usage_of);
         Ok(Completion {
             text,
             model: body
@@ -142,10 +172,7 @@ impl Codec for Anthropic {
                     acc.model = m.to_string();
                 }
                 if let Some(u) = msg.get("usage") {
-                    acc.usage = Some(Usage {
-                        input_tokens: u32_at(u, "input_tokens"),
-                        output_tokens: u32_at(u, "output_tokens"),
-                    });
+                    acc.usage = Some(usage_of(u));
                 }
                 Ok(None)
             }

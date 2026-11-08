@@ -15,6 +15,7 @@ import { type AiPlan, type AiRunRequest, backend, isBackendError } from "../../i
 import { useAppStore } from "../../app/store";
 import { aiBlockSpec, closeAiBlock, insertionFor } from "./aiBlock";
 import { createDraft } from "../drafts/drafts";
+import { raiseNoteRule } from "./keepPrivacy";
 import {
   type AiBlockPhase,
   type AiBlockState,
@@ -176,6 +177,8 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
   if (!state || !request) return null;
   const { phase } = state;
   const running = phase.kind === "running";
+  /** The privacy rule of what the answer was made from (see keepPrivacy.ts). */
+  const answerRule = phase.kind === "done" ? phase.result.rule : "any";
 
   async function run(confirmed = false) {
     const cur = useAiBlocks.getState().blocks[id];
@@ -278,6 +281,8 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
     const end = change.from + change.insert.length;
     closeAiBlock(view, id, false);
     view.dispatch({ changes: change, selection: { anchor: end }, scrollIntoView: true });
+    // The note now holds output from what the block read: keep that privacy.
+    void raiseNoteRule(path, answerRule);
     view.focus();
   };
 
@@ -507,6 +512,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           format={format === "html" ? "html" : "markdown"}
           turns={state.turns ?? []}
           path={path}
+          rule={answerRule}
           onWrapUp={() => {
             patch({ prompt: "wrap up" });
             void run();
@@ -532,6 +538,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
                 title: state.prompt.split(/\r?\n/)[0] ?? "",
                 content: `${state.answer.trim()}\n`,
                 folder: homeFolder(path),
+                rule: answerRule,
               }).then(
                 () => closeAiBlock(view, id, false),
                 (e: unknown) => patch({ phase: errorPhase(e) }),

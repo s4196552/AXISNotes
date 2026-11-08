@@ -28,6 +28,7 @@ import { createVaultFromMenu, openVaultFolder, switchVault } from "../vault/vaul
 import { useUi } from "./ui";
 import { IconPicker } from "../icons/IconPicker";
 import { RowColorsDialog } from "../filetree/RowColors";
+import { AllowedModels } from "../ai/AllowedModels";
 import { lazyNamed } from "../../app/lazy";
 import "./commands.css";
 
@@ -426,6 +427,8 @@ function renderModal(modal: NonNullable<ReturnType<typeof useUi.getState>["modal
       return <IconPicker path={modal.path} onClose={() => useUi.getState().close()} />;
     case "colors":
       return <RowColorsDialog path={modal.path} onClose={() => useUi.getState().close()} />;
+    case "allowed-models":
+      return <AllowedModels path={modal.path} onClose={() => useUi.getState().close()} />;
     case "prompt":
       return (
         <PromptDialog
