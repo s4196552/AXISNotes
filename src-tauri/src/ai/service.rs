@@ -88,6 +88,9 @@ pub struct RunResult {
     pub usage: Option<Usage>,
     /// Set when the answer came from a fallback provider.
     pub fallback_from: Option<String>,
+    /// The strictest AI rule of what the request read: output saved from this answer
+    /// carries it (`ai-access`), so it keeps its sources' privacy.
+    pub rule: AiRule,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -367,7 +370,12 @@ impl AiService {
     }
 
     /// Providers/models to try in order, after privacy and capability filtering.
-    async fn candidates(&self, req: &RunRequest, rule: AiRule) -> AppResult<Vec<Candidate>> {
+    async fn candidates(
+        &self,
+        req: &RunRequest,
+        rule: AiRule,
+        allowed: &[(String, Vec<String>)],
+    ) -> AppResult<Vec<Candidate>> {
         if rule == AiRule::Never {
             return Err(AppError::Blocked(
                 "This request includes notes from a folder marked \"AI: never\"; it was not sent."
@@ -443,6 +451,16 @@ impl AiService {
                     }
                 },
             };
+            if let Some((folder, _)) = allowed
+                .iter()
+                .find(|(_, list)| !privacy::allows(list, &cfg.id, &model))
+            {
+                skipped.push(format!(
+                    "{model} ({}) isn't allowed for notes in \"{folder}\"",
+                    cfg.name
+                ));
+                continue;
+            }
             if needs_vision {
                 let info = self.registry.enrich(
                     cfg.kind,
@@ -463,6 +481,23 @@ impl AiService {
         }
         if out.is_empty() {
             let why = skipped.join("; ");
+            if !allowed.is_empty() {
+                let lists: Vec<String> = allowed
+                    .iter()
+                    .map(|(folder, list)| {
+                        let models = if list.is_empty() {
+                            "no models".to_string()
+                        } else {
+                            list.join(", ")
+                        };
+                        format!("\"{folder}\" allows {models}")
+                    })
+                    .collect();
+                return Err(AppError::Blocked(format!(
+                    "Not sent: {}, and none of those can take this request ({why}).",
+                    lists.join("; ")
+                )));
+            }
             return Err(if rule == AiRule::Local {
                 AppError::Blocked(format!(
                     "These notes are marked \"AI: local models only\", and no local provider \
@@ -504,19 +539,48 @@ impl AiService {
         Ok(messages)
     }
 
+    /// The strictest rule over every note the request reads: each note's folder/file
+    /// rule, raised by its own `ai-access` mark (AI output keeps its sources' rule).
     fn rule(&self, vault: Option<&Vault>, req: &RunRequest) -> AiRule {
         let Some(vault) = vault else {
             return AiRule::Any;
         };
         let rules = privacy::rules(vault);
-        privacy::strictest(&rules, req.sources.iter().chain(&req.attach))
+        req.sources
+            .iter()
+            .chain(&req.attach)
+            .map(|p| {
+                let text = vault.read_file(p).ok().map(|f| f.content);
+                privacy::rule_for_note(&rules, p, text.as_deref())
+            })
+            .max()
+            .unwrap_or(AiRule::Any)
+    }
+
+    /// The model allowlists that apply to this request: one per distinct folder that sets
+    /// one, over every note it reads. A model must be on all of them.
+    fn allowlists(&self, vault: Option<&Vault>, req: &RunRequest) -> Vec<(String, Vec<String>)> {
+        let Some(vault) = vault else {
+            return Vec::new();
+        };
+        let lists = privacy::model_allowlists(vault);
+        let mut out: Vec<(String, Vec<String>)> = Vec::new();
+        for p in req.sources.iter().chain(&req.attach) {
+            if let Some((at, list)) = privacy::allowlist_for(&lists, p) {
+                if !out.iter().any(|(a, _)| a == at) {
+                    out.push((at.to_string(), list.to_vec()));
+                }
+            }
+        }
+        out
     }
 
     pub async fn plan(&self, vault: Option<&Vault>, req: &RunRequest) -> AppResult<Plan> {
         let rule = self.rule(vault, req);
+        let allowed = self.allowlists(vault, req);
         let messages = self.expand(vault, req)?;
         let tokens = estimate_tokens(&messages);
-        let first = self.candidates(req, rule).await?.remove(0);
+        let first = self.candidates(req, rule, &allowed).await?.remove(0);
         let settings = self.settings();
         Ok(Plan {
             local: is_local(&first.cfg),
@@ -550,6 +614,7 @@ impl AiService {
     ) -> AppResult<RunResult> {
         let task = req.task();
         let rule = self.rule(vault, &req);
+        let allowed = self.allowlists(vault, &req);
         let sources = req.sources.len() + req.attach.len();
         let messages = self.expand(vault, &req)?;
         let estimate = estimate_tokens(&messages);
@@ -564,6 +629,7 @@ impl AiService {
             estimated_input_tokens: estimate,
             input_tokens: None,
             output_tokens: None,
+            cached_input_tokens: None,
             duration_ms: 0,
             sources,
         };
@@ -576,7 +642,7 @@ impl AiService {
                 return Err(AppError::Blocked(why));
             }
         }
-        let candidates = match self.candidates(&req, rule).await {
+        let candidates = match self.candidates(&req, rule, &allowed).await {
             Ok(c) => c,
             Err(e) => {
                 if matches!(e, AppError::Blocked(_)) {
@@ -624,6 +690,7 @@ impl AiService {
                 estimated_input_tokens: estimate,
                 input_tokens: None,
                 output_tokens: None,
+                cached_input_tokens: None,
                 duration_ms: started.elapsed().as_millis() as u64,
                 sources,
             };
@@ -631,6 +698,11 @@ impl AiService {
                 Ok(c) => {
                     entry.input_tokens = c.usage.as_ref().map(|u| u.input_tokens);
                     entry.output_tokens = c.usage.as_ref().map(|u| u.output_tokens);
+                    entry.cached_input_tokens = c
+                        .usage
+                        .as_ref()
+                        .map(|u| u.cached_input_tokens)
+                        .filter(|n| *n > 0);
                     self.log(entry);
                     return Ok(RunResult {
                         text: c.text,
@@ -644,6 +716,7 @@ impl AiService {
                         local,
                         usage: c.usage,
                         fallback_from: first_provider,
+                        rule,
                     });
                 }
                 Err(AiError::Cancelled) => {

@@ -56,6 +56,9 @@ fn usage(v: &Value) -> Option<Usage> {
     Some(Usage {
         input_tokens: u32_at(u, "prompt_tokens"),
         output_tokens: u32_at(u, "completion_tokens"),
+        cached_input_tokens: u
+            .get("prompt_tokens_details")
+            .map_or(0, |d| u32_at(d, "cached_tokens")),
     })
 }
 

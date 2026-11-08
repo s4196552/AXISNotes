@@ -14,6 +14,7 @@ use std::path::Path;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 
+use crate::ai::privacy::{self, AiRule};
 use crate::error::{AppError, AppResult};
 use crate::vault::{modified_ms, Vault, Walk, META_DIR};
 
@@ -65,6 +66,9 @@ pub struct NoteRef {
     pub name: String,
     pub title: Option<String>,
     pub aliases: Vec<String>,
+    /// The note's own AI mark (`ai-access` in its frontmatter), if it has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ai_access: Option<AiRule>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -364,6 +368,7 @@ impl Index {
                 aliases.entry(id).or_default().push(a);
             }
         }
+        let mut marks = self.ai_marks()?;
         let mut stmt = self
             .conn
             .prepare("SELECT id, path, title FROM notes ORDER BY path")
@@ -380,12 +385,40 @@ impl Index {
         rows.map(|row| {
             let (id, path, title) = row.map_err(db_err)?;
             let name = strip_md(path.rsplit('/').next().unwrap_or("")).to_string();
+            let ai_access = marks.remove(&path);
             Ok(NoteRef {
                 path,
                 name,
                 title,
                 aliases: aliases.remove(&id).unwrap_or_default(),
+                ai_access,
             })
+        })
+        .collect()
+    }
+
+    /// Notes with their own AI mark (`ai-access` in the frontmatter) and that mark. A
+    /// value that isn't one of the rules counts as never.
+    pub fn ai_marks(&self) -> AppResult<HashMap<String, AiRule>> {
+        let key = format!("$.\"{}\"", privacy::NOTE_KEY);
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT path, json_type(props, ?1), json_extract(props, ?1) FROM notes
+                 WHERE json_type(props, ?1) IS NOT NULL",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map([&key], |r| {
+                let path: String = r.get(0)?;
+                let kind: String = r.get(1)?;
+                let value: Option<String> = if kind == "text" { r.get(2)? } else { None };
+                Ok((path, value))
+            })
+            .map_err(db_err)?;
+        rows.map(|row| {
+            let (path, value) = row.map_err(db_err)?;
+            Ok((path, privacy::parse_mark(value.as_deref())))
         })
         .collect()
     }

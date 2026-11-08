@@ -89,6 +89,8 @@ export interface NoteRef {
   name: string;
   title: string | null;
   aliases: string[];
+  /** The note's own AI mark (`ai-access` frontmatter), if it has one. */
+  aiAccess?: AiRule;
 }
 
 export interface SearchHit {
@@ -279,8 +281,11 @@ export interface AiPlan {
 }
 
 export interface AiUsage {
+  /** All input tokens, including any served from the provider's prompt cache. */
   inputTokens: number;
   outputTokens: number;
+  /** Input tokens read from the prompt cache (absent when none). */
+  cachedInputTokens?: number;
 }
 
 export interface AiRunResult {
@@ -292,6 +297,11 @@ export interface AiRunResult {
   usage: AiUsage | null;
   /** Set when a fallback provider answered. */
   fallbackFrom: string | null;
+  /**
+   * The strictest AI rule of what the request read. Output saved from the answer is
+   * marked with it (`ai-access`) so it keeps its sources' privacy.
+   */
+  rule: AiRule;
 }
 
 export interface AiLogEntry {
@@ -305,6 +315,7 @@ export interface AiLogEntry {
   estimatedInputTokens: number;
   inputTokens?: number;
   outputTokens?: number;
+  cachedInputTokens?: number;
   durationMs: number;
   sources: number;
 }

@@ -667,6 +667,9 @@ function RequestLog({ enabled, save }: { enabled: boolean; save: Save }) {
                 <td className={`ai-status-${e.status}`}>{e.status}</td>
                 <td>
                   {e.inputTokens ?? `~${e.estimatedInputTokens}`} / {e.outputTokens ?? "—"}
+                  {e.cachedInputTokens ? (
+                    <span className="muted"> ({e.cachedInputTokens} cached)</span>
+                  ) : null}
                 </td>
               </tr>
             ))}

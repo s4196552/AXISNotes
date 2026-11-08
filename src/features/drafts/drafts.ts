@@ -1,4 +1,5 @@
-import { backend, isBackendError, type VaultEntry } from "../../ipc";
+import { type AiRule, backend, isBackendError, type VaultEntry } from "../../ipc";
+import { markText } from "../../lib/aiAccess";
 import { useAppStore } from "../../app/store";
 import { createUniqueNote } from "../commands/actions";
 import { remapIcons } from "../files/renameEntry";
@@ -74,11 +75,18 @@ export interface DraftOptions {
   folder?: string;
   /** Open it in a tab (default true). */
   open?: boolean;
+  /**
+   * The AI rule of what the draft was made from: a stricter one is written into the
+   * draft (`ai-access`), so it keeps that privacy wherever it's saved.
+   */
+  rule?: AiRule;
 }
 
 /** Write a draft and (by default) open it. Returns its path. */
 export async function createDraft(o: DraftOptions): Promise<string> {
-  const path = await createUniqueNote(DRAFTS_DIR, draftName(o.title), o.content, o.ext ?? ".md");
+  const ext = o.ext ?? ".md";
+  const content = o.rule ? markText(`draft${ext}`, o.content, o.rule) : o.content;
+  const path = await createUniqueNote(DRAFTS_DIR, draftName(o.title), content, ext);
   if (o.folder) writeOrigins({ ...readOrigins(), [path]: o.folder });
   if (o.open !== false) useAppStore.getState().openFile(path);
   return path;

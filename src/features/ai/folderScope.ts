@@ -1,4 +1,5 @@
 import type { AiRule, NoteRef } from "../../ipc";
+import { stricter } from "../../lib/aiAccess";
 
 // Which notes "Ask AI about this folder" sends. Notes under an "AI: never" rule are left
 // out here and listed, instead of blocking the whole request; the Rust layer still checks
@@ -42,6 +43,7 @@ export function folderScope(
   subfolders: boolean,
   rules: Record<string, AiRule>,
 ): FolderScope {
+  const marks = new Map(notes.map((n) => [n.path, n.aiAccess ?? "any"] as const));
   const paths = notes
     .map((n) => n.path)
     .filter((p) => inFolder(p, folder.replace(/^\/+|\/+$/g, ""), subfolders))
@@ -50,7 +52,8 @@ export function folderScope(
   const allowed: string[] = [];
   let rule: AiRule = "any";
   for (const p of paths) {
-    const r = ruleForPath(rules, p);
+    // A note's own mark (AI output made from stricter notes) counts too.
+    const r = stricter(ruleForPath(rules, p), marks.get(p) ?? "any");
     if (r === "never") never.push(p);
     else {
       allowed.push(p);

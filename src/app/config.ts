@@ -54,7 +54,11 @@ export type WindowEffect = "clear" | "blur" | "frosted" | "liquid" | "mica" | "m
 
 export interface AxisConfig {
   /** Per-folder AI access, enforced by the Rust AI layer (`src-tauri/src/ai/privacy.rs`). */
-  ai: { folders: Record<string, AiRule> };
+  ai: {
+    folders: Record<string, AiRule>;
+    /** Allowed models per folder/note, "<provider id>/<model>" or "<provider id>/*". */
+    models: Record<string, string[]>;
+  };
   /**
    * Claude Desktop / Claude Code access through the MCP connector (Settings → Claude),
    * checked by the connector on every request (`src-tauri/src/mcp/access.rs`).
@@ -136,7 +140,7 @@ export interface AxisConfig {
 }
 
 export const DEFAULT_CONFIG: AxisConfig = {
-  ai: { folders: {} },
+  ai: { folders: {}, models: {} },
   claude: { enabled: false, allowChanges: false },
   theme: "system",
   snippets: [],

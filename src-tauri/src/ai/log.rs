@@ -31,6 +31,9 @@ pub struct LogEntry {
     pub input_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<u32>,
+    /// Input tokens served from the provider's prompt cache.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<u32>,
     pub duration_ms: u64,
     /// How many notes' content the request included.
     pub sources: usize,
@@ -100,6 +103,7 @@ mod tests {
                     error: None,
                     estimated_input_tokens: 10,
                     input_tokens: Some(12),
+                    cached_input_tokens: None,
                     output_tokens: Some(3),
                     duration_ms: 5,
                     sources: 1,

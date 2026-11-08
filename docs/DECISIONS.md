@@ -2,6 +2,25 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-08: AI output keeps its sources' privacy; allowed models per folder; prompt caching (T-195)
+
+- **Note-level mark.** A note can carry its own AI rule as `ai-access: any|local|never` in its frontmatter (HTML pages: `<meta name="ai-access" content="…">`). The Rust layer (`privacy::rule_for_note`) holds every note a request reads to the stricter of its folder rule and its own mark. An unknown value, a non-string value, or a mark inside YAML that doesn't parse counts as `never`, so it fails closed. A mark never loosens a folder rule.
+- **Provenance.** `RunResult.rule` is the strictest rule of everything the request read. Every place that saves AI output marks it:
+  - drafts (`createDraft({ rule })`), Ask AI's "Save as note", skill pages and files, and Quick Chat drafts are written with the mark;
+  - inserting or appending an answer into an existing, looser note raises that note's mark (`raiseNoteRule`) and says so in a notice.
+  - Without this, a summary of a `Lab` (local-only) note saved under `School` would be readable by cloud AI. The key is `ai-access`, not `ai`, so it can't collide with a user's own property.
+- **Where marks are honoured.**
+  - The index exposes marks (`Index::ai_marks`, `NoteRef.aiAccess`), so "Ask AI about this folder" leaves marked notes out.
+  - The Claude connector (T-193) hides marked notes from lists, search, tasks and backlinks. For reads and writes it checks the file itself, so a mark added a moment ago counts.
+- **Allowed models.** `ai.models` in the vault config maps a folder or note to the models its notes may go to (`"<provider id>/<model>"` or `"<provider id>/*"`), using the nearest-folder lookup the rules use. A request must suit the list of every folder it reads from, and fallbacks are filtered the same way.
+  - When nothing is left, the request is refused as Blocked, naming each folder's list, and logged.
+  - A value that isn't a list of strings allows nothing.
+  - Set from the file tree: "Allowed models…".
+- **Prompt caching.** Anthropic gets `cache_control: ephemeral` on the system prompt and on the end of everything before the newest message (attached notes and earlier turns); prefixes under the model's minimum just aren't cached. OpenAI and Gemini cache automatically.
+  - Every codec reports `cachedInputTokens`, already included in `inputTokens`; Anthropic's separate cache counts are added in.
+  - The request log stores the count and Settings → AI shows "(N cached)".
+  - The cost estimate before sending still assumes no cache hit, because a hit can't be known in advance.
+
 ## 2026-11-08: Claude Desktop and Claude Code connect to a vault over MCP (T-193)
 
 - Anthropic offers no sign-in that lets another app spend a user's Claude plan (unlike the ChatGPT sign-in in T-141), and its terms don't allow apps to offer claude.ai login without approval. So AXISNotes doesn't call Claude on the plan; Claude Desktop or Claude Code (which run on the plan) call AXISNotes instead, through the Model Context Protocol.

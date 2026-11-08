@@ -255,6 +255,59 @@ fn folders_kept_from_cloud_ai_are_never_shown() {
     assert!(!v.dir.path().join("Medical/New.md").exists());
 }
 
+#[test]
+fn notes_marked_by_ai_output_are_hidden_like_their_sources() {
+    let mut v = Vault::new(ON_RW);
+    let summary =
+        "---\nai-access: local\n---\nmitochondria summary from the lab\n- [ ] Follow up\n";
+    fs::write(v.dir.path().join("School/Summary.md"), summary).unwrap();
+    fs::write(
+        v.dir.path().join("School/Odd.md"),
+        "---\nai-access: [weird]\n---\nmitochondria odd\n",
+    )
+    .unwrap();
+    let listed = paths(
+        &v.ok("list_notes", json!({ "folder": "School" })),
+        "notes",
+        "path",
+    );
+    assert_eq!(listed, ["School/Biology.md", "School/Chem.md"]);
+    let found = paths(
+        &v.ok("search_notes", json!({ "query": "mitochondria" })),
+        "results",
+        "path",
+    );
+    assert!(
+        !found
+            .iter()
+            .any(|p| p.contains("Summary") || p.contains("Odd")),
+        "{found:?}"
+    );
+    let tasks = paths(&v.ok("list_tasks", json!({})), "tasks", "path");
+    assert!(!tasks.iter().any(|p| p.contains("Summary")));
+    v.err("read_note", json!({ "path": "School/Summary.md" }));
+    v.err(
+        "append_to_note",
+        json!({ "path": "School/Summary.md", "text": "x" }),
+    );
+    v.err(
+        "replace_in_note",
+        json!({ "path": "School/Summary", "oldText": "summary", "newText": "x" }),
+    );
+    assert_eq!(v.file("School/Summary.md"), summary);
+    // A mark added after the index last looked still counts for reads and writes.
+    fs::write(
+        v.dir.path().join("School/Chem.md"),
+        "---\nai-access: never\n---\nnow private\n",
+    )
+    .unwrap();
+    v.err("read_note", json!({ "path": "School/Chem.md" }));
+    v.err(
+        "append_to_note",
+        json!({ "path": "School/Chem.md", "text": "x" }),
+    );
+}
+
 #[cfg(windows)]
 #[test]
 fn short_8_3_names_cannot_reach_a_hidden_folder() {

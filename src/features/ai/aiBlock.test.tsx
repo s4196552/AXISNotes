@@ -93,6 +93,7 @@ describe("AI blocks on other tabs", () => {
               providerId: "ollama",
               providerName: "Ollama",
               model: "llama3.3",
+              rule: "any",
               local: true,
               usage: null,
               fallbackFrom: null,

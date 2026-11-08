@@ -78,7 +78,9 @@ describe("Ask AI about a folder", () => {
       providers: [{ id: "ollama", kind: "ollama", name: "Ollama", baseUrl: "", enabled: true }],
     });
     useAppStore.setState({ notes: NOTES, notice: null, error: null });
-    useConfig.setState((s) => ({ config: { ...s.config, ai: { folders: { ...RULES } } } }));
+    useConfig.setState((s) => ({
+      config: { ...s.config, ai: { folders: { ...RULES }, models: {} } },
+    }));
   });
 
   it("sends the folder's notes, lists left-out ones and saves the answer as a note", async () => {
@@ -100,7 +102,10 @@ describe("Ask AI about a folder", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Save as a note here" }));
     await waitFor(() =>
-      expect(h.b.files()["School/AI answer.md"]).toBe("Echo from Ollama: Summarise\n"),
+      // It read a local-only note (School/Lab), so the saved answer stays local-only.
+      expect(h.b.files()["School/AI answer.md"]).toBe(
+        "---\nai-access: local\n---\nEcho from Ollama: Summarise\n",
+      ),
     );
   });
 });

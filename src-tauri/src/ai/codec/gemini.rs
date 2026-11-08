@@ -27,6 +27,8 @@ fn usage(v: &Value) -> Option<Usage> {
     Some(Usage {
         input_tokens: u32_at(u, "promptTokenCount"),
         output_tokens: u32_at(u, "candidatesTokenCount"),
+        // Implicit caching: already counted in promptTokenCount.
+        cached_input_tokens: u32_at(u, "cachedContentTokenCount"),
     })
 }
 

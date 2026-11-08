@@ -179,8 +179,16 @@ pub struct Request {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Usage {
+    /// All input tokens, including those served from the provider's prompt cache.
     pub input_tokens: u32,
     pub output_tokens: u32,
+    /// Input tokens read from the prompt cache (cheaper and faster); 0 if none or unknown.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub cached_input_tokens: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
