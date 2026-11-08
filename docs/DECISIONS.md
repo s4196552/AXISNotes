@@ -2,6 +2,15 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-08: Follow-up questions in Ask AI and AI blocks (T-196)
+
+- Ask AI and plain-prompt AI blocks keep a conversation. After an answer the box empties for a follow-up. Each follow-up re-sends the same attached notes (cheap with T-195's prompt caching) and the earlier exchanges (`conversation.ts` `withHistory`).
+- Earlier exchanges are dropped, oldest whole exchange first, past about 8,000 estimated tokens, and a selection the user included rides on the first message kept.
+- While a conversation is open, what it reads (note, folder, selection) is locked. Earlier answers are sent again as plain text, so changing the sources mid-conversation could send a local-only answer to a cloud model; "New question" forgets the conversation and unlocks them.
+- Insert, Append and drafts still use the latest answer. "Save conversation" (after a follow-up) writes a Markdown draft, marked with the answer's rule (T-195). Retry in a block asks the latest question again with the conversation as it was before it.
+- Answers render as light Markdown (`AnswerText`: headings, lists, code blocks, inline styles) built from `InlineText` tokens, never HTML, so an answer can't inject markup; `[[links]]` open their note.
+- `Turn` and the transcript moved from skills to `src/features/ai/conversation.ts`; Grill me uses them unchanged.
+
 ## 2026-11-08: AI output keeps its sources' privacy; allowed models per folder; prompt caching (T-195)
 
 - **Note-level mark.** A note can carry its own AI rule as `ai-access: any|local|never` in its frontmatter (HTML pages: `<meta name="ai-access" content="…">`). The Rust layer (`privacy::rule_for_note`) holds every note a request reads to the stricter of its folder rule and its own mark. An unknown value, a non-string value, or a mark inside YAML that doesn't parse counts as `never`, so it fails closed. A mark never loosens a folder rule.

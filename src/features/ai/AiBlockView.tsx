@@ -4,7 +4,9 @@ import {
   Copy,
   FileText,
   CornerDownLeft,
+  Eraser,
   HardDrive,
+  MessagesSquare,
   RotateCcw,
   Sparkles,
   Square,
@@ -16,6 +18,8 @@ import { useAppStore } from "../../app/store";
 import { aiBlockSpec, closeAiBlock, insertionFor } from "./aiBlock";
 import { createDraft } from "../drafts/drafts";
 import { raiseNoteRule } from "./keepPrivacy";
+import { allTurns, conversationMarkdown, withHistory } from "./conversation";
+import { AnswerText } from "./AnswerText";
 import {
   type AiBlockPhase,
   type AiBlockState,
@@ -121,34 +125,41 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
 
   const patch = (p: Partial<AiBlockState>) => useAiBlocks.getState().patch(id, p);
 
-  const request = useMemo((): AiRunRequest | null => {
-    if (!state) return null;
+  /** The request a state would send (run builds it from the latest state). */
+  const requestFor = (cur: AiBlockState): AiRunRequest => {
     if (skill)
       return skillRequest({
         skill,
-        prompt: state.prompt,
-        turns: state.turns ?? [],
+        prompt: cur.prompt,
+        turns: cur.turns ?? [],
         path,
-        useNote: state.useNote,
+        useNote: cur.useNote,
         sources: spec?.sources,
-        selectionText: state.useSelection ? selection?.text : undefined,
-        choice: state.choice,
+        selectionText: cur.useSelection ? selection?.text : undefined,
+        choice: cur.choice,
       });
-    const sel = state.useSelection && selection?.text;
+    const sel = cur.useSelection && selection?.text;
     const context = sel ? `Selected text:\n"""\n${selection.text}\n"""\n\n` : "";
     return {
       task: "chat",
-      effort: state.choice.effort,
-      provider: state.choice.provider,
-      model: state.choice.model,
+      effort: cur.choice.effort,
+      provider: cur.choice.provider,
+      model: cur.choice.model,
       messages: [
         { role: "system", content: [{ type: "text", text: SYSTEM }] },
-        { role: "user", content: [{ type: "text", text: context + state.prompt }] },
+        // Earlier exchanges go too, so a follow-up knows what was said.
+        ...withHistory(cur.turns ?? [], cur.prompt, context).messages,
       ],
-      attach: state.useNote ? [path] : [],
+      attach: cur.useNote ? [path] : [],
       sources: sel ? [path] : [],
     };
-  }, [state, selection, path, skill, spec?.sources]);
+  };
+  const request = useMemo(
+    (): AiRunRequest | null => (state ? requestFor(state) : null),
+    // requestFor reads only these.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state, selection, path, skill, spec?.sources],
+  );
 
   // Where the request would go (debounced while typing).
   useEffect(() => {
@@ -179,12 +190,33 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
   const running = phase.kind === "running";
   /** The privacy rule of what the answer was made from (see keepPrivacy.ts). */
   const answerRule = phase.kind === "done" ? phase.result.rule : "any";
+  /**
+   * A plain prompt with a conversation: earlier answers are sent again with each
+   * follow-up, so what it reads can't change (a local-only answer could go to the cloud).
+   */
+  const chatting = !skill && (state.turns?.length ?? 0) > 0;
+  /** Exchanges before the current question (the latest done one shows as the answer). */
+  const earlier = !skill ? (running ? (state.turns ?? []) : (state.turns ?? []).slice(0, -2)) : [];
+
+  /** Ask the current question again, with the conversation as it was before it. */
+  const retry = () => {
+    if (!skill && state.asked)
+      patch({ turns: (state.turns ?? []).slice(0, -2), prompt: state.asked });
+    void run();
+  };
+
+  /** Forget the conversation; what the block reads can be changed again. */
+  const restart = () => {
+    patch({ turns: [], asked: "", answer: "", prompt: "", phase: { kind: "idle" } });
+    input.current?.focus();
+  };
 
   async function run(confirmed = false) {
     const cur = useAiBlocks.getState().blocks[id];
-    if (!cur || (!cur.prompt.trim() && !skill) || cur.phase.kind === "running" || !request) return;
+    if (!cur || (!cur.prompt.trim() && !skill) || cur.phase.kind === "running") return;
+    const req = requestFor(cur);
     if (!confirmed) {
-      const p = await backend.aiPlan(request).catch(() => null);
+      const p = await backend.aiPlan(req).catch(() => null);
       if (p?.needsConfirm) {
         patch({ phase: { kind: "confirm", plan: p } });
         return;
@@ -192,12 +224,19 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
     }
     if (skill) return runTheSkill(cur);
     const runId = crypto.randomUUID();
-    patch({ answer: "", phase: { kind: "running", runId, thinking: true } });
+    const question = cur.prompt;
+    patch({ answer: "", asked: question, phase: { kind: "running", runId, thinking: true } });
     try {
-      const result = await backend.aiRun(runId, request, (d) =>
+      const result = await backend.aiRun(runId, req, (d) =>
         useAiBlocks.getState().appendAnswer(id, d),
       );
-      patch({ answer: result.text, phase: { kind: "done", result } });
+      // The exchange joins the conversation; the box is ready for a follow-up.
+      patch({
+        answer: result.text,
+        phase: { kind: "done", result },
+        turns: allTurns(cur.turns ?? [], question, result.text),
+        prompt: "",
+      });
     } catch (e) {
       if (!useAiBlocks.getState().blocks[id]) return; // closed meanwhile
       patch({
@@ -269,7 +308,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
   const insert = (replace: boolean) => {
     const cur = aiBlockSpec(view.state, id);
     if (!cur) return;
-    const prefix = state.keepPrompt ? promptCallout(state.prompt) : "";
+    const prefix = state.keepPrompt ? promptCallout(state.asked ?? state.prompt) : "";
     const change =
       replace && cur.selection
         ? {
@@ -306,7 +345,9 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           aria-label="AI prompt"
           placeholder={
             !skill
-              ? "Ask AI to write, summarise, explain…"
+              ? chatting
+                ? "Ask a follow-up…"
+                : "Ask AI to write, summarise, explain…"
               : skill.output === "chat" && state.turns?.length
                 ? "Reply…"
                 : "Anything to add? (optional)"
@@ -385,7 +426,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           type="button"
           className="ai-chip ai-scope"
           aria-pressed={state.useNote}
-          disabled={running}
+          disabled={running || chatting}
           onClick={() => patch({ useNote: !state.useNote })}
           title={
             state.useNote
@@ -405,7 +446,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
             type="button"
             className="ai-chip ai-scope"
             aria-pressed={state.useSelection}
-            disabled={running}
+            disabled={running || chatting}
             onClick={() => patch({ useSelection: !state.useSelection })}
           >
             {state.useSelection ? "Reads: selection" : "Not reading: selection"}
@@ -486,13 +527,23 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           </p>
         )
       ) : (
-        (state.answer || running) && (
-          <div className="ai-block-answer" aria-label="Answer" aria-busy={running}>
-            {running && phase.thinking && !state.answer && <span className="muted">Thinking…</span>}
-            {state.answer}
-            {running && <span className="ask-ai-caret" aria-hidden />}
-          </div>
-        )
+        <>
+          {earlier.length > 0 && (
+            <ChatTranscript
+              turns={[...earlier, { role: "user", text: state.asked ?? "" }]}
+              answer=""
+            />
+          )}
+          {(state.answer || running) && (
+            <div className="ai-block-answer" aria-label="Answer" aria-busy={running}>
+              {running && phase.thinking && !state.answer && (
+                <span className="muted">Thinking…</span>
+              )}
+              <AnswerText text={state.answer} from={path} />
+              {running && <span className="ask-ai-caret" aria-hidden />}
+            </div>
+          )}
+        </>
       )}
 
       {phase.kind === "done" && skill?.output === "html" && state.html && (
@@ -535,7 +586,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
             type="button"
             onClick={() =>
               void createDraft({
-                title: state.prompt.split(/\r?\n/)[0] ?? "",
+                title: (state.asked ?? state.prompt).split(/\r?\n/)[0] ?? "",
                 content: `${state.answer.trim()}\n`,
                 folder: homeFolder(path),
                 rule: answerRule,
@@ -550,9 +601,35 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           <button type="button" onClick={() => void navigator.clipboard?.writeText(state.answer)}>
             <Copy size={12} /> Copy
           </button>
-          <button type="button" onClick={() => void run()}>
+          <button type="button" onClick={retry}>
             <RotateCcw size={12} /> Retry
           </button>
+          {(state.turns?.length ?? 0) > 2 && (
+            <button
+              type="button"
+              onClick={() =>
+                void createDraft({
+                  title: state.turns![0]!.text.split(/\r?\n/)[0] ?? "",
+                  content: conversationMarkdown(
+                    state.turns![0]!.text.split(/\r?\n/)[0] ?? "",
+                    state.turns!,
+                  ),
+                  folder: homeFolder(path),
+                  rule: answerRule,
+                }).then(
+                  () => closeAiBlock(view, id, false),
+                  (e: unknown) => patch({ phase: errorPhase(e) }),
+                )
+              }
+            >
+              <MessagesSquare size={12} /> Save conversation
+            </button>
+          )}
+          {chatting && (
+            <button type="button" onClick={restart} title="Forget this conversation">
+              <Eraser size={12} /> New question
+            </button>
+          )}
           <button type="button" onClick={close}>
             <Trash2 size={12} /> Discard
           </button>
