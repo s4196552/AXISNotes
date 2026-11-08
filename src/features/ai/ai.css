@@ -581,3 +581,49 @@
   gap: 8px;
   padding: 2px 0;
 }
+
+/* An AI answer rendered as light Markdown (AnswerText.tsx). */
+.answer-text {
+  white-space: normal;
+}
+.answer-text p {
+  margin: 0 0 4px;
+}
+.answer-text .answer-h {
+  margin-top: 6px;
+  font-weight: 600;
+}
+.answer-text .answer-h1,
+.answer-text .answer-h2 {
+  font-size: 1.1em;
+}
+.answer-text .answer-bullet {
+  color: var(--fg-muted);
+}
+.answer-text .answer-gap {
+  height: 6px;
+}
+.answer-text pre {
+  margin: 4px 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  white-space: pre;
+}
+
+/* Earlier questions and answers in an Ask AI conversation. */
+.ask-ai-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 8px 12px;
+  border-left: 2px solid var(--border);
+}
+.ask-ai-history .ai-turn-assistant {
+  color: var(--fg);
+}
