@@ -435,6 +435,63 @@ impl Vault {
         trash::delete(&abs).map_err(|e| AppError::Io(e.to_string()))
     }
 
+    /// Put items this vault moved to the system trash back where they were (undo of a
+    /// delete). For each vault path, the newest trash item deleted from exactly there at
+    /// or after `since_secs` (Unix seconds) is restored. Nothing is restored unless every
+    /// path is found and its place is free.
+    #[cfg(any(
+        target_os = "windows",
+        all(
+            unix,
+            not(target_os = "macos"),
+            not(target_os = "ios"),
+            not(target_os = "android")
+        )
+    ))]
+    pub fn restore_from_trash(&self, rels: &[String], since_secs: i64) -> AppResult<()> {
+        let same = |a: &Path, b: &Path| {
+            let (a, b) = (dunce::simplified(a), dunce::simplified(b));
+            if cfg!(windows) {
+                a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
+            } else {
+                a == b
+            }
+        };
+        let items = trash::os_limited::list().map_err(|e| AppError::Io(e.to_string()))?;
+        let mut chosen = Vec::new();
+        for rel in rels {
+            let abs = self.resolve_entry(rel)?;
+            if abs.exists() {
+                return Err(AppError::AlreadyExists(rel.clone()));
+            }
+            let found = items
+                .iter()
+                .filter(|i| i.time_deleted >= since_secs)
+                .filter(|i| same(&i.original_parent.join(&i.name), &abs))
+                .max_by_key(|i| i.time_deleted)
+                .ok_or_else(|| {
+                    AppError::NotFound(format!("{rel} (it isn't in the trash any more)"))
+                })?;
+            chosen.push(found.clone());
+        }
+        trash::os_limited::restore_all(chosen).map_err(|e| AppError::Io(e.to_string()))
+    }
+
+    #[cfg(not(any(
+        target_os = "windows",
+        all(
+            unix,
+            not(target_os = "macos"),
+            not(target_os = "ios"),
+            not(target_os = "android")
+        )
+    )))]
+    pub fn restore_from_trash(&self, _rels: &[String], _since_secs: i64) -> AppResult<()> {
+        Err(AppError::Io(
+            "Restoring from the trash isn't supported on this system; restore it from the Trash in Finder.".into(),
+        ))
+    }
+
     /// Copy a file or folder into the folder `dir` ("" is the vault root), returning the
     /// copy. It keeps its name when that is free there, else becomes `Name copy`,
     /// `Name copy 2`, … (before any extension), so nothing is ever overwritten. A folder
@@ -895,5 +952,52 @@ pub(crate) mod tests {
         let (_d, v) = vault();
         let abs = v.root().join("x").join("y.md");
         assert_eq!(v.to_rel(&abs).as_deref(), Some("x/y.md"));
+    }
+
+    /// Uses the real system trash (Recycle Bin): the files are restored, so nothing is left.
+    #[cfg(windows)]
+    #[test]
+    fn deleted_items_come_back_from_the_trash() {
+        let (dir, v) = vault();
+        fs::create_dir_all(dir.path().join("Notes/Sub")).unwrap();
+        fs::write(dir.path().join("Notes/Sub/a.md"), "folder note").unwrap();
+        fs::write(dir.path().join("loose.md"), "loose").unwrap();
+        let since = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64
+            - 2;
+        v.trash_entry("Notes").unwrap();
+        v.trash_entry("loose.md").unwrap();
+        assert!(!dir.path().join("Notes").exists());
+        // Nothing is restored unless every path is found.
+        let missing = v.restore_from_trash(&["loose.md".into(), "never-deleted.md".into()], since);
+        assert!(matches!(missing, Err(AppError::NotFound(_))), "{missing:?}");
+        assert!(!dir.path().join("loose.md").exists());
+        v.restore_from_trash(&["Notes".into(), "loose.md".into()], since)
+            .unwrap();
+        assert_eq!(
+            fs::read_to_string(dir.path().join("Notes/Sub/a.md")).unwrap(),
+            "folder note"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("loose.md")).unwrap(),
+            "loose"
+        );
+        // A path that's taken again isn't overwritten.
+        v.trash_entry("loose.md").unwrap();
+        fs::write(dir.path().join("loose.md"), "new").unwrap();
+        let taken = v.restore_from_trash(&["loose.md".into()], since);
+        assert!(
+            matches!(taken, Err(AppError::AlreadyExists(_))),
+            "{taken:?}"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("loose.md")).unwrap(),
+            "new"
+        );
+        // Tidy up: the second copy goes back next to it under another name, then away.
+        fs::remove_file(dir.path().join("loose.md")).unwrap();
+        v.restore_from_trash(&["loose.md".into()], since).unwrap();
     }
 }
