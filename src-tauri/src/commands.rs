@@ -477,6 +477,21 @@ pub async fn rename_entry(
     Ok(outcome.entry)
 }
 
+/// Copy a file or folder into the folder `dir` ("" is the vault root) under a free name
+/// (see `Vault::copy_entry`). Links inside the copy are left as they are.
+#[tauri::command]
+pub async fn copy_entry(
+    state: State<'_, AppState>,
+    from: String,
+    dir: String,
+) -> AppResult<VaultEntry> {
+    let v = state.vault()?;
+    let entry = v.copy_entry(&from, &dir)?;
+    state.touch(&v, &entry.path)?;
+    state.reindex(&v, change(ChangeKind::Created, &[&entry.path]));
+    Ok(entry)
+}
+
 #[tauri::command]
 pub fn trash_entry(state: State<AppState>, path: String) -> AppResult<()> {
     let v = state.vault()?;

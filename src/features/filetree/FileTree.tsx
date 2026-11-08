@@ -15,6 +15,8 @@ import {
   Ban,
   ChevronRight,
   ChevronsDownUp,
+  ClipboardPaste,
+  Copy,
   Cpu,
   File,
   FolderInput,
@@ -32,6 +34,7 @@ import {
   type LucideIcon,
   Palette,
   Pencil,
+  Scissors,
   Shapes,
   Sheet,
   Smile,
@@ -75,6 +78,7 @@ import { ancestorsOf, useRevealRequest } from "./reveal";
 import { useSkills } from "../skills/skills";
 import { skillIcon } from "../skills/skillIcons";
 import { runSkillOnPicked, skillsForPicked } from "../skills/skillOnFiles";
+import { clipFor, itemsLabel, useTreeClipboard } from "./clipboard";
 import "./filetree.css";
 
 interface MenuState {
@@ -394,6 +398,79 @@ export function FileTree() {
         }),
       ),
     [run],
+  );
+
+  // ---- Copy, cut and paste (T-194) ----
+
+  /** Put `paths` (a folder takes its items along) on the tree's clipboard. */
+  const copyOrCut = useCallback((paths: string[], mode: "copy" | "cut") => {
+    const store = useAppStore.getState();
+    const list = outermost(paths).filter((p) => findEntry(latest.current.tree, p));
+    if (!store.vault || !list.length) return;
+    useTreeClipboard.getState().set({ root: store.vault.root, mode, paths: list });
+    const name = (p: string) => {
+      const e = findEntry(latest.current.tree, p);
+      return e ? displayName(e) : baseName(p);
+    };
+    const verb = mode === "copy" ? "Copied" : "Cut";
+    store.notify(`${verb} ${itemsLabel(list, name)}. Select a folder and press Ctrl+V to paste.`);
+  }, []);
+
+  /** Paste what was copied (as copies, under free names) or cut (moved) into `dir`. */
+  const paste = useCallback(
+    (dir: string) =>
+      run(async () => {
+        const store = useAppStore.getState();
+        const clipboard = useTreeClipboard.getState();
+        const c = clipFor(clipboard.clip, store.vault?.root);
+        if (!c) return;
+        const items = c.paths.filter((p) => findEntry(store.tree, p));
+        if (!items.length) {
+          clipboard.set(null);
+          store.setError("Nothing to paste: the copied items are no longer in the vault.");
+          return;
+        }
+        const problems: string[] = [];
+        const landed: string[] = [];
+        const left: string[] = [];
+        try {
+          for (const p of items) {
+            const name = baseName(p);
+            const to = joinPath(dir, name);
+            if (dir === p || dir.startsWith(p + "/")) {
+              problems.push(`"${name}" into itself`);
+              left.push(p);
+            } else if (c.mode === "copy") {
+              try {
+                landed.push((await backend.copyEntry(p, dir)).path);
+              } catch (e) {
+                problems.push(`"${name}" (${errorMessage(e)})`);
+              }
+            } else if (parentPath(p) === dir) {
+              landed.push(p); // already there
+            } else if (shownNames(dir).some((n) => n.toLowerCase() === name.toLowerCase())) {
+              const where = dir ? `"${baseName(dir)}"` : "the top level";
+              problems.push(`"${name}" (it already exists in ${where})`);
+              left.push(p);
+            } else if (await move(p, to)) {
+              landed.push(to);
+            } else left.push(p);
+          }
+        } finally {
+          if (c.mode === "copy") await useAppStore.getState().refreshTree();
+          // What was cut but couldn't move stays cut, to paste somewhere else.
+          else clipboard.set(left.length ? { ...c, paths: left } : null);
+        }
+        if (dir && landed.length) toggle(dir, true);
+        const focus = landed[landed.length - 1];
+        if (focus) {
+          setSelected(focus);
+          setPicked(landed.length > 1 ? { anchor: landed[0]!, focus, paths: landed } : null);
+        }
+        if (problems.length)
+          useAppStore.getState().setError(`Couldn't paste ${problems.join(", ")}.`);
+      }),
+    [run, move, shownNames, toggle],
   );
 
   // ---- Dragging rows ----
@@ -719,6 +796,17 @@ export function FileTree() {
       }
     };
 
+    // Ctrl/Cmd + C, X and V copy, cut and paste (into the selected folder, or the
+    // selected file's folder).
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+      const key = e.key.toLowerCase();
+      if (key === "c" || key === "x") copyOrCut(chosen(), key === "c" ? "copy" : "cut");
+      else if (key === "v") void paste(targetDir());
+      else return;
+      e.preventDefault();
+      return;
+    }
+
     // Alt + ↑ / ↓ moves the item among its neighbours.
     if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
       if (current) nudge(current.path, e.key === "ArrowUp" ? -1 : 1);
@@ -882,6 +970,18 @@ export function FileTree() {
             <>
               <SkillItems paths={many} close={setMenu} />
               <MenuItem
+                label={`Copy ${many.length} items`}
+                icon={Copy}
+                onClick={() => copyOrCut(many, "copy")}
+                close={setMenu}
+              />
+              <MenuItem
+                label={`Cut ${many.length} items`}
+                icon={Scissors}
+                onClick={() => copyOrCut(many, "cut")}
+                close={setMenu}
+              />
+              <MenuItem
                 label={`Delete ${many.length} items`}
                 icon={Trash2}
                 danger
@@ -915,6 +1015,7 @@ export function FileTree() {
                 onClick={() => void createFolder(menuDir)}
                 close={setMenu}
               />
+              <PasteItem onPaste={() => void paste(menuDir)} close={setMenu} />
               {menu.entry?.kind === "dir" && (
                 <DashboardItems path={menu.entry.path} close={setMenu} />
               )}
@@ -952,6 +1053,18 @@ export function FileTree() {
                     <SkillItems paths={[menu.entry.path]} close={setMenu} />
                   )}
                   <AiRuleItems path={menu.entry.path} close={setMenu} />
+                  <MenuItem
+                    label="Copy"
+                    icon={Copy}
+                    onClick={() => copyOrCut([menu.entry!.path], "copy")}
+                    close={setMenu}
+                  />
+                  <MenuItem
+                    label="Cut"
+                    icon={Scissors}
+                    onClick={() => copyOrCut([menu.entry!.path], "cut")}
+                    close={setMenu}
+                  />
                   <MenuItem
                     label="Rename"
                     icon={Pencil}
@@ -1005,6 +1118,30 @@ export function FileTree() {
       )}
     </div>
   );
+}
+
+/** "Paste here", while something copied or cut in this vault waits to be pasted. */
+function PasteItem({ onPaste, close }: { onPaste(): void; close(m: null): void }) {
+  const root = useAppStore((s) => s.vault?.root);
+  const count = useTreeClipboard((s) => clipFor(s.clip, root)?.paths.length ?? 0);
+  if (!count) return null;
+  return (
+    <MenuItem
+      label={count > 1 ? `Paste ${count} items here` : "Paste here"}
+      icon={ClipboardPaste}
+      onClick={onPaste}
+      close={close}
+    />
+  );
+}
+
+/** Whether `path` was cut and waits to be pasted. */
+function useIsCut(path: string) {
+  const root = useAppStore((s) => s.vault?.root);
+  return useTreeClipboard((s) => {
+    const c = clipFor(s.clip, root);
+    return c?.mode === "cut" && c.paths.includes(path);
+  });
 }
 
 /** Open, add or remove a folder's dashboard. */
@@ -1151,6 +1288,8 @@ const TreeRow = memo(function TreeRow({
   entering,
   actions,
 }: TreeRowProps) {
+  // Cut, waiting to be pasted somewhere else (each row asks, so the tree doesn't redraw).
+  const cut = useIsCut(entry.path);
   const own = rowColorProps(rowColors(colors));
   const isDir = entry.kind === "dir";
   const openable = isOpenable(entry);
@@ -1179,6 +1318,7 @@ const TreeRow = memo(function TreeRow({
     drop === "before" && "drop-before",
     drop === "after" && "drop-after",
     dragged && "dragged",
+    cut && "cut",
     !isDir && !openable && "dimmed",
     entering !== undefined && "entering",
     own.className,
@@ -1195,7 +1335,7 @@ const TreeRow = memo(function TreeRow({
       aria-expanded={isDir ? expanded : undefined}
       aria-current={active ? "page" : undefined}
       data-path={entry.path}
-      title={`${entry.path}\nDrag to move or reorder. Select and press F2 to rename. Shift+click to select several.`}
+      title={`${entry.path}\nDrag to move or reorder. Select and press F2 to rename, Ctrl+C / Ctrl+X / Ctrl+V to copy, cut and paste. Shift+click to select several.`}
       className={classes}
       style={
         {

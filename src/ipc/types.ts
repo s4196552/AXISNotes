@@ -478,6 +478,13 @@ export interface Backend {
    * are rewritten; rewritten notes are announced through `onVaultChanged` as "modified".
    */
   renameEntry(from: string, to: string): Promise<VaultEntry>;
+  /**
+   * Copy a file or folder into the folder `dir` ("" is the vault root). The copy keeps its
+   * name when that is free there, else becomes `Name copy`, `Name copy 2`, … (T-194).
+   * Rejects with "InvalidName" for a folder copied into itself, "NotFound" for a missing
+   * item or folder.
+   */
+  copyEntry(from: string, dir: string): Promise<VaultEntry>;
   /** Moves to the OS trash (never a hard delete). */
   trashEntry(path: string): Promise<void>;
   /** Show an entry, selected, in the system file manager ("" opens the vault folder). */

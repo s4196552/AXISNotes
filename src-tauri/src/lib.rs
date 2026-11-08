@@ -89,6 +89,7 @@ pub fn run() {
             commands::pick_attachments,
             commands::import_image,
             commands::rename_entry,
+            commands::copy_entry,
             commands::trash_entry,
             commands::reveal_entry,
             commands::open_in_browser,

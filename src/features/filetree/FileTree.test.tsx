@@ -8,6 +8,7 @@ import { useUi } from "../commands/ui";
 import { FileTree } from "./FileTree";
 import { RowColorsDialog } from "./RowColors";
 import { rowColors } from "./rowColorsModel";
+import { useTreeClipboard } from "./clipboard";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -647,5 +648,125 @@ describe("FileTree: several items at once", () => {
     await waitFor(() => expect(h.b.files()).toHaveProperty(["School/C.md"]));
     expect(h.b.files()).toHaveProperty(["A.md"]);
     expect(h.b.files()).toHaveProperty(["B.md"]);
+  });
+});
+
+describe("FileTree: copy, cut and paste (T-194)", () => {
+  const tree = () => screen.getByRole("tree");
+  const key = (k: string) => fireEvent.keyDown(tree(), { key: k, ctrlKey: true });
+  const menuItem = (name: string) => screen.getByRole("menuitem", { name });
+  const picked = () =>
+    screen
+      .getAllByRole("treeitem")
+      .filter((r) => r.getAttribute("aria-selected") === "true")
+      .map((r) => r.textContent);
+
+  beforeEach(() => useTreeClipboard.setState({ clip: null }));
+
+  it("copies a note with Ctrl+C and pastes it into the selected folder with Ctrl+V", async () => {
+    await setup({ "Bio.md": "cells", "School/Maths.md": "" });
+    fireEvent.click(row("Bio"));
+    key("c");
+    expect(useAppStore.getState().notice).toMatch(/Copied "Bio"/);
+    fireEvent.click(row("School"));
+    key("v");
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["School/Bio.md"], "cells"));
+    expect(h.b.files()).toHaveProperty(["Bio.md"], "cells");
+    expect(row("School")).toHaveAttribute("aria-expanded", "true");
+    await waitFor(() => expect(picked()).toEqual(["Bio"]));
+
+    // Pasting again beside a note of the same name makes "Bio copy", then "Bio copy 2".
+    key("v");
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["School/Bio copy.md"], "cells"));
+    key("v");
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["School/Bio copy 2.md"]));
+    expect(useAppStore.getState().error).toBeNull();
+  });
+
+  it("copies a folder with everything in it from the menu, but not into itself", async () => {
+    await setup({ "School/Maths.md": "sums", "School/Week 1/Notes.md": "w1" });
+    fireEvent.contextMenu(row("School"));
+    fireEvent.click(menuItem("Copy"));
+    fireEvent.contextMenu(tree());
+    fireEvent.click(menuItem("Paste here"));
+    await waitFor(() =>
+      expect(h.b.files()).toEqual({
+        "School/Maths.md": "sums",
+        "School/Week 1/Notes.md": "w1",
+        "School copy/Maths.md": "sums",
+        "School copy/Week 1/Notes.md": "w1",
+      }),
+    );
+    await waitFor(() => expect(picked()).toEqual(["School copy"]));
+
+    fireEvent.contextMenu(row("School"));
+    fireEvent.click(menuItem("Paste here"));
+    await waitFor(() => expect(useAppStore.getState().error).toMatch(/"School" into itself/));
+    expect(Object.keys(h.b.files())).toHaveLength(4);
+  });
+
+  it("moves cut items on paste, dimming them until then", async () => {
+    await setup({ "A.md": "a", "B.md": "b", "School/X.md": "" });
+    fireEvent.click(row("A"));
+    fireEvent.click(row("B"), { shiftKey: true });
+    key("x");
+    expect(row("A")).toHaveClass("cut");
+    expect(row("B")).toHaveClass("cut");
+    expect(h.b.files()).toHaveProperty(["A.md"]);
+
+    fireEvent.contextMenu(row("School"));
+    fireEvent.click(menuItem("Paste 2 items here"));
+    await waitFor(() =>
+      expect(h.b.files()).toEqual({ "School/A.md": "a", "School/B.md": "b", "School/X.md": "" }),
+    );
+    await waitFor(() => expect(picked()).toEqual(["A", "B"]));
+    expect(row("A")).not.toHaveClass("cut");
+    // A cut is pasted once.
+    fireEvent.contextMenu(tree());
+    expect(screen.queryByRole("menuitem", { name: /Paste/ })).toBeNull();
+  });
+
+  it("keeps a cut item that would clash where it is, to paste elsewhere", async () => {
+    await setup({ "A.md": "top", "School/A.md": "inner", "Work/W.md": "" });
+    fireEvent.click(row("A"));
+    key("x");
+    fireEvent.click(row("School"));
+    key("v");
+    await waitFor(() => expect(useAppStore.getState().error).toMatch(/already exists/));
+    expect(h.b.files()).toHaveProperty(["A.md"], "top");
+    // School is open now: its own A comes first, then the cut one at the top level.
+    expect(screen.getAllByRole("treeitem", { name: "A" }).map((r) => r.className)).toEqual([
+      expect.not.stringContaining("cut"),
+      expect.stringContaining("cut"),
+    ]);
+    fireEvent.click(row("Work"));
+    key("v");
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["Work/A.md"], "top"));
+  });
+
+  it("copies several picked items from their menu", async () => {
+    await setup({ "A.md": "a", "B.md": "b", "Archive/Old.md": "" });
+    fireEvent.click(row("A"));
+    fireEvent.click(row("B"), { shiftKey: true });
+    fireEvent.contextMenu(row("A"));
+    fireEvent.click(menuItem("Copy 2 items"));
+    fireEvent.click(row("Archive"));
+    key("v");
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["Archive/B.md"], "b"));
+    expect(h.b.files()).toHaveProperty(["Archive/A.md"], "a");
+    expect(h.b.files()).toHaveProperty(["A.md"], "a");
+    await waitFor(() => expect(picked()).toEqual(["A", "B"]));
+  });
+
+  it("pastes nothing copied in another vault, or items deleted since", async () => {
+    await setup({ "A.md": "" });
+    useTreeClipboard.setState({ clip: { root: "/other", mode: "copy", paths: ["A.md"] } });
+    fireEvent.contextMenu(tree());
+    expect(screen.queryByRole("menuitem", { name: /Paste/ })).toBeNull();
+    key("v");
+    useTreeClipboard.setState({ clip: { root: "/vault", mode: "copy", paths: ["Gone.md"] } });
+    key("v");
+    await waitFor(() => expect(useAppStore.getState().error).toMatch(/no longer in the vault/));
+    expect(h.b.files()).toEqual({ "A.md": "" });
   });
 });

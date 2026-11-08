@@ -686,6 +686,26 @@ export function createMemoryBackend(
       if (updated.length) listeners.forEach((l) => l([{ kind: "modified", paths: updated }]));
       return entry(dst);
     },
+    async copyEntry(from, dir) {
+      requireVault();
+      const src = normalize(from);
+      const to = normalize(dir);
+      if (src === "") fail("OutsideVault", from);
+      const node = nodes.get(src);
+      if (!node) fail("NotFound", from);
+      if (to !== "" && nodes.get(to)?.kind !== "dir") fail("NotFound", dir);
+      if (node.kind === "dir" && (to === src || to.startsWith(src + "/")))
+        fail("InvalidName", `cannot copy ${from} into itself`);
+      const name = baseName(src);
+      const dot = node.kind === "file" ? name.lastIndexOf(".") : -1;
+      const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+      const at = (n: string) => (to ? `${to}/${n}` : n);
+      let dst = at(name);
+      for (let n = 1; nodes.has(dst); n++) dst = at(`${stem} copy${n > 1 ? ` ${n}` : ""}${ext}`);
+      const copied = [...nodes.entries()].filter(([k]) => k === src || k.startsWith(src + "/"));
+      for (const [k, n] of copied) put(dst + k.slice(src.length), { ...n, modifiedMs: tick() });
+      return entry(dst);
+    },
     async trashEntry(path) {
       requireVault();
       const p = normalize(path);
