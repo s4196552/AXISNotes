@@ -91,6 +91,7 @@ pub fn run() {
             commands::rename_entry,
             commands::copy_entry,
             commands::trash_entry,
+            commands::restore_entries,
             commands::reveal_entry,
             commands::open_in_browser,
             pages::open_web_link,

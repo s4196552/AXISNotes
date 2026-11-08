@@ -5,6 +5,7 @@ import { noteName } from "../../lib/markdown";
 import { HOME, makeWidget } from "../dashboard/dashboardModel";
 import { saveWidgets } from "../dashboard/setDashboard";
 import { remapIcons, renameEntry } from "../files/renameEntry";
+import { record, renamed } from "../filetree/undo";
 import { createUniqueNote } from "./actions";
 import { registerCommands } from "./registry";
 import { useUi } from "./ui";
@@ -59,7 +60,9 @@ export async function renameOpenFile() {
 export async function moveFile(path: string, folder: string) {
   if (parentOf(path) === folder) return;
   try {
-    await renameEntry(path, `${folder ? folder + "/" : ""}${fileName(path)}`);
+    const to = `${folder ? folder + "/" : ""}${fileName(path)}`;
+    await renameEntry(path, to);
+    record(renamed(path, to));
     useAppStore.getState().notify(`Moved to ${folder || "the vault folder"}`);
   } catch (e) {
     report(e);

@@ -21,6 +21,24 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - It shows "Using N passages from M notes" (expandable), then the answer, then a Sources list.
   - Citations to passages that weren't sent are struck through and labelled "not in sources".
 
+## 2026-11-08: Ctrl+Z / Ctrl+Y in the file tree (T-200)
+
+- **Each sidebar action records how to reverse it.** Reversing returns the step that redoes it. Ctrl+Z undoes, and Ctrl+Y or Ctrl+Shift+Z redoes. History is per vault, kept in memory, up to 50 steps.
+- **What can be undone:**
+  - rename and move (inline rename, drag, Move to…, cut and paste);
+  - delete;
+  - new note or folder;
+  - pasted copies;
+  - order (drag, Alt+↑/↓, Sort A–Z);
+  - icon, row colours, AI access and allowed models.
+- **Grouping:** dragging several items, a drag that moves and reorders, and a paste are one step each. A colours dialog is one step for everything changed while it was open.
+- **Delete stays a move to the OS trash.** Undo puts the items back from the trash with `trash::os_limited`, which the `trash` crate already in use provides on Windows and Linux; it isn't available on macOS, where the error says to restore from Finder.
+  - New `restore_entries` command: it restores the newest trash item deleted from each path since the delete, and nothing at all unless every path is found and its place is free.
+  - Icons, colours, order and dashboards that the delete removed come back too.
+- **Never loses work:**
+  - Undoing a new note or a pasted copy takes it back to the trash only while its text is unchanged; a new folder only while it's empty. Otherwise it's refused with a message.
+  - A step that fails is dropped with an error, never half-retried.
+- **Where the keys work:** in the tree, and anywhere focus isn't in a text box, the editor (which keeps its own undo), an embedded page or an open dialog.
 ## 2026-11-08: Follow-up questions in Ask AI and AI blocks (T-196)
 
 - Ask AI and plain-prompt AI blocks keep a conversation. After an answer the box empties for a follow-up. Each follow-up re-sends the same attached notes (cheap with T-195's prompt caching) and the earlier exchanges (`conversation.ts` `withHistory`).

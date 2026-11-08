@@ -519,6 +519,12 @@ export interface Backend {
   copyEntry(from: string, dir: string): Promise<VaultEntry>;
   /** Moves to the OS trash (never a hard delete). */
   trashEntry(path: string): Promise<void>;
+  /**
+   * Undo of a delete: puts each path back from the OS trash (the newest item deleted from
+   * there at or after `sinceMs`). Restores nothing unless every path is found and free:
+   * "NotFound" when one is no longer in the trash, "AlreadyExists" when its place is taken.
+   */
+  restoreEntries(paths: string[], sinceMs: number): Promise<void>;
   /** Show an entry, selected, in the system file manager ("" opens the vault folder). */
   revealEntry(path: string): Promise<void>;
   /** Open a vault `.html` file in the default browser (other files are refused). */

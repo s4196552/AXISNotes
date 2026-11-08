@@ -3,6 +3,7 @@ import { HardDrive, X } from "lucide-react";
 import { type AiModel, type AiProviderStatus, backend } from "../../ipc";
 import { useConfig } from "../../app/config";
 import { modelsOf } from "./aiBlockStore";
+import { changeSetting } from "../filetree/undo";
 import "./ai.css";
 
 // "Allowed models…" on a folder or note in the file tree: the only models its notes may
@@ -40,12 +41,14 @@ export function AllowedModels({ path, onClose }: { path: string; onClose(): void
     });
 
   const save = (list: string[] | null) => {
-    void useConfig.getState().update((c) => {
-      const next = { ...c.ai.models };
-      if (list === null) delete next[path];
-      else next[path] = list;
-      return { ...c, ai: { ...c.ai, models: next } };
-    });
+    void changeSetting(`Allowed models for “${nameOf(path)}”`, "ai.models", path, () =>
+      useConfig.getState().update((c) => {
+        const next = { ...c.ai.models };
+        if (list === null) delete next[path];
+        else next[path] = list;
+        return { ...c, ai: { ...c.ai, models: next } };
+      }),
+    );
     onClose();
   };
 

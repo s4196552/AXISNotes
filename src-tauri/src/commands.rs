@@ -478,6 +478,24 @@ pub async fn rename_entry(
     Ok(outcome.entry)
 }
 
+/// Undo of a delete: put `paths` back from the system trash (each the newest item deleted
+/// from there at or after `since_ms`). See `Vault::restore_from_trash`.
+#[tauri::command]
+pub async fn restore_entries(
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+    since_ms: u64,
+) -> AppResult<()> {
+    let v = state.vault()?;
+    for p in &paths {
+        state.touch(&v, p)?;
+    }
+    v.restore_from_trash(&paths, (since_ms / 1000) as i64)?;
+    let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+    state.reindex(&v, change(ChangeKind::Created, &refs));
+    Ok(())
+}
+
 /// Copy a file or folder into the folder `dir` ("" is the vault root) under a free name
 /// (see `Vault::copy_entry`). Links inside the copy are left as they are.
 #[tauri::command]

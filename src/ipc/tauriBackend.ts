@@ -79,6 +79,7 @@ export function createTauriBackend(): Backend {
     renameEntry: (from, to) => invoke("rename_entry", { from, to }),
     copyEntry: (from, dir) => invoke("copy_entry", { from, dir }),
     trashEntry: (path) => invoke("trash_entry", { path }),
+    restoreEntries: (paths, sinceMs) => invoke("restore_entries", { paths, sinceMs }),
     revealEntry: (path) => invoke("reveal_entry", { path }),
     openInBrowser: (path) => invoke("open_in_browser", { path }),
     openWebLink: (url) => invoke("open_web_link", { url }),
