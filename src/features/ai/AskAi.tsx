@@ -34,6 +34,7 @@ import { allTurns, conversationMarkdown, type Turn, withHistory } from "./conver
 import { AnswerText } from "./AnswerText";
 import { stricter } from "../../lib/aiAccess";
 import { followLink } from "../commands/actions";
+import { wikilinkLabel } from "../../lib/inlineMarkdown";
 import { citeOf, citesPassage, passageSummary, VAULT_SYSTEM } from "./vaultAsk";
 import "./ai.css";
 
@@ -526,7 +527,7 @@ export function AskAi({ path, selection, folder, vault = false, onClose }: AskAi
                     void followLink(citeOf(p), "");
                   }}
                 >
-                  {citeOf(p).replace(/^.*\//, "")}
+                  {wikilinkLabel(citeOf(p))}
                 </button>
               ))}
             </div>
