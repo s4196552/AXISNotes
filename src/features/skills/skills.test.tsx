@@ -172,33 +172,36 @@ describe("skill files", () => {
 });
 
 describe("running skills from an AI block", () => {
-  it("makes a flash-card page and saves it next to the note", async () => {
+  it("makes a flash-card page and saves it next to the note at once, with the AI icon", async () => {
     setAiResponder((req) => {
       lastRequest.req = req;
       return "```html\n<!doctype html><html><body>Cards</body></html>\n```";
     });
-    const open = vi.spyOn(h.b, "openInBrowser").mockResolvedValue();
+    const browser = vi.spyOn(h.b, "openInBrowser").mockResolvedValue();
     const v = mount("# Cells\n\n", "Bio/Cells.md", 9);
     act(() => void openAiBlock(v, undefined, { skill: "flashcards" }));
     const block = await screen.findByRole("group", { name: "AI block" });
     expect(within(block).getByText(/Skill: Flash cards/)).toBeInTheDocument();
     fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
-    expect(await within(block).findByText(/Made a web page/)).toBeInTheDocument();
+    expect(
+      await within(block).findByText(/saved it as “Cells - Flash cards.html”/),
+    ).toBeInTheDocument();
     expect(lastRequest.req!.attach).toEqual(["Bio/Cells.md"]);
-    fireEvent.click(within(block).getByRole("button", { name: /Save next to the note/ }));
-    await waitFor(() =>
-      expect(h.b.files()["Bio/Cells - Flash cards.html"]).toBe(
-        makeCopyable("<!doctype html><html><body>Cards</body></html>\n"),
-      ),
+    expect(h.b.files()["Bio/Cells - Flash cards.html"]).toBe(
+      makeCopyable("<!doctype html><html><body>Cards</body></html>\n"),
     );
-    // The saved page opens in a tab, not the browser.
+    expect(useConfig.getState().config.folderIcons["Bio/Cells - Flash cards.html"]).toEqual({
+      icon: "🇦🇮",
+    });
+    // Opening it opens the saved page in a tab, not the browser.
+    fireEvent.click(within(block).getByRole("button", { name: /Open page/ }));
     await waitFor(() =>
       expect(useAppStore.getState().activePath).toBe("Bio/Cells - Flash cards.html"),
     );
-    expect(open).not.toHaveBeenCalled();
+    expect(browser).not.toHaveBeenCalled();
   });
 
-  it("opens a made page as a draft in a tab, or as a draft in the browser", async () => {
+  it("opens the saved page in the browser, and saves each run under its own name", async () => {
     setAiResponder(() => "<!doctype html><html><body>Cards</body></html>");
     const browser = vi.spyOn(h.b, "openInBrowser").mockResolvedValue();
     const run = async () => {
@@ -209,19 +212,12 @@ describe("running skills from an AI block", () => {
       await within(block).findByText(/Made a web page/);
       return block;
     };
-
+    // The first run is opened in a tab (which closes its block); the second, in the browser.
     fireEvent.click(within(await run()).getByRole("button", { name: /Open page/ }));
-    const draft = ".axisnotes/drafts/Flash cards.html";
-    await waitFor(() => expect(useAppStore.getState().activePath).toBe(draft));
-    expect(h.b.files()[draft]).toContain("<body>Cards</body>");
-    expect(browser).not.toHaveBeenCalled();
-
     cleanup();
     fireEvent.click(within(await run()).getByRole("button", { name: /Open in browser/ }));
-    await waitFor(() =>
-      expect(browser).toHaveBeenCalledWith(".axisnotes/drafts/Flash cards 1.html"),
-    );
-    expect(useAppStore.getState().activePath).toBe(draft); // the tab didn't change
+    await waitFor(() => expect(browser).toHaveBeenCalledWith("Bio/Cells - Flash cards 1.html"));
+    expect(Object.keys(h.b.files()).filter((p) => p.startsWith(".axisnotes/drafts/"))).toEqual([]);
   });
 
   it("asks again once when the page is missing", async () => {
@@ -257,14 +253,18 @@ describe("running skills from an AI block", () => {
     });
     fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
     expect(await within(block).findByText("Lesson 1 covers cells.")).toBeInTheDocument();
-    expect(within(block).getByRole("list", { name: "Files to save" })).toHaveTextContent(
-      "Progress.md (new)",
+    // Saved at once, each with the AI icon.
+    expect(within(block).getByRole("list", { name: "Saved files" })).toHaveTextContent(
+      "Progress.md",
     );
-    fireEvent.click(within(block).getByRole("button", { name: /Save to Bio/ }));
-    await waitFor(() => expect(h.b.files()["Bio/Progress.md"]).toBe("- [x] Lesson 1\n"));
+    expect(h.b.files()["Bio/Progress.md"]).toBe("- [x] Lesson 1\n");
     expect(h.b.files()["Bio/Lesson 1 - Cells.html"]).toBe(
       makeCopyable("<!doctype html><p>Quiz</p>\n"),
     );
+    expect(useConfig.getState().config.folderIcons["Bio/Lesson 1 - Cells.md"]).toEqual({
+      icon: "🇦🇮",
+    });
+    fireEvent.click(within(block).getByRole("button", { name: /Open the lesson/ }));
     await waitFor(() => expect(useAppStore.getState().activePath).toBe("Bio/Lesson 1 - Cells.md"));
   });
 
@@ -292,12 +292,19 @@ describe("running skills from an AI block", () => {
     await within(block).findByRole("button", { name: /Wrap up/ });
     // system + "Start" ; then system + start + answer + reply
     expect(seen).toEqual([2, 4]);
-    fireEvent.click(within(block).getByRole("button", { name: /Open as draft/ }));
-    await waitFor(() =>
-      expect(h.b.files()[".axisnotes/drafts/Grill me - Cells.md"]).toMatch(
-        /\*\*Me:\*\* Students\n\n\*\*AI:\*\* Scope: what is out of scope\?/,
-      ),
+    // Saved after every reply, and kept up to date.
+    expect(h.b.files()["Bio/Grill me - Cells.md"]).toMatch(
+      /\*\*Me:\*\* Students\n\n\*\*AI:\*\* Scope: what is out of scope\?/,
     );
+    expect(useConfig.getState().config.folderIcons["Bio/Grill me - Cells.md"]).toEqual({
+      icon: "🇦🇮",
+    });
+    expect(Object.keys(h.b.files()).filter((p) => p.includes("Grill me"))).toEqual([
+      "Bio/Grill me - Cells.md",
+    ]);
+    // Discard closes it and moves the saved conversation to the trash.
+    fireEvent.click(within(block).getByRole("button", { name: /Discard/ }));
+    await waitFor(() => expect(h.b.files()["Bio/Grill me - Cells.md"]).toBeUndefined());
   });
 });
 
@@ -389,11 +396,10 @@ describe("Markdown or HTML for every skill", () => {
     fireEvent.click(within(block).getByRole("button", { name: "HTML" }));
     fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
     await within(block).findByRole("button", { name: /Wrap up/ });
-    fireEvent.click(within(block).getByRole("button", { name: /Open as draft/ }));
     await waitFor(() =>
-      expect(h.b.files()[".axisnotes/drafts/Grill me - Cells.html"]).toMatch(/^<!doctype html>/),
+      expect(h.b.files()["Bio/Grill me - Cells.html"]).toMatch(/^<!doctype html>/),
     );
-    const page = h.b.files()[".axisnotes/drafts/Grill me - Cells.html"]!;
+    const page = h.b.files()["Bio/Grill me - Cells.html"]!;
     expect(page).toContain("Goals: who is this for? &lt;b&gt;now&lt;/b&gt;");
     expect(page).not.toContain("<b>now</b>");
   });
@@ -440,19 +446,20 @@ describe("skills on files picked in the tree", () => {
     expect(notify).toHaveBeenCalledWith(expect.stringMatching(/AI: never/));
   });
 
-  it("makes a practice test from several notes in a draft, saved next to them", async () => {
+  it("makes a practice test from several notes in a note saved next to them", async () => {
     setAiResponder((req) => {
       lastRequest.req = req;
       return "<!doctype html><html><body>Test</body></html>";
     });
-    const open = vi.spyOn(h.b, "openInBrowser").mockResolvedValue();
-    const draft = await runSkillOnPicked(byId("test"), ["Bio/Cells.md", "Bio/Genes.md"]);
-    expect(draft).toBe(".axisnotes/drafts/Practice test - 2 notes.md");
-    expect(useAppStore.getState().activePath).toBe(draft);
-    expect(h.b.files()[draft!]).toContain("Made from [[Cells]], [[Genes]].");
+    const note = await runSkillOnPicked(byId("test"), ["Bio/Cells.md", "Bio/Genes.md"]);
+    // Saved straight into the picked notes' folder, with the AI icon (not a draft).
+    expect(note).toBe("Bio/Practice test - 2 notes.md");
+    expect(useAppStore.getState().activePath).toBe(note);
+    expect(h.b.files()[note!]).toContain("Made from [[Cells]], [[Genes]].");
+    expect(useConfig.getState().config.folderIcons[note!]).toEqual({ icon: "🇦🇮" });
 
     // The note's editor opens with the skill's block already in it, reading the picked notes.
-    const v = mount(h.b.files()[draft!]!, draft!, 0);
+    const v = mount(h.b.files()[note!]!, note!, 0);
     expect(v.state.field(aiBlockField)).toEqual([
       expect.objectContaining({ skill: "test", sources: ["Bio/Cells.md", "Bio/Genes.md"] }),
     ]);
@@ -461,18 +468,10 @@ describe("skills on files picked in the tree", () => {
     fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
     expect(await within(block).findByText(/Made a web page/)).toBeInTheDocument();
     expect(lastRequest.req!.attach).toEqual(["Bio/Cells.md", "Bio/Genes.md"]);
-    fireEvent.click(within(block).getByRole("button", { name: /Save next to the note/ }));
-    // Into the picked notes' folder, not the hidden drafts folder.
-    await waitFor(() =>
-      expect(h.b.files()["Bio/Practice test - 2 notes.html"]).toBe(
-        makeCopyable("<!doctype html><html><body>Test</body></html>\n"),
-      ),
+    // The page is saved next to it, named after the run.
+    expect(h.b.files()["Bio/Practice test - 2 notes.html"]).toBe(
+      makeCopyable("<!doctype html><html><body>Test</body></html>\n"),
     );
-    // The saved page opens in a tab, not the browser.
-    await waitFor(() =>
-      expect(useAppStore.getState().activePath).toBe("Bio/Practice test - 2 notes.html"),
-    );
-    expect(open).not.toHaveBeenCalled();
   });
 });
 

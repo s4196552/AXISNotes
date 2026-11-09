@@ -2,81 +2,77 @@ import { useState } from "react";
 import { Copy, ExternalLink, FilePlus2, FileText, FolderInput, Globe, Trash2 } from "lucide-react";
 import { type AiRule, backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
-import { createDraft } from "../drafts/drafts";
 import { copyPageText } from "./copyable";
 import type { Skill, SkillFiles } from "./skills";
 import {
   homeFolder,
   planFiles,
+  saveConversation,
   savePageNextTo,
-  transcript,
-  transcriptHtml,
   type Turn,
   writeFiles,
 } from "./skillRun";
 
-// What a finished skill run offers, by kind: a web page (open it in a tab as a draft, save
-// it beside the note, or open it in the browser), a Teach session's files (save into the
-// folder), or a Grill me conversation (keep it as a draft).
+// What a finished skill run shows, by kind. The result is already saved (next to the note,
+// with the AI icon), so these offer opening it: a web page (in a tab or the browser), a
+// Teach session's files, or a Grill me conversation (kept up to date after each reply).
+// If saving failed, the button to save it is offered again.
 
 const say = (m: string) => useAppStore.getState().notify(m);
 const fail = (e: unknown) => say(isBackendError(e) || e instanceof Error ? e.message : String(e));
+const nameOf = (p: string) => p.slice(p.lastIndexOf("/") + 1);
+const open = (p: string) => useAppStore.getState().openFile(p);
 
 export function PageResult({
   skill,
   html,
   path,
+  saved,
+  onSaved,
   onDone,
 }: {
   skill: Skill;
   html: string;
   path: string;
+  /** Where the page was saved; empty if saving failed. */
+  saved: string[];
+  onSaved(saved: string[]): void;
   onDone(): void;
 }) {
-  // A draft page; it opens in a tab unless it is going to the browser.
-  const draft = (open: boolean) =>
-    createDraft({
-      title: skill.title,
-      content: html,
-      ext: ".html",
-      folder: homeFolder(path),
-      open,
-    });
+  const page = saved[0];
   return (
     <>
       <p className="ai-block-summary muted">
-        Made a web page ({Math.max(1, Math.round(html.length / 1024))} KB).
+        {page
+          ? `Made a web page and saved it as “${nameOf(page)}”.`
+          : `Made a web page (${Math.max(1, Math.round(html.length / 1024))} KB), but it isn't saved yet.`}
       </p>
       <div className="ai-block-actions">
-        <button
-          type="button"
-          className="primary"
-          onClick={() => void draft(true).then(onDone, fail)}
-        >
-          <Globe size={12} /> Open page
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            void savePageNextTo(path, skill, html).then((p) => {
-              say(`Saved ${p}.`);
-              onDone();
-              useAppStore.getState().openFile(p);
-            }, fail)
-          }
-        >
-          <FilePlus2 size={12} /> Save next to the note
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            void draft(false)
-              .then((d) => backend.openInBrowser(d))
-              .catch(fail)
-          }
-        >
-          <ExternalLink size={12} /> Open in browser
-        </button>
+        {page ? (
+          <>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                onDone();
+                open(page);
+              }}
+            >
+              <Globe size={12} /> Open page
+            </button>
+            <button type="button" onClick={() => void backend.openInBrowser(page).catch(fail)}>
+              <ExternalLink size={12} /> Open in browser
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="primary"
+            onClick={() => void savePageNextTo(path, skill, html).then((p) => onSaved([p]), fail)}
+          >
+            <FilePlus2 size={12} /> Save next to the note
+          </button>
+        )}
         <button type="button" onClick={() => void copyPageText(html).then(say, fail)}>
           <Copy size={12} /> Copy text
         </button>
@@ -88,61 +84,79 @@ export function PageResult({
 export function FilesResult({
   files,
   path,
+  saved,
+  onSaved,
   onDone,
 }: {
   files: SkillFiles;
   path: string;
+  /** Where the files were saved; empty if saving failed. */
+  saved: string[];
+  onSaved(saved: string[]): void;
   onDone(): void;
 }) {
   const folder = homeFolder(path);
-  const planned = planFiles(folder, files.files);
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
     try {
+      const planned = planFiles(folder, files.files);
       await writeFiles(planned);
-      const lesson =
-        planned.find((f) => /\.md$/i.test(f.path) && !/^progress\.md$/i.test(f.path)) ??
-        planned.find((f) => /\.md$/i.test(f.path));
-      say(
-        `Saved ${planned.length} file${planned.length === 1 ? "" : "s"} to ${folder || "the vault"}.`,
-      );
-      onDone();
-      if (lesson) useAppStore.getState().openFile(lesson.target);
+      onSaved(planned.map((f) => f.target));
     } catch (e) {
       fail(e);
-      setBusy(false);
     }
+    setBusy(false);
   };
-  const page = planned.find((f) => /\.html?$/i.test(f.path));
+  const lesson =
+    saved.find((p) => /\.md$/i.test(p) && !/(^|\/)progress\.md$/i.test(p)) ??
+    saved.find((p) => /\.md$/i.test(p));
+  const page = saved.find((p) => /\.html?$/i.test(p));
   return (
     <>
       {files.message && <p className="ai-block-summary">{files.message}</p>}
-      <ul className="ai-block-files" aria-label="Files to save">
-        {planned.map((f) => (
-          <li key={f.target}>
-            {f.path}{" "}
-            <span className="muted">{f.replaces ? "(replaces the current one)" : "(new)"}</span>
-          </li>
-        ))}
-      </ul>
+      {saved.length ? (
+        <>
+          <p className="ai-block-summary muted">
+            Saved {saved.length} file{saved.length === 1 ? "" : "s"} to {folder || "the vault"}:
+          </p>
+          <ul className="ai-block-files" aria-label="Saved files">
+            {saved.map((p) => (
+              <li key={p}>{nameOf(p)}</li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <ul className="ai-block-files" aria-label="Files to save">
+          {files.files.map((f) => (
+            <li key={f.path}>{f.path}</li>
+          ))}
+        </ul>
+      )}
       <div className="ai-block-actions">
-        <button type="button" className="primary" disabled={busy} onClick={() => void save()}>
-          <FolderInput size={12} /> Save to {folder || "the vault"}
-        </button>
-        {page && (
-          <button
-            type="button"
-            onClick={() =>
-              void createDraft({
-                title: page.path.replace(/\.html?$/i, ""),
-                content: page.content,
-                ext: ".html",
-                folder,
-              }).catch(fail)
-            }
-          >
-            <Globe size={12} /> Try the practice page
+        {saved.length ? (
+          <>
+            {lesson && (
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  onDone();
+                  open(lesson);
+                }}
+              >
+                <FileText size={12} /> Open the lesson
+              </button>
+            )}
+            {page && (
+              <button type="button" onClick={() => open(page)}>
+                <Globe size={12} /> Try the practice page
+              </button>
+            )}
+          </>
+        ) : (
+          <button type="button" className="primary" disabled={busy} onClick={() => void save()}>
+            <FolderInput size={12} /> Save to {folder || "the vault"}
           </button>
         )}
       </div>
@@ -173,41 +187,62 @@ export function ChatActions({
   turns,
   path,
   rule = "any",
+  saved,
+  onSaved,
   onWrapUp,
   onDone,
   onDiscard,
 }: {
   skill: Skill;
-  /** Keep the conversation as a Markdown note or an HTML page. */
+  /** The conversation is kept as a Markdown note or an HTML page. */
   format?: "markdown" | "html";
   turns: Turn[];
   path: string;
-  /** The privacy rule of what the conversation read; its draft is marked with it. */
+  /** The privacy rule of what the conversation read; the saved file is marked with it. */
   rule?: AiRule;
+  /** Where the conversation is saved (updated after each reply); empty if it isn't. */
+  saved: string[];
+  onSaved(saved: string[]): void;
   onWrapUp(): void;
   onDone(): void;
   onDiscard(): void;
 }) {
+  const file = saved[0];
   return (
     <div className="ai-block-actions">
       <button type="button" onClick={onWrapUp}>
         Wrap up
       </button>
+      {file ? (
+        <button
+          type="button"
+          onClick={() => {
+            onDone();
+            open(file);
+          }}
+          title={`Saved as “${nameOf(file)}”`}
+        >
+          <FileText size={12} /> Open the saved conversation
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() =>
+            void saveConversation(path, skill, format === "html", turns, rule).then(onSaved, fail)
+          }
+        >
+          <FilePlus2 size={12} /> Save the conversation
+        </button>
+      )}
       <button
         type="button"
-        onClick={() =>
-          void createDraft({
-            title: `${skill.title} - ${path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "")}`,
-            content: format === "html" ? transcriptHtml(skill, turns) : transcript(skill, turns),
-            ...(format === "html" ? { ext: ".html" } : {}),
-            folder: homeFolder(path),
-            rule,
-          }).then(onDone, fail)
-        }
+        title={file ? "Close it and move the saved conversation to the trash" : undefined}
+        onClick={() => {
+          if (file)
+            void backend.trashEntry(file).then(() => useAppStore.getState().refreshTree(), fail);
+          onDiscard();
+        }}
       >
-        <FileText size={12} /> Open as draft
-      </button>
-      <button type="button" onClick={onDiscard}>
         <Trash2 size={12} /> Discard
       </button>
     </div>

@@ -39,7 +39,15 @@ import {
   useSkills,
   withFormat,
 } from "../skills/skills";
-import { homeFolder, runSkill, skillRequest } from "../skills/skillRun";
+import {
+  homeFolder,
+  planFiles,
+  runSkill,
+  saveConversation,
+  savePageNextTo,
+  skillRequest,
+  writeFiles,
+} from "../skills/skillRun";
 import { ChatActions, ChatTranscript, FilesResult, PageResult } from "../skills/SkillResult";
 import { skillIcon } from "../skills/skillIcons";
 import { useUi } from "../commands/ui";
@@ -286,20 +294,38 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       );
       if (!useAiBlocks.getState().blocks[id]) return;
       const done = { kind: "done" as const, result: out.result };
-      if (out.kind === "html") patch({ html: out.html, answer: "", phase: done });
-      else if (out.kind === "files") patch({ files: out.files, answer: "", phase: done });
-      else if (s.output === "chat")
-        patch({
-          turns: [
-            ...(cur.turns ?? []),
-            { role: "user", text: asked },
-            { role: "assistant", text: out.result.text },
-          ],
-          answer: "",
-          prompt: "",
-          phase: done,
-        });
-      else patch({ answer: out.result.text, phase: done });
+      // What a skill makes is saved at once, with the AI icon; a save that fails leaves
+      // the result shown with a button to try again.
+      const keep = async (save: () => Promise<string[]>) => {
+        try {
+          return await save();
+        } catch (e) {
+          const why = isBackendError(e) ? e.message : String(e);
+          useAppStore.getState().setError(`Couldn't save the result: ${why}`);
+          return [];
+        }
+      };
+      if (out.kind === "html") {
+        const saved = await keep(async () => [await savePageNextTo(path, s, out.html)]);
+        patch({ html: out.html, saved, answer: "", phase: done });
+      } else if (out.kind === "files") {
+        const planned = planFiles(homeFolder(path), out.files.files);
+        const saved = await keep(
+          async () => (await writeFiles(planned), planned.map((f) => f.target)),
+        );
+        patch({ files: out.files, saved, answer: "", phase: done });
+      } else if (s.output === "chat") {
+        const turns = [
+          ...(cur.turns ?? []),
+          { role: "user" as const, text: asked },
+          { role: "assistant" as const, text: out.result.text },
+        ];
+        // The conversation is saved after every reply, and kept up to date.
+        const saved = await keep(() =>
+          saveConversation(path, s, format === "html", turns, out.result.rule, cur.saved),
+        );
+        patch({ turns, saved, answer: "", prompt: "", phase: done });
+      } else patch({ answer: out.result.text, phase: done });
     } catch (e) {
       if (!useAiBlocks.getState().blocks[id]) return; // closed meanwhile
       patch({
@@ -564,11 +590,19 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           skill={skill}
           html={state.html}
           path={path}
+          saved={state.saved ?? []}
+          onSaved={(saved) => patch({ saved })}
           onDone={() => closeAiBlock(view, id, false)}
         />
       )}
       {phase.kind === "done" && skill?.output === "files" && state.files && (
-        <FilesResult files={state.files} path={path} onDone={() => closeAiBlock(view, id, false)} />
+        <FilesResult
+          files={state.files}
+          path={path}
+          saved={state.saved ?? []}
+          onSaved={(saved) => patch({ saved })}
+          onDone={() => closeAiBlock(view, id, false)}
+        />
       )}
       {skill?.output === "chat" && !running && (state.turns?.length ?? 0) > 0 && (
         <ChatActions
@@ -577,6 +611,8 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           turns={state.turns ?? []}
           path={path}
           rule={answerRule}
+          saved={state.saved ?? []}
+          onSaved={(saved) => patch({ saved })}
           onWrapUp={() => {
             patch({ prompt: "wrap up" });
             void run();

@@ -1,5 +1,6 @@
 import {
   type AiMessage,
+  type AiRule,
   type AiRunRequest,
   type AiRunResult,
   backend,
@@ -12,6 +13,8 @@ import { markText } from "../../lib/aiAccess";
 import { createUniqueNote } from "../commands/actions";
 import { folderScope } from "../ai/folderScope";
 import { conversationMarkdown, type Turn } from "../ai/conversation";
+import { created, record } from "../filetree/undo";
+import { giveAiIcon } from "./aiIcon";
 import { folderOf, isDraft, suggestedFolder } from "../drafts/drafts";
 import {
   extractHtml,
@@ -163,14 +166,56 @@ const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name);
 export const homeFolder = (path: string) =>
   isDraft(path) ? suggestedFolder(path) : folderOf(path);
 
+/**
+ * Save something a skill made as a new file in `folder` under a free name, with the AI
+ * icon; Ctrl+Z in the file tree takes it back while it's unchanged. Returns its path.
+ */
+export async function keepSkillFile(
+  folder: string,
+  name: string,
+  content: string,
+  ext: string,
+): Promise<string> {
+  const saved = await createUniqueNote(folder, name, content, ext);
+  record(created(saved, content, `Save “${name}”`));
+  await giveAiIcon([saved]);
+  await useAppStore.getState().refreshTree();
+  return saved;
+}
+
+/**
+ * Save a chat skill's conversation (Grill me) next to its note, or update the file it
+ * was saved to after an earlier reply. Marked with the rule of what it read.
+ */
+export async function saveConversation(
+  path: string,
+  skill: Skill,
+  html: boolean,
+  turns: Turn[],
+  rule: AiRule,
+  saved?: string[],
+): Promise<string[]> {
+  const ext = html ? ".html" : ".md";
+  const content = markText(
+    `conversation${ext}`,
+    html ? transcriptHtml(skill, turns) : transcript(skill, turns),
+    rule,
+  );
+  const existing = saved?.[0];
+  if (existing) {
+    await backend.writeFile(existing, content);
+    return [existing];
+  }
+  const note = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
+  return [await keepSkillFile(homeFolder(path), `${skill.title} - ${note}`, content, ext)];
+}
+
 /** Save a skill's web page next to its note, as "<note> - <skill>.html". */
 export async function savePageNextTo(path: string, skill: Skill, html: string): Promise<string> {
   const note = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
-  // A draft made for the run is already named after the skill.
-  const name = isDraft(path) ? note : `${note} - ${skill.title}`;
-  const saved = await createUniqueNote(homeFolder(path), name, html, ".html");
-  await useAppStore.getState().refreshTree();
-  return saved;
+  // A note made for the run (a skill on picked files) is already named after the skill.
+  const name = note.startsWith(`${skill.title} - `) ? note : `${note} - ${skill.title}`;
+  return keepSkillFile(homeFolder(path), name, html, ".html");
 }
 
 export interface PlannedFile extends SkillFile {
@@ -197,16 +242,22 @@ export function planFiles(folder: string, files: SkillFile[]): PlannedFile[] {
   });
 }
 
-/** Write a skill's files into the folder (replacing ones it updates, like Progress.md). */
+/**
+ * Write a skill's files into the folder, with the AI icon. A file it updates (like
+ * Progress.md) replaces the old one, which goes to the OS trash first so it can be
+ * brought back.
+ */
 export async function writeFiles(files: PlannedFile[]): Promise<void> {
   for (const f of files) {
     try {
       await backend.createFile(f.target, f.content);
     } catch (e) {
       if (!(isBackendError(e) && e.code === "AlreadyExists")) throw e;
-      await backend.writeFile(f.target, f.content);
+      await backend.trashEntry(f.target);
+      await backend.createFile(f.target, f.content);
     }
   }
+  await giveAiIcon(files.map((f) => f.target));
   await useAppStore.getState().refreshTree();
 }
 
