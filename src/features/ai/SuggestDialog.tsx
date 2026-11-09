@@ -4,6 +4,7 @@ import { type AiPlan, type AiRunRequest, backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { editNote } from "../files/editNote";
 import { renameEntry } from "../files/renameEntry";
+import { saveAll } from "../files/unsavedWork";
 import { AiRun, askValidated, errorMessage, isCancelled } from "./runAi";
 import {
   addLinks,
@@ -107,6 +108,16 @@ export function SuggestDialog({ path, onClose }: { path: string; onClose(): void
         await editNote(path, (text) => addLinks(addTags(text, pickedTags), pickedLinks));
       let to = path;
       if (title && s.title) {
+        // The edits went through the open editor: write them before the file moves, or
+        // a later autosave would recreate the note at its old path.
+        const unsaved = await saveAll();
+        if (unsaved.some((u) => u.path === path)) {
+          setPhase({
+            kind: "error",
+            message: "The note couldn't be saved, so it wasn't renamed. Save it and try again.",
+          });
+          return;
+        }
         const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/") + 1) : "";
         const clean = s.title
           .replace(/[\\/:*?"<>|#^[\]]+/g, " ")
