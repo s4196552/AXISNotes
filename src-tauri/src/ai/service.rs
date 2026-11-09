@@ -22,6 +22,7 @@ use super::{
     Role, Usage,
 };
 use crate::error::{AppError, AppResult};
+use crate::index::passages;
 use crate::vault::Vault;
 
 /// A request from the UI.
@@ -41,9 +42,43 @@ pub struct RunRequest {
     pub temperature: Option<f32>,
     pub effort: Option<Effort>,
     pub json: bool,
+    /// Parts of notes ("Ask your vault"): Rust reads each section itself and holds the
+    /// request to its note's rule, like `attach`.
+    pub passages: Vec<PassageRef>,
+    /// A floor for the request's rule: a conversation whose earlier answers came from
+    /// stricter notes sends their rule here. It can only make a request stricter.
+    pub at_least: Option<AiRule>,
+}
+
+/// One section of a note: its path and the heading it sits under (`None` = before the
+/// first heading).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PassageRef {
+    pub path: String,
+    pub heading: Option<String>,
+}
+
+impl PassageRef {
+    /// How the model should cite it, as a wikilink: `[[School/Bio#Energy]]`.
+    pub fn cite(&self) -> String {
+        let note = self.path.strip_suffix(".md").unwrap_or(&self.path);
+        match &self.heading {
+            Some(h) => format!("[[{note}#{h}]]"),
+            None => format!("[[{note}]]"),
+        }
+    }
 }
 
 impl RunRequest {
+    /// Every note the request reads, for the rules.
+    fn read_paths(&self) -> impl Iterator<Item = &String> {
+        self.sources
+            .iter()
+            .chain(&self.attach)
+            .chain(self.passages.iter().map(|p| &p.path))
+    }
+
     fn task(&self) -> Task {
         self.task.unwrap_or(Task::Chat)
     }
@@ -513,7 +548,7 @@ impl AiService {
     /// Read attached notes (Rust-side, so they are always subject to the rules).
     fn expand(&self, vault: Option<&Vault>, req: &RunRequest) -> AppResult<Vec<Message>> {
         let mut messages = req.messages.clone();
-        if req.attach.is_empty() {
+        if req.attach.is_empty() && req.passages.is_empty() {
             return Ok(messages);
         }
         let vault = vault.ok_or(AppError::NoVault)?;
@@ -524,10 +559,32 @@ impl AiService {
                 text: format!("<note path=\"{path}\">\n{}\n</note>", file.content),
             });
         }
-        // Context goes before the user's last message.
+        for p in &req.passages {
+            // Read now from the file: a section that's gone since it was found is left out.
+            let file = vault.read_file(&p.path)?;
+            let (_, fm_len) = crate::index::parse::frontmatter(&file.content);
+            let body = &file.content[fm_len..];
+            let Some(text) = passages::section_text(body, p.heading.as_deref()) else {
+                continue;
+            };
+            let attr = |s: &str| s.replace('"', "&quot;");
+            parts.push(Part::Text {
+                text: format!(
+                    "<passage path=\"{}\" heading=\"{}\" cite=\"{}\">\n{text}\n</passage>",
+                    attr(&p.path),
+                    attr(p.heading.as_deref().unwrap_or("")),
+                    attr(&p.cite())
+                ),
+            });
+        }
+        if parts.is_empty() {
+            return Ok(messages);
+        }
+        // Context goes first, right after the system prompt: a conversation's later turns
+        // then share the same opening, so providers can reuse their prompt cache.
         let at = messages
             .iter()
-            .rposition(|m| m.role == Role::User)
+            .position(|m| m.role != Role::System)
             .unwrap_or(messages.len());
         messages.insert(
             at,
@@ -542,19 +599,19 @@ impl AiService {
     /// The strictest rule over every note the request reads: each note's folder/file
     /// rule, raised by its own `ai-access` mark (AI output keeps its sources' rule).
     fn rule(&self, vault: Option<&Vault>, req: &RunRequest) -> AiRule {
+        let floor = req.at_least.unwrap_or(AiRule::Any);
         let Some(vault) = vault else {
-            return AiRule::Any;
+            return floor;
         };
         let rules = privacy::rules(vault);
-        req.sources
-            .iter()
-            .chain(&req.attach)
+        req.read_paths()
             .map(|p| {
                 let text = vault.read_file(p).ok().map(|f| f.content);
                 privacy::rule_for_note(&rules, p, text.as_deref())
             })
             .max()
             .unwrap_or(AiRule::Any)
+            .max(floor)
     }
 
     /// The model allowlists that apply to this request: one per distinct folder that sets
@@ -565,7 +622,7 @@ impl AiService {
         };
         let lists = privacy::model_allowlists(vault);
         let mut out: Vec<(String, Vec<String>)> = Vec::new();
-        for p in req.sources.iter().chain(&req.attach) {
+        for p in req.read_paths() {
             if let Some((at, list)) = privacy::allowlist_for(&lists, p) {
                 if !out.iter().any(|(a, _)| a == at) {
                     out.push((at.to_string(), list.to_vec()));
@@ -615,7 +672,7 @@ impl AiService {
         let task = req.task();
         let rule = self.rule(vault, &req);
         let allowed = self.allowlists(vault, &req);
-        let sources = req.sources.len() + req.attach.len();
+        let sources = req.sources.len() + req.attach.len() + req.passages.len();
         let messages = self.expand(vault, &req)?;
         let estimate = estimate_tokens(&messages);
         let blocked = |provider: &str, model: &str, why: &str| LogEntry {

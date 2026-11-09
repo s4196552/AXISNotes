@@ -96,6 +96,7 @@ pub fn run() {
             commands::open_in_browser,
             pages::open_web_link,
             commands::search,
+            commands::vault_passages,
             commands::list_tags,
             commands::list_property_keys,
             commands::list_notes,

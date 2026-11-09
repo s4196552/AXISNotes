@@ -267,6 +267,27 @@ export interface AiRunRequest {
   temperature?: number;
   effort?: AiEffort;
   json?: boolean;
+  /** Parts of notes ("Ask your vault"); the backend reads each section itself. */
+  passages?: PassageRef[];
+  /** A floor for the request's rule (a conversation's earlier answers' strictest rule). */
+  atLeast?: AiRule;
+}
+
+/** One section of a note: its path and the heading it's under (null = before the first). */
+export interface PassageRef {
+  path: string;
+  heading: string | null;
+}
+
+/** A passage "Ask your vault" would send, with its estimated size. */
+export interface VaultPassage extends PassageRef {
+  tokens: number;
+}
+
+export interface VaultPassages {
+  passages: VaultPassage[];
+  /** Matching notes the AI rules left out. */
+  leftOut: number;
 }
 
 export interface AiPlan {
@@ -591,6 +612,12 @@ export interface Backend {
   aiCancel(runId: string): Promise<void>;
   /** Recent AI requests (metadata only), newest first. */
   aiLog(limit?: number): Promise<AiLogEntry[]>;
+
+  /**
+   * The note sections that best answer `question` ("Ask your vault"). Notes under
+   * "AI: never" are left out; local-only ones only with `includeLocal`.
+   */
+  vaultPassages(question: string, includeLocal: boolean): Promise<VaultPassages>;
 
   /** The connector's program path; null where there is none (browser preview). */
   claudeConnectorInfo(): Promise<ClaudeConnectorInfo | null>;

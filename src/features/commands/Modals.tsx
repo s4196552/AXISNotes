@@ -400,6 +400,7 @@ function renderModal(modal: NonNullable<ReturnType<typeof useUi.getState>["modal
           path={modal.path}
           selection={modal.selection}
           folder={modal.folder}
+          vault={modal.vault}
           onClose={() => useUi.getState().close()}
         />
       );

@@ -12,7 +12,7 @@ export type Modal =
   | { kind: "icon"; path: string }
   | { kind: "colors"; path: string }
   | { kind: "allowed-models"; path: string }
-  | { kind: "ask"; path?: string; selection?: string; folder?: string }
+  | { kind: "ask"; path?: string; selection?: string; folder?: string; vault?: boolean }
   | { kind: "handwriting"; path: string }
   | { kind: "import" }
   | { kind: "move"; path: string }

@@ -335,6 +335,108 @@ async fn folder_model_allowlists_filter_every_provider_including_fallbacks() {
     );
 }
 
+fn last_body(e: &Env) -> serde_json::Value {
+    e.fx.requests
+        .lock()
+        .unwrap()
+        .last()
+        .unwrap()
+        .body
+        .clone()
+        .unwrap()
+}
+
+#[tokio::test]
+async fn passages_are_read_by_rust_held_to_their_rules_and_cited() {
+    let e = env(vec![(200, OPENAI_OK)], std_providers(), &["openai"]);
+    e.vault
+        .write_file(
+            "School/Bio.md",
+            "---\ntags: [bio]\n---\nIntro\n# Energy\nMitochondria make \"ATP\".\n# Other\nNot sent\n",
+            None,
+        )
+        .unwrap();
+    let mut req = ask(&[]);
+    req.passages = vec![
+        PassageRef {
+            path: "School/Bio.md".into(),
+            heading: Some("Energy".into()),
+        },
+        PassageRef {
+            path: "School/Bio.md".into(),
+            heading: Some("Gone since".into()),
+        },
+    ];
+    let (r, _) = run(&e, req).await;
+    assert_eq!(r.unwrap().rule, AiRule::Any);
+    let body = last_body(&e).to_string();
+    assert!(
+        body.contains("cite=\\\"[[School/Bio#Energy]]\\\""),
+        "{body}"
+    );
+    assert!(body.contains("Mitochondria make \\\"ATP\\\""));
+    assert!(!body.contains("Not sent") && !body.contains("Gone since") && !body.contains("tags"));
+    assert_eq!(e.service.read_log(1)[0].sources, 2);
+
+    // A passage from an "AI: never" folder blocks the request; a local-only one needs a
+    // local model.
+    for (path, blocked_word) in [("Medical/scan.md", "never"), ("Journal/day.md", "local")] {
+        let mut req = ask(&[]);
+        req.passages = vec![PassageRef {
+            path: path.into(),
+            heading: None,
+        }];
+        let (r, _) = run(&e, req).await;
+        assert!(
+            matches!(r, Err(AppError::Blocked(ref m)) if m.contains(blocked_word)),
+            "{path}: {r:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_conversations_rule_floor_only_makes_requests_stricter() {
+    let e = env(vec![(200, OPENAI_OK)], std_providers(), &["openai"]);
+    let mut req = ask(&["School/Bio.md"]);
+    req.at_least = Some(AiRule::Local);
+    let (r, _) = run(&e, req).await;
+    assert!(
+        matches!(r, Err(AppError::Blocked(ref m)) if m.contains("local")),
+        "{r:?}"
+    );
+    let mut req = ask(&["Medical/scan.md"]);
+    req.at_least = Some(AiRule::Any);
+    assert!(matches!(run(&e, req).await.0, Err(AppError::Blocked(_))));
+    assert!(e.fx.requests.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn attached_notes_come_first_so_follow_ups_share_a_cached_opening() {
+    let e = env(vec![(200, OPENAI_OK)], std_providers(), &["openai"]);
+    let mut req = ask(&[]);
+    req.messages = vec![
+        Message::text(Role::System, "Be brief."),
+        Message::text(Role::User, "First?"),
+        Message::text(Role::Assistant, "One."),
+        Message::text(Role::User, "Second?"),
+    ];
+    req.attach = vec!["School/Bio.md".into()];
+    run(&e, req).await.0.unwrap();
+    let body = last_body(&e);
+    let input = body["input"].as_array().unwrap();
+    let text = |i: usize| {
+        input[i]["content"][0]["text"]
+            .as_str()
+            .unwrap_or("")
+            .to_string()
+    };
+    assert!(
+        text(1).starts_with("<note path=\"School/Bio.md\">"),
+        "{body}"
+    );
+    assert_eq!(text(2), "First?");
+}
+
 #[tokio::test]
 async fn falls_back_when_a_provider_is_down() {
     let e = env(

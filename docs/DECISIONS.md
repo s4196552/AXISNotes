@@ -2,6 +2,25 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-08: Ask your vault, with citations (T-197)
+
+- **Retrieval is the full-text index, not embeddings.** `Index::passages` (`src-tauri/src/index/passages.rs`):
+  - takes the question's words (3+ letters, minus a stopword list) and "quoted phrases";
+  - runs an FTS5 OR query ranked by the existing `bm25(fts, 8.0, 1.0)`, over at most 40 notes;
+  - splits each note at its headings (not inside code blocks) and keeps up to 3 sections per note that mention the most terms;
+  - packs them best-first into 8,000 estimated tokens.
+  - No new dependency, no model download, and it works offline. Semantic search can come later as an explicit mode.
+- **The webview never supplies passage text.** It sends `RunRequest.passages` (path + heading). The Rust layer re-reads each section from the file (frontmatter stripped, cut to 6,000 characters) and holds the request to each note's rule, mark and allowlist, like `attach`.
+  - A section whose heading has gone since it was found is left out.
+  - Each passage carries a `cite` attribute (`[[School/Bio#Energy]]`), which the model is told to quote.
+- **Rules.** `vault_passages` leaves out notes under "AI: never" (or marked never) and reports how many. Local-only notes are only used with "Include local-only notes", and then only a local model can answer, enforced when the request is read.
+- **Rule floor.** `RunRequest.atLeast` raises a request's rule to the conversation's strictest so far. Ask AI and AI blocks send it with every follow-up, because earlier answers go back as plain text: a follow-up that only retrieves open notes, after an answer drawn from local-only ones, still needs a local model. It can only make a request stricter.
+- **Prompt order.** Attached notes and passages now go right after the system prompt, not just before the newest question, so a conversation's turns share a growing cached opening.
+- **UI.**
+  - Started from "Ask your vault" in the palette (Ctrl+Shift+J), which opens Ask AI in vault mode.
+  - It shows "Using N passages from M notes" (expandable), then the answer, then a Sources list.
+  - Citations to passages that weren't sent are struck through and labelled "not in sources".
+
 ## 2026-11-08: Ctrl+Z / Ctrl+Y in the file tree (T-200)
 
 - **Each sidebar action records how to reverse it.** Reversing returns the step that redoes it. Ctrl+Z undoes, and Ctrl+Y or Ctrl+Shift+Z redoes. History is per vault, kept in memory, up to 50 steps.
@@ -20,6 +39,7 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - Undoing a new note or a pasted copy takes it back to the trash only while its text is unchanged; a new folder only while it's empty. Otherwise it's refused with a message.
   - A step that fails is dropped with an error, never half-retried.
 - **Where the keys work:** in the tree, and anywhere focus isn't in a text box, the editor (which keeps its own undo), an embedded page or an open dialog.
+
 ## 2026-11-08: Follow-up questions in Ask AI and AI blocks (T-196)
 
 - Ask AI and plain-prompt AI blocks keep a conversation. After an answer the box empties for a follow-up. Each follow-up re-sends the same attached notes (cheap with T-195's prompt caching) and the earlier exchanges (`conversation.ts` `withHistory`).

@@ -164,6 +164,12 @@ registerCommands([
     run: openAskAi,
   },
   {
+    id: "ask-vault",
+    label: "Ask your vault",
+    shortcut: { key: "j", mod: true, shift: true },
+    run: () => useUi.getState().open({ kind: "ask", vault: true }),
+  },
+  {
     id: "ai-block",
     label: "AI block at the cursor",
     run: () => {
