@@ -153,6 +153,8 @@ describe("Copy text", () => {
         skill={skill}
         html={makeCopyable("<!doctype html><html><body><p>One</p><p>Two</p></body></html>")}
         path="Bio/Cells.md"
+        saved={["Bio/Cells - Cards.html"]}
+        onSaved={vi.fn()}
         onDone={vi.fn()}
       />,
     );

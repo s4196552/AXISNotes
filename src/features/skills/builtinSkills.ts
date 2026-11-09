@@ -10,6 +10,17 @@ const PAGE_RULES = `- Everything is inline: one <style> and one <script>, no ext
 
 Reply with only the HTML document, starting with <!doctype html>. No explanation before or after it.`;
 
+// For skills that test or teach: the notes are course material, and questions are about
+// what they teach. Without this, models quiz the notes' layout ("Which week covered
+// photosynthesis?") because note paths like "Week 3/…" are all they see of the structure.
+const STUDY_RULES = `Test the subject itself, the way a teacher sets a school exam on this material:
+- The notes are course material. Ask about what they teach: definitions, facts, processes and their steps, causes and effects, comparisons, formulas and worked problems, and applying ideas to new examples.
+- Never ask about the notes themselves: not which week, lecture, lesson, note, file, folder, heading or date a topic was in, not the order topics came in, and not what a note is called. Note names, folders and dates are only labels for you; never mention them in a question, an option or an answer.
+- Cover all the material, in proportion to how much each topic takes up, rather than one question per note.
+- Most questions need understanding, not a single remembered word: ask why, how, what would happen if, which example shows, or what's wrong with a statement. Include a few that combine ideas from different topics, like the hardest questions on a real exam.
+- Wrong options in multiple choice are plausible mistakes a student might make, not obviously silly ones.
+- Leave out course admin in the notes (due dates, assessment details, reading lists, to-dos) unless the user asks for it.`;
+
 export const BUILTIN_SKILL_FILES: Record<string, string> = {
   mindmap: `---
 name: mindmap
@@ -23,6 +34,7 @@ Turn the note you were given into a mind map.
 - The root is the note's main subject, in a few words.
 - Use 2 to 4 levels. Group related ideas under one branch, and keep every label short (at most 6 words).
 - Cover the whole note. Don't add ideas the note doesn't contain.
+- Branch by topic, not by note, week, lecture or date: those are only labels for the material.
 - If the user adds instructions (a focus, a depth), follow them.
 
 ## Format: Markdown
@@ -43,12 +55,14 @@ description: Make a practice test from your notes, with answers and explanations
 output: html
 reads: note
 ---
-Write a practice test on the notes you were given.
+Write a practice test on what the notes you were given teach, like an exam a student sits on this material.
+
+${STUDY_RULES}
 
 - 10 questions unless the user asks for a different number, ordered from easier to harder.
 - Mix multiple choice (4 options, one correct), true/false and short answer.
-- Every question checks something the notes actually say. Never invent facts.
-- Each question has a one- or two-sentence explanation.
+- Every question and answer comes from what the notes say. Never invent facts.
+- Each question has a one- or two-sentence explanation of why the answer is right.
 
 ## Format: Markdown
 Write the test as a Markdown note.
@@ -74,9 +88,11 @@ description: Make a flash-card deck from your notes, as an interactive page or a
 output: html
 reads: note
 ---
-Make a flash-card deck from the notes you were given.
+Make a flash-card deck for studying what the notes you were given teach.
 
-- One card per key fact, term or idea in the notes (usually 10 to 30). The front asks; the back answers in one or two short sentences.
+${STUDY_RULES}
+
+- One card per key fact, term, process or idea (usually 10 to 30). The front asks; the back answers in one or two short sentences.
 - Only use what the notes say. Never invent facts.
 
 ## Format: Markdown
@@ -161,7 +177,9 @@ Each session
 1. Read the workspace notes you were given.
    - If there is a "Progress.md", continue from it: review what was covered, the learner's level and their mistakes, then teach the next step.
    - If there isn't one, this is the first session. Work out the topic from the user's message (or from the notes), then plan a short curriculum of 5 to 10 lessons, from basics to real use.
-2. Teach one lesson. It builds on the last and fixes earlier misunderstandings.
+2. Teach one lesson. It builds on the last and fixes earlier misunderstandings. Exercises follow these rules:
+
+${STUDY_RULES}
 3. Write or update the files below. "Progress.md" is always written: the topic, the curriculum as a checklist (- [x] for done lessons), the learner's current level, mistakes to revisit, and what the next session should start with. Rewrite the whole file each time.
 
 Reply with one JSON object and nothing else:

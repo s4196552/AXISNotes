@@ -49,6 +49,8 @@ export interface AiBlockState {
   turns?: { role: "user" | "assistant"; text: string }[];
   /** A plain prompt: the question the current answer is for. */
   asked?: string;
+  /** Files a skill's result was saved to (with the AI icon), so it's saved only once. */
+  saved?: string[];
   /** The strictest rule of the conversation's answers: follow-ups are held to it. */
   convRule?: AiRule;
   /** A page skill's checked HTML. */
