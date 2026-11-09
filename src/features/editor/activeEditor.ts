@@ -3,15 +3,30 @@ import type { EditorView } from "@codemirror/view";
 // The editor currently showing a note, so commands (templates, palette) can edit it. With
 // split panes, it's the focused pane's.
 
+const listeners = new Set<() => void>();
+export const onActiveEditorChange = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+export function activeEditorChanged(view?: EditorView) {
+  if (!view || current?.view === view) for (const listener of listeners) listener();
+}
+
 let current: { view: EditorView; path: string } | null = null;
 
 export function setActiveEditor(view: EditorView | null, path?: string) {
   current = view && path ? { view, path } : null;
+  activeEditorChanged();
 }
 
 /** Forget `view` if it's the active editor (another pane's may be active by now). */
 export function clearActiveEditor(view: EditorView | null) {
-  if (current && (!view || current.view === view)) current = null;
+  if (current && (!view || current.view === view)) {
+    current = null;
+    activeEditorChanged();
+  }
 }
 
 export function getActiveEditor() {

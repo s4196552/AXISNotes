@@ -14,7 +14,10 @@ import { minimalChange } from "../editor/targets";
 export async function editNote(
   path: string,
   edit: (text: string) => string | null,
+  vaultRoot?: string,
 ): Promise<boolean> {
+  if (vaultRoot && useAppStore.getState().vault?.root !== vaultRoot)
+    throw new Error("The vault changed. Open the original vault to apply this edit.");
   const active = getActiveEditor();
   if (active?.path === path) {
     const view = active.view;
@@ -26,10 +29,12 @@ export async function editNote(
   }
   for (let attempt = 0; attempt < 2; attempt++) {
     const file = await backend.readFile(path);
+    if (vaultRoot && useAppStore.getState().vault?.root !== vaultRoot)
+      throw new Error("The vault changed while preparing the edit.");
     const next = edit(file.content);
     if (next === null || next === file.content) return false;
     try {
-      await backend.writeFile(path, next, file.modifiedMs);
+      await backend.writeFile(path, next, file.modifiedMs, vaultRoot);
       useAppStore.getState().bumpIndex();
       return true;
     } catch (e) {

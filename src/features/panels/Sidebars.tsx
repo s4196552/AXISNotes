@@ -9,6 +9,7 @@ import {
   ListChecks,
   Network,
   Search,
+  Sparkles,
   Settings as SettingsIcon,
 } from "lucide-react";
 import { lazyNamed } from "../../app/lazy";
@@ -29,6 +30,8 @@ import { PanelToggle } from "./PanelToggle";
 import { SearchPanel } from "./SearchPanel";
 import { TagsPanel } from "./TagsPanel";
 import { VaultMenu } from "../vault/VaultMenu";
+import { openSidebarChat, useSidebarChat } from "../ai/sidebarChatState";
+const SidebarChat = lazyNamed(() => import("../ai/SidebarChat"), "SidebarChat");
 import "./panels.css";
 
 const TABS: { id: LeftPanel; label: string; Icon: typeof Search }[] = [
@@ -167,6 +170,8 @@ function SectionToggle(p: { title: string; open: boolean; onToggle(): void }) {
  * links; Graph, Tasks and Time only the calendar. Sections fold, remembered per device.
  */
 export function RightSidebar() {
+  const chat = useSidebarChat((s) => s.open);
+  const root = useAppStore((s) => s.vault?.root);
   const view = useAppStore((s) => s.mainView);
   const activePath = useAppStore((s) => s.activePath);
   const tabPath = useAppStore((s) => activeTab(s.tabs).path);
@@ -180,47 +185,78 @@ export function RightSidebar() {
     <aside className="sidebar sidebar-right" aria-label="Links">
       {/* Under the window's own buttons, level with the tab row; it moves the window. */}
       {backend.windowFrame && <div className="sidebar-right-head" data-tauri-drag-region />}
-      {!onHome && (
-        <section className="side-section" aria-label="Calendar section">
-          <h2 className="side-section-head">
-            <SectionToggle
-              title="Calendar"
-              open={open.calendar}
-              onToggle={() => toggle("calendar")}
-            />
-          </h2>
-          {open.calendar && <Calendar />}
-        </section>
-      )}
-      {isNote && file && (
-        <section className="side-section side-outline" aria-label="Outline section">
-          <h2 className="side-section-head">
-            <SectionToggle title="Outline" open={open.outline} onToggle={() => toggle("outline")} />
-          </h2>
-          {open.outline && <OutlinePanel path={file} />}
-        </section>
-      )}
-      {isNote &&
-        (open.graph ? (
-          <Suspense fallback={null}>
-            <LocalGraph
-              toggle={<SectionToggle title="Local graph" open onToggle={() => toggle("graph")} />}
-            />
-          </Suspense>
-        ) : (
-          <section className="side-section" aria-label="Local graph">
-            <h2 className="side-section-head">
-              <SectionToggle title="Local graph" open={false} onToggle={() => toggle("graph")} />
-            </h2>
-          </section>
-        ))}
-      {linkable && (
-        <div className="sidebar-body">
-          <BacklinksPanel />
-        </div>
-      )}
-      {!file && (
-        <p className="panel-note muted side-hint">Open a note to see its outline and links.</p>
+      <div className="sidebar-tabs" role="tablist" aria-label="Right sidebar panels">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!chat}
+          onClick={() => useSidebarChat.setState({ open: false })}
+        >
+          Note details
+        </button>
+        <button type="button" role="tab" aria-selected={chat} onClick={() => openSidebarChat(null)}>
+          <Sparkles size={14} /> AI chat
+        </button>
+      </div>
+      {chat ? (
+        <Suspense fallback={<p className="panel-note">Opening AI chat…</p>}>
+          <SidebarChat key={root} />
+        </Suspense>
+      ) : (
+        <>
+          {!onHome && (
+            <section className="side-section" aria-label="Calendar section">
+              <h2 className="side-section-head">
+                <SectionToggle
+                  title="Calendar"
+                  open={open.calendar}
+                  onToggle={() => toggle("calendar")}
+                />
+              </h2>
+              {open.calendar && <Calendar />}
+            </section>
+          )}
+          {isNote && file && (
+            <section className="side-section side-outline" aria-label="Outline section">
+              <h2 className="side-section-head">
+                <SectionToggle
+                  title="Outline"
+                  open={open.outline}
+                  onToggle={() => toggle("outline")}
+                />
+              </h2>
+              {open.outline && <OutlinePanel path={file} />}
+            </section>
+          )}
+          {isNote &&
+            (open.graph ? (
+              <Suspense fallback={null}>
+                <LocalGraph
+                  toggle={
+                    <SectionToggle title="Local graph" open onToggle={() => toggle("graph")} />
+                  }
+                />
+              </Suspense>
+            ) : (
+              <section className="side-section" aria-label="Local graph">
+                <h2 className="side-section-head">
+                  <SectionToggle
+                    title="Local graph"
+                    open={false}
+                    onToggle={() => toggle("graph")}
+                  />
+                </h2>
+              </section>
+            ))}
+          {linkable && (
+            <div className="sidebar-body">
+              <BacklinksPanel />
+            </div>
+          )}
+          {!file && (
+            <p className="panel-note muted side-hint">Open a note to see its outline and links.</p>
+          )}
+        </>
       )}
       <PanelResizer side="right" />
     </aside>

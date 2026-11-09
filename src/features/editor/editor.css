@@ -1318,3 +1318,28 @@ body.cm-image-drag-copy * {
   * {
   color: var(--code-color) !important;
 }
+
+.note-ai-menu {
+  position: fixed;
+  z-index: 1600;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-width: calc(100vw - 8px);
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: 0 6px 24px #0003;
+}
+.note-ai-menu button {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 7px 10px;
+  color: var(--fg);
+}
+.note-ai-menu button:hover,
+.note-ai-menu button:focus-visible {
+  background: var(--bg-hover);
+}

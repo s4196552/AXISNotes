@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { NoteContextMenu } from "./NoteContextMenu";
+import type { ChatContext } from "../ai/sidebarChatState";
 import { commandMenuTabs } from "./commandMenuTabs";
 import { createPortal } from "react-dom";
 import { ListTree, Sparkles, WandSparkles } from "lucide-react";
@@ -23,7 +25,13 @@ import {
   trackClosingWrite,
   type UnsavedDocument,
 } from "../files/unsavedWork";
-import { clearActiveEditor, noteSaved, onNoteSaved, setActiveEditor } from "./activeEditor";
+import {
+  activeEditorChanged,
+  clearActiveEditor,
+  noteSaved,
+  onNoteSaved,
+  setActiveEditor,
+} from "./activeEditor";
 import { usePane } from "../../app/paneContext";
 import { links, refreshLinks, wikilinkCompletions } from "./links";
 import { anchorCompletions, embeds } from "./embeds";
@@ -142,6 +150,10 @@ function pageStyle(props: Props): string {
 }
 
 export function Editor({ path }: EditorProps) {
+  const [noteMenu, setNoteMenu] = useState<{ x: number; y: number; context: ChatContext } | null>(
+    null,
+  );
+  const closeNoteMenu = useCallback(() => setNoteMenu(null), []);
   const host = useRef<HTMLDivElement>(null);
   // Keep React-owned metadata outside the editable document, but inside its scroller.
   // A stable portal target preserves title/picker state when the editor loads.
@@ -405,8 +417,35 @@ export function Editor({ path }: EditorProps) {
               ...searchKeymap,
               indentWithTab,
             ]),
+            EditorView.domEventHandlers({
+              contextmenu(event, v) {
+                const root = useAppStore.getState().vault?.root;
+                if (!root) return false;
+                event.preventDefault();
+                setActiveEditor(v, path);
+                const doc = v.state.doc.toString();
+                const sel = v.state.selection.main;
+                const from = sel.empty ? 0 : sel.from;
+                const to = sel.empty ? doc.length : sel.to;
+                setNoteMenu({
+                  x: event.clientX,
+                  y: event.clientY,
+                  context: {
+                    root,
+                    path,
+                    doc,
+                    from,
+                    to,
+                    text: doc.slice(from, to),
+                    selection: !sel.empty,
+                  },
+                });
+                return true;
+              },
+            }),
             EditorView.contentAttributes.of({ "aria-label": `Note ${titleOf(path)}` }),
             EditorView.updateListener.of((u) => {
+              if (u.docChanged || u.selectionSet) activeEditorChanged(u.view);
               if (u.docChanged) syncProps(u.state);
               if (u.docChanged || u.selectionSet) scheduleCount(u.state);
               if (u.docChanged && !u.transactions.some((tr) => tr.annotation(fromDisk))) {
@@ -645,6 +684,7 @@ export function Editor({ path }: EditorProps) {
 
   return (
     <div className="editor">
+      {noteMenu && <NoteContextMenu {...noteMenu} onClose={closeNoteMenu} />}
       {createPortal(pageTop, pageTopHost)}
       {statusSlot && focused && createPortal(docStatus, statusSlot)}
 
