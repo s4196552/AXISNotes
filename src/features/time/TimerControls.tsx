@@ -5,6 +5,7 @@ import { useTimer } from "./timer";
 import { durationMs, formatClock } from "./timeLog";
 import { noteLabel } from "./report";
 import "./time.css";
+import { openOnClick } from "../../lib/openClick";
 
 /** Re-render every second while `on`. */
 function useTick(on: boolean) {
@@ -74,7 +75,9 @@ export function RunningTimer() {
       <button
         className="running-timer-label"
         title="Open the note"
-        onClick={() => useAppStore.getState().openFile(running.path)}
+        {...openOnClick((newTab) =>
+          useAppStore.getState().openFile(running.path, undefined, { newTab }),
+        )}
       >
         <Timer size={12} /> {label}
       </button>

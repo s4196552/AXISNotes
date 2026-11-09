@@ -91,6 +91,7 @@ import {
   widgetLabel,
 } from "./dashboardModel";
 import "./dashboard.css";
+import { openOnClick } from "../../lib/openClick";
 
 // The vault's Home and folder dashboards: a grid of widgets the user can add, remove and
 // reorder. Layouts are saved in the vault config (see dashboardModel.ts).
@@ -685,7 +686,7 @@ function SourceButton({ path, line }: { path: string; line: number }) {
     <button
       className="dashboard-source"
       title={`${path}, line ${line}`}
-      onClick={() => useAppStore.getState().openFile(path, { line })}
+      {...openOnClick((newTab) => useAppStore.getState().openFile(path, { line }, { newTab }))}
     >
       {noteName(path)}
     </button>

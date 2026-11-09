@@ -10,6 +10,7 @@ import { type Bucket, BUCKETS, bucketOf, matchesFilter, PRIORITY } from "./taskM
 import { toggleTask } from "./toggleTask";
 import { TaskTimerButton } from "../time/TimerControls";
 import "./tasks.css";
+import { openOnClick } from "../../lib/openClick";
 
 // Every task in the vault, grouped by due date. Checking a task edits its note.
 
@@ -133,7 +134,9 @@ export function TasksView() {
                       <button
                         className="tasks-source"
                         title={`${t.path}, line ${t.line}`}
-                        onClick={() => useAppStore.getState().openFile(t.path, { line: t.line })}
+                        {...openOnClick((newTab) =>
+                          useAppStore.getState().openFile(t.path, { line: t.line }, { newTab }),
+                        )}
                       >
                         {noteName(t.path)}
                       </button>

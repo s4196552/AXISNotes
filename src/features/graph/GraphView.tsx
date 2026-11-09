@@ -50,10 +50,10 @@ function useGraphColors() {
   );
 }
 
-function openNode(id: string) {
+function openNode(id: string, newTab = false) {
   const store = useAppStore.getState();
-  if (id.startsWith("?")) void store.openLink(id.slice(1), store.activePath ?? "");
-  else store.openFile(id);
+  if (id.startsWith("?")) void store.openLink(id.slice(1), store.activePath ?? "", { newTab });
+  else store.openFile(id, undefined, { newTab });
 }
 
 const MODES: { mode: GraphMode; label: string; Icon: typeof Network }[] = [
@@ -93,8 +93,8 @@ export function GraphView() {
     [graph, settings.groups],
   );
   const open = useCallback(
-    (id: string) => {
-      openNode(id);
+    (id: string, newTab?: boolean) => {
+      openNode(id, newTab);
       setMainView("note");
     },
     [setMainView],

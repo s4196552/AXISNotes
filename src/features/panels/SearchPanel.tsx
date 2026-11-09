@@ -4,6 +4,7 @@ import { backend, HL_END, HL_START, isBackendError, type SearchHit } from "../..
 import { useAppStore } from "../../app/store";
 import { cleanSnippet } from "../../lib/searchText";
 import { Highlighted } from "./Highlighted";
+import { openOnClick } from "../../lib/openClick";
 
 /** Examples under an empty search box; clicking one adds it to the query. */
 const OPERATORS: { example: string; meaning: string }[] = [
@@ -105,7 +106,9 @@ export function SearchPanel() {
           <li key={hit.path}>
             <button
               className="panel-item"
-              onClick={() => openFile(hit.path, hit.heading ? { heading: hit.heading } : undefined)}
+              {...openOnClick((newTab) =>
+                openFile(hit.path, hit.heading ? { heading: hit.heading } : undefined, { newTab }),
+              )}
             >
               <span className="panel-item-title">
                 {hit.title}

@@ -55,6 +55,14 @@ export function InlineText({
                   e.stopPropagation();
                   void followLink(t.inner, from, { newTab: e.ctrlKey || e.metaKey });
                 }}
+                // Middle-click (the scroll wheel) opens it in a new tab too.
+                onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+                onAuxClick={(e) => {
+                  if (e.button !== 1) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void followLink(t.inner, from, { newTab: true });
+                }}
               >
                 {t.text}
               </button>

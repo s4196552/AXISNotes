@@ -140,7 +140,7 @@ interface Mounted {
 async function mountSigma(
   el: HTMLElement,
   graph: Graph<NodeAttrs>,
-  onClick: (id: string) => void,
+  onClick: (id: string, newTab: boolean) => void,
   look: () => SigmaLook,
   forces: ForceSettings,
   positions: Map<string, { x: number; y: number }>,
@@ -264,7 +264,22 @@ async function mountSigma(
   sim.on("end", freeze);
   sim.restart();
 
-  renderer.on("clickNode", ({ node }) => onClick(node));
+  // Ctrl/Cmd+click opens a node in a new tab; so does a middle-click (the scroll wheel)
+  // on the node under the pointer, which Sigma doesn't report as a click.
+  renderer.on("clickNode", ({ node, event }) => {
+    const o = event?.original as MouseEvent | undefined;
+    onClick(node, Boolean(o?.ctrlKey || o?.metaKey));
+  });
+  const onWheelDown = (e: MouseEvent) => {
+    if (e.button === 1) e.preventDefault(); // no auto-scroll
+  };
+  const onAuxClick = (e: MouseEvent) => {
+    if (e.button !== 1 || !hovered) return;
+    e.preventDefault();
+    onClick(hovered, true);
+  };
+  el.addEventListener("mousedown", onWheelDown);
+  el.addEventListener("auxclick", onAuxClick);
   renderer.on("enterNode", ({ node }) => {
     hovered = node;
     el.style.cursor = "pointer";
@@ -331,6 +346,8 @@ async function mountSigma(
 
   return {
     dispose() {
+      el.removeEventListener("mousedown", onWheelDown);
+      el.removeEventListener("auxclick", onAuxClick);
       observer?.disconnect();
       cancelAnimationFrame(frame);
       painter.dispose();
@@ -397,7 +414,7 @@ const NO_ICONS: Readonly<Record<string, FolderIcon>> = {};
 export function useSigma(
   container: React.RefObject<HTMLDivElement | null>,
   graph: Graph<NodeAttrs> | null,
-  onClickNode: (id: string) => void,
+  onClickNode: (id: string, newTab?: boolean) => void,
   highlight?: string | null,
   options: SigmaOptions = {},
 ): { animate: () => void; fit: () => void } {
@@ -440,7 +457,7 @@ export function useSigma(
     mountSigma(
       el,
       graph,
-      (id) => onClick.current(id),
+      (id, newTab) => onClick.current(id, newTab),
       () => look.current,
       forcesRef.current,
       positions.current,

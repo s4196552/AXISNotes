@@ -2,6 +2,16 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-09: Middle-click opens in a new tab everywhere (T-203)
+
+- **One rule for everything that opens a note on click:** a click opens it in the current tab; Ctrl/Cmd+click or a middle-click (pressing the scroll wheel) opens it in a new tab, as in Obsidian and browsers.
+- **Shared helper:** `src/lib/openClick.ts` (`openOnClick`) gives an element all three handlers. It also cancels the wheel's mousedown, so the browser's auto-scroll doesn't start.
+- **Where it applies:**
+  - newly: search results, backlinks and unlinked mentions, the tasks view, canvas note cards, the running-timer chip, calendar days and dashboard source lines;
+  - `[[links]]` in rendered text (task lists, dashboards, AI answers);
+  - graph nodes: Sigma doesn't report middle-clicks, so an `auxclick` on the graph opens the hovered node;
+  - folders with a dashboard (the dashboard opens in a new tab).
+  - It already worked for file-tree notes, editor links and dashboard tiles.
 ## 2026-11-09: AI skill results are saved at once, with the AI icon (T-201)
 
 - **Skill results skip the draft step and are saved straight into the vault**, at the human's request:
