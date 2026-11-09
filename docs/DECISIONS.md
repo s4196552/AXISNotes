@@ -2,6 +2,15 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-09: Edit with AI, reviewed change by change (T-199)
+
+- **Fix writing has a third mode, "Your instruction"** ("Edit with AI" in the command palette). The user writes any instruction ("make this a numbered list", "shorten by half"); the request uses the general chat model at balanced effort rather than the quick-fix one, because a rewrite can be substantial. The prompt asks for the full edited text with everything the instruction doesn't touch kept exactly, links, tags and block ids included.
+- **Which diff is shown:**
+  - Light edits are still reviewed word by word.
+  - A rewrite with more than 40 word changes, or changed text over half the length, is reviewed line by line (`diffForReview` → `diffLines`), since word changes would be a confetti of fragments.
+  - Either way each change can be kept or rejected, and the result goes through the editor (undo history) or `editNote` with an exact-match check.
+- **"Review as edit" in an AI block** (shown when the block was opened on a selection) closes the block and opens the same review with the answer as the proposed replacement: fences removed, the selection's leading and trailing whitespace kept. No second request is made. "Replace selection" stays for a blind replace.
+
 ## 2026-11-09: Suggest tags, title and links (T-198)
 
 - "Suggest tags, title and links" (command palette) asks the model set for text fixes (normally the cheap one) for JSON.

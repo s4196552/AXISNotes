@@ -678,3 +678,10 @@
   padding: 2px 0;
   overflow-wrap: anywhere;
 }
+
+/* Edit with AI: the user's instruction. */
+.fix-instruction {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 2px 0 6px;
+}

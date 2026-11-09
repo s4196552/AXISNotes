@@ -23,6 +23,7 @@ import {
   type Template,
 } from "../templates/templates";
 import { useUi } from "./ui";
+import type { FixMode } from "../ai/fixPrompt";
 
 // Actions shared by the command palette, keyboard shortcuts, `/` commands and the calendar.
 
@@ -106,7 +107,7 @@ export function openAskAi() {
 }
 
 /** Open "Fix writing" for the editor's selection, or the note's body if nothing is selected. */
-export function openFixText() {
+export function openFixText(mode?: FixMode) {
   const active = getActiveEditor();
   if (!active) {
     useAppStore.getState().notify("Open a note to fix its writing.");
@@ -124,6 +125,7 @@ export function openFixText() {
     to,
     original: state.sliceDoc(from, to),
     scope: sel.empty ? "note" : "selection",
+    ...(mode ? { mode } : {}),
   });
 }
 

@@ -240,7 +240,12 @@ registerCommands([
     id: "fix-writing",
     label: "Fix grammar and clarity (AI)",
     shortcut: { key: "g", mod: true, shift: true },
-    run: openFixText,
+    run: () => openFixText(),
+  },
+  {
+    id: "edit-with-ai",
+    label: "Edit with AI (your instruction)",
+    run: () => openFixText("custom"),
   },
   { id: "handwriting", label: "Handwriting to text (pen)", run: openHandwriting },
   { id: "diagram", label: "Make a diagram (AI, or from notes)", run: openDiagram },
