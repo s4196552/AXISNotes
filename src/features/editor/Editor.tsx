@@ -631,7 +631,7 @@ export function Editor({ path }: EditorProps) {
             aria-label="Fix writing"
             title="Fix grammar and clarity with AI (Ctrl+Shift+G)"
             onMouseDown={(e) => e.preventDefault()}
-            onClick={openFixText}
+            onClick={() => openFixText()}
           >
             <WandSparkles size={15} />
           </button>

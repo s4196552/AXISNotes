@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Section } from "../settings/Settings";
+import type { FixMode } from "../ai/fixPrompt";
 
 // Which modal is open. Prompts resolve a promise with the user's answers.
 
@@ -27,6 +28,9 @@ export type Modal =
       to: number;
       original: string;
       scope: "selection" | "note";
+      mode?: FixMode;
+      /** An AI block's answer to review as changes to `original`. */
+      proposed?: string;
     }
   | {
       kind: "prompt";

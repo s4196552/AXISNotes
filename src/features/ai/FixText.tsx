@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, HardDrive, Square, WandSparkles, X } from "lucide-react";
 import { type AiPlan, type AiRunResult, backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
-import { applySegments, changeCount, diffWords, type Segment } from "../../lib/diff";
+import { applySegments, changeCount, diffForReview, type Segment } from "../../lib/diff";
 import { getActiveEditor } from "../editor/activeEditor";
 import { editNote } from "../files/editNote";
 import { cleanReply, fixRequest, type FixMode } from "./fixPrompt";
@@ -20,25 +20,47 @@ export interface FixTextProps {
   to: number;
   original: string;
   scope: "selection" | "note";
+  /** The mode to start in ("custom" = Edit with AI, with the user's own instruction). */
+  mode?: FixMode;
+  /** A proposed replacement made elsewhere (an AI block's answer): review it as changes. */
+  proposed?: string;
   onClose(): void;
 }
 
 type Phase =
   | { kind: "idle" }
   | { kind: "running" }
-  | { kind: "review"; result: AiRunResult; segments: Segment[] }
+  | { kind: "review"; result: AiRunResult | null; segments: Segment[] }
   | { kind: "error"; message: string };
 
-export function FixText({ path, from, to, original, scope, onClose }: FixTextProps) {
-  const [mode, setMode] = useState<FixMode>("grammar");
+export function FixText({
+  path,
+  from,
+  to,
+  original,
+  scope,
+  mode: initialMode = "grammar",
+  proposed,
+  onClose,
+}: FixTextProps) {
+  const [mode, setMode] = useState<FixMode>(initialMode);
+  const [instruction, setInstruction] = useState("");
   const [plan, setPlan] = useState<AiPlan | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  const [phase, setPhase] = useState<Phase>(() =>
+    proposed === undefined
+      ? { kind: "idle" }
+      : { kind: "review", result: null, segments: diffForReview(original, proposed) },
+  );
   const [streamed, setStreamed] = useState("");
   const [rejected, setRejected] = useState<Set<number>>(new Set());
   const run = useRef<AiRun | null>(null);
 
-  const request = useMemo(() => fixRequest(original, mode, path), [original, mode, path]);
+  const request = useMemo(
+    () => fixRequest(original, mode, path, instruction),
+    [original, mode, path, instruction],
+  );
+  const needsInstruction = mode === "custom" && !instruction.trim();
 
   useEffect(() => {
     let live = true;
@@ -59,7 +81,7 @@ export function FixText({ path, from, to, original, scope, onClose }: FixTextPro
     setPhase({ kind: "running" });
     try {
       const result = await runAi(request, (d) => setStreamed((s) => s + d), r);
-      const segments = diffWords(original, cleanReply(result.text, original));
+      const segments = diffForReview(original, cleanReply(result.text, original));
       setPhase({ kind: "review", result, segments });
     } catch (e) {
       setPhase(isCancelled(e) ? { kind: "idle" } : { kind: "error", message: errorMessage(e) });
@@ -122,35 +144,71 @@ export function FixText({ path, from, to, original, scope, onClose }: FixTextPro
       >
         <header className="ask-ai-header">
           <WandSparkles size={15} />{" "}
-          <strong>Fix writing · {scope === "selection" ? "selection" : "whole note"}</strong>
+          <strong>
+            {proposed !== undefined
+              ? "Review AI changes"
+              : mode === "custom"
+                ? "Edit with AI"
+                : "Fix writing"}{" "}
+            · {scope === "selection" ? "selection" : "whole note"}
+          </strong>
           <button className="ai-icon" aria-label="Close" onClick={onClose} disabled={running}>
             <X size={15} />
           </button>
         </header>
 
         <div className="ask-ai-body">
-          <div className="ask-ai-options">
-            <label>
-              <input
-                type="radio"
-                name="fix-mode"
-                checked={mode === "grammar"}
-                disabled={running}
-                onChange={() => setMode("grammar")}
-              />
-              Grammar and spelling
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="fix-mode"
-                checked={mode === "clarity"}
-                disabled={running}
-                onChange={() => setMode("clarity")}
-              />
-              Also improve clarity
-            </label>
-          </div>
+          {proposed === undefined && (
+            <div className="ask-ai-options">
+              <label>
+                <input
+                  type="radio"
+                  name="fix-mode"
+                  checked={mode === "grammar"}
+                  disabled={running}
+                  onChange={() => setMode("grammar")}
+                />
+                Grammar and spelling
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="fix-mode"
+                  checked={mode === "clarity"}
+                  disabled={running}
+                  onChange={() => setMode("clarity")}
+                />
+                Also improve clarity
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="fix-mode"
+                  checked={mode === "custom"}
+                  disabled={running}
+                  onChange={() => setMode("custom")}
+                />
+                Your instruction
+              </label>
+            </div>
+          )}
+          {proposed === undefined && mode === "custom" && (
+            <input
+              className="fix-instruction"
+              aria-label="Instruction"
+              placeholder="e.g. Make this a numbered list, shorten it by half, use a friendlier tone…"
+              autoFocus
+              value={instruction}
+              disabled={running}
+              onChange={(e) => setInstruction(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !needsInstruction) {
+                  e.preventDefault();
+                  void start();
+                }
+              }}
+            />
+          )}
 
           <div className="ask-ai-plan" aria-live="polite" aria-label="Destination">
             {plan && (
@@ -232,7 +290,7 @@ export function FixText({ path, from, to, original, scope, onClose }: FixTextPro
                 </div>
               </>
             ))}
-          {phase.kind === "review" && (
+          {phase.kind === "review" && phase.result && (
             <div className="ask-ai-meta muted">
               By {phase.result.providerName} · {phase.result.model}
               {phase.result.local && " (on this device)"}
@@ -260,9 +318,16 @@ export function FixText({ path, from, to, original, scope, onClose }: FixTextPro
               <Check size={13} /> Apply {accepted} change{accepted === 1 ? "" : "s"}
             </button>
           ) : (
-            <button className="primary" onClick={() => void start()} disabled={!original.trim()}>
-              <WandSparkles size={13} /> {phase.kind === "review" ? "Try again" : "Fix"}
-            </button>
+            proposed === undefined && (
+              <button
+                className="primary"
+                onClick={() => void start()}
+                disabled={!original.trim() || needsInstruction}
+              >
+                <WandSparkles size={13} />{" "}
+                {phase.kind === "review" ? "Try again" : mode === "custom" ? "Edit" : "Fix"}
+              </button>
+            )
           )}
         </footer>
       </div>

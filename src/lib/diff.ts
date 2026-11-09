@@ -122,6 +122,48 @@ export function diffWords(before: string, after: string): Segment[] {
   return out;
 }
 
+/** Diff two texts by whole lines: each run of changed lines is one change. */
+export function diffLines(before: string, after: string): Segment[] {
+  const out: Segment[] = [];
+  let id = 0;
+  let change: { before: string; after: string } | null = null;
+  const flush = () => {
+    if (change) out.push({ kind: "change", id: id++, ...change });
+    change = null;
+  };
+  for (const op of lcs(lines(before), lines(after))) {
+    if (op.kind === "same") {
+      flush();
+      const last = out.at(-1);
+      if (last?.kind === "same") last.text += op.text;
+      else out.push({ kind: "same", text: op.text });
+      continue;
+    }
+    change ??= { before: "", after: "" };
+    if (op.kind === "del") change.before += op.text;
+    else change.after += op.text;
+  }
+  flush();
+  return out;
+}
+
+/**
+ * The diff to review: word by word for light edits, whole lines when a rewrite changes so
+ * much that word changes would be a confetti of small pieces (over 40 of them, or more than
+ * half the text).
+ */
+export function diffForReview(before: string, after: string): Segment[] {
+  const words = diffWords(before, after);
+  const changes = words.filter((s) => s.kind === "change");
+  const changed = changes.reduce(
+    (n, s) => n + (s.kind === "change" ? Math.max(s.before.length, s.after.length) : 0),
+    0,
+  );
+  if (changes.length > 40 || changed > Math.max(before.length, after.length) / 2)
+    return diffLines(before, after);
+  return words;
+}
+
 /** The text with every change applied except the `rejected` ones. */
 export function applySegments(segments: Segment[], rejected: ReadonlySet<number>): string {
   return segments

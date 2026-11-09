@@ -42,6 +42,8 @@ import {
 import { homeFolder, runSkill, skillRequest } from "../skills/skillRun";
 import { ChatActions, ChatTranscript, FilesResult, PageResult } from "../skills/SkillResult";
 import { skillIcon } from "../skills/skillIcons";
+import { useUi } from "../commands/ui";
+import { cleanReply } from "./fixPrompt";
 // The block is the first AI view many sessions open: load its styles with it.
 import "./ai.css";
 
@@ -591,6 +593,29 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           {selection?.text && (
             <button type="button" onClick={() => insert(true)}>
               Replace selection
+            </button>
+          )}
+          {selection?.text && (
+            <button
+              type="button"
+              title="See the answer as changes to the selection, and keep only the ones you want"
+              onClick={() => {
+                const cur = aiBlockSpec(view.state, id);
+                if (!cur?.selection) return;
+                const sel = cur.selection;
+                closeAiBlock(view, id, false);
+                useUi.getState().open({
+                  kind: "fix",
+                  path,
+                  from: sel.from,
+                  to: sel.to,
+                  original: view.state.sliceDoc(sel.from, sel.to),
+                  scope: "selection",
+                  proposed: cleanReply(state.answer, view.state.sliceDoc(sel.from, sel.to)),
+                });
+              }}
+            >
+              Review as edit
             </button>
           )}
           <button
