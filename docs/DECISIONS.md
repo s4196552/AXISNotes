@@ -2,6 +2,24 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-09: Suggest tags, title and links (T-198)
+
+- "Suggest tags, title and links" (command palette) asks the model set for text fixes (normally the cheap one) for JSON.
+- **The request:**
+  - the note, attached by path, so its rules apply;
+  - the vault's existing tags, most used first, at most 200;
+  - link candidates: notes the note mentions by name or alias (3+ characters) outside code and existing links, nearest first, at most 60.
+- **The answer is validated** (`suggest.ts` `parseSuggestions`):
+  - tags must be valid tag syntax;
+  - link targets must be candidate paths;
+  - each link's text must appear in the note outside code and links.
+  - Anything else is a problem sent back for one retry (`askValidated`).
+  - Tags the note already has, in frontmatter or inline, are dropped, and a title equal to the current one counts as none.
+- **Nothing changes until the user ticks suggestions and applies them:**
+  - tags are merged into the frontmatter `tags` list;
+  - each link replaces the first plain mention with `[[path]]`, or `[[path|words]]` when the words differ from the note's name;
+  - the title is a rename through the normal rename, so links to the note update.
+
 ## 2026-11-08: Ask your vault, with citations (T-197)
 
 - **Retrieval is the full-text index, not embeddings.** `Index::passages` (`src-tauri/src/index/passages.rs`):

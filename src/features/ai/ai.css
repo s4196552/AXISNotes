@@ -652,3 +652,27 @@
   font-size: 0.85em;
   text-decoration: none;
 }
+
+/* Suggest tags, title and links: the ticked suggestions. */
+.suggest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.suggest-list fieldset {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.suggest-list legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+.suggest-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}

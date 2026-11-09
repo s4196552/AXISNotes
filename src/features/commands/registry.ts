@@ -164,6 +164,18 @@ registerCommands([
     run: openAskAi,
   },
   {
+    id: "suggest-note",
+    label: "Suggest tags, title and links",
+    run: () => {
+      const path = useAppStore.getState().activePath;
+      if (!path || !isNotePath(path)) {
+        useAppStore.getState().notify("Open a note to get suggestions for it.");
+        return;
+      }
+      useUi.getState().open({ kind: "suggest", path });
+    },
+  },
+  {
     id: "ask-vault",
     label: "Ask your vault",
     shortcut: { key: "j", mod: true, shift: true },
