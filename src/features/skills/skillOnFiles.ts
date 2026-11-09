@@ -3,12 +3,13 @@ import { useConfig } from "../../app/config";
 import { isNotePath, noteName } from "../../lib/markdown";
 import { MAX_FOLDER_NOTES, ruleForPath } from "../ai/folderScope";
 import { queueAiBlock } from "../ai/aiBlock";
-import { createDraft, folderOf } from "../drafts/drafts";
+import { folderOf } from "../drafts/drafts";
 import type { Skill } from "./skills";
+import { keepSkillFile } from "./skillRun";
 
 // Running a skill on files and folders picked in the file tree (for example a practice
-// test from twelve weeks of notes). The run happens in an AI block in a new draft, made
-// for the picked items' folder; the block reads the picked notes instead of the draft.
+// test from twelve weeks of notes). The run happens in an AI block in a new note saved in
+// the picked items' folder (with the AI icon); the block reads the picked notes.
 
 export interface PickedNotes {
   /** Notes to read, in path order. */
@@ -61,8 +62,8 @@ export const skillsForPicked = (skills: Skill[], paths: string[]) =>
   skills.filter((s) => s.reads !== "folder" || (paths.length === 1 && !isNotePath(paths[0]!)));
 
 /**
- * Run `skill` on the picked items: make a draft for their folder and open it with an AI
- * block that reads the picked notes. Returns the draft's path, or null if there was
+ * Run `skill` on the picked items: make a note in their folder and open it with an AI
+ * block that reads the picked notes. Returns the note's path, or null if there was
  * nothing the AI may read (the reason is shown as a notice).
  */
 export async function runSkillOnPicked(skill: Skill, paths: string[]): Promise<string | null> {
@@ -94,13 +95,9 @@ export async function runSkillOnPicked(skill: Skill, paths: string[]): Promise<s
     "",
     "",
   ].join("\n");
-  const draft = await createDraft({
-    title: `${skill.title} - ${label}`,
-    content,
-    folder,
-    open: false,
-  });
-  queueAiBlock(draft, { pos: content.length, skill: skill.id, sources: include });
-  useAppStore.getState().openFile(draft);
-  return draft;
+  // Saved straight into the folder (with the AI icon), not as a draft to keep.
+  const note = await keepSkillFile(folder, `${skill.title} - ${label}`, content, ".md");
+  queueAiBlock(note, { pos: content.length, skill: skill.id, sources: include });
+  useAppStore.getState().openFile(note);
+  return note;
 }

@@ -5,6 +5,7 @@ import { splitFrontmatter } from "../../lib/markdown";
 import { InvalidAnswer, parseAnswer } from "../../lib/aiJson";
 import { BUILTIN_SKILL_FILES } from "./builtinSkills";
 import { COPYABLE_RULE, makeCopyable } from "./copyable";
+import { giveAiIcon } from "./aiIcon";
 
 // Skills: reusable instructions for the AI, run from the command menu (/mindmap,
 // /flashcards…) with any provider and model. Each skill is a `SKILL.md`: YAML
@@ -138,14 +139,18 @@ const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name);
 /** Write each built-in skill to `Skills/<name>/SKILL.md` unless it's already there. */
 export async function copyBuiltinsToVault(): Promise<number> {
   let added = 0;
+  const made: string[] = [];
   for (const [id, text] of Object.entries(BUILTIN_SKILL_FILES)) {
     try {
       await backend.createFile(join(SKILLS_DIR, `${id}/SKILL.md`), text);
+      made.push(join(SKILLS_DIR, id));
       added++;
     } catch (e) {
       if (!(isBackendError(e) && e.code === "AlreadyExists")) throw e;
     }
   }
+  // Skill folders show the AI icon in the file tree.
+  await giveAiIcon(made);
   await useAppStore.getState().refreshTree();
   return added;
 }
@@ -177,6 +182,7 @@ export async function skillFromNote(path: string): Promise<string> {
     const target = join(SKILLS_DIR, `${i === 0 ? id : `${id}-${i}`}/SKILL.md`);
     try {
       await backend.createFile(target, file);
+      await giveAiIcon([target.slice(0, target.lastIndexOf("/"))]);
       await useAppStore.getState().refreshTree();
       return target;
     } catch (e) {

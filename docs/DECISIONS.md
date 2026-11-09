@@ -2,6 +2,21 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-09: AI skill results are saved at once, with the AI icon (T-201)
+
+- **Skill results skip the draft step and are saved straight into the vault**, at the human's request:
+  - Web pages go next to their note (`<note> - <skill>.html`).
+  - Teach file sets go into the folder.
+  - Grill me conversations are saved after every reply and kept up to date.
+  - Skills run on picked files make a real note in that folder instead of a draft.
+- **The block shows what was saved,** with buttons to open it (in a tab or the browser). If saving fails, it says so and offers the save button again.
+- **Every file a skill saves gets the 🇦🇮 icon** (the Anguilla flag, U+1F1E6 U+1F1EE, which Windows draws as the letters "AI"; the human already used it by hand). An icon the user already chose is kept. Skill folders AXISNotes creates under `Skills/` get it too.
+- **Nothing is lost:**
+  - A Teach file that replaces an existing one (Progress.md) moves the old one to the OS trash first.
+  - New saved files are recorded for Ctrl+Z in the file tree (T-200), which takes them back while unchanged.
+  - Discarding a Grill me conversation moves its saved file to the trash.
+- **Privacy marks (T-195) still apply** to everything saved. Drafts remain for Ask AI, AI blocks and Quick Chat answers, which aren't skill results.
+
 ## 2026-11-09: Edit with AI, reviewed change by change (T-199)
 
 - **Fix writing has a third mode, "Your instruction"** ("Edit with AI" in the command palette). The user writes any instruction ("make this a numbered list", "shorten by half"); the request uses the general chat model at balanced effort rather than the quick-fix one, because a rewrite can be substantial. The prompt asks for the full edited text with everything the instruction doesn't touch kept exactly, links, tags and block ids included.
