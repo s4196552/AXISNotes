@@ -98,11 +98,16 @@ function mount(doc: string, path: string, cursor: number) {
 const byId = (id: string) => BUILTIN_SKILLS.find((s) => s.id === id)!;
 
 describe("skill files", () => {
-  it("ships the six built-in skills with what they make", () => {
+  it("ships the built-in skills with what they make", () => {
     expect(BUILTIN_SKILLS.map((s) => [s.id, s.output, s.reads])).toEqual([
       ["mindmap", "markdown", "note"],
       ["test", "html", "note"],
       ["flashcards", "html", "note"],
+      ["mnemonic", "markdown", "note"],
+      ["make-it-stick", "markdown", "note"],
+      ["example", "markdown", "note"],
+      ["slide-deck", "html", "note"],
+      ["infographic", "html", "note"],
       ["grill-me", "chat", "note"],
       ["handoff", "markdown", "note"],
       ["teach", "files", "folder"],
@@ -160,7 +165,11 @@ describe("skill files", () => {
   });
 
   it("copies the built-ins into the vault and makes a skill from a note", async () => {
-    expect(await copyBuiltinsToVault()).toBe(6);
+    expect(await copyBuiltinsToVault()).toBe(11);
+    for (const skill of BUILTIN_SKILLS) {
+      const path = `Skills/${skill.id}/SKILL.md`;
+      expect(parseSkill(h.b.files()[path]!, path)).toEqual({ ...skill, source: path });
+    }
     expect(h.b.files()["Skills/teach/SKILL.md"]).toMatch(/^---\nname: teach/);
     expect(await copyBuiltinsToVault()).toBe(0);
     const p = await skillFromNote("Bio/Genes.md");
@@ -173,6 +182,49 @@ describe("skill files", () => {
 });
 
 describe("running skills from an AI block", () => {
+  it.each(
+    ["mnemonic", "make-it-stick", "example", "slide-deck", "infographic"].flatMap((id) =>
+      (["markdown", "html"] as const).map((format) => ({ id, format })),
+    ),
+  )("runs $id in $format through the existing source and result paths", async ({ id, format }) => {
+    const skill = byId(id);
+    const markdown = "# Worked result\n\nMitochondria make ATP.";
+    const html = "<!doctype html><html><body>Mitochondria make ATP.</body></html>";
+    setAiResponder((req) => {
+      lastRequest.req = req;
+      return format === "html" ? html : markdown;
+    });
+    const original = "# Cells\n\n";
+    const v = mount(original, "Bio/Cells.md", original.length);
+    act(() => void openAiBlock(v, undefined, { skill: id }));
+    const block = within(await screen.findByRole("group", { name: "AI block" }));
+    expect(block.getByText(`Skill: ${skill.title}`)).toBeInTheDocument();
+    const formats = within(block.getByRole("group", { name: "Format" }));
+    expect(
+      formats.getByRole("button", { name: defaultFormat(skill) === "html" ? "HTML" : "Markdown" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(formats.getByRole("button", { name: format === "html" ? "HTML" : "Markdown" }));
+    fireEvent.click(block.getByRole("button", { name: /Run/ }));
+
+    if (format === "html") {
+      const saved = `Bio/Cells - ${skill.title}.html`;
+      await waitFor(() => expect(h.b.files()[saved]).toBe(makeCopyable(`${html}\n`)));
+      expect(block.getByRole("button", { name: /Open page/ })).toBeInTheDocument();
+      expect(useConfig.getState().config.folderIcons[saved]).toEqual({ icon: "🇦🇮" });
+    } else {
+      const insert = await block.findByRole("button", { name: "Insert" });
+      // Running alone doesn't edit the source; insertion is a separate action.
+      expect(v.state.doc.toString()).toBe(original);
+      fireEvent.click(insert);
+      expect(v.state.doc.toString()).toContain(markdown);
+    }
+    expect(lastRequest.req!.attach).toEqual(["Bio/Cells.md"]);
+    expect(lastRequest.req!.messages[0]!.content[0]).toMatchObject({
+      text: skillSystem(withFormat(skill, format)),
+    });
+    expect(h.b.files()["Bio/Cells.md"]).toBe("# Cells\n\nMitochondria make ATP.\n");
+  });
+
   it("makes a flash-card page and saves it next to the note at once, with the AI icon", async () => {
     setAiResponder((req) => {
       lastRequest.req = req;
@@ -403,6 +455,11 @@ describe("Markdown or HTML for every skill", () => {
       ["mindmap", ["markdown", "html"], "markdown"],
       ["test", ["markdown", "html"], "html"],
       ["flashcards", ["markdown", "html"], "html"],
+      ["mnemonic", ["markdown", "html"], "markdown"],
+      ["make-it-stick", ["markdown", "html"], "markdown"],
+      ["example", ["markdown", "html"], "markdown"],
+      ["slide-deck", ["markdown", "html"], "html"],
+      ["infographic", ["markdown", "html"], "html"],
       ["grill-me", ["markdown", "html"], "markdown"],
       ["handoff", ["markdown", "html"], "markdown"],
       ["teach", ["both", "markdown", "html"], "both"],
@@ -566,7 +623,7 @@ describe("skills on files picked in the tree", () => {
 
 describe("study skills test the subject, not the notes' layout", () => {
   it("tell the model to ask about what the notes teach, never which week or note it was in", () => {
-    for (const id of ["test", "flashcards", "teach"]) {
+    for (const id of ["test", "flashcards", "teach", "mnemonic", "make-it-stick", "example"]) {
       for (const format of formatsOf(byId(id))) {
         const sent = skillSystem(withFormat(byId(id), format));
         expect(sent, `${id} (${format})`).toMatch(/Test the subject itself/);
