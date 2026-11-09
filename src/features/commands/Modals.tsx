@@ -61,7 +61,8 @@ function useShortcuts() {
       if (!cmd) return;
       e.preventDefault();
       e.stopPropagation();
-      cmd.run();
+      if (!e.repeat || cmd.repeat !== false)
+        cmd.run(e.target instanceof Element ? e.target : undefined);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -71,10 +72,11 @@ function useShortcuts() {
 const PICKER_KEYS = ["↑↓ choose", "Enter run", "Esc close"];
 
 function CommandPalette() {
+  const [origin] = useState(() => document.activeElement);
   const close = useUi((s) => s.close);
   const items = useMemo(() => {
     const available = allCommands().filter(
-      (c) => c.id !== "palette" && (!c.available || c.available()),
+      (c) => c.id !== "palette" && (!c.available || c.available(origin)),
     );
     const toItem = (c: Command, section: string): PickerItem => ({
       id: c.id,
@@ -92,7 +94,7 @@ function CommandPalette() {
       ...recent.map((c) => toItem(c, "Recent")),
       ...rest.map((c) => toItem(c, recent.length ? "All commands" : "")),
     ];
-  }, []);
+  }, [origin]);
   return (
     <Picker
       title="Command palette"
@@ -105,7 +107,7 @@ function CommandPalette() {
         pushRecent("commands", item.id);
         allCommands()
           .find((c) => c.id === item.id)
-          ?.run();
+          ?.run(origin);
       }}
     />
   );

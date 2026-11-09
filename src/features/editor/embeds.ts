@@ -26,6 +26,8 @@ import { linkHost } from "./links";
 import { livePreview } from "./livePreview";
 import { axisTheme } from "./theme";
 import { tables } from "./tables";
+import { outlineFolding } from "./outliner";
+import { toggles } from "./toggles";
 import { imageSelecting, imageTools } from "./imageEditor";
 import { readImageLayout } from "../../lib/imageLayout";
 
@@ -180,11 +182,16 @@ class EmbedController {
           markdown({ base: markdownLanguage }),
           livePreview,
           tables,
+          outlineFolding,
+          toggles,
           EditorView.lineWrapping,
           axisTheme,
           EditorState.readOnly.of(readOnly),
           EditorView.editable.of(!readOnly),
-          EditorView.contentAttributes.of({ "aria-label": `Embedded ${this.inner}` }),
+          EditorView.contentAttributes.of({
+            "aria-label": `Embedded ${this.inner}`,
+            ...(readOnly && { tabindex: "0" }),
+          }),
           EditorView.updateListener.of((u) => {
             if (u.docChanged && !u.transactions.some((t) => t.annotation(fromSource))) {
               this.schedule();

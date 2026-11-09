@@ -1,4 +1,4 @@
-import { type EditorState, Prec, type Range, StateField } from "@codemirror/state";
+import { type EditorState, Prec, type Range, StateEffect, StateField } from "@codemirror/state";
 import {
   codeFolding,
   foldable,
@@ -82,20 +82,28 @@ export function findToggles(state: EditorState): Toggle[] {
   return out;
 }
 
+/** Read-only embeds keep their temporary toggle state in the view until the source reloads. */
+const flipReadOnly = StateEffect.define<number>();
+
 /** Open or close the toggle whose title line starts at `lineFrom`. */
 export function flipToggle(view: EditorView, lineFrom: number) {
-  const t = findToggles(view.state).find((x) => x.from === lineFrom);
+  const { state } = view;
+  const items = state.field(toggleField, false)?.toggles ?? findToggles(state);
+  const t = items.find((x) => x.from === lineFrom);
   if (!t) return false;
   view.dispatch({
     selection:
       t.open && view.state.selection.ranges.some((r) => r.to > t.to && r.from <= t.bodyTo)
-        ? { anchor: t.to }
+        ? { anchor: t.to + (!state.readOnly && !t.hasState ? 1 : 0) }
         : undefined,
-    changes: {
-      from: t.statePos,
-      to: t.statePos + (t.hasState ? 1 : 0),
-      insert: t.open ? "-" : "+",
-    },
+    effects: state.readOnly ? flipReadOnly.of(lineFrom) : undefined,
+    changes: state.readOnly
+      ? undefined
+      : {
+          from: t.statePos,
+          to: t.statePos + (t.hasState ? 1 : 0),
+          insert: t.open ? "-" : "+",
+        },
   });
   return true;
 }
@@ -127,6 +135,22 @@ function flipViewFold(view: EditorView, from: number, to: number) {
 }
 
 export type FoldRange = { from: number; to: number };
+
+/** Prefer the innermost block containing the caret. Markdown toggles own their saved marker. */
+export function toggleCurrentFold(view: EditorView, pos = view.state.selection.main.head) {
+  const { state } = view;
+  const block = state
+    .field(toggleField, false)
+    ?.toggles.findLast((t) => t.from <= pos && pos <= t.bodyTo);
+  const current = state.doc.lineAt(pos);
+  for (let n = current.number; n >= 1; n--) {
+    const line = state.doc.line(n);
+    if (block?.from === line.from) return flipToggle(view, block.from);
+    const range = foldable(state, line.from, line.to);
+    if (range && range.to >= pos) return flipViewFold(view, range.from, range.to);
+  }
+  return false;
+}
 
 /** The view folds (headings and list items), to bring back when the note is reopened. */
 export function viewFolds(state: EditorState): FoldRange[] {
@@ -200,6 +224,7 @@ class ArrowWidget extends WidgetType {
             : "Open toggle",
     );
     button.setAttribute("aria-expanded", String(this.open));
+    button.dataset.foldLine = String(this.lineFrom);
     if (this.heading) button.dataset.headingLevel = String(this.heading.level);
     // The icon is drawn by CSS from the fold arrow style in Settings → Appearance.
     const flip = () =>
@@ -242,6 +267,7 @@ class CalloutFoldWidget extends WidgetType {
     button.tabIndex = 0;
     button.setAttribute("role", "button");
     button.setAttribute("aria-label", this.open ? "Collapse callout" : "Expand callout");
+    button.dataset.foldLine = String(this.lineFrom);
     button.setAttribute("aria-expanded", String(this.open));
     button.append(lucideSvg(ChevronDown, 16));
     button.addEventListener("mousedown", (e) => {
@@ -295,6 +321,13 @@ const toggleField = StateField.define<ToggleState>({
   create: (state) => fold(state, findToggles(state)),
   update(value, tr) {
     if (tr.docChanged) return fold(tr.state, findToggles(tr.state));
+    for (const effect of tr.effects) {
+      if (effect.is(flipReadOnly))
+        return fold(
+          tr.state,
+          value.toggles.map((t) => (t.from === effect.value ? { ...t, open: !t.open } : t)),
+        );
+    }
     if (tr.selection) return fold(tr.state, value.toggles);
     return value;
   },
@@ -362,7 +395,7 @@ const togglePlugin = ViewPlugin.fromClass(
     }
     update(u: ViewUpdate) {
       if (
-        u.docChanged ||
+        u.startState.field(toggleField) !== u.state.field(toggleField) ||
         u.selectionSet ||
         u.focusChanged ||
         foldedRanges(u.startState) !== foldedRanges(u.state)
