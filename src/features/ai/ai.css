@@ -648,7 +648,9 @@
   color: var(--fg-muted);
 }
 .cite-unknown::after {
-  content: " (not in sources)";
+  /* Inline-block so the strike-through doesn't run through the label. */
+  display: inline-block;
+  margin-left: 4px;
+  content: "(not in sources)";
   font-size: 0.85em;
-  text-decoration: none;
 }
