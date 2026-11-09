@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { splitFrontmatter } from "../../lib/markdown";
+import { openOnClick } from "../../lib/openClick";
 
 // A live preview of a note, shown inside a canvas card. Re-reads the note whenever it
 // changes on disk (including the app's own saves, which bump the index version).
@@ -61,7 +62,7 @@ export function NoteCard({ path }: { path: string }) {
           className="canvas-card-open"
           aria-label={`Open ${titleOf(path)}`}
           title="Open note"
-          onClick={() => useAppStore.getState().openFile(path)}
+          {...openOnClick((newTab) => useAppStore.getState().openFile(path, undefined, { newTab }))}
         >
           <ExternalLink size={13} />
         </button>

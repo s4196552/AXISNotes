@@ -3,6 +3,7 @@ import { backend, type Backlink, isBackendError, type Mention } from "../../ipc"
 import { useAppStore } from "../../app/store";
 import { noteName } from "../../lib/markdown";
 import { linkMention } from "./mentions";
+import { openOnClick } from "../../lib/openClick";
 
 export function BacklinksPanel() {
   const activePath = useAppStore((s) => s.activePath);
@@ -60,14 +61,17 @@ export function BacklinksPanel() {
       <ul className="panel-list" aria-label="Linked mentions">
         {linked.map((b) => (
           <li key={b.source}>
-            <button className="panel-item-title panel-link" onClick={() => openFile(b.source)}>
+            <button
+              className="panel-item-title panel-link"
+              {...openOnClick((newTab) => openFile(b.source, undefined, { newTab }))}
+            >
               {noteName(b.source)}
             </button>
             {b.links.map((l) => (
               <button
                 key={l.line}
                 className="panel-context"
-                onClick={() => openFile(b.source, { line: l.line })}
+                {...openOnClick((newTab) => openFile(b.source, { line: l.line }, { newTab }))}
               >
                 {l.context}
               </button>
@@ -83,7 +87,10 @@ export function BacklinksPanel() {
       <ul className="panel-list" aria-label="Unlinked mentions">
         {mentions.map((m) => (
           <li key={`${m.source}:${m.start}`} className="panel-mention">
-            <button className="panel-context" onClick={() => openFile(m.source, { line: m.line })}>
+            <button
+              className="panel-context"
+              {...openOnClick((newTab) => openFile(m.source, { line: m.line }, { newTab }))}
+            >
               <span className="panel-item-path muted">{noteName(m.source)}</span> {m.context}
             </button>
             <button className="panel-link-btn" onClick={() => void link(m)}>

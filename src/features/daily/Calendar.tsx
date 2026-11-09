@@ -6,6 +6,7 @@ import { formatDate, sameDay } from "../../lib/dates";
 import { dailyNotePath, openDailyNote } from "../commands/actions";
 import { monthGrid } from "./monthGrid";
 import "./calendar.css";
+import { openOnClick } from "../../lib/openClick";
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
@@ -66,7 +67,7 @@ export function Calendar({
               role="gridcell"
               className={classes}
               aria-label={`${formatDate(d, "dddd, MMMM D, YYYY")}${existing.has(path) ? " (has note)" : ""}${due ? `, ${due} task${due === 1 ? "" : "s"} due` : ""}`}
-              onClick={() => void openDailyNote(d)}
+              {...openOnClick((newTab) => void openDailyNote(d, undefined, { newTab }))}
             >
               {d.getDate()}
               {due > 0 && (
