@@ -55,6 +55,13 @@ afterEach(() => {
 
 it("asks about exactly the selection including saved highlight marks", async () => {
   render(<SidebarChat />);
+  const summary = screen.getByText("Selected text · Bio");
+  const preview = screen.getByText("==Cells make ATP.==");
+  expect(preview).not.toBeVisible();
+  fireEvent.click(summary);
+  expect(preview).toBeVisible();
+  fireEvent.click(summary);
+  expect(preview).not.toBeVisible();
   fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Explain this" } });
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
   await screen.findByText("Updated cells.");
@@ -68,6 +75,7 @@ it("asks about exactly the selection including saved highlight marks", async () 
     view.dispatch({ selection: { anchor: doc.indexOf("Other"), head: doc.indexOf("Other") + 5 } });
     activeEditorChanged(view);
   });
+  fireEvent.click(summary);
   expect(screen.getByRole("blockquote")).toHaveTextContent("Other");
 });
 
