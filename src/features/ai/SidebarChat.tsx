@@ -307,11 +307,9 @@ export function SidebarChat() {
       <div className="sidebar-chat-context" aria-label="AI context">
         {context ? (
           <>
-            <strong>
-              {context.selection ? "Selected text" : "Open note"} · {noteName(context.path)}
-            </strong>
-            {context.selection && (
-              <>
+            {context.selection ? (
+              <details>
+                <summary>Selected text · {noteName(context.path)}</summary>
                 <blockquote>{context.text}</blockquote>
                 <button
                   type="button"
@@ -330,7 +328,9 @@ export function SidebarChat() {
                 >
                   Use whole note
                 </button>
-              </>
+              </details>
+            ) : (
+              <strong>Open note · {noteName(context.path)}</strong>
             )}
             {selected && (
               <button

@@ -45,6 +45,13 @@
   overflow: auto;
   white-space: pre-wrap;
 }
+.sidebar-chat-context summary {
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-chat-context summary,
 .sidebar-chat-context strong {
   font-weight: 500;
 }

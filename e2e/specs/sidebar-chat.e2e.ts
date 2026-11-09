@@ -81,7 +81,14 @@ describe("Sidebar AI chat", () => {
     await browser.keys([Key.Shift, Key.End]);
     await $(".cm-line*=Cells").click({ button: "right" });
     await $('[role="menuitem"]=Ask AI about this selection').click();
-    await expect($(".sidebar-chat-context")).toHaveText(expect.stringContaining("Cells make ATP."));
+    const summary = $(".sidebar-chat-context summary");
+    const passage = $(".sidebar-chat-context blockquote");
+    await expect(summary).toHaveText(expect.stringContaining("Selected text"));
+    await expect(passage).not.toBeDisplayed();
+    await summary.click();
+    await expect(passage).toHaveText(expect.stringContaining("Cells make ATP."));
+    await summary.click();
+    await expect(passage).not.toBeDisplayed();
     await expect($('[aria-label="Chat message"]')).toHaveValue("Explain this selection.");
     await $(".sidebar-chat").$("button=Send").click();
     await expect($(".sidebar-chat-log")).toHaveText(expect.stringContaining(answer));
