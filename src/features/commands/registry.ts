@@ -15,6 +15,7 @@ import {
   openDiagram,
 } from "./actions";
 import { useUi } from "./ui";
+import { contextFold } from "./contextFold";
 import { effectiveShortcut, formatHotkey, matches, type Shortcut } from "./hotkeys";
 import { useEditorPrefs } from "../editor/prefs";
 import { getActiveEditor } from "../editor/activeEditor";
@@ -44,8 +45,9 @@ export interface Command {
   /** Take the shortcut only when focus is inside elements matching this selector. */
   onlyIn?: string;
   /** Hidden from the palette (and its shortcut does nothing) when this says no. */
-  available?(): boolean;
-  run(): void;
+  available?(target?: Element | null): boolean;
+  repeat?: boolean;
+  run(target?: Element | null): void;
 }
 
 const commands: Command[] = [];
@@ -84,6 +86,14 @@ function targetEditor(): EditorView | undefined {
 const editorAvailable = () => targetEditor() !== undefined;
 
 registerCommands([
+  {
+    id: "toggle-current-fold",
+    label: "Expand or collapse current block or sidebar item",
+    shortcut: { key: "q", mod: true },
+    available: (target) => Boolean(contextFold(target)),
+    repeat: false,
+    run: (target) => contextFold(target)?.(),
+  },
   ...([false, true] as const).map((block): Command => ({
     id: block ? "insert-code-block" : "insert-inline-code",
     label: block ? "Insert code block" : "Insert inline code",
@@ -459,7 +469,8 @@ export function commandForEvent(e: KeyboardEvent): Command | undefined {
   return commands.find((c) => {
     const s = shortcutOf(c);
     if (s === undefined || !matches(s, e)) return false;
-    if (c.available && !c.available()) return false;
+    if (c.available && !c.available(e.target instanceof Element ? e.target : undefined))
+      return false;
     if (c.onlyIn && !(e.target instanceof Element && e.target.closest(c.onlyIn))) return false;
     return !(c.ignoreIn && e.target instanceof Element && e.target.closest(c.ignoreIn));
   });

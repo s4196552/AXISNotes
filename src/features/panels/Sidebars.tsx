@@ -1,4 +1,4 @@
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -151,15 +151,25 @@ function useOpenSections() {
   return [open, toggle] as const;
 }
 
-function SectionToggle(p: { title: string; open: boolean; onToggle(): void }) {
+function SectionToggle({
+  title,
+  open,
+  onToggle,
+  buttonRef,
+}: {
+  title: string;
+  open: boolean;
+  onToggle(): void;
+  buttonRef?(button: HTMLButtonElement | null): void;
+}) {
   return (
-    <button className="side-section-toggle" aria-expanded={p.open} onClick={p.onToggle}>
-      {p.open ? (
+    <button ref={buttonRef} className="side-section-toggle" aria-expanded={open} onClick={onToggle}>
+      {open ? (
         <ChevronDown size={13} aria-hidden="true" />
       ) : (
         <ChevronRight size={13} aria-hidden="true" />
       )}
-      {p.title}
+      {title}
     </button>
   );
 }
@@ -176,6 +186,24 @@ export function RightSidebar() {
   const activePath = useAppStore((s) => s.activePath);
   const tabPath = useAppStore((s) => activeTab(s.tabs).path);
   const [open, toggle] = useOpenSections();
+  // The lazy graph replaces its header on collapse. Keep keyboard focus on its replacement.
+  const refocusGraph = useRef(false);
+  const graphToggle = (
+    <SectionToggle
+      title="Local graph"
+      open={open.graph}
+      buttonRef={(button) => {
+        if (button && refocusGraph.current) {
+          if (document.activeElement === document.body) button.focus();
+          refocusGraph.current = false;
+        }
+      }}
+      onToggle={() => {
+        refocusGraph.current = document.activeElement?.matches(".side-section-toggle") ?? false;
+        toggle("graph");
+      }}
+    />
+  );
   const file = view === "note" ? activePath : null;
   const kind = file ? docKind(file) : null;
   const isNote = kind === "markdown";
@@ -231,21 +259,11 @@ export function RightSidebar() {
           {isNote &&
             (open.graph ? (
               <Suspense fallback={null}>
-                <LocalGraph
-                  toggle={
-                    <SectionToggle title="Local graph" open onToggle={() => toggle("graph")} />
-                  }
-                />
+                <LocalGraph toggle={graphToggle} />
               </Suspense>
             ) : (
               <section className="side-section" aria-label="Local graph">
-                <h2 className="side-section-head">
-                  <SectionToggle
-                    title="Local graph"
-                    open={false}
-                    onToggle={() => toggle("graph")}
-                  />
-                </h2>
+                <h2 className="side-section-head">{graphToggle}</h2>
               </section>
             ))}
           {linkable && (

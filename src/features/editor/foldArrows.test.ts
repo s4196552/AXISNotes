@@ -5,7 +5,14 @@ import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
 import { listItemAt, listItemSpans, outlineFolding } from "./outliner";
 import { outlinerKeys } from "./outlinerView";
-import { flipHeading, flipListItem, restoreFolds, toggles, viewFolds } from "./toggles";
+import {
+  flipHeading,
+  flipListItem,
+  restoreFolds,
+  toggleCurrentFold,
+  toggles,
+  viewFolds,
+} from "./toggles";
 
 // Fold arrows for headings, bulleted/numbered/task list items and toggles (T-161).
 
@@ -26,6 +33,55 @@ function viewWith(doc: string, cursor = 0) {
 }
 
 const stateOf = (doc: string) => EditorState.create({ doc, extensions: [outlineFolding] });
+
+describe("toggle the block at the caret", () => {
+  it.each(["> [!toggle]", "> [!toggle|h2]+", "> [!tip]+"])(
+    "uses the saved marker from inside %s and reopens from the title",
+    (marker) => {
+      const text = `# Outer\n${marker} Title\n> inner text`;
+      const view = viewWith(text, text.length);
+      expect(toggleCurrentFold(view)).toBe(true);
+      expect(view.state.doc.line(2).text).toContain("]- Title");
+      expect(view.contentDOM.textContent).not.toContain("inner text");
+      expect(toggleCurrentFold(view)).toBe(true);
+      expect(view.contentDOM.textContent).toContain("inner text");
+      expect(view.state.doc.line(2).text).toContain("]+ Title");
+      expect(viewFolds(view.state)).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["# Heading\nparagraph", 1],
+    ["# Heading\n- Parent\n  - Inner\n    - Leaf", 3],
+    ["> [!toggle|h1]+ Title\n```js\nlet x = 1\n```", 2],
+  ] as const)("folds and reopens the nearest view-only block in %s", (doc, line) => {
+    const view = viewWith(doc, doc.indexOf("let x") >= 0 ? doc.indexOf("let x") : doc.length);
+    expect(toggleCurrentFold(view)).toBe(true);
+    expect(folded(view)).toEqual([line]);
+    expect(toggleCurrentFold(view)).toBe(true);
+    expect(folded(view)).toEqual([]);
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("leaves a standalone paragraph alone", () => {
+    expect(toggleCurrentFold(viewWith("Just text"))).toBe(false);
+  });
+
+  it("opens and closes a read-only embed without changing the source marker", () => {
+    const doc = "> [!toggle]- Title\n> Inner text";
+    const view = new EditorView({
+      parent: document.body,
+      state: EditorState.create({ doc, extensions: [EditorState.readOnly.of(true), toggles] }),
+    });
+    views.push(view);
+    expect(view.contentDOM.textContent).not.toContain("Inner text");
+    expect(toggleCurrentFold(view)).toBe(true);
+    expect(view.contentDOM.textContent).toContain("Inner text");
+    expect(toggleCurrentFold(view)).toBe(true);
+    expect(view.contentDOM.textContent).not.toContain("Inner text");
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+});
 
 /** The text a fold on line `n` would hide, or null if the line doesn't fold. */
 function hidden(state: EditorState, n: number) {

@@ -1407,6 +1407,7 @@ const TreeRow = memo(function TreeRow({
   return (
     <div
       id={rowId(entry.path)}
+      data-parent-row={depth > 1 ? rowId(parentPath(entry.path)) : undefined}
       role="treeitem"
       aria-level={depth}
       aria-selected={selected}
