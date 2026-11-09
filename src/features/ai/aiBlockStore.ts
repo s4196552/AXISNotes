@@ -51,6 +51,9 @@ export interface AiBlockState {
   asked?: string;
   /** Files a skill's result was saved to (with the AI icon), so it's saved only once. */
   saved?: string[];
+  /** Latest transcript could not be written; retain paths for Retry and Discard. */
+  transcriptUnsaved?: boolean;
+  saveError?: string;
   /** The strictest rule of the conversation's answers: follow-ups are held to it. */
   convRule?: AiRule;
   /** A page skill's checked HTML. */

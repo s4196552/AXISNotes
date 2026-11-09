@@ -59,7 +59,7 @@ export async function batch<T>(label: string, fn: () => Promise<T>): Promise<T> 
 }
 
 /** Several steps as one: reversed newest first; redone in the original order. */
-function group(label: string, steps: UndoStep[]): UndoStep {
+export function group(label: string, steps: UndoStep[]): UndoStep {
   return {
     label,
     async revert() {

@@ -41,7 +41,6 @@ import {
 } from "../skills/skills";
 import {
   homeFolder,
-  planFiles,
   runSkill,
   saveConversation,
   savePageNextTo,
@@ -143,6 +142,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         skill,
         prompt: cur.prompt,
         turns: cur.turns ?? [],
+        conversationRule: cur.convRule,
         path,
         useNote: cur.useNote,
         sources: spec?.sources,
@@ -207,7 +207,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
    * A plain prompt with a conversation: earlier answers are sent again with each
    * follow-up, so what it reads can't change (a local-only answer could go to the cloud).
    */
-  const chatting = !skill && (state.turns?.length ?? 0) > 0;
+  const chatting = (state.turns?.length ?? 0) > 0;
   /** Exchanges before the current question (the latest done one shows as the answer). */
   const earlier = !skill ? (running ? (state.turns ?? []) : (state.turns ?? []).slice(0, -2)) : [];
 
@@ -272,6 +272,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       skill: s,
       prompt: cur.prompt,
       turns: cur.turns ?? [],
+      conversationRule: cur.convRule,
       path,
       useNote: cur.useNote,
       sources: spec?.sources,
@@ -283,6 +284,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       answer: "",
       html: null,
       files: null,
+      saveError: undefined,
       phase: { kind: "running", runId: "", thinking: true },
     });
     try {
@@ -301,7 +303,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           return await save();
         } catch (e) {
           const why = isBackendError(e) ? e.message : String(e);
-          useAppStore.getState().setError(`Couldn't save the result: ${why}`);
+          patch({ saveError: `Couldn't save the result: ${why}` });
           return [];
         }
       };
@@ -309,11 +311,13 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         const saved = await keep(async () => [await savePageNextTo(path, s, out.html)]);
         patch({ html: out.html, saved, answer: "", phase: done });
       } else if (out.kind === "files") {
-        const planned = planFiles(homeFolder(path), out.files.files);
-        const saved = await keep(
-          async () => (await writeFiles(planned), planned.map((f) => f.target)),
-        );
-        patch({ files: out.files, saved, answer: "", phase: done });
+        patch({ saved: [] });
+        try {
+          await writeFiles(homeFolder(path), out.files.files, [], (saved) => patch({ saved }));
+        } catch (e) {
+          patch({ saveError: isBackendError(e) || e instanceof Error ? e.message : String(e) });
+        }
+        patch({ files: out.files, answer: "", phase: done });
       } else if (s.output === "chat") {
         const turns = [
           ...(cur.turns ?? []),
@@ -321,10 +325,19 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           { role: "assistant" as const, text: out.result.text },
         ];
         // The conversation is saved after every reply, and kept up to date.
+        const convRule = stricter(cur.convRule ?? "any", out.result.rule);
         const saved = await keep(() =>
-          saveConversation(path, s, format === "html", turns, out.result.rule, cur.saved),
+          saveConversation(path, s, format === "html", turns, convRule, cur.saved),
         );
-        patch({ turns, saved, answer: "", prompt: "", phase: done });
+        patch({
+          turns,
+          convRule,
+          saved: saved.length ? saved : cur.saved,
+          transcriptUnsaved: !saved.length,
+          answer: "",
+          prompt: "",
+          phase: done,
+        });
       } else patch({ answer: out.result.text, phase: done });
     } catch (e) {
       if (!useAiBlocks.getState().blocks[id]) return; // closed meanwhile
@@ -421,7 +434,17 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
               aria-label={`Stop using the ${skill.title} skill`}
               disabled={running}
               onClick={() =>
-                patch({ skill: null, format: null, turns: [], html: null, files: null })
+                patch({
+                  skill: null,
+                  format: null,
+                  turns: [],
+                  convRule: "any",
+                  saved: [],
+                  html: null,
+                  files: null,
+                  phase: { kind: "idle" },
+                  answer: "",
+                })
               }
             >
               <X size={11} />
@@ -585,22 +608,28 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         </>
       )}
 
+      {phase.kind === "done" && state.saveError && (
+        <p className="ai-error ai-block-error" role="alert">
+          {state.saveError}
+        </p>
+      )}
       {phase.kind === "done" && skill?.output === "html" && state.html && (
         <PageResult
           skill={skill}
           html={state.html}
           path={path}
           saved={state.saved ?? []}
-          onSaved={(saved) => patch({ saved })}
+          onSaved={(saved) => patch({ saved, saveError: undefined })}
           onDone={() => closeAiBlock(view, id, false)}
         />
       )}
       {phase.kind === "done" && skill?.output === "files" && state.files && (
         <FilesResult
           files={state.files}
+          onError={(saveError) => patch({ saveError })}
           path={path}
           saved={state.saved ?? []}
-          onSaved={(saved) => patch({ saved })}
+          onSaved={(saved) => patch({ saved, saveError: undefined })}
           onDone={() => closeAiBlock(view, id, false)}
         />
       )}
@@ -610,14 +639,16 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           format={format === "html" ? "html" : "markdown"}
           turns={state.turns ?? []}
           path={path}
-          rule={answerRule}
+          rule={state.convRule ?? answerRule}
           saved={state.saved ?? []}
-          onSaved={(saved) => patch({ saved })}
+          unsaved={state.transcriptUnsaved ?? false}
+          onSaved={(saved) => patch({ saved, transcriptUnsaved: false, saveError: undefined })}
           onWrapUp={() => {
             patch({ prompt: "wrap up" });
             void run();
           }}
           onDone={() => closeAiBlock(view, id, false)}
+          onDiscardFailed={(saved) => patch({ saved, transcriptUnsaved: true })}
           onDiscard={close}
         />
       )}

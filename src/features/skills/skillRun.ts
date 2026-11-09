@@ -13,7 +13,7 @@ import { markText } from "../../lib/aiAccess";
 import { createUniqueNote } from "../commands/actions";
 import { folderScope } from "../ai/folderScope";
 import { conversationMarkdown, type Turn } from "../ai/conversation";
-import { created, record } from "../filetree/undo";
+import { created, group, record, type UndoStep } from "../filetree/undo";
 import { giveAiIcon } from "./aiIcon";
 import { folderOf, isDraft, suggestedFolder } from "../drafts/drafts";
 import {
@@ -34,6 +34,7 @@ export interface SkillRequestInput {
   skill: Skill;
   prompt: string;
   turns: Turn[];
+  conversationRule?: AiRule;
   /** The note the block is in. */
   path: string;
   useNote: boolean;
@@ -89,6 +90,7 @@ export function skillRequest(o: SkillRequestInput): AiRunRequest {
     provider: o.choice.provider,
     model: o.choice.model,
     messages,
+    ...(o.skill.output === "chat" && o.turns.length ? { atLeast: o.conversationRule } : {}),
     attach: skillAttach(o.skill, o.path, o.useNote, o.sources),
     sources: o.selectionText ? [o.path] : [],
     ...(o.skill.output === "files" ? { json: true } : {}),
@@ -201,13 +203,14 @@ export async function saveConversation(
     html ? transcriptHtml(skill, turns) : transcript(skill, turns),
     rule,
   );
-  const existing = saved?.[0];
+  const existing = saved?.find((file) => file.endsWith(ext));
   if (existing) {
     await backend.writeFile(existing, content);
-    return [existing];
+    return [existing, ...(saved ?? []).filter((p) => p !== existing)];
   }
   const note = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
-  return [await keepSkillFile(homeFolder(path), `${skill.title} - ${note}`, content, ext)];
+  const file = await keepSkillFile(homeFolder(path), `${skill.title} - ${note}`, content, ext);
+  return [file, ...(saved ?? [])];
 }
 
 /** Save a skill's web page next to its note, as "<note> - <skill>.html". */
@@ -218,47 +221,74 @@ export async function savePageNextTo(path: string, skill: Skill, html: string): 
   return keepSkillFile(homeFolder(path), name, html, ".html");
 }
 
-export interface PlannedFile extends SkillFile {
-  /** Its vault path in the workspace folder. */
-  target: string;
-  /** A file of that name is already there and would be replaced. */
-  replaces: boolean;
-}
-
-/** Where each file would go in `folder`, and which ones already exist. */
-export function planFiles(folder: string, files: SkillFile[]): PlannedFile[] {
-  const existing = new Set<string>();
-  const walk = (e: { path: string; kind: string; children?: { path: string; kind: string }[] }) => {
-    for (const c of e.children ?? []) {
-      if (c.kind === "file") existing.add(c.path.toLowerCase());
-      else walk(c as never);
-    }
+/** Restore only a replacement whose contents still match this step. */
+function replaced(path: string, before: string, after: string): UndoStep {
+  return {
+    label: `Update “${path}”`,
+    async revert() {
+      const current = await backend.readFile(path);
+      if (current.content !== after)
+        throw new Error(`“${path}” has changed since the lesson was saved.`);
+      await backend.writeFile(path, before, current.modifiedMs);
+      return replaced(path, after, before);
+    },
   };
-  const tree = useAppStore.getState().tree;
-  if (tree) walk(tree);
-  return files.map((f) => {
-    const target = join(folder, f.path);
-    return { ...f, target, replaces: existing.has(target.toLowerCase()) };
-  });
 }
 
-/**
- * Write a skill's files into the folder, with the AI icon. A file it updates (like
- * Progress.md) replaces the old one, which goes to the OS trash first so it can be
- * brought back.
- */
-export async function writeFiles(files: PlannedFile[]): Promise<void> {
-  for (const f of files) {
-    try {
-      await backend.createFile(f.target, f.content);
-    } catch (e) {
-      if (!(isBackendError(e) && e.code === "AlreadyExists")) throw e;
-      await backend.trashEntry(f.target);
-      await backend.createFile(f.target, f.content);
+/** Only the private backup goes to the trash. Even a directory that appears
+ * at the target during the save stays safe. */
+async function saveLessonFile(
+  target: string,
+  file: SkillFile,
+  root: string,
+): Promise<UndoStep | null> {
+  try {
+    await backend.createFile(target, file.content, root);
+    return created(target, file.content);
+  } catch (e) {
+    if (!(isBackendError(e) && e.code === "AlreadyExists")) throw e;
+  }
+
+  const current = await backend.readFile(target).catch((e: unknown) => {
+    if (isBackendError(e) && e.code === "NotFound")
+      throw new Error(`Cannot save “${target}” over a folder. Rename the folder and retry.`);
+    throw e;
+  });
+  if (current.content === file.content) return null;
+  const backup = `.axisnotes/teach-${crypto.randomUUID()}-${file.path}`;
+  await backend.createFile(backup, current.content, root);
+  await backend.trashEntry(backup);
+  await backend.writeFile(target, file.content, current.modifiedMs, root);
+  return replaced(target, current.content, file.content);
+}
+
+/** Publish successful writes as they finish so a retry skips those files. */
+export async function writeFiles(
+  folder: string,
+  files: SkillFile[],
+  saved: string[],
+  onSaved: (paths: string[]) => void,
+): Promise<void> {
+  const root = useAppStore.getState().vault?.root;
+  if (!root) throw new Error("Open a vault to save the lesson.");
+  const steps: UndoStep[] = [];
+  const done = new Set(saved);
+  try {
+    for (const file of files) {
+      const target = join(folder, file.path);
+      if (done.has(target)) continue;
+      const step = await saveLessonFile(target, file, root);
+      if (step) steps.push(step);
+      done.add(target);
+      onSaved([...done]);
+    }
+  } finally {
+    if (useAppStore.getState().vault?.root === root && done.size) {
+      if (steps.length) record(group("Save lesson files", steps));
+      await giveAiIcon([...done]);
+      await useAppStore.getState().refreshTree();
     }
   }
-  await giveAiIcon(files.map((f) => f.target));
-  await useAppStore.getState().refreshTree();
 }
 
 /** A Grill me conversation as Markdown, for a draft. */

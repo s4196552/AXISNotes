@@ -4,14 +4,7 @@ import { type AiRule, backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { copyPageText } from "./copyable";
 import type { Skill, SkillFiles } from "./skills";
-import {
-  homeFolder,
-  planFiles,
-  saveConversation,
-  savePageNextTo,
-  type Turn,
-  writeFiles,
-} from "./skillRun";
+import { homeFolder, saveConversation, savePageNextTo, type Turn, writeFiles } from "./skillRun";
 
 // What a finished skill run shows, by kind. The result is already saved (next to the note,
 // with the AI icon), so these offer opening it: a web page (in a tab or the browser), a
@@ -83,12 +76,14 @@ export function PageResult({
 
 export function FilesResult({
   files,
+  onError,
   path,
   saved,
   onSaved,
   onDone,
 }: {
   files: SkillFiles;
+  onError(message: string): void;
   path: string;
   /** Where the files were saved; empty if saving failed. */
   saved: string[];
@@ -100,11 +95,9 @@ export function FilesResult({
   const save = async () => {
     setBusy(true);
     try {
-      const planned = planFiles(folder, files.files);
-      await writeFiles(planned);
-      onSaved(planned.map((f) => f.target));
+      await writeFiles(folder, files.files, saved, onSaved);
     } catch (e) {
-      fail(e);
+      onError(isBackendError(e) || e instanceof Error ? e.message : String(e));
     }
     setBusy(false);
   };
@@ -141,7 +134,7 @@ export function FilesResult({
                 type="button"
                 className="primary"
                 onClick={() => {
-                  onDone();
+                  if (saved.length === files.files.length) onDone();
                   open(lesson);
                 }}
               >
@@ -154,9 +147,11 @@ export function FilesResult({
               </button>
             )}
           </>
-        ) : (
+        ) : null}
+        {saved.length < files.files.length && (
           <button type="button" className="primary" disabled={busy} onClick={() => void save()}>
-            <FolderInput size={12} /> Save to {folder || "the vault"}
+            <FolderInput size={12} />{" "}
+            {saved.length ? "Save remaining files" : `Save to ${folder || "the vault"}`}
           </button>
         )}
       </div>
@@ -189,6 +184,8 @@ export function ChatActions({
   rule = "any",
   saved,
   onSaved,
+  unsaved,
+  onDiscardFailed,
   onWrapUp,
   onDone,
   onDiscard,
@@ -203,14 +200,50 @@ export function ChatActions({
   /** Where the conversation is saved (updated after each reply); empty if it isn't. */
   saved: string[];
   onSaved(saved: string[]): void;
+  unsaved: boolean;
+  onDiscardFailed(remaining: string[]): void;
   onWrapUp(): void;
   onDone(): void;
   onDiscard(): void;
 }) {
-  const file = saved[0];
+  const [busy, setBusy] = useState(false);
+  const file =
+    !unsaved && saved[0]?.endsWith(format === "html" ? ".html" : ".md") ? saved[0] : undefined;
+  const save = async () => {
+    setBusy(true);
+    try {
+      onSaved(await saveConversation(path, skill, format === "html", turns, rule, saved));
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const discard = async () => {
+    setBusy(true);
+    const remaining = new Set(saved);
+    try {
+      for (const p of saved) {
+        try {
+          await backend.readFile(p); // A folder may now occupy the old transcript path.
+          await backend.trashEntry(p);
+        } catch (e) {
+          if (!(isBackendError(e) && e.code === "NotFound")) throw e;
+        }
+        remaining.delete(p);
+      }
+      await useAppStore.getState().refreshTree();
+      onDiscard();
+    } catch (e) {
+      onDiscardFailed([...remaining]);
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="ai-block-actions">
-      <button type="button" onClick={onWrapUp}>
+      <button type="button" disabled={busy} onClick={onWrapUp}>
         Wrap up
       </button>
       {file ? (
@@ -225,23 +258,17 @@ export function ChatActions({
           <FileText size={12} /> Open the saved conversation
         </button>
       ) : (
-        <button
-          type="button"
-          onClick={() =>
-            void saveConversation(path, skill, format === "html", turns, rule).then(onSaved, fail)
-          }
-        >
+        <button type="button" disabled={busy} onClick={() => void save()}>
           <FilePlus2 size={12} /> Save the conversation
         </button>
       )}
       <button
         type="button"
-        title={file ? "Close it and move the saved conversation to the trash" : undefined}
-        onClick={() => {
-          if (file)
-            void backend.trashEntry(file).then(() => useAppStore.getState().refreshTree(), fail);
-          onDiscard();
-        }}
+        disabled={busy}
+        title={
+          saved.length ? "Close and move the saved conversation files to the trash" : undefined
+        }
+        onClick={() => void discard()}
       >
         <Trash2 size={12} /> Discard
       </button>

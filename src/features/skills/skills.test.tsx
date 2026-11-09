@@ -25,6 +25,7 @@ import {
   withFormat,
 } from "./skills";
 import { skillAttach, skillRequest, transcriptHtml } from "./skillRun";
+import { clearTreeUndo, undoTree, redoTree, useTreeUndo } from "../filetree/undo";
 import { makeCopyable } from "./copyable";
 import { commonFolder, pickedNotes, runSkillOnPicked, skillsForPicked } from "./skillOnFiles";
 import { aiBlockField, discardParkedBlocks } from "../ai/aiBlock";
@@ -268,7 +269,91 @@ describe("running skills from an AI block", () => {
     await waitFor(() => expect(useAppStore.getState().activePath).toBe("Bio/Lesson 1 - Cells.md"));
   });
 
-  it("keeps a Grill me conversation going, then keeps it as a draft", async () => {
+  it("preserves colliding folders and retries only the remaining Teach files", async () => {
+    clearTreeUndo();
+    await h.b.createFile("Bio/Progress.md/Outline.md", "my outline");
+    setAiResponder(() =>
+      JSON.stringify({
+        files: [
+          { path: "Lesson.md", content: "lesson" },
+          { path: "Progress.md", content: "progress" },
+        ],
+      }),
+    );
+    const v = mount("x", "Bio/Cells.md", 0);
+    act(() => void openAiBlock(v, undefined, { skill: "teach" }));
+    const block = within(await screen.findByRole("group", { name: "AI block" }));
+    fireEvent.click(block.getByRole("button", { name: /Run/ }));
+    const retry = await block.findByRole("button", { name: /Save remaining files/ });
+    expect(block.getByRole("alert")).toHaveTextContent("Progress.md");
+    expect(h.b.files()["Bio/Progress.md/Outline.md"]).toBe("my outline");
+    await h.b.writeFile("Bio/Lesson.md", "my edits");
+    await h.b.renameEntry("Bio/Progress.md", "Bio/Outlines");
+    fireEvent.click(retry);
+    await waitFor(() => expect(h.b.files()["Bio/Progress.md"]).toBe("progress\n"));
+    expect(h.b.files()["Bio/Lesson.md"]).toBe("my edits");
+    await waitFor(() => expect(block.queryByRole("alert")).toBeNull());
+  });
+
+  it("undoes and redoes new and updated Teach files as a single step", async () => {
+    clearTreeUndo();
+    await h.b.createFile("Bio/Progress.md", "old progress");
+    setAiResponder(() =>
+      JSON.stringify({
+        files: [
+          { path: "Progress.md", content: "next" },
+          { path: "Lesson.md", content: "lesson" },
+        ],
+      }),
+    );
+    const v = mount("x", "Bio/Cells.md", 0);
+    act(() => void openAiBlock(v, undefined, { skill: "teach" }));
+    const block = within(await screen.findByRole("group", { name: "AI block" }));
+    fireEvent.click(block.getByRole("button", { name: /Run/ }));
+    await block.findByRole("button", { name: /Open the lesson/ });
+    expect(useTreeUndo.getState().undo).toHaveLength(1);
+    await act(() => undoTree());
+    expect(h.b.files()["Bio/Progress.md"]).toBe("old progress");
+    expect(h.b.files()["Bio/Lesson.md"]).toBeUndefined();
+    await act(() => redoTree());
+    expect(h.b.files()["Bio/Progress.md"]).toBe("next\n");
+    expect(h.b.files()["Bio/Lesson.md"]).toBe("lesson\n");
+  });
+
+  it("carries transcript privacy into follow-ups and keeps each format in its own file", async () => {
+    await h.b.writeFile("Bio/Cells.md", "---\nai-access: local\n---\nCells");
+    setAiResponder((req) => {
+      lastRequest.req = req;
+      return "Answer";
+    });
+    const v = mount("x", "Bio/Cells.md", 0);
+    act(() => void openAiBlock(v, undefined, { skill: "grill-me" }));
+    const block = within(await screen.findByRole("group", { name: "AI block" }));
+    fireEvent.click(block.getByRole("button", { name: /Run/ }));
+    await block.findByRole("button", { name: /Wrap up/ });
+    const md = "Bio/Grill me - Cells.md";
+    const html = "Bio/Grill me - Cells.html";
+    const first = h.b.files()[md];
+    expect(first).toContain("ai-access: local");
+    expect(block.getByRole("button", { name: /Reads:/ })).toBeDisabled();
+    await h.b.writeFile("Bio/Cells.md", "Cells");
+    fireEvent.click(block.getByRole("button", { name: "HTML" }));
+    fireEvent.change(block.getByLabelText("AI prompt"), { target: { value: "Second question" } });
+    fireEvent.click(block.getByRole("button", { name: /Reply/ }));
+    await waitFor(() => expect(h.b.files()[html]).toContain("Second question"));
+    expect(lastRequest.req?.atLeast).toBe("local");
+    expect(h.b.files()[html]).toContain('<meta name="ai-access" content="local">');
+    expect(h.b.files()[md]).toBe(first);
+    fireEvent.click(block.getByRole("button", { name: "Markdown" }));
+    fireEvent.click(block.getByRole("button", { name: /Save the conversation/ }));
+    await waitFor(() => expect(h.b.files()[md]).toContain("Second question"));
+    expect(h.b.files()[md]).toContain("ai-access: local");
+    fireEvent.click(block.getByRole("button", { name: /Discard/ }));
+    await waitFor(() => expect(h.b.files()[md]).toBeUndefined());
+    expect(h.b.files()[html]).toBeUndefined();
+  });
+
+  it("updates a Grill me conversation after each reply and discards its saved file", async () => {
     const seen: number[] = [];
     setAiResponder((req) => {
       seen.push(req.messages.length);
@@ -302,6 +387,10 @@ describe("running skills from an AI block", () => {
     expect(Object.keys(h.b.files()).filter((p) => p.includes("Grill me"))).toEqual([
       "Bio/Grill me - Cells.md",
     ]);
+    vi.spyOn(h.b, "trashEntry").mockRejectedValueOnce(new Error("File is busy"));
+    fireEvent.click(within(block).getByRole("button", { name: /Discard/ }));
+    await waitFor(() => expect(useAppStore.getState().notice).toBe("File is busy"));
+    expect(within(block).getByLabelText("Conversation")).toHaveTextContent("Students");
     // Discard closes it and moves the saved conversation to the trash.
     fireEvent.click(within(block).getByRole("button", { name: /Discard/ }));
     await waitFor(() => expect(h.b.files()["Bio/Grill me - Cells.md"]).toBeUndefined());

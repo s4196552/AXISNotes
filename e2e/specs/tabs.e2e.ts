@@ -31,7 +31,7 @@ describe("Tabs on the real app (T-085)", () => {
   it("opens notes in the active tab, and in a new tab with a middle-click", async () => {
     await expect(row("Welcome.md")).toBeDisplayed();
     await row("Welcome.md").click();
-    await expect($(".editor-title")).toHaveText("Welcome");
+    await expect($(".editor-title")).toHaveValue("Welcome");
     expect(await tabTitles()).toEqual(["Welcome"]);
 
     await row("School").click();
@@ -41,14 +41,14 @@ describe("Tabs on the real app (T-085)", () => {
     });
     expect(await tabTitles()).toEqual(["Welcome", "Biology"]);
     expect(await activeTitle()).toBe("Biology");
-    await expect($(".editor-title")).toHaveText("Biology");
+    await expect($(".editor-title")).toHaveValue("Biology");
     await snapshot("01-two-tabs");
   });
 
   it("switches, opens and closes tabs from the keyboard", async () => {
     await browser.keys([Key.Ctrl, Key.Tab]);
     await browser.waitUntil(async () => (await activeTitle()) === "Welcome");
-    await expect($(".editor-title")).toHaveText("Welcome");
+    await expect($(".editor-title")).toHaveValue("Welcome");
 
     await browser.keys([Key.Ctrl, "t"]);
     await browser.waitUntil(async () => (await tabTitles()).length === 3);
@@ -69,7 +69,7 @@ describe("Tabs on the real app (T-085)", () => {
     await browser.waitUntil(async () => (await tabTitles()).includes("Cells"), {
       timeoutMsg: "the tab kept the old name",
     });
-    await expect($(".editor-title")).toHaveText("Cells");
+    await expect($(".editor-title")).toHaveValue("Cells");
   });
 
   it("pins a tab from its menu", async () => {
@@ -97,7 +97,7 @@ describe("Tabs on the real app (T-085)", () => {
     });
     expect(await tabTitles()).toEqual(["Welcome", "Cells"]);
     expect(await activeTitle()).toBe("Cells");
-    await expect($(".editor-title")).toHaveText("Cells");
+    await expect($(".editor-title")).toHaveValue("Cells");
     await expect($("button[aria-label='Unpin Welcome']")).toExist();
     await snapshot("03-restored");
   });
