@@ -2,6 +2,19 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-09: Practice tests, flash cards and lessons test the subject, not the notes' layout (T-204)
+
+- **The problem:** a practice test made from notes in folders like `Week 1` to `Week 5` asked which week covered which topic, instead of testing the material. The model sees each note's path, and the instructions only said "write a practice test on the notes".
+- **The fix:** Practice test, Flash cards and Teach me (its exercises) share study rules (`STUDY_RULES` in `builtinSkills.ts`):
+  - test what the notes teach, like a school exam;
+  - never ask which week, lecture, note, file, folder, heading or date a topic was in, or the order topics came in, and never mention those labels;
+  - cover all the material in proportion;
+  - favour why, how and apply questions, including some that combine topics;
+  - use plausible wrong options;
+  - leave out course admin.
+- Mind map branches by topic, not by note or week. Grill me and Handoff are about plans and work, so they're unchanged.
+- **Who gets it:** the built-in skills, which include any vault without its own copies. A skill already copied into a vault's `Skills/` folder keeps its own text until it's copied again.
+
 ## 2026-11-09: Edit with AI, reviewed change by change (T-199)
 
 - **Fix writing has a third mode, "Your instruction"** ("Edit with AI" in the command palette). The user writes any instruction ("make this a numbered list", "shorten by half"); the request uses the general chat model at balanced effort rather than the quick-fix one, because a rewrite can be substantial. The prompt asks for the full edited text with everything the instruction doesn't touch kept exactly, links, tags and block ids included.
