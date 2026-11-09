@@ -1432,9 +1432,11 @@ const TreeRow = memo(function TreeRow({
       }
       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
       onAuxClick={(e) => {
-        if (e.button !== 1 || isDir) return;
+        if (e.button !== 1) return;
         e.preventDefault();
-        actions.activate(entry, true);
+        // A folder opens its dashboard in a new tab, if it has one.
+        if (!isDir) actions.activate(entry, true);
+        else if (dashboard) useAppStore.getState().openDashboard(entry.path, { newTab: true });
       }}
       onContextMenu={(e) => actions.openMenu(e, entry)}
       onPointerDown={renaming ? undefined : (e) => actions.press(e, entry.path)}
@@ -1473,7 +1475,7 @@ const TreeRow = memo(function TreeRow({
           className="filetree-dashboard"
           title="Open dashboard"
           onClick={(e) => {
-            e.stopPropagation();
+            e.stopPropagation(); // not the row's own click
             useAppStore.getState().openDashboard(entry.path, { newTab: e.ctrlKey || e.metaKey });
           }}
         >
