@@ -110,6 +110,136 @@ Make the deck one self-contained HTML page.
 ${PAGE_RULES}
 `,
 
+  mnemonic: `---
+name: mnemonic
+title: Mnemonic
+description: Remember key facts, lists and processes with memory aids and a clear explanation of each connection.
+output: markdown
+reads: note
+---
+Make memorable aids for the key facts, terms, lists and processes in the notes you were given.
+
+- Choose a useful device for each topic: an acronym, acrostic, short phrase, image described in words, or a brief story. Prefer a few helpful aids over a forced mnemonic for every sentence.
+- Show the original fact or list beside each aid and explain exactly what each letter, word or image stands for. Preserve the source's terminology and meaningful order; don't invent an order for an unordered list.
+- The memory aid may be invented; the facts it encodes must come from the notes. Never change a fact to make an aid fit, and flag where an aid simplifies an idea or omits an exception.
+- Add a short recall prompt for each aid so the learner practises recovering the facts, not just repeating the phrase.
+- Follow the user's requested topic, style or number of aids.
+
+${STUDY_RULES}
+
+## Format: Markdown
+Write a Markdown note grouped by topic, with the memory aid, its mapping and its limitation (if any). Put the recall prompt after it, with the answer in a folded callout:
+> [!success]- Check your recall
+> The facts the learner should recover.
+Reply with only the note.
+
+## Format: HTML
+Make one self-contained HTML page with a card for each memory aid, its mapping and any limitation. Each recall prompt has a labelled "Show answer" / "Hide answer" button or native details/summary disclosure. Keep answers hidden until requested; leave the explanatory text selectable.
+${PAGE_RULES}
+`,
+
+  "make-it-stick": `---
+name: make-it-stick
+title: Make it stick
+description: Build lasting understanding with recall prompts, mixed practice, explanations and a suggested revisit plan.
+output: markdown
+reads: note
+---
+Turn the notes you were given into a study session that helps the learner recall and apply what they teach.
+
+${STUDY_RULES}
+
+- Start with a short closed-notes recall round before showing explanations. Use about 6 to 10 prompts unless the user requests a different length.
+- Mix topics or problem types when the material supports it. Include "explain why", an application problem, and a common misconception to correct. Don't invent unrelated topics just to mix them.
+- Give a model answer and a brief explanation for each prompt, with concrete criteria the learner can use to check their own answer. Ask them to attempt it before revealing the answer and to mark it "Revisit" or "Got it".
+- Include a brief explain-it-in-your-own-words task that connects two ideas from the notes, where possible. Facts and answers must be supported by the notes; label invented practice scenarios as hypothetical.
+- End with a suggested revisit plan, for example tomorrow, in three days and in a week, adjusted to the user's timeframe. Revisit missed or uncertain answers first. This is study guidance only: do not claim to create reminders, calendar events or spaced-repetition records.
+
+## Format: Markdown
+Write a Markdown study note. Each prompt comes before its answer, hidden in a folded callout:
+> [!success]- Answer and self-check
+> Model answer, explanation and what to look for in your attempt.
+Include checkboxes for items to revisit and a short revisit-plan table. Reply with only the note.
+
+## Format: HTML
+Make one self-contained HTML study page. Each prompt has a space to type an attempt, a labelled answer disclosure and "Revisit" / "Got it" buttons. Show session progress and let the learner filter to items marked Revisit or reset the session. Use self-assessment against the model answer, not exact-string grading for conceptual responses. End with the suggested revisit plan. Keep state in memory for this session; don't imply it is saved or scheduled.
+${PAGE_RULES}
+`,
+
+  example: `---
+name: example
+title: Example
+description: Understand an idea through worked examples, explained steps and a problem to try yourself.
+output: markdown
+reads: note
+---
+Explain the concepts in the notes you were given through concrete worked examples.
+
+- Use the user's chosen concept if supplied; otherwise choose the main ideas that most benefit from an example. Start with a simple example and add a harder application where useful.
+- For each example, state the concept and setup, work through the steps with why each step follows, then give the result and the general lesson. Preserve units, conditions and exceptions from the source.
+- Ground factual explanations and methods in the notes. You may invent simple numbers or a hypothetical scenario to illustrate a supported principle; label these as illustrative, and never present them as sourced data, real events or evidence. If the notes lack a necessary method or fact, identify the gap rather than invent it.
+- Include a nearby non-example or common mistake and explain the distinction where it helps understanding.
+- Finish with a similar problem for the learner to attempt, with its worked answer hidden until requested.
+
+${STUDY_RULES}
+
+## Format: Markdown
+Write a Markdown note with headings for the worked examples and numbered steps. Put the final practice problem's solution in a folded callout:
+> [!success]- Worked answer
+> Steps, result and explanation.
+Reply with only the note.
+
+## Format: HTML
+Make one self-contained HTML page. Show worked examples as readable step-by-step cards; use labelled disclosures for optional explanations and the final practice solution. Let the learner type an attempt before revealing the solution and compare it themselves. Any diagrams use inline SVG or HTML and CSS.
+${PAGE_RULES}
+`,
+
+  "slide-deck": `---
+name: slide-deck
+title: Slide Deck
+description: Turn your notes into a presentation, as an offline slide page or a Markdown outline.
+output: html
+reads: note
+---
+Turn the notes you were given into a clear presentation.
+
+- Follow the user's audience, purpose and requested length. Otherwise aim for 6 to 10 slides, using fewer when the source is short. One main idea per slide, concise text and a logical progression from the topic to key takeaways.
+- Cover the important material by topic, not one slide per note or week. Use the notes' facts and preserve their qualifications. Don't invent statistics, quotes, citations or missing content.
+- Use diagrams or comparisons when they explain the material better than bullets. Keep text readable and avoid decorative charts with no supporting data.
+
+## Format: Markdown
+Write a Markdown slide outline: each slide starts with a level-two heading, followed by its content, with a horizontal rule (---) between slides. If a diagram helps, use a simple Mermaid code block or a textual description. Reply with only the outline.
+
+## Format: HTML
+Make the presentation one self-contained HTML page.
+- Present one slide at a time, with labelled Previous and Next buttons, a slide counter and keyboard navigation (Left/Right, Home/End). Don't intercept navigation keys while a text field or editable element has focus. Clamp navigation at the first and last slides.
+- Use inline SVG or HTML and CSS for diagrams. Provide a readable stacked layout on narrow screens, and print CSS that prints every slide, with one slide per page and navigation controls hidden.
+- Keep slide text selectable. All slides remain readable if JavaScript is unavailable. Don't require fullscreen access or an external presentation library.
+${PAGE_RULES}
+`,
+
+  infographic: `---
+name: infographic
+title: Infographic
+description: Turn key ideas, processes or comparisons into a visual summary or a Markdown brief.
+output: html
+reads: note
+---
+Turn the notes you were given into an infographic that makes the main ideas easy to scan and understand.
+
+- Choose a layout that fits the subject: a sequence for a process, a timeline only for dated events, a comparison for alternatives, or grouped panels for related concepts. Follow the user's focus and intended audience.
+- Use a clear title, one central takeaway, short labels and a strong reading order. Preserve important caveats rather than removing them to fit the design.
+- Every factual claim, quantity, date and relationship must be supported by the notes. Don't invent percentages, statistics, citations or causal links. Use a chart only when the notes contain appropriate data, with labelled values and units; otherwise use a qualitative diagram.
+- Organise by subject, not by source file or week. Colour reinforces labels and shapes; it must not be the only way to distinguish categories.
+
+## Format: Markdown
+Write a Markdown infographic brief with the title, central takeaway, sections in reading order, their exact labels and text, and a short description of the intended layout. Use tables for comparisons and a simple Mermaid code block for a process when helpful. Reply with only the brief.
+
+## Format: HTML
+Make one self-contained HTML infographic with semantic headings and live text. Build diagrams and icons using inline SVG or HTML and CSS; include accessible text descriptions for meaningful graphics. Stack panels on small screens without clipping or horizontal scrolling. Use a restrained, high-contrast palette in light and dark modes, and print CSS that keeps all content readable and visible. No scripts are needed unless the user requests interaction.
+${PAGE_RULES}
+`,
+
   "grill-me": `---
 name: grill-me
 title: Grill me

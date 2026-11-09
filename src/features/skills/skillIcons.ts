@@ -1,11 +1,16 @@
 import {
+  Brain,
+  ChartPie,
   ClipboardCheck,
   GraduationCap,
   Handshake,
   Layers,
+  Lightbulb,
   type LucideIcon,
   MessagesSquare,
   Network,
+  Presentation,
+  Repeat2,
   WandSparkles,
 } from "lucide-react";
 
@@ -15,6 +20,11 @@ const ICONS: Record<string, LucideIcon> = {
   mindmap: Network,
   test: ClipboardCheck,
   flashcards: Layers,
+  mnemonic: Brain,
+  "make-it-stick": Repeat2,
+  example: Lightbulb,
+  "slide-deck": Presentation,
+  infographic: ChartPie,
   "grill-me": MessagesSquare,
   handoff: Handshake,
   teach: GraduationCap,
