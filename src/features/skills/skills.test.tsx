@@ -474,3 +474,21 @@ describe("skills on files picked in the tree", () => {
     );
   });
 });
+
+describe("study skills test the subject, not the notes' layout", () => {
+  it("tell the model to ask about what the notes teach, never which week or note it was in", () => {
+    for (const id of ["test", "flashcards", "teach"]) {
+      for (const format of formatsOf(byId(id))) {
+        const sent = skillSystem(withFormat(byId(id), format));
+        expect(sent, `${id} (${format})`).toMatch(/Test the subject itself/);
+        expect(sent).toMatch(/Never ask about the notes themselves: not which week, lecture/);
+        expect(sent).toMatch(/never mention them in a question, an option or an answer/);
+        expect(sent).toMatch(/why, how, what would happen if/);
+      }
+    }
+    expect(byId("mindmap").instructions).toMatch(/Branch by topic, not by note, week/);
+    // Not for skills about plans and work.
+    expect(byId("grill-me").instructions).not.toMatch(/Test the subject itself/);
+    expect(byId("handoff").instructions).not.toMatch(/Test the subject itself/);
+  });
+});

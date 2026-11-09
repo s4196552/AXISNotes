@@ -16,6 +16,18 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - New saved files are recorded for Ctrl+Z in the file tree (T-200), which takes them back while unchanged.
   - Discarding a Grill me conversation moves its saved file to the trash.
 - **Privacy marks (T-195) still apply** to everything saved. Drafts remain for Ask AI, AI blocks and Quick Chat answers, which aren't skill results.
+## 2026-11-09: Practice tests, flash cards and lessons test the subject, not the notes' layout (T-204)
+
+- **The problem:** a practice test made from notes in folders like `Week 1` to `Week 5` asked which week covered which topic, instead of testing the material. The model sees each note's path, and the instructions only said "write a practice test on the notes".
+- **The fix:** Practice test, Flash cards and Teach me (its exercises) share study rules (`STUDY_RULES` in `builtinSkills.ts`):
+  - test what the notes teach, like a school exam;
+  - never ask which week, lecture, note, file, folder, heading or date a topic was in, or the order topics came in, and never mention those labels;
+  - cover all the material in proportion;
+  - favour why, how and apply questions, including some that combine topics;
+  - use plausible wrong options;
+  - leave out course admin.
+- Mind map branches by topic, not by note or week. Grill me and Handoff are about plans and work, so they're unchanged.
+- **Who gets it:** the built-in skills, which include any vault without its own copies. A skill already copied into a vault's `Skills/` folder keeps its own text until it's copied again.
 
 ## 2026-11-09: Edit with AI, reviewed change by change (T-199)
 
