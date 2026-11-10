@@ -540,6 +540,7 @@ export function createMemoryBackend(
     },
     // The browser preview has no files on disk to pick from.
     pickImage: async () => null,
+    setWindowIcon: async () => {},
     async importImage(source, folder) {
       requireVault();
       const name = baseName(source.replace(/\\/g, "/"));

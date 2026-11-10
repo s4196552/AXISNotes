@@ -32,6 +32,7 @@ import { useZenEdges } from "./app/zen";
 import { usePresence } from "./features/panels/presence";
 import { Workspace } from "./features/panes/Workspace";
 import { WindowControls } from "./features/window/WindowControls";
+import { applyWindowLogo } from "./app/windowLogo";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
@@ -116,6 +117,10 @@ export default function App() {
   }, [theme, snippets]);
 
   const typography = useConfig((s) => s.config.appearance);
+  useEffect(
+    () => applyWindowLogo(typography.logo, (message) => useAppStore.getState().notify(message)),
+    [typography.logo, vault?.root],
+  );
   useEffect(() => applyTypography(typography), [typography]);
   const { windowOpacity, windowEffect } = typography;
   useEffect(() => {

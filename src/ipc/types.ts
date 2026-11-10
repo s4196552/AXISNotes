@@ -488,6 +488,8 @@ export interface Backend {
   createDir(path: string): Promise<VaultEntry>;
   /** Show a native picker for one image file; resolves null if cancelled. */
   pickImage(): Promise<string | null>;
+  /** Set the main window/taskbar icon from exactly 256×256 RGBA pixels. */
+  setWindowIcon(rgba: number[]): Promise<void>;
   /**
    * Copy the image at `source` (a path on disk) into the vault folder `folder` under a
    * free name (`photo 1.png` if `photo.png` exists). Images only, up to 25 MB.

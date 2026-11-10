@@ -5,6 +5,7 @@ import { Menu, MenuItem } from "@tauri-apps/api/menu";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Effect, getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize } from "@tauri-apps/api/dpi";
+import { Image } from "@tauri-apps/api/image";
 import { open } from "@tauri-apps/plugin-dialog";
 import type {
   AgentMessage,
@@ -65,6 +66,15 @@ export function createTauriBackend(): Backend {
       return typeof picked === "string" ? picked : null;
     },
     importImage: (source, folder) => invoke("import_image", { source, folder }),
+    async setWindowIcon(rgba) {
+      if (rgba.length !== 256 * 256 * 4) throw new Error("Invalid window icon size.");
+      const image = await Image.new(rgba, 256, 256);
+      try {
+        await getCurrentWindow().setIcon(image);
+      } finally {
+        await image.close();
+      }
+    },
     listPacks: () => invoke("list_packs"),
     async pickPackSource(from) {
       const picked = await open(

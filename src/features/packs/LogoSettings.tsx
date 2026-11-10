@@ -53,8 +53,8 @@ export function LogoSettings() {
     <section aria-label="App logo">
       <h3>App logo</h3>
       <p className="settings-hint">
-        Choose the logo shown inside AXISNotes for this vault. Uploads are copied into
-        Attachments/Branding.
+        Choose the logo shown inside AXISNotes and on its window and Windows taskbar for this vault.
+        Uploads are copied into Attachments/Branding.
       </p>
       <Logo size={64} />
       <div
