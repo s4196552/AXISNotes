@@ -22,6 +22,7 @@ import {
   File,
   FileInput,
   Globe,
+  GraduationCap,
   Grid3x3,
   Grip,
   Heading1,
@@ -47,6 +48,7 @@ import {
   PanelLeft,
   PenLine,
   PenTool,
+  Presentation,
   Search,
   SeparatorHorizontal,
   Sparkles,
@@ -70,6 +72,7 @@ import { toggleMark } from "./inlineMarks";
 import { pickAndEmbed } from "./media";
 import { openAiBlock } from "../ai/aiBlock";
 import { skillIcon, skillList } from "../skills/skillIcons";
+import { groupSkills, skillSection, skillSectionCategory } from "../skills/skillGroups";
 
 // The command menu (Ctrl+/, or an optional typed trigger) and `:` emoji, with
 // configurable triggers. The other typed menus (`@@`, `((`, `::`, `{{`) are in triggers.ts.
@@ -669,6 +672,11 @@ export const SECTION_ICONS: Record<string, LucideIcon> = {
   "Page style": Notebook,
   [CUSTOM_GROUP]: Zap,
   [SKILLS_GROUP]: Sparkles,
+  [skillSection("Learn & understand")]: GraduationCap,
+  [skillSection("Practice & remember")]: Zap,
+  [skillSection("Visualize & present")]: Presentation,
+  [skillSection("Plan & collaborate")]: Workflow,
+  [skillSection("Other skills")]: Sparkles,
   "Filtered results": Search,
 };
 
@@ -679,7 +687,9 @@ function sectionHeader(section: CompletionSection): HTMLElement {
   const icon = SECTION_ICONS[section.name];
   if (icon) el.append(lucideSvg(icon, 13));
   const label = document.createElement("span");
-  label.textContent = section.name;
+  const category = skillSectionCategory(section.name);
+  label.textContent = category ?? section.name;
+  if (category) el.dataset.skillCategory = category;
   el.append(label);
   return el;
 }
@@ -803,7 +813,6 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
   const place = (section: CompletionSection, order: number) =>
     filtering ? { section: FILTERED } : { section, boost: -order };
   const custom = section(CUSTOM_GROUP, COMMAND_GROUPS.length);
-  const skills = section(SKILLS_GROUP, COMMAND_GROUPS.length + 1);
   // Turn into: offered while filtering, when the line already has text to keep.
   const turnable = filtering && lineAround(context.state, start, context.pos).text !== "";
   const commands = SLASH_COMMANDS.filter(
@@ -833,14 +842,22 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
       ),
     ),
     // Skills run in an AI block, with whichever model the block is set to.
-    ...(levelIds ? [] : skillList()).map((s, i) =>
-      option(
-        { label: s.title, icon: skillIcon(s.id), description: s.description },
-        { ...place(skills, i), detail: `/${s.id}` },
-        (view, to) => {
-          view.dispatch({ changes: { from: start, to, insert: "" }, selection: { anchor: start } });
-          openAiBlock(view, start, { skill: s.id });
-        },
+    ...groupSkills(levelIds ? [] : skillList()).flatMap((group, groupIndex) =>
+      group.skills.map((s, i) =>
+        option(
+          { label: s.title, icon: skillIcon(s.id), description: s.description },
+          {
+            ...place(section(skillSection(group.name), COMMAND_GROUPS.length + 1 + groupIndex), i),
+            detail: `/${s.id}`,
+          },
+          (view, to) => {
+            view.dispatch({
+              changes: { from: start, to, insert: "" },
+              selection: { anchor: start },
+            });
+            openAiBlock(view, start, { skill: s.id });
+          },
+        ),
       ),
     ),
   ];
