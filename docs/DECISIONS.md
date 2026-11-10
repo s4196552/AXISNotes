@@ -12,6 +12,7 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - graph nodes: Sigma doesn't report middle-clicks, so an `auxclick` on the graph opens the hovered node;
   - folders with a dashboard (the dashboard opens in a new tab).
   - It already worked for file-tree notes, editor links and dashboard tiles.
+
 ## 2026-11-09: AI skill results are saved at once, with the AI icon (T-201)
 
 - **Skill results skip the draft step and are saved straight into the vault**, at the human's request:
@@ -26,6 +27,7 @@ Newest first. Each entry: date, decision, why, and (for dependencies) license.
   - New saved files are recorded for Ctrl+Z in the file tree (T-200), which takes them back while unchanged.
   - Discarding a Grill me conversation moves its saved file to the trash.
 - **Privacy marks (T-195) still apply** to everything saved. Drafts remain for Ask AI, AI blocks and Quick Chat answers, which aren't skill results.
+
 ## 2026-11-09: Practice tests, flash cards and lessons test the subject, not the notes' layout (T-204)
 
 - **The problem:** a practice test made from notes in folders like `Week 1` to `Week 5` asked which week covered which topic, instead of testing the material. The model sees each note's path, and the instructions only said "write a practice test on the notes".
