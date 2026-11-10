@@ -1,6 +1,20 @@
 import { foldState } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
-import { toggleCurrentFold } from "../editor/toggles";
+import { toggleCurrentFold, togglePageFolds } from "../editor/toggles";
+import { getActiveEditor } from "../editor/activeEditor";
+
+/** A page command always acts on the active note pane, including from an embed/sidebar. */
+export function pageFold(
+  target: Element | null = document.activeElement,
+): (() => void) | undefined {
+  if (!target?.isConnected || target.closest('input, textarea, select, [role="dialog"]')) return;
+  const view = getActiveEditor()?.view;
+  if (!view?.dom.isConnected || !view.state.field(foldState, false)) return;
+  return () => {
+    view.focus();
+    togglePageFolds(view);
+  };
+}
 
 export function contextFold(
   target: Element | null = document.activeElement,

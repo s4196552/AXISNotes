@@ -1,6 +1,7 @@
 import { markdown } from "@codemirror/lang-markdown";
+import { history, undo } from "@codemirror/commands";
 import { foldable, foldedRanges } from "@codemirror/language";
-import { EditorState } from "@codemirror/state";
+import { EditorState, StateEffect } from "@codemirror/state";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { afterEach, describe, expect, it } from "vitest";
 import { listItemAt, listItemSpans, outlineFolding } from "./outliner";
@@ -10,6 +11,7 @@ import {
   flipListItem,
   restoreFolds,
   toggleCurrentFold,
+  togglePageFolds,
   toggles,
   viewFolds,
 } from "./toggles";
@@ -80,6 +82,82 @@ describe("toggle the block at the caret", () => {
     expect(toggleCurrentFold(view)).toBe(true);
     expect(view.contentDOM.textContent).not.toContain("Inner text");
     expect(view.state.doc.toString()).toBe(doc);
+  });
+});
+
+describe("toggle all blocks in the note", () => {
+  it("collapses nested headings, lists and code and then opens every level", () => {
+    const doc =
+      "# One\n- Parent\n  - Child\n    - Leaf\n\n## Inner\nText\n\n# Two\n```js\nlet x = 1\n```";
+    const view = viewWith(doc, doc.indexOf("Leaf"));
+    expect(togglePageFolds(view)).toBe(true);
+    expect(folded(view).sort((a, b) => a - b)).toEqual([1, 2, 3, 6, 9, 10]);
+    expect(view.state.selection.main.head).toBe(view.state.doc.line(1).to);
+    expect(togglePageFolds(view)).toBe(true);
+    expect(folded(view)).toEqual([]);
+    expect(view.contentDOM.textContent).toContain("Leaf");
+    expect(view.contentDOM.textContent).toContain("let x = 1");
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("expands mixed saved toggles and view folds, then closes them in one undoable edit", () => {
+    const doc =
+      "> [!toggle]- Closed\n> Hidden\n\n> [!toggle|h2]+ Open\nBody\n\n> [!tip]+ Tip\n> Detail\n\n# Heading\n- Parent\n  - Child";
+    const view = viewWith(doc);
+    view.dispatch({ effects: StateEffect.appendConfig.of(history()) });
+    flipListItem(view, view.state.doc.line(11).from);
+    expect(togglePageFolds(view)).toBe(true);
+    expect(folded(view)).toEqual([]);
+    expect(view.state.doc.toString()).not.toContain("]-");
+    const open = view.state.doc.toString();
+    expect(togglePageFolds(view)).toBe(true);
+    expect(view.state.doc.toString().match(/\]-/g)).toHaveLength(3);
+    expect(folded(view)).toContain(10);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(open);
+  });
+
+  it("maps all nested fold ranges after inserting missing toggle markers", () => {
+    const doc =
+      "> [!toggle] First\n> Body\n\n> [!toggle|h2] Second\n- Parent\n  - Child\n\n# Last\nText";
+    const view = viewWith(doc, doc.indexOf("Child"));
+    togglePageFolds(view);
+    expect(view.state.doc.toString().match(/\]-/g)).toHaveLength(2);
+    expect(folded(view)).toEqual([5, 8]);
+    expect(view.contentDOM.textContent).not.toContain("Child");
+    togglePageFolds(view);
+    expect(view.state.doc.toString()).toBe(doc.replace(/\]/g, "]+"));
+    expect(folded(view)).toEqual([]);
+    expect(view.contentDOM.textContent).toContain("Child");
+  });
+
+  it("opens every read-only toggle locally and closes them again without rewriting text", () => {
+    const doc = "> [!toggle]- First\n> One\n\n> [!tip]- Second\n> Two";
+    const view = viewWith(doc);
+    view.dispatch({ effects: StateEffect.appendConfig.of(EditorState.readOnly.of(true)) });
+    togglePageFolds(view);
+    expect(view.contentDOM.textContent).toContain("One");
+    expect(view.contentDOM.textContent).toContain("Two");
+    togglePageFolds(view);
+    expect(view.contentDOM.textContent).not.toContain("One");
+    expect(view.contentDOM.textContent).not.toContain("Two");
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("includes headings and lists beyond the initial viewport", () => {
+    const view = viewWith(
+      "Start\n\n" + "Paragraph\n\n".repeat(1200) + "# Far away\n- Parent\n  - Child",
+    );
+    togglePageFolds(view);
+    expect(folded(view)).toEqual([2403, 2404]);
+    togglePageFolds(view);
+    expect(folded(view)).toEqual([]);
+  });
+
+  it("leaves a standalone paragraph alone", () => {
+    const view = viewWith("Just text");
+    expect(togglePageFolds(view)).toBe(false);
+    expect(view.state.doc.toString()).toBe("Just text");
   });
 });
 

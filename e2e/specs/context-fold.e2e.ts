@@ -80,4 +80,54 @@ describe("Ctrl+Q in notes and sidebars", () => {
     await fold();
     await expect(graph).toHaveAttribute("aria-expanded", "false");
   });
+
+  it("Ctrl+Shift+Q expands mixed blocks, collapses the whole note and reopens every level", async () => {
+    const note = [
+      "> [!toggle]- First toggle\n> First detail",
+      "> [!tip]+ Second toggle\n> Second detail",
+      "![[School/Biology#^cells]]",
+      "# Section one\n- Parent\n  - Child\n    - Leaf detail",
+      "# Section two\n```js\nconst codeDetail = 1;\n```",
+    ].join("\n\n");
+    fs.writeFileSync(vaultFile("Whole page.md"), note);
+    await row("Whole page.md").waitForExist();
+    await row("Whole page.md").click();
+    const all = () => browser.keys([Key.Ctrl, Key.Shift, "q"]);
+    await $(".cm-embed-body").$(".cm-line*=Embedded text").click();
+    await all();
+    await expect($(".cm-line*=First detail")).toBeDisplayed();
+    await expect($(".cm-line*=Leaf detail")).toBeDisplayed();
+    await expect($(".cm-line*=codeDetail")).toBeDisplayed();
+    await browser.waitUntil(() =>
+      fs.readFileSync(vaultFile("Whole page.md"), "utf8").includes("[!toggle]+"),
+    );
+    await $(".cm-line*=Leaf detail").click();
+    await all();
+    await expect($(".cm-line*=First detail")).not.toExist();
+    await expect($(".cm-line*=Second detail")).not.toExist();
+    await expect($(".cm-line*=Leaf detail")).not.toExist();
+    await expect($(".cm-line*=codeDetail")).not.toExist();
+    await browser.waitUntil(() =>
+      fs.readFileSync(vaultFile("Whole page.md"), "utf8").includes("[!tip]-"),
+    );
+    const collapsed = path.resolve(".agents/qa/T-225/whole-page-collapsed.png");
+    fs.mkdirSync(path.dirname(collapsed), { recursive: true });
+    await browser.saveScreenshot(collapsed);
+    await browser.keys([Key.Ctrl, "p"]);
+    await $("input[role=combobox]").setValue("Expand or collapse all blocks in current note");
+    await browser.keys(Key.Enter);
+    await expect($(".cm-line*=First detail")).toBeDisplayed();
+    await expect($(".cm-line*=Second detail")).toBeDisplayed();
+    await expect($(".cm-line*=Leaf detail")).toBeDisplayed();
+    await expect($(".cm-line*=codeDetail")).toBeDisplayed();
+    await browser.waitUntil(
+      () =>
+        fs.readFileSync(vaultFile("Whole page.md"), "utf8") ===
+        note.replace("[!toggle]-", "[!toggle]+"),
+    );
+    expect(fs.readFileSync(vaultFile("School/Biology.md"), "utf8")).toBe(source);
+    const capture = path.resolve(".agents/qa/T-225/whole-page-expanded.png");
+    fs.mkdirSync(path.dirname(capture), { recursive: true });
+    await browser.saveScreenshot(capture);
+  });
 });

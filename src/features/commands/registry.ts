@@ -15,7 +15,7 @@ import {
   openDiagram,
 } from "./actions";
 import { useUi } from "./ui";
-import { contextFold } from "./contextFold";
+import { contextFold, pageFold } from "./contextFold";
 import { effectiveShortcut, formatHotkey, matches, type Shortcut } from "./hotkeys";
 import { useEditorPrefs } from "../editor/prefs";
 import { getActiveEditor } from "../editor/activeEditor";
@@ -93,6 +93,14 @@ registerCommands([
     available: (target) => Boolean(contextFold(target)),
     repeat: false,
     run: (target) => contextFold(target)?.(),
+  },
+  {
+    id: "toggle-page-folds",
+    label: "Expand or collapse all blocks in current note",
+    shortcut: { key: "q", mod: true, shift: true },
+    available: (target) => Boolean(pageFold(target)),
+    repeat: false,
+    run: (target) => pageFold(target)?.(),
   },
   ...([false, true] as const).map((block): Command => ({
     id: block ? "insert-code-block" : "insert-inline-code",
