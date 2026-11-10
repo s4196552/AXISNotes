@@ -14,7 +14,7 @@ const skills = [
 ];
 const source = "# Study\n\nMitochondria make ATP.\n";
 const vault = process.env.AXIS_E2E_VAULT!;
-const qa = path.resolve(".agents/qa/T-210");
+const qa = path.resolve(".agents/qa/T-222");
 const requests: string[] = [];
 let answer = "";
 let server: http.Server;
@@ -39,7 +39,7 @@ async function openMenu() {
   await $(".cm-tooltip-autocomplete").waitForDisplayed();
 }
 
-describe("Five new built-in AI skills (T-210)", () => {
+describe("Categorized built-in AI skills (T-222)", () => {
   before(async () => {
     fs.writeFileSync(path.join(vault, "Welcome.md"), source);
     fs.mkdirSync(qa, { recursive: true });
@@ -83,20 +83,47 @@ describe("Five new built-in AI skills (T-210)", () => {
 
   after(() => server?.close());
 
-  it("lists all five skills with icons in the Skills command section", async () => {
+  it("keeps one Skills tab with all twelve skills in the human's category order", async () => {
     await openMenu();
     await $('.cm-commandTab[data-section="Skills"]').click();
     await expect($('.cm-commandTab[data-section="Skills"]')).toHaveAttribute(
       "aria-current",
       "true",
     );
-    await $(".cm-tooltip-autocomplete").$("span=Mnemonic").scrollIntoView({ block: "start" });
-    for (const skill of skills) {
-      const label = await $(".cm-tooltip-autocomplete").$(`span=${skill.title}`);
-      await expect(label).toBeDisplayed();
-      await expect(label.$("..").$(".cm-commandIcon svg")).toExist();
+    expect(await $$('.cm-commandTab[data-section="Skills"]').length).toBe(1);
+    const groups = [
+      ["Learn & understand", ["Teach me", "Teach the AI", "Example"]],
+      ["Practice & remember", ["Practice test", "Flash cards", "Mnemonic", "Make it stick"]],
+      ["Visualize & present", ["Mind map", "Infographic", "Slide Deck"]],
+      ["Plan & collaborate", ["Grill me", "Handoff"]],
+    ] as const;
+    expect(
+      await browser.execute(() =>
+        [...document.querySelectorAll<HTMLElement>("completion-section[data-skill-category]")].map(
+          (heading) => {
+            const titles: string[] = [];
+            for (
+              let row = heading.nextElementSibling;
+              row?.tagName === "LI";
+              row = row.nextElementSibling
+            ) {
+              titles.push(row.querySelector(".cm-completionLabel")?.textContent ?? "");
+            }
+            return [heading.textContent, titles];
+          },
+        ),
+      ),
+    ).toEqual(groups);
+    for (const [index, [category, titles]] of groups.entries()) {
+      await $(`completion-section[data-skill-category="${category}"]`).scrollIntoView({
+        block: "start",
+      });
+      for (const title of titles) {
+        const label = await $(".cm-tooltip-autocomplete").$(`span=${title}`);
+        await expect(label.$("..").$(".cm-commandIcon svg")).toExist();
+      }
+      await browser.saveScreenshot(path.join(qa, `skills-category-${index + 1}.png`));
     }
-    await browser.saveScreenshot(path.join(qa, "skills-menu.png"));
     await browser.keys(Key.Escape);
   });
 

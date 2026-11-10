@@ -48,6 +48,7 @@ import { findMath, loadKatex, math } from "./math";
 import { useAppStore } from "../../app/store";
 import { dailyDateOf, followLink } from "../commands/actions";
 import type { NoteRef } from "../../ipc";
+import { BUILTIN_SKILLS, useSkills } from "../skills/skills";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -688,6 +689,65 @@ describe("command menu sections", () => {
   const sectionOf = (c: Completion) =>
     typeof c.section === "string" ? c.section : c.section?.name;
 
+  it("orders every skill under the human's categories, retaining overrides and custom skills", async () => {
+    const original = useSkills.getState().skills;
+    const override = {
+      ...BUILTIN_SKILLS.find((s) => s.id === "teach-the-ai")!,
+      title: "My student",
+    };
+    const custom = { ...override, id: "my-skill", title: "My custom skill" };
+    useSkills.setState({
+      skills: [...BUILTIN_SKILLS.filter((s) => s.id !== override.id), override, custom],
+    });
+    const view = viewWith("", { extra: [commandMenuTabs] });
+    try {
+      openCommandMenu(view);
+      await vi.waitFor(() => expect(currentCompletions(view.state).length).toBeGreaterThan(0));
+      const shown = currentCompletions(view.state).filter((c) => c.detail?.startsWith("/"));
+      const groups = new Map<string, string[]>();
+      for (const c of shown) {
+        const section = sectionOf(c)!;
+        groups.set(section, [...(groups.get(section) ?? []), c.label]);
+      }
+      expect([...groups]).toEqual([
+        ["Skills · Learn & understand", ["Teach me", "My student", "Example"]],
+        [
+          "Skills · Practice & remember",
+          ["Practice test", "Flash cards", "Mnemonic", "Make it stick"],
+        ],
+        ["Skills · Visualize & present", ["Mind map", "Infographic", "Slide Deck"]],
+        ["Skills · Plan & collaborate", ["Grill me", "Handoff"]],
+        ["Skills · Other skills", ["My custom skill"]],
+      ]);
+      expect(menuSections(view.state)?.filter((s) => s.name === "Skills")).toHaveLength(1);
+      const skillsTab = view.dom.querySelector<HTMLElement>('[data-section="Skills"]')!;
+      skillsTab.click();
+      expect(currentCompletions(view.state)[selectedCompletionIndex(view.state)!]?.label).toBe(
+        "Teach me",
+      );
+      expect(
+        [...view.dom.querySelectorAll<HTMLElement>("[data-skill-category]")].map(
+          (el) => el.textContent,
+        ),
+      ).toEqual([
+        "Learn & understand",
+        "Practice & remember",
+        "Visualize & present",
+        "Plan & collaborate",
+        "Other skills",
+      ]);
+      type(view, "My student");
+      await vi.waitFor(() =>
+        expect(currentCompletions(view.state).map((c) => c.label)).toEqual(["My student"]),
+      );
+      expect(sectionOf(currentCompletions(view.state)[0]!)).toBe("Filtered results");
+      expect(menuSections(view.state)).toBeNull();
+    } finally {
+      view.destroy();
+      useSkills.setState({ skills: original });
+    }
+  });
+
   it("puts every built-in command in exactly one section", () => {
     const ids = COMMAND_GROUPS.flatMap((g) => g.ids);
     expect(new Set(ids).size).toBe(ids.length);
@@ -711,7 +771,10 @@ describe("command menu sections", () => {
       "Diagrams and pen",
       "Page style",
       "Custom",
-      "Skills",
+      "Skills · Learn & understand",
+      "Skills · Practice & remember",
+      "Skills · Visualize & present",
+      "Skills · Plan & collaborate",
     ]);
 
     type(view, "list");

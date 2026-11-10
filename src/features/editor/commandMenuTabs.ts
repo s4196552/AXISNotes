@@ -9,14 +9,17 @@ import { type EditorState, Prec } from "@codemirror/state";
 import { type EditorView, keymap, ViewPlugin } from "@codemirror/view";
 import { lucideSvg } from "./lucideSvg";
 import { SECTION_ICONS } from "./quickCommands";
+import { skillSectionCategory } from "../skills/skillGroups";
 
 // The command menu's jump bar: a row of its sections (Basic blocks, Text style, Links…)
 // with their icons, above the list. Clicking one, or ← and →, jumps to that section's first
 // item; ↑ and ↓ still move through the items. Shown while the menu lists more than one
 // section, so not while filtering (one "Filtered results" section) or for other menus.
 
-const sectionName = (c: Completion) =>
-  typeof c.section === "string" ? c.section : (c.section?.name ?? "");
+const sectionName = (c: Completion) => {
+  const name = typeof c.section === "string" ? c.section : (c.section?.name ?? "");
+  return skillSectionCategory(name) ? "Skills" : name;
+};
 
 export interface MenuSection {
   name: string;
