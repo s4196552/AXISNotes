@@ -4,7 +4,7 @@ import { $, browser, expect } from "@wdio/globals";
 import { Key } from "webdriverio";
 import { execFileSync } from "node:child_process";
 
-function windowIcon() {
+function windowIcon(kind: "Big" | "Small" = "Big") {
   return execFileSync(
     "powershell.exe",
     [
@@ -13,12 +13,14 @@ function windowIcon() {
       path.resolve("e2e/window-icon.ps1"),
       "-Application",
       process.env.AXIS_E2E_APP!,
+      "-Kind",
+      kind,
     ],
     { windowsHide: true, encoding: "utf8" },
   ).trim();
 }
 
-const qa = path.resolve(".agents/qa/T-218");
+const qa = path.resolve(".agents/qa/T-224");
 const vault = process.env.AXIS_E2E_VAULT!;
 const nativeIcons: Record<string, string> = {};
 async function settings() {
@@ -55,6 +57,7 @@ describe("Custom app logo and default pack", () => {
         await browser.waitUntil(() => windowIcon() !== (selectedIcons.at(-1) ?? originalIcon));
         selectedIcons.push(windowIcon());
         nativeIcons[title] = selectedIcons.at(-1)!;
+        expect(windowIcon("Small")).toBe(selectedIcons.at(-1));
       }
       await browser.saveScreenshot(path.join(qa, `${title}.png`));
     }
@@ -103,5 +106,19 @@ describe("Custom app logo and default pack", () => {
     if (process.platform === "win32")
       await browser.waitUntil(() => windowIcon() === nativeIcons["AXIS Risograph"]);
     await browser.saveScreenshot(path.join(qa, "custom-logo.png"));
+  });
+  it("refuses malformed taskbar pixel data without changing the icon", async () => {
+    const before = process.platform === "win32" ? windowIcon() : "";
+    const result = (await browser.executeAsync((done: (result: unknown) => void) => {
+      const host = window as unknown as {
+        __TAURI_INTERNALS__: { invoke(c: string, a: object): Promise<unknown> };
+      };
+      host.__TAURI_INTERNALS__.invoke("set_taskbar_icon", { rgba: [1, 2, 3] }).then(
+        () => done(null),
+        (error: unknown) => done(error),
+      );
+    })) as { code: string };
+    expect(result.code).toBe("InvalidName");
+    if (process.platform === "win32") expect(windowIcon()).toBe(before);
   });
 });

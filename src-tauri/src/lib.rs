@@ -11,6 +11,7 @@ mod mcp;
 mod migrate;
 mod packs;
 mod pages;
+mod taskbar_icon;
 mod updates;
 mod updates_commands;
 mod vault;
@@ -34,6 +35,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(commands::AppState::default())
         .manage(commands::DroppedFiles::default())
+        .manage(taskbar_icon::TaskbarIconState::default())
         // Vault web pages, shown in a sandboxed frame (see pages.rs).
         .register_uri_scheme_protocol(pages::SCHEME, |ctx, request| {
             let vault = ctx
@@ -76,6 +78,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::open_vault,
+            taskbar_icon::set_taskbar_icon,
             commands::create_vault,
             commands::current_vault,
             commands::list_fonts,

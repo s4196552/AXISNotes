@@ -71,6 +71,7 @@ export function createTauriBackend(): Backend {
       const image = await Image.new(rgba, 256, 256);
       try {
         await getCurrentWindow().setIcon(image);
+        await invoke("set_taskbar_icon", { rgba });
       } finally {
         await image.close();
       }

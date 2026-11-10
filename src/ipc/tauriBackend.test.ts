@@ -2,9 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Only the window calls are faked; the rest of the Tauri API isn't touched by these tests.
 const calls: string[] = [];
+let taskbarFails = false;
+vi.mock("@tauri-apps/api/image", () => ({
+  Image: { new: async () => ({ close: async () => void calls.push("close image") }) },
+}));
 vi.mock("@tauri-apps/api/window", async (orig) => ({
   ...(await orig<typeof import("@tauri-apps/api/window")>()),
   getCurrentWindow: () => ({
+    setIcon: async () => void calls.push("window icon"),
     clearEffects: async () => void calls.push("clear"),
     setEffects: async (e: { effects: string[] }) => void calls.push(`set ${e.effects.join()}`),
   }),
@@ -15,14 +20,39 @@ vi.mock("@tauri-apps/api/core", async (orig) => ({
   ...(await orig<typeof import("@tauri-apps/api/core")>()),
   convertFileSrc: (path: string, protocol = "asset") =>
     `http://${protocol}.localhost/${encodeURIComponent(path)}`,
-  invoke: async (cmd: string) =>
-    cmd === "current_vault" ? { root: "C:\\Vault", name: "Vault" } : null,
+  invoke: async (cmd: string, args?: { rgba: number[] }) => {
+    if (cmd === "set_taskbar_icon") {
+      calls.push(`taskbar icon ${args?.rgba.length}`);
+      if (taskbarFails) throw new Error("Taskbar failure");
+    }
+    return cmd === "current_vault" ? { root: "C:\\Vault", name: "Vault" } : null;
+  },
 }));
 
 const { createTauriBackend } = await import("./tauriBackend");
 
 beforeEach(() => {
   calls.length = 0;
+  taskbarFails = false;
+});
+
+describe("window and taskbar logos", () => {
+  it("updates both native icon sizes and releases the temporary image", async () => {
+    await createTauriBackend().setWindowIcon(new Array(256 * 256 * 4).fill(0));
+    expect(calls).toEqual(["window icon", "taskbar icon 262144", "close image"]);
+  });
+  it("releases the image when the taskbar update fails and rejects invalid sizes", async () => {
+    taskbarFails = true;
+    await expect(
+      createTauriBackend().setWindowIcon(new Array(256 * 256 * 4).fill(0)),
+    ).rejects.toThrow("Taskbar failure");
+    expect(calls.at(-1)).toBe("close image");
+    calls.length = 0;
+    await expect(createTauriBackend().setWindowIcon([0])).rejects.toThrow(
+      "Invalid window icon size",
+    );
+    expect(calls).toEqual([]);
+  });
 });
 
 describe("window effects on the desktop app", () => {
