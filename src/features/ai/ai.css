@@ -842,3 +842,51 @@
   box-sizing: border-box;
   margin: 2px 0 6px;
 }
+
+/* Skill output placement is independent of its Markdown/HTML format. */
+.ai-result-destination {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.ai-result-destination select {
+  max-width: 110px;
+  font: inherit;
+}
+.skill-results-sidebar {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+.skill-results-sidebar > label {
+  display: grid;
+  gap: 4px;
+}
+.skill-results-sidebar select {
+  width: 100%;
+  min-width: 0;
+}
+.skill-source {
+  margin: 10px 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.skill-page-preview {
+  height: 420px;
+  min-height: 220px;
+  overflow: hidden;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin: 8px 0;
+}
+.skill-page-preview iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: white;
+}

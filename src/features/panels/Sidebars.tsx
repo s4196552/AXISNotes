@@ -32,6 +32,11 @@ import { TagsPanel } from "./TagsPanel";
 import { VaultMenu } from "../vault/VaultMenu";
 import { openSidebarChat, useSidebarChat } from "../ai/sidebarChatState";
 const SidebarChat = lazyNamed(() => import("../ai/SidebarChat"), "SidebarChat");
+import { showSkillResults, useSkillResults } from "../skills/skillDestination";
+const SkillResultsSidebar = lazyNamed(
+  () => import("../skills/SkillResultsSidebar"),
+  "SkillResultsSidebar",
+);
 import "./panels.css";
 
 const TABS: { id: LeftPanel; label: string; Icon: typeof Search }[] = [
@@ -181,6 +186,7 @@ function SectionToggle({
  */
 export function RightSidebar() {
   const chat = useSidebarChat((s) => s.open);
+  const results = useSkillResults((s) => s.open);
   const root = useAppStore((s) => s.vault?.root);
   const view = useAppStore((s) => s.mainView);
   const activePath = useAppStore((s) => s.activePath);
@@ -217,16 +223,34 @@ export function RightSidebar() {
         <button
           type="button"
           role="tab"
-          aria-selected={!chat}
-          onClick={() => useSidebarChat.setState({ open: false })}
+          aria-selected={!chat && !results}
+          onClick={() => {
+            useSidebarChat.setState({ open: false });
+            useSkillResults.setState({ open: false });
+          }}
         >
           Note details
         </button>
-        <button type="button" role="tab" aria-selected={chat} onClick={() => openSidebarChat(null)}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={chat && !results}
+          onClick={() => {
+            useSkillResults.setState({ open: false });
+            openSidebarChat(null);
+          }}
+        >
           <Sparkles size={14} /> AI chat
         </button>
+        <button type="button" role="tab" aria-selected={results} onClick={() => showSkillResults()}>
+          Skill results
+        </button>
       </div>
-      {chat ? (
+      {results ? (
+        <Suspense fallback={<p className="panel-note">Opening skill results…</p>}>
+          <SkillResultsSidebar key={root} />
+        </Suspense>
+      ) : chat ? (
         <Suspense fallback={<p className="panel-note">Opening AI chat…</p>}>
           <SidebarChat key={root} />
         </Suspense>
