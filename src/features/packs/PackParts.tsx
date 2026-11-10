@@ -5,6 +5,7 @@ import { backend } from "../../ipc";
 import { matchesPackFile, packCount, packFileLabel, TEXT_COLOR, usePacks } from "./packs";
 import "../icons/icons.css";
 import "./packs.css";
+import { BUILTIN_LOGOS, builtinLogoUrl } from "./builtinLogos";
 
 const WHAT: Record<PackKind, string> = { icons: "icon pack", images: "image pack" };
 
@@ -74,7 +75,7 @@ export function PackImage({
   className?: string;
   fallback?: ReactNode;
 }) {
-  const url = backend.fileUrl(path);
+  const url = builtinLogoUrl(path) ?? backend.fileUrl(path);
   const [failed, setFailed] = useState<string | null>(null);
   if (!url || failed === url) return <>{fallback}</>;
   if (!color) {
@@ -146,6 +147,23 @@ export function IconPacks({
 
   return (
     <>
+      <div className="icon-section">Default pack</div>
+      <div className="icon-grid" role="listbox" aria-label="Icons in Default pack">
+        {BUILTIN_LOGOS.filter((logo) =>
+          logo.title.toLowerCase().includes(query.trim().toLowerCase()),
+        ).map((logo) => (
+          <button
+            key={logo.path}
+            role="option"
+            aria-selected={selected === logo.path}
+            aria-label={logo.title}
+            title={logo.title}
+            onClick={() => onPick(logo.path, false)}
+          >
+            <PackImage path={logo.path} size={18} />
+          </button>
+        ))}
+      </div>
       {error && (
         <p className="icon-note" role="alert">
           Couldn't read the vault's packs: {error}

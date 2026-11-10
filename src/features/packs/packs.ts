@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { backend, isBackendError, type Pack, type PackKind } from "../../ipc";
+import { builtinLogoUrl } from "./builtinLogos";
 
 // Icon and image packs the user added, kept in the vault's hidden `.axisnotes/packs/`.
 // Icons and covers point at pack files by vault path, so a pack image is used where it
@@ -13,7 +14,8 @@ export const TEXT_COLOR = "currentColor";
 
 /** A path inside a pack (these aren't in the file tree, so they're used as written). */
 export const isPackPath = (path: string) =>
-  path.startsWith(PACKS_PREFIX) && !path.split("/").includes("..");
+  Boolean(builtinLogoUrl(path)) ||
+  (path.startsWith(PACKS_PREFIX) && !path.split("/").includes(".."));
 
 /** "rocket-ship_2.svg" → "rocket ship 2": a pack file's name as words, for search and labels. */
 export const packFileLabel = (path: string) =>

@@ -43,6 +43,7 @@ import { ClaudeSettings } from "../claude/ClaudeSettings";
 import { UpdatesSettings } from "../updates/UpdatesSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
 import { ThemePicker } from "./ThemePicker";
+import { LogoSettings } from "../packs/LogoSettings";
 import { filterSettings, hasAll, HIDDEN, wordsOf } from "./settingsSearch";
 import { FoldArrowPicker } from "./FoldArrowPicker";
 import { AppColorPicker } from "./AppColorPicker";
@@ -420,6 +421,7 @@ function Appearance({ config, set }: SectionProps) {
     set((c) => ({ ...c, appearance: { ...c.appearance, ...patch } }));
   return (
     <>
+      <LogoSettings />
       <ThemePicker
         value={config.theme}
         custom={themes}

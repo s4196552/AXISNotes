@@ -70,6 +70,8 @@ export interface AxisConfig {
   snippets: string[];
   /** Text and layout. Fonts are family names ("" = the built-in default). */
   appearance: {
+    /** Bundled logo reference or a vault image path; empty restores AXIS Original. */
+    logo: string;
     noteFontSize: number;
     noteFont: string;
     uiFont: string;
@@ -145,6 +147,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
   theme: "system",
   snippets: [],
   appearance: {
+    logo: "",
     noteFontSize: 15,
     noteFont: "",
     uiFont: "",
