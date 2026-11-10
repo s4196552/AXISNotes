@@ -53,9 +53,13 @@ const text = (role: AiMessage["role"], t: string): AiMessage => ({
 const START: Record<Skill["output"], string> = {
   markdown: "Run the skill on the attached notes.",
   html: "Run the skill on the attached notes.",
-  chat: "Start the interview.",
+  chat: "Start the conversation.",
   files: "Start or continue the course.",
 };
+
+/** Keep the sent prompt and a conversation's saved history identical. */
+export const skillPrompt = (skill: Skill, prompt: string): string =>
+  prompt.trim() || START[skill.output];
 
 /** The notes a skill reads: its note, or every note in the note's folder. */
 export function skillAttach(
@@ -78,7 +82,7 @@ export function skillAttach(
 
 export function skillRequest(o: SkillRequestInput): AiRunRequest {
   const sel = o.selectionText ? `Selected text:\n"""\n${o.selectionText}\n"""\n\n` : "";
-  const ask = o.prompt.trim() || START[o.skill.output];
+  const ask = skillPrompt(o.skill, o.prompt);
   const messages: AiMessage[] = [text("system", skillSystem(o.skill))];
   if (o.skill.output === "chat") {
     o.turns.forEach((t, i) => messages.push(text(t.role, i === 0 ? sel + t.text : t.text)));

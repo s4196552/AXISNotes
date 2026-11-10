@@ -11,6 +11,7 @@ import {
   Network,
   Presentation,
   Repeat2,
+  School,
   WandSparkles,
 } from "lucide-react";
 
@@ -25,6 +26,7 @@ const ICONS: Record<string, LucideIcon> = {
   example: Lightbulb,
   "slide-deck": Presentation,
   infographic: ChartPie,
+  "teach-the-ai": School,
   "grill-me": MessagesSquare,
   handoff: Handshake,
   teach: GraduationCap,

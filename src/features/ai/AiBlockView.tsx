@@ -44,6 +44,7 @@ import {
   runSkill,
   saveConversation,
   savePageNextTo,
+  skillPrompt,
   skillRequest,
   writeFiles,
 } from "../skills/skillRun";
@@ -279,7 +280,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       selectionText: cur.useSelection ? selection?.text : undefined,
       choice: cur.choice,
     });
-    const asked = cur.prompt.trim() || (s.output === "chat" ? "Start the interview." : "");
+    const asked = skillPrompt(s, cur.prompt);
     patch({
       answer: "",
       html: null,

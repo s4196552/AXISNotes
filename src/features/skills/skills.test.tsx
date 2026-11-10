@@ -108,6 +108,7 @@ describe("skill files", () => {
       ["example", "markdown", "note"],
       ["slide-deck", "html", "note"],
       ["infographic", "html", "note"],
+      ["teach-the-ai", "chat", "note"],
       ["grill-me", "chat", "note"],
       ["handoff", "markdown", "note"],
       ["teach", "files", "folder"],
@@ -165,7 +166,7 @@ describe("skill files", () => {
   });
 
   it("copies the built-ins into the vault and makes a skill from a note", async () => {
-    expect(await copyBuiltinsToVault()).toBe(11);
+    expect(await copyBuiltinsToVault()).toBe(BUILTIN_SKILLS.length);
     for (const skill of BUILTIN_SKILLS) {
       const path = `Skills/${skill.id}/SKILL.md`;
       expect(parseSkill(h.b.files()[path]!, path)).toEqual({ ...skill, source: path });
@@ -372,38 +373,105 @@ describe("running skills from an AI block", () => {
     expect(h.b.files()["Bio/Lesson.md"]).toBe("lesson\n");
   });
 
-  it("carries transcript privacy into follow-ups and keeps each format in its own file", async () => {
-    await h.b.writeFile("Bio/Cells.md", "---\nai-access: local\n---\nCells");
-    setAiResponder((req) => {
-      lastRequest.req = req;
-      return "Answer";
-    });
-    const v = mount("x", "Bio/Cells.md", 0);
-    act(() => void openAiBlock(v, undefined, { skill: "grill-me" }));
-    const block = within(await screen.findByRole("group", { name: "AI block" }));
-    fireEvent.click(block.getByRole("button", { name: /Run/ }));
-    await block.findByRole("button", { name: /Wrap up/ });
-    const md = "Bio/Grill me - Cells.md";
-    const html = "Bio/Grill me - Cells.html";
-    const first = h.b.files()[md];
-    expect(first).toContain("ai-access: local");
-    expect(block.getByRole("button", { name: /Reads:/ })).toBeDisabled();
-    await h.b.writeFile("Bio/Cells.md", "Cells");
-    fireEvent.click(block.getByRole("button", { name: "HTML" }));
-    fireEvent.change(block.getByLabelText("AI prompt"), { target: { value: "Second question" } });
-    fireEvent.click(block.getByRole("button", { name: /Reply/ }));
-    await waitFor(() => expect(h.b.files()[html]).toContain("Second question"));
-    expect(lastRequest.req?.atLeast).toBe("local");
-    expect(h.b.files()[html]).toContain('<meta name="ai-access" content="local">');
-    expect(h.b.files()[md]).toBe(first);
-    fireEvent.click(block.getByRole("button", { name: "Markdown" }));
-    fireEvent.click(block.getByRole("button", { name: /Save the conversation/ }));
-    await waitFor(() => expect(h.b.files()[md]).toContain("Second question"));
-    expect(h.b.files()[md]).toContain("ai-access: local");
-    fireEvent.click(block.getByRole("button", { name: /Discard/ }));
-    await waitFor(() => expect(h.b.files()[md]).toBeUndefined());
-    expect(h.b.files()[html]).toBeUndefined();
-  });
+  it.each(["grill-me", "teach-the-ai"])(
+    "%s carries transcript privacy into follow-ups and keeps each format in its own file",
+    async (id) => {
+      await h.b.writeFile("Bio/Cells.md", "---\nai-access: local\n---\nCells");
+      setAiResponder((req) => {
+        lastRequest.req = req;
+        return "Answer";
+      });
+      const v = mount("x", "Bio/Cells.md", 0);
+      act(() => void openAiBlock(v, undefined, { skill: id }));
+      const block = within(await screen.findByRole("group", { name: "AI block" }));
+      fireEvent.click(block.getByRole("button", { name: /Run/ }));
+      await block.findByRole("button", { name: /Wrap up/ });
+      const md = `Bio/${byId(id).title} - Cells.md`;
+      const html = `Bio/${byId(id).title} - Cells.html`;
+      const first = h.b.files()[md];
+      expect(first).toContain("ai-access: local");
+      expect(block.getByRole("button", { name: /Reads:/ })).toBeDisabled();
+      await h.b.writeFile("Bio/Cells.md", "Cells");
+      fireEvent.click(block.getByRole("button", { name: "HTML" }));
+      fireEvent.change(block.getByLabelText("AI prompt"), { target: { value: "Second question" } });
+      fireEvent.click(block.getByRole("button", { name: /Reply/ }));
+      await waitFor(() => expect(h.b.files()[html]).toContain("Second question"));
+      expect(lastRequest.req?.atLeast).toBe("local");
+      expect(h.b.files()[html]).toContain('<meta name="ai-access" content="local">');
+      expect(h.b.files()[md]).toBe(first);
+      fireEvent.click(block.getByRole("button", { name: "Markdown" }));
+      fireEvent.click(block.getByRole("button", { name: /Save the conversation/ }));
+      await waitFor(() => expect(h.b.files()[md]).toContain("Second question"));
+      expect(h.b.files()[md]).toContain("ai-access: local");
+      fireEvent.click(block.getByRole("button", { name: /Discard/ }));
+      await waitFor(() => expect(h.b.files()[md]).toBeUndefined());
+      expect(h.b.files()[html]).toBeUndefined();
+    },
+  );
+
+  it.each(["markdown", "html"] as const)(
+    "runs a teaching conversation and wraps up with a saved %s transcript",
+    async (format) => {
+      const seen: AiRunRequest[] = [];
+      const replies = [
+        "Could you teach me how mitochondria help a cell?",
+        "So ATP carries energy the cell can use. How is that energy released?",
+        "You explained ATP clearly. Practise explaining how its energy is released next.",
+      ];
+      setAiResponder((req) => {
+        seen.push(req);
+        return replies[seen.length - 1]!;
+      });
+      const original = h.b.files()["Bio/Cells.md"];
+      const v = mount("# Cells\n\n", "Bio/Cells.md", 0);
+      act(() => void openAiBlock(v, undefined, { skill: "teach-the-ai" }));
+      const block = within(await screen.findByRole("group", { name: "AI block" }));
+      fireEvent.click(block.getByRole("button", { name: format === "html" ? "HTML" : "Markdown" }));
+      expect(seen).toHaveLength(0);
+      fireEvent.click(block.getByRole("button", { name: /Run/ }));
+      await block.findByRole("button", { name: /Open the saved conversation/ });
+      expect(block.getByLabelText("Conversation")).toHaveTextContent(replies[0]!);
+      expect(seen[0]).toMatchObject({ attach: ["Bio/Cells.md"], sources: [] });
+      expect(seen[0]!.json).toBeUndefined();
+      expect(seen[0]!.messages[0]).toEqual({
+        role: "system",
+        content: [{ type: "text", text: skillSystem(byId("teach-the-ai")) }],
+      });
+      expect(seen[0]!.messages[1]!.content[0]).toEqual({
+        type: "text",
+        text: "Start the conversation.",
+      });
+      const explanation = "Mitochondria make ATP, which carries usable energy for the cell.";
+      fireEvent.change(block.getByLabelText("AI prompt"), { target: { value: explanation } });
+      fireEvent.click(block.getByRole("button", { name: /Reply/ }));
+      await waitFor(() =>
+        expect(block.getByLabelText("Conversation")).toHaveTextContent(replies[1]!),
+      );
+      await block.findByRole("button", { name: /Wrap up/ });
+      fireEvent.click(block.getByRole("button", { name: /Wrap up/ }));
+      await waitFor(() =>
+        expect(block.getByLabelText("Conversation")).toHaveTextContent(replies[2]!),
+      );
+      await block.findByRole("button", { name: /Open the saved conversation/ });
+      expect(seen.map((req) => req.messages.length)).toEqual([2, 4, 6]);
+      expect(
+        seen[2]!.messages.slice(1).map((message) => [message.role, message.content[0]]),
+      ).toEqual([
+        ["user", { type: "text", text: "Start the conversation." }],
+        ["assistant", { type: "text", text: replies[0] }],
+        ["user", { type: "text", text: explanation }],
+        ["assistant", { type: "text", text: replies[1] }],
+        ["user", { type: "text", text: "wrap up" }],
+      ]);
+      const saved = h.b.files()[`Bio/Teach the AI - Cells.${format === "html" ? "html" : "md"}`]!;
+      expect(saved).toContain(explanation);
+      expect(saved).toContain(replies[2]);
+      expect(saved).not.toContain("Start the interview.");
+      expect(h.b.files()["Bio/Cells.md"]).toBe(original);
+      expect(v.state.doc.toString()).toBe("# Cells\n\n");
+      if (format === "html") expect(saved).toMatch(/^<!doctype html>/);
+    },
+  );
 
   it("updates a Grill me conversation after each reply and discards its saved file", async () => {
     const seen: number[] = [];
@@ -460,6 +528,7 @@ describe("Markdown or HTML for every skill", () => {
       ["example", ["markdown", "html"], "markdown"],
       ["slide-deck", ["markdown", "html"], "html"],
       ["infographic", ["markdown", "html"], "html"],
+      ["teach-the-ai", ["markdown", "html"], "markdown"],
       ["grill-me", ["markdown", "html"], "markdown"],
       ["handoff", ["markdown", "html"], "markdown"],
       ["teach", ["both", "markdown", "html"], "both"],
