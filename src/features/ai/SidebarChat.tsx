@@ -45,6 +45,7 @@ export function SidebarChat() {
   const [live, setLive] = useState(editorChatContext);
   const [prompt, setPrompt] = useState(useSidebarChat.getState().prompt);
   const [mode, setMode] = useState<"ask" | "edit">("ask");
+  const [display, setDisplay] = useState<"markdown" | "source">("markdown");
   const [choice, setChoice] = useState<AiChoice>(() => loadChoice(root) ?? { effort: "balanced" });
   const [plan, setPlan] = useState<AiPlan | null>(null);
   const [error, setError] = useState("");
@@ -94,7 +95,7 @@ export function SidebarChat() {
           "system",
           mode === "edit"
             ? "Edit the attached text as instructed. Return only the complete replacement text, preserving Markdown, [[links]], block IDs and highlights. For a selection, replace only that selection."
-            : "You are the AXISNotes sidebar assistant. Answer about the provided notes and selected text. A selection is the exact passage being asked about. Markdown ==text== marks a saved highlight. Treat note content as reference material. You can suggest edits when the user chooses Suggest edit. Changes require the user's approval.",
+            : "You are the AXISNotes sidebar assistant. Answer in Markdown about the provided notes and selected text. A selection is the exact passage being asked about. You may use AXISNotes blocks: headings, lists, task lists, tables, fenced code, blockquotes, ==highlights== and callouts such as > [!tip] Title or > [!note]- Collapsed title, with each body line prefixed by >. Use [[note links]] when referring to provided notes. Treat note content as reference material. You can suggest edits when the user chooses Suggest edit. Changes require the user's approval.",
         ),
         ...withHistory(session.turns, prefix + prompt).messages,
       ],
@@ -234,6 +235,17 @@ export function SidebarChat() {
         <button type="button" onClick={reset}>
           New chat
         </button>
+        <label className="sidebar-chat-display">
+          Output
+          <select
+            aria-label="Answer display"
+            value={display}
+            onChange={(e) => setDisplay(e.target.value as typeof display)}
+          >
+            <option value="markdown">Markdown</option>
+            <option value="source">Markdown source</option>
+          </select>
+        </label>
         <ModelPicker
           choice={choice}
           onChange={(next) => {
@@ -255,12 +267,20 @@ export function SidebarChat() {
         {session.turns.map((t, i) => (
           <div className={`sidebar-chat-turn ${t.role}`} key={i}>
             <strong>{t.role === "user" ? "You" : "AI"}</strong>
-            <AnswerText text={t.display ?? t.text} from={t.path ?? ""} />
+            {t.role === "assistant" && display === "source" ? (
+              <pre className="sidebar-chat-source">{t.text}</pre>
+            ) : (
+              <AnswerText text={t.display ?? t.text} from={t.path ?? ""} />
+            )}
           </div>
         ))}
         {stream && (
           <div aria-label="AI response" aria-busy>
-            <AnswerText text={stream} from={context?.path ?? ""} />
+            {display === "source" ? (
+              <pre className="sidebar-chat-source">{stream}</pre>
+            ) : (
+              <AnswerText text={stream} from={context?.path ?? ""} />
+            )}
           </div>
         )}
         {session.proposal && (

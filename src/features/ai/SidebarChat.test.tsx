@@ -4,7 +4,7 @@ import { EditorView } from "@codemirror/view";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { setAiResponder } from "../../ipc/memoryAi";
-import type { AiRunRequest } from "../../ipc";
+import type { AiRunRequest, AiRunResult } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { clearActiveEditor, setActiveEditor, activeEditorChanged } from "../editor/activeEditor";
 import { NoteContextMenu } from "../editor/NoteContextMenu";
@@ -130,4 +130,67 @@ it("pins right-click context and offers an AI question without sending it", () =
     prompt: "Explain this selection.",
   });
   expect(requests).toHaveLength(0);
+});
+
+it("defaults to Markdown blocks and switches the same answer to exact source without another request", async () => {
+  const answer =
+    "## Cells\n\n> [!tip] Remember\n> ==ATP== is fuel.\n\n| A | B |\n| --- | --- |\n| one | two |";
+  setAiResponder((req) => {
+    requests.push(req);
+    return answer;
+  });
+  const { container } = render(<SidebarChat />);
+  expect(screen.getByLabelText("Answer display")).toHaveValue("markdown");
+  fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Explain" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByRole("table");
+  await waitFor(() => expect(container.querySelector(".assistant mark")).toHaveTextContent("ATP"));
+  fireEvent.change(screen.getByLabelText("Answer display"), { target: { value: "source" } });
+  expect(container.querySelector(".sidebar-chat-source")!.textContent).toBe(answer);
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Answer display"), { target: { value: "markdown" } });
+  expect(screen.getByRole("table")).toBeInTheDocument();
+  expect(requests).toHaveLength(1);
+  expect(JSON.stringify(requests[0]!.messages[0])).toContain("Answer in Markdown");
+  expect(h.b.files()["Bio.md"]).toBe(doc);
+});
+
+it("can switch display while an unfinished code block streams, keeping the final source and history", async () => {
+  let finish!: (result: AiRunResult) => void;
+  const pending = new Promise<AiRunResult>((resolve) => {
+    finish = resolve;
+  });
+  let emit!: (delta: string) => void;
+  h.b.aiRun = (_id, req, onDelta) => {
+    requests.push(req);
+    emit = onDelta;
+    onDelta("```green\nconst energy");
+    return pending;
+  };
+  const { container } = render(<SidebarChat />);
+  fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Stream code" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  const response = await screen.findByLabelText("AI response");
+  expect(response.querySelector("pre code")).toHaveTextContent("const energy");
+  fireEvent.change(screen.getByLabelText("Answer display"), { target: { value: "source" } });
+  act(() => emit(" = 'ATP';\n```"));
+  const answer = "```green\nconst energy = 'ATP';\n```";
+  expect(response.querySelector(".sidebar-chat-source")!.textContent).toBe(answer);
+  await act(async () =>
+    finish({
+      text: answer,
+      providerId: "ollama",
+      providerName: "On-device",
+      model: "fixture",
+      local: true,
+      usage: null,
+      fallbackFrom: null,
+      rule: "any",
+    }),
+  );
+  expect(container.querySelector(".assistant .sidebar-chat-source")!.textContent).toBe(answer);
+  fireEvent.change(screen.getByLabelText("Answer display"), { target: { value: "markdown" } });
+  expect(container.querySelector(".assistant pre code")).toHaveTextContent("const energy = 'ATP';");
+  expect(requests).toHaveLength(1);
+  expect(h.b.files()["Bio.md"]).toBe(doc);
 });

@@ -105,6 +105,29 @@
 .sidebar-chat-toolbar {
   position: relative;
 }
+.sidebar-chat-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg-muted);
+  font-size: 11px;
+}
+.sidebar-chat-display select {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  max-width: 140px;
+}
+.sidebar-chat-source {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.55 var(--font-mono);
+  margin: 6px 0;
+  user-select: text;
+}
 .sidebar-chat-toolbar .ai-model-picker {
   position: static;
 }

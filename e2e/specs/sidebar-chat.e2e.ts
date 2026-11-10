@@ -113,4 +113,38 @@ describe("Sidebar AI chat", () => {
     fs.mkdirSync(dir, { recursive: true });
     await browser.saveScreenshot(path.join(dir, "sidebar-chat.png"));
   });
+
+  it("renders AXISNotes Markdown blocks and offers the unchanged source", async () => {
+    const before = fs.readFileSync(file(), "utf8");
+    answer =
+      "## Energy\n\n> [!tip] Remember\n> ==ATP== powers cells.\n\n> [!note]- Test yourself\n> Explain energy transfer.\n\n| Topic | Detail |\n| --- | --- |\n| Cells | **ATP** |\n\n- [x] Read\n- [ ] Recall\n\n```green\nconst energy = 'ATP';\n```";
+    await $(".sidebar-chat").$("button=New chat").click();
+    await $('[aria-label="Chat action"]').selectByAttribute("value", "ask");
+    await $('[aria-label="Chat message"]').setValue("Explain with Markdown blocks");
+    await $(".sidebar-chat").$("button=Send").click();
+    const turn = $(".sidebar-chat-turn.assistant");
+    await expect(turn.$("h2")).toHaveText("Energy");
+    await expect(turn.$(".answer-callout-tip mark")).toHaveText("ATP");
+    await expect(turn.$("table td strong")).toHaveText("ATP");
+    await expect(turn.$("details p")).not.toBeDisplayed();
+    await turn.$("details summary").click();
+    await expect(turn.$("details p")).toBeDisplayed();
+    await expect(turn.$('pre[data-code-color="green"] code')).toHaveText("const energy = 'ATP';");
+    const dir = path.resolve(".agents/qa/T-213");
+    fs.mkdirSync(dir, { recursive: true });
+    await browser.execute(() => {
+      const log = document.querySelector(".sidebar-chat-log");
+      if (log) log.scrollTop = 0;
+    });
+    await browser.saveScreenshot(path.join(dir, "markdown-blocks.png"));
+    const count = requests.length;
+    await $('[aria-label="Answer display"]').selectByAttribute("value", "source");
+    await expect(turn.$(".sidebar-chat-source")).toHaveText(answer);
+    await expect(turn.$("table")).not.toExist();
+    await browser.saveScreenshot(path.join(dir, "markdown-source.png"));
+    await $('[aria-label="Answer display"]').selectByAttribute("value", "markdown");
+    await expect(turn.$("table")).toBeDisplayed();
+    expect(requests).toHaveLength(count);
+    expect(fs.readFileSync(file(), "utf8")).toBe(before);
+  });
 });

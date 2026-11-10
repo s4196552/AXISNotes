@@ -582,26 +582,183 @@
   padding: 2px 0;
 }
 
-/* An AI answer rendered as light Markdown (AnswerText.tsx). */
+/* Read-only Markdown answers, using the note editor's syntax and theme colours. */
 .answer-text {
   white-space: normal;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .answer-text p {
-  margin: 0 0 4px;
+  margin: 0 0 8px;
+  white-space: pre-line;
 }
 .answer-text .answer-h {
-  margin-top: 6px;
+  margin: 12px 0 6px;
   font-weight: 600;
+  line-height: 1.3;
 }
-.answer-text .answer-h1,
+.answer-text .answer-h1 {
+  color: var(--heading-1);
+  font-size: 1.5em;
+}
 .answer-text .answer-h2 {
-  font-size: 1.1em;
+  color: var(--heading-2);
+  font-size: 1.3em;
 }
-.answer-text .answer-bullet {
+.answer-text .answer-h3 {
+  color: var(--heading-3);
+  font-size: 1.15em;
+}
+.answer-text .answer-h4 {
+  color: var(--heading-4);
+  font-size: 1.05em;
+}
+.answer-text .answer-h5 {
+  color: var(--heading-5);
+  font-size: 1em;
+}
+.answer-text .answer-h6 {
+  color: var(--heading-6);
+  font-size: 1em;
+}
+.answer-text ul,
+.answer-text ol {
+  padding-left: 1.6em;
+  margin: 6px 0;
+}
+.answer-text li > p {
+  margin-bottom: 4px;
+}
+.answer-text li::marker {
   color: var(--fg-muted);
 }
-.answer-text .answer-gap {
-  height: 6px;
+.answer-text .answer-task {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.answer-text li:has(> .answer-task) {
+  list-style: none;
+}
+.answer-text .answer-task input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.answer-text mark {
+  background: color-mix(in srgb, #f5d547 45%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+.answer-text blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--border);
+}
+.answer-text hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+.answer-text .answer-callout {
+  --callout: var(--callout-blue);
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--callout) 10%, transparent);
+}
+.answer-text .answer-callout-tip,
+.answer-text .answer-callout-abstract {
+  --callout: var(--callout-cyan);
+}
+.answer-text .answer-callout-success {
+  --callout: var(--callout-green);
+}
+.answer-text .answer-callout-warning,
+.answer-text .answer-callout-question {
+  --callout: var(--callout-orange);
+}
+.answer-text .answer-callout-danger,
+.answer-text .answer-callout-failure,
+.answer-text .answer-callout-bug {
+  --callout: var(--callout-red);
+}
+.answer-text .answer-callout-example {
+  --callout: var(--callout-purple);
+}
+.answer-text .answer-callout-quote {
+  --callout: var(--callout-gray);
+}
+.answer-text .answer-callout-title,
+.answer-text .answer-callout > summary {
+  font-weight: 600;
+  color: var(--callout);
+}
+.answer-text .answer-callout > summary {
+  cursor: pointer;
+}
+.answer-text .answer-callout > :first-child {
+  margin-bottom: 6px;
+}
+.answer-text .answer-callout > :last-child {
+  margin-bottom: 0;
+}
+.answer-text .answer-table {
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.answer-text table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.answer-text th,
+.answer-text td {
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+}
+.answer-text th {
+  background: var(--bg-hover);
+  font-weight: 600;
+}
+.answer-text code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.answer-text :not(pre) > code {
+  background: var(--bg-hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.answer-text .answer-code-language {
+  display: block;
+  font-size: 0.85em;
+  color: var(--fg-muted);
+  margin-bottom: 6px;
+}
+.answer-text pre[data-code-color="green"] {
+  color: light-dark(#2b8a3e, #69db7c);
+}
+.answer-text pre[data-code-color="yellow"] {
+  color: light-dark(#a87b00, #ffd43b);
+}
+.answer-text pre[data-code-color="orange"] {
+  color: light-dark(#d9480f, #ffa94d);
+}
+.answer-text pre[data-code-color="red"] {
+  color: light-dark(#c92a2a, #ff6b6b);
+}
+.answer-text pre[data-code-color="violet"] {
+  color: light-dark(#7048e8, #b197fc);
+}
+.answer-text pre[data-code-color="blue"] {
+  color: light-dark(#1971c2, #74c0fc);
+}
+.answer-text pre > code {
+  font-size: inherit;
+}
+.answer-text .inline-wikilink {
+  display: inline;
+  white-space: normal;
 }
 .answer-text pre {
   margin: 4px 0;
