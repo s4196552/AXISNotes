@@ -1,6 +1,15 @@
-import { type EditorState, Prec, type Range, StateEffect, StateField } from "@codemirror/state";
+import {
+  type ChangeSpec,
+  type EditorState,
+  Prec,
+  type Range,
+  StateEffect,
+  StateField,
+} from "@codemirror/state";
+import { isolateHistory } from "@codemirror/commands";
 import {
   codeFolding,
+  ensureSyntaxTree,
   foldable,
   foldedRanges,
   foldEffect,
@@ -150,6 +159,65 @@ export function toggleCurrentFold(view: EditorView, pos = view.state.selection.m
     if (range && range.to >= pos) return flipViewFold(view, range.from, range.to);
   }
   return false;
+}
+
+/** Expand everything if any block is closed; otherwise collapse the entire note. */
+export function togglePageFolds(view: EditorView) {
+  const { state } = view;
+  const items = state.field(toggleField, false)?.toggles ?? [];
+  const saved = viewFolds(state);
+  const wantOpen = saved.length > 0 || items.some((t) => !t.open);
+  const ranges: FoldRange[] = [];
+  if (!wantOpen) {
+    // Headings/lists use the full-document outline. Parse code outside the viewport too,
+    // with a bounded budget, before asking the language for additional fold ranges.
+    ensureSyntaxTree(state, state.doc.length, 100);
+    const titles = new Set(items.map((t) => t.from));
+    for (let n = 1; n <= state.doc.lines; n++) {
+      const line = state.doc.line(n);
+      // Toggle headings/callouts own their marker, never an extra view fold.
+      if (titles.has(line.from)) continue;
+      const range = foldable(state, line.from, line.to);
+      if (range) ranges.push(range);
+    }
+  }
+  const changed = items.filter((t) => t.open !== wantOpen);
+  if (!saved.length && !ranges.length && !changed.length) return false;
+
+  const edits: ChangeSpec[] = state.readOnly
+    ? []
+    : changed.map((t) => ({
+        from: t.statePos,
+        to: t.statePos + (t.hasState ? 1 : 0),
+        insert: wantOpen ? "+" : "-",
+      }));
+  const changes = state.changes(edits);
+  const effects: StateEffect<unknown>[] = wantOpen
+    ? saved.map((r) => unfoldEffect.of(r))
+    : ranges.map((r) => foldEffect.of(r));
+  // Fold coordinates belong to the document *after* all marker insertions.
+  const mappedEffects = [...StateEffect.mapEffects(effects, changes)];
+  if (state.readOnly) mappedEffects.push(...changed.map((t) => flipReadOnly.of(t.from)));
+
+  const hidden = wantOpen ? [] : [...ranges, ...items.map((t) => ({ from: t.to, to: t.bodyTo }))];
+  const obscured = hidden.filter((r) =>
+    state.selection.ranges.some((s) => s.to > r.from && s.from <= r.to),
+  );
+  view.dispatch({
+    changes,
+    effects: mappedEffects,
+    selection: obscured.length
+      ? {
+          anchor: changes.mapPos(
+            obscured.reduce((pos, r) => Math.min(pos, r.from), state.doc.length),
+            1,
+          ),
+        }
+      : undefined,
+    userEvent: "input.fold",
+    annotations: isolateHistory.of("full"),
+  });
+  return true;
 }
 
 /** The view folds (headings and list items), to bring back when the note is reopened. */
@@ -321,13 +389,15 @@ const toggleField = StateField.define<ToggleState>({
   create: (state) => fold(state, findToggles(state)),
   update(value, tr) {
     if (tr.docChanged) return fold(tr.state, findToggles(tr.state));
+    const flipped = new Set<number>();
     for (const effect of tr.effects) {
-      if (effect.is(flipReadOnly))
-        return fold(
-          tr.state,
-          value.toggles.map((t) => (t.from === effect.value ? { ...t, open: !t.open } : t)),
-        );
+      if (effect.is(flipReadOnly)) flipped.add(effect.value);
     }
+    if (flipped.size)
+      return fold(
+        tr.state,
+        value.toggles.map((t) => (flipped.has(t.from) ? { ...t, open: !t.open } : t)),
+      );
     if (tr.selection) return fold(tr.state, value.toggles);
     return value;
   },
