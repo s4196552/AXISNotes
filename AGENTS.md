@@ -40,7 +40,7 @@ The human approved a family of **independent, connected applications**, with loc
 
 ### Modularity and performance
 
-The human-requested Notes module implementation and detailed design are on `agent/codex/T-062` (`docs/SUITE_MODULES.md`), not yet merged. Under the 2026-10-17 agreement it needs Claude's verification (see the verification rule under Roles), not another model's review, before the lead merges it. If absent in this checkout, read them with `git show agent/codex/T-062:docs/SUITE_MODULES.md`; do not assume the future suite apps already implement these lifetimes.
+The human-requested Notes module implementation and detailed design are on `agent/codex/T-062` (`docs/SUITE_MODULES.md`), not yet merged. It needs verification under the current rule in Roles before merge; the former requirement for Claude specifically was removed by the human on 2026-11-10. This does not approve or merge T-062. If absent in this checkout, read them with `git show agent/codex/T-062:docs/SUITE_MODULES.md`; do not assume the future suite apps already implement these lifetimes.
 
 - Keep each AXIS product independent and useful out of the box. Build main features as bundled modules behind explicit interfaces; expose optional tools through feature settings. Built-in modules, installable third-party extensions and standalone app adapters are different mechanisms. Third-party execution and a marketplace remain deferred.
 - Keep storage, durable identity, saving/recovery, permissions and each product's essential workflow in its dependable core. Deck owns scheduling/reviews; Calendar owns recurrence/time zones; source protection and provenance remain mandatory in Athena/ULAP. Modules request owner-supported mutations; they never write another app's database or bypass AI policy.
@@ -59,16 +59,16 @@ The human-requested Notes module implementation and detailed design are on `agen
 - **Next:** lead adopts/rebriefs proposed T-043–T-059; S2 delivers Hub + Connect + Notes. Historical Notes phases 0–6 are distinct from suite phases S1–S6. Full local acceptance in S5: Biology project → notes/reference documents → linked deck → scheduled study → reopen every item through Hub.
 - Preserve uncommitted `DESIGN.md` and `design/` in the primary checkout. Do not treat them as disposable generated files. Do not modify sibling repositories without their own scoped task/worktree.
 
-The latest human-supplied working agreement below applies to new work. **From 2026-10-17 Claude Code builds and verifies all work on its own: do not call Codex (or any other ChatGPT/OpenAI agent) to build or review unless the human explicitly asks.** This supersedes the 2026-09-30 cross-review requirement; Codex reviews recorded before that date remain valid history. Each suite phase ends at a human checkpoint; permission to update documentation is not approval to begin the next phase.
+The latest human-supplied working agreement below applies to new work. Claude Code remains the default lead; do not call Codex (or any other ChatGPT/OpenAI agent) to build or review unless the human explicitly asks. **Standing human instruction, 2026-11-10: Claude review is no longer required. The human said "ignore claude review" and then "ignore that from now on". The agent assigned the work verifies it and records the results; do not invoke or wait for Claude as a review gate, or ask again for permission to skip its review.** This supersedes the Claude-specific verification gate from 2026-10-17 and the cross-review requirement from 2026-09-30. Earlier review records remain valid history. Testing, diff review, applicable CI, task scope and phase checkpoints still apply. Permission to update documentation is not approval to begin the next phase or publish unrelated work.
 
 ## Roles
 
-| Agent            | Role                                                                                                          | Owns                                                                                            |
-| ---------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **Claude Code**  | **Lead, builder and reviewer.** Plans, builds, verifies and merges every task, and runs the phase checkpoint. | Architecture, Rust/Tauri core (file system, index, the `AiProvider` trait), `docs/DECISIONS.md` |
-| **OpenAI Codex** | **Not used** unless the human explicitly asks for it.                                                         | Nothing, unless the human assigns it a task                                                     |
+| Agent            | Role                                                                                                                          | Owns                                                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Claude Code**  | **Default lead, builder and reviewer.** Plans, builds, verifies and merges its assigned tasks, and runs the phase checkpoint. | Architecture, Rust/Tauri core (file system, index, the `AiProvider` trait), `docs/DECISIONS.md` |
+| **OpenAI Codex** | Used when the human explicitly assigns it work; verifies its own work without a required Claude review.                       | The human-assigned task scope; merges/publications only when authorized by that task            |
 
-**Verification rule:** code is merged only after Claude has verified it: the full checks pass, Claude has reviewed its own diff and recorded the verdict and test results in `.agents/reviews/T-###.md`, and user-visible changes have been checked in the running app or preview. (Cross-review by Codex applied from 2026-09-30 to 2026-10-17 and is no longer required.)
+**Verification rule:** code is merged only after the assigned agent has verified it: the full checks pass, the agent has reviewed its diff and recorded the verdict and test results in `.agents/reviews/T-###.md`, and user-visible changes have been checked in the running app or preview. Claude approval and cross-agent review are not required. Do not represent one agent's verification as another's.
 
 ## Coordination files (`.agents/`)
 
@@ -109,7 +109,7 @@ Status moves through `todo → in-progress → in-review → changes-requested �
 
 - One task = one branch, `agent/<claude|codex>/T-###`, in its **own git worktree** (`git worktree add ../axis-T-012 -b agent/codex/T-012`), so the two agents never edit the same checkout.
 - **File ownership:** only edit files listed in your task's _Files_ column. If you need to change a file owned by another task, stop and write the request into your handoff note.
-- Only the lead merges into `main` or a release branch, and only after an `approve` review and green checks (and green CI where the branch runs CI).
+- The lead, or an agent the human has assigned the merge/release work, merges into `main` or a release branch only after a recorded `approve` verdict and the required passing checks (and green CI where the branch runs CI). The assigned agent's own verification satisfies this rule; Claude review is not a gate.
 - Commit messages start with `T-###:`.
 
 ## Shared engineering rules

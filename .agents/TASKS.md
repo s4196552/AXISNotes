@@ -1,6 +1,6 @@
 # AXIS Task Board
 
-See `AGENTS.md` for the status flow and rules. The lead (Claude Code) maintains this board.
+See `AGENTS.md` for the status flow and rules. The lead (Claude Code by default) and human-assigned task agents maintain their task records. Since 2026-11-10 the assigned agent's verification is sufficient; Claude review is not required.
 
 | ID    | Phase | Task                                                                        | Owner  | Status    | Branch            | Files (ownership)                                                                                      |
 | ----- | ----- | --------------------------------------------------------------------------- | ------ | --------- | ----------------- | ------------------------------------------------------------------------------------------------------ |
@@ -241,3 +241,4 @@ _Codex could not run commands (Windows sandbox provisioning failed: `helper_sand
 | T-209 | 6 | Minimize the selected passage in the AI sidebar | codex | merged | agent/codex/T-209 | `src/features/ai/{SidebarChat.tsx,SidebarChat.test.tsx,sidebarChat.css}`, `e2e/specs/sidebar-chat.e2e.ts`, task coordination |
 | T-210 | 6 | Add Mnemonic, Make it stick, Example, Slide Deck and Infographic AI skills | codex | merged | agent/codex/T-210 | `src/features/skills/{builtinSkills.ts,skillIcons.ts,skills.test.tsx}`, `e2e/specs/skills.e2e.ts`, task coordination |
 | T-211 | 6 | Verify and publish Windows 0.3.82 with Ctrl+Q, collapsed AI selection and five AI skills | codex (human requested) | merged | agent/codex/T-211 | release manifests, task coordination, integrated T-208–T-210, existing local Windows update output |
+| T-212 | 6 | Record standing human instruction removing the Claude review gate | codex (human requested) | merged | agent/codex/T-212 | `AGENTS.md`, `CLAUDE.md`, task coordination |
