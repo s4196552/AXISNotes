@@ -2,6 +2,11 @@ import { create } from "zustand";
 import { useAppStore } from "../../app/store";
 import { useLayout } from "../../app/layout";
 import { getActiveEditor } from "../editor/activeEditor";
+import { backend, isBackendError, type AiRule } from "../../ipc";
+import { isNotePath } from "../../lib/markdown";
+import { stricter } from "../../lib/aiAccess";
+import { effectiveRule } from "./keepPrivacy";
+import { MAX_FOLDER_NOTES } from "./folderScope";
 
 export interface ChatContext {
   root: string;
@@ -11,6 +16,8 @@ export interface ChatContext {
   to: number;
   text: string;
   selection: boolean;
+  sources?: string[];
+  rule?: AiRule;
 }
 
 /** Read the live editor, including unsaved text and the exact selection. */
@@ -46,7 +53,11 @@ export const useSidebarChat = create<{
   prompt: string;
 }>(() => ({ open: false, context: null, request: 0, prompt: "" }));
 
+let attachmentRequest = 0;
+let vaultEpoch = 0;
+
 export function openSidebarChat(context = editorChatContext(), prompt = "") {
+  attachmentRequest++;
   useSidebarChat.setState((s) => ({ open: true, context, prompt, request: s.request + 1 }));
   const layout = useLayout.getState();
   if (layout.zen) layout.setZenReveal("right");
@@ -54,7 +65,77 @@ export function openSidebarChat(context = editorChatContext(), prompt = "") {
   else layout.setPanels({ right: true });
 }
 
+/** Attach exact picked notes/folders, without generating an answer or navigating the editor. */
+export async function sendFilesToSidebar(paths: string[]) {
+  const root = useAppStore.getState().vault?.root;
+  if (!root) return;
+  const request = ++attachmentRequest,
+    epoch = vaultEpoch;
+  const current = () =>
+    attachmentRequest === request &&
+    vaultEpoch === epoch &&
+    useAppStore.getState().vault?.root === root;
+  const candidates = new Set<string>();
+  for (const path of paths) {
+    if (isNotePath(path)) candidates.add(path);
+    else
+      for (const note of useAppStore.getState().notes) {
+        if (!path || note.path.startsWith(`${path}/`)) candidates.add(note.path);
+      }
+  }
+  try {
+    if (!candidates.size) throw new Error("There are no Markdown notes in this selection.");
+    if (candidates.size > MAX_FOLDER_NOTES)
+      throw new Error(`Choose at most ${MAX_FOLDER_NOTES} notes for AI chat.`);
+    const files: { path: string; content: string }[] = [];
+    let rule: AiRule = "any",
+      size = 0;
+    for (const path of candidates) {
+      if (!current()) return;
+      const { content } = await backend.readFile(path);
+      if (!current()) return;
+      const sourceRule = effectiveRule(path, content);
+      if (sourceRule === "never")
+        throw new Error(`${path} is marked AI: never. No notes were attached.`);
+      rule = stricter(rule, sourceRule);
+      size += content.length;
+      if (size > 250_000)
+        throw new Error("These notes are too large for one chat attachment. Choose fewer notes.");
+      files.push({ path, content });
+    }
+    const first = files[0]!;
+    const text =
+      files.length === 1
+        ? first.content
+        : files.map((f) => `Note: ${f.path}\n${f.content}`).join("\n\n");
+    if (current())
+      openSidebarChat({
+        root,
+        path: first.path,
+        doc: text,
+        from: 0,
+        to: text.length,
+        text,
+        selection: false,
+        sources: files.map((f) => f.path),
+        rule,
+      });
+  } catch (error) {
+    if (current())
+      useAppStore
+        .getState()
+        .notify(
+          isBackendError(error)
+            ? error.message
+            : String(error instanceof Error ? error.message : error),
+        );
+  }
+}
+
 useAppStore.subscribe((s, prev) => {
-  if (s.vault?.root !== prev.vault?.root)
+  if (s.vault?.root !== prev.vault?.root) {
+    vaultEpoch++;
+    attachmentRequest++;
     useSidebarChat.setState({ context: null, prompt: "", request: 0 });
+  }
 });

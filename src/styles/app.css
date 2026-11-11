@@ -248,6 +248,9 @@ body.pointer-dragging * {
 .sidebar-slot.left .sidebar-body .panel > :not(.panel-search),
 .sidebar-slot.right .side-section > :not(.side-section-head),
 .sidebar-slot.right .sidebar-body,
+.sidebar-slot .sidebar-chat-log,
+.sidebar-slot .sidebar-chat-context,
+.sidebar-slot .sidebar-chat-compose,
 .sidebar-slot.right .side-hint {
   zoom: var(--area-zoom, 1);
 }

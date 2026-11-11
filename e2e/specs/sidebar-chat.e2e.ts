@@ -11,6 +11,31 @@ let server: http.Server;
 let answer = "Cells use ATP as an energy source.";
 const requests: string[] = [];
 
+async function ctrlWheel(selector: string) {
+  const at = await browser.execute((s: string) => {
+    const box = document.querySelector(s)!.getBoundingClientRect();
+    const clip = document.querySelector(".sidebar-chat-log")!.getBoundingClientRect();
+    return {
+      x: Math.round((Math.max(box.left, clip.left) + Math.min(box.right, clip.right)) / 2),
+      y: Math.round((Math.max(box.top, clip.top) + Math.min(box.bottom, clip.bottom)) / 2),
+    };
+  }, selector);
+  await browser.performActions([
+    { type: "key", id: "zoom-key", actions: [{ type: "keyDown", value: "\uE009" }] },
+  ]);
+  try {
+    await browser.performActions([
+      {
+        type: "wheel",
+        id: "zoom-wheel",
+        actions: [{ type: "scroll", x: at.x, y: at.y, deltaX: 0, deltaY: -120, duration: 100 }],
+      },
+    ]);
+  } finally {
+    await browser.releaseActions();
+  }
+}
+
 function invoke<T>(command: string, args: object): Promise<T> {
   return browser.executeAsync(
     (cmd: string, a: object, done: (r: unknown) => void) => {
@@ -27,6 +52,8 @@ function invoke<T>(command: string, args: object): Promise<T> {
 describe("Sidebar AI chat", () => {
   before(async () => {
     fs.writeFileSync(file(), note);
+    await browser.execute(() => localStorage.removeItem("axisnotes.areaZoom"));
+    await browser.refresh();
     server = http.createServer((req, res) => {
       let raw = "";
       req.on("data", (chunk: Buffer) => {
@@ -146,5 +173,125 @@ describe("Sidebar AI chat", () => {
     await expect(turn.$("table")).toBeDisplayed();
     expect(requests).toHaveLength(count);
     expect(fs.readFileSync(file(), "utf8")).toBe(before);
+  });
+
+  it("sends a right-clicked file to the right chat without sending automatically", async () => {
+    const count = requests.length;
+    await $('.filetree [data-path="School"]').click();
+    await $('.filetree [data-path="School/Biology.md"]').click({ button: "right" });
+    await $('[role="menuitem"]=Send to AI chat').click();
+    await expect($(".sidebar-chat-context")).toHaveText(
+      expect.stringContaining("Attached notes · 1"),
+    );
+    expect(requests).toHaveLength(count);
+    await $('[aria-label="Chat message"]').setValue("Explain this attached note");
+    answer = "Attached biology note reviewed.";
+    await $(".sidebar-chat").$("button=Send").click();
+    await expect($(".sidebar-chat-log")).toHaveText(expect.stringContaining(answer));
+    expect(requests.at(-1)).toContain("School/Biology.md");
+    expect(requests.at(-1)).toContain("read ch. 1");
+    await expect($(".cm-content")).toHaveText(expect.stringContaining("Other material."));
+  });
+
+  it("zooms the AI content with a real Ctrl+wheel gesture and copies the exact answer", async () => {
+    const zoom = () =>
+      browser.execute(() => getComputedStyle(document.querySelector(".sidebar-chat-log")!).zoom);
+    const before = await zoom();
+    await ctrlWheel(".sidebar-chat-log");
+    await browser.waitUntil(async () => (await zoom()) !== before);
+    expect(await zoom()).toBe("1.1");
+    await browser.execute(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: async (value: string) => {
+            (window as unknown as { copiedAnswer: string }).copiedAnswer = value;
+          },
+        },
+      });
+    });
+    await $(".sidebar-chat-turn.assistant:last-of-type").$("button=Copy answer").click();
+    expect(
+      await browser.execute(() => (window as unknown as { copiedAnswer: string }).copiedAnswer),
+    ).toBe(answer);
+  });
+
+  it("renders interactive HTML safely, retains copy/source controls and zooms inside its frame", async () => {
+    const before = fs.readFileSync(file(), "utf8");
+    await $(".sidebar-chat").$("button=New chat").click();
+    await $('[aria-label="Answer format"]').selectByAttribute("value", "html");
+    answer =
+      "<!doctype html><html><head><style>body{font:16px sans-serif}button{padding:12px}</style></head><body><h1>Energy page</h1><button onclick=\"this.textContent='Correct!'\">Check</button></body></html>";
+    await $('[aria-label="Chat message"]').setValue("Give an interactive HTML answer");
+    await $(".sidebar-chat").$("button=Send").click();
+    const frame = $('.sidebar-chat iframe[title="AI HTML answer"]');
+    await frame.waitForDisplayed();
+    await expect(frame).toHaveAttribute("sandbox", "allow-scripts allow-forms allow-modals");
+    expect(requests.at(-1)).toContain("HTML document");
+    const dpr = await browser.execute(() => window.devicePixelRatio);
+    await browser.switchFrame(frame);
+    await expect($("h1")).toHaveText("Energy page");
+    await $("button").click();
+    await expect($("button")).toHaveText("Correct!");
+    expect(
+      await browser.execute(() => {
+        try {
+          void parent.document.body;
+          return false;
+        } catch {
+          return true;
+        }
+      }),
+    ).toBe(true);
+    const ipc = await browser.executeAsync((done: (result: string) => void) => {
+      const host = window as unknown as {
+        __TAURI_INTERNALS__?: { invoke(c: string): Promise<unknown> };
+      };
+      if (!host.__TAURI_INTERNALS__) return done("unavailable");
+      Promise.race([
+        host.__TAURI_INTERNALS__.invoke("list_notes").then(
+          () => "allowed",
+          () => "denied",
+        ),
+        new Promise<string>((resolve) => setTimeout(() => resolve("no response"), 1000)),
+      ]).then(done);
+    });
+    expect(ipc).not.toBe("allowed");
+    await browser.switchFrame(null);
+    await $('[aria-label="Chat message"]').click();
+    await ctrlWheel(".sidebar-chat iframe");
+    await browser.waitUntil(() =>
+      browser.execute(
+        () => getComputedStyle(document.querySelector(".sidebar-chat-log")!).zoom === "1.25",
+      ),
+    );
+    expect(await browser.execute(() => window.devicePixelRatio)).toBe(dpr);
+    await $(".sidebar-chat").$("button=Copy answer").click();
+    expect(
+      await browser.execute(() => (window as unknown as { copiedAnswer: string }).copiedAnswer),
+    ).toBe(answer);
+    await $(".sidebar-chat").$("button=Copy text").click();
+    await browser.waitUntil(() =>
+      browser.execute(() =>
+        (window as unknown as { copiedAnswer: string }).copiedAnswer.includes("Energy page"),
+      ),
+    );
+    expect(
+      await browser.execute(() => (window as unknown as { copiedAnswer: string }).copiedAnswer),
+    ).not.toContain("<html>");
+    const count = requests.length;
+    await $('[aria-label="Answer display"]').selectByAttribute("value", "source");
+    await expect($(".assistant .sidebar-chat-source")).toHaveText(answer);
+    await $('[aria-label="Answer display"]').selectByAttribute("value", "markdown");
+    await frame.waitForDisplayed();
+    expect(requests).toHaveLength(count);
+    expect(fs.readFileSync(file(), "utf8")).toBe(before);
+    const qa = path.resolve(".agents/qa/T-227");
+    fs.mkdirSync(qa, { recursive: true });
+    await browser.saveScreenshot(path.join(qa, "sidebar-html-copy-zoom.png"));
+    await $(".sidebar-right").$("button=Note details").click();
+    await $(".sidebar-right").$("button=AI chat").click();
+    await expect($('[aria-label="Answer format"]')).toHaveValue("html");
+    await frame.waitForDisplayed();
   });
 });
