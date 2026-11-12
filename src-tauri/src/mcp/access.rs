@@ -16,7 +16,7 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 
-use crate::ai::privacy::{rule_for, AiRule, CONFIG_PATH};
+use crate::ai::privacy::{rules_from, AiRule, FolderRules, CONFIG_PATH};
 use crate::error::AppError;
 use crate::vault::{is_hidden_name, validate_name, Vault};
 
@@ -27,9 +27,8 @@ pub const READ_ONLY: &str = "This vault is read-only for Claude. To let Claude m
 pub struct Access {
     pub enabled: bool,
     pub write: bool,
-    rules: HashMap<String, AiRule>,
-    /// The same rules with lower-case keys (both are checked; the stricter wins).
-    folded: HashMap<String, AiRule>,
+    /// Folder/file rules, matched as written and ignoring case (the stricter wins).
+    folders: FolderRules,
     /// Notes' own AI marks from the index (`ai-access`: AI output made from stricter
     /// notes). Reads and writes also check the file itself.
     pub marks: HashMap<String, AiRule>,
@@ -53,27 +52,9 @@ impl Access {
         })?;
         let enabled = json.pointer("/claude/enabled") == Some(&Value::Bool(true));
         let write = enabled && json.pointer("/claude/allowChanges") == Some(&Value::Bool(true));
-        let mut rules = HashMap::new();
-        match json.pointer("/ai/folders") {
-            None | Some(Value::Null) => {}
-            Some(Value::Object(m)) => {
-                for (k, v) in m {
-                    let rule = serde_json::from_value::<AiRule>(v.clone()).unwrap_or(AiRule::Never);
-                    rules.insert(k.trim_matches('/').to_string(), rule);
-                }
-            }
-            Some(_) => {
-                return Err(
-                    "This vault's AI folder rules can't be read, so Claude's access is refused."
-                        .into(),
-                )
-            }
-        }
-        let mut folded: HashMap<String, AiRule> = HashMap::new();
-        for (k, r) in &rules {
-            let e = folded.entry(k.to_lowercase()).or_insert(*r);
-            *e = (*e).max(*r);
-        }
+        let folders = FolderRules::new(rules_from(Some(&json)).map_err(|_| {
+            "This vault's AI folder rules can't be read, so Claude's access is refused.".to_string()
+        })?);
         let text_at = |p: &str, def: &str| {
             json.pointer(p)
                 .and_then(Value::as_str)
@@ -84,8 +65,7 @@ impl Access {
         Ok(Self {
             enabled,
             write,
-            rules,
-            folded,
+            folders,
             marks: HashMap::new(),
             daily_folder: text_at("/dailyNotes/folder", "Daily")
                 .trim_matches('/')
@@ -98,8 +78,7 @@ impl Access {
         Self {
             enabled: false,
             write: false,
-            rules: HashMap::new(),
-            folded: HashMap::new(),
+            folders: FolderRules::default(),
             marks: HashMap::new(),
             daily_folder: "Daily".into(),
             daily_format: "YYYY-MM-DD".into(),
@@ -126,9 +105,7 @@ impl Access {
     /// The AI rule for a vault path: the stricter of its exact-case and any-case rules.
     pub fn rule(&self, path: &str) -> AiRule {
         let mark = self.marks.get(path).copied().unwrap_or(AiRule::Any);
-        rule_for(&self.rules, path)
-            .max(rule_for(&self.folded, &path.to_lowercase()))
-            .max(mark)
+        self.folders.rule(path).max(mark)
     }
 
     /// Claude may see this path: access is on, no part of it is hidden (`.axisnotes`,
@@ -139,7 +116,7 @@ impl Access {
 
     /// How many folder/file rules keep something from Claude (names are not shown).
     pub fn hidden_rules(&self) -> usize {
-        self.rules.values().filter(|r| **r != AiRule::Any).count()
+        self.folders.restricted()
     }
 }
 

@@ -152,6 +152,9 @@ pub struct AiService {
     sessions: super::subscription::Sessions,
 }
 
+/// The model allowlists a request is held to: where each is set, and the models it allows.
+type Allowlists = Vec<(String, Vec<String>)>;
+
 fn is_local(cfg: &ProviderConfig) -> bool {
     if cfg.kind == super::ProviderKind::ChatGpt {
         return false;
@@ -596,45 +599,49 @@ impl AiService {
         Ok(messages)
     }
 
-    /// The strictest rule over every note the request reads: each note's folder/file
-    /// rule, raised by its own `ai-access` mark (AI output keeps its sources' rule).
-    fn rule(&self, vault: Option<&Vault>, req: &RunRequest) -> AiRule {
+    /// What may take this request, over every note it reads:
+    /// - the strictest rule: each note's folder/file rule (matched as written and ignoring
+    ///   case), raised by its own `ai-access` mark (AI output keeps its sources' rule);
+    /// - the model allowlists that apply: one per distinct folder that sets one. A model
+    ///   must be on all of them.
+    ///
+    /// Everything fails closed: a vault config that can't be read or parsed, or a note
+    /// that exists but can't be read to check its mark, blocks the request.
+    fn policy(&self, vault: Option<&Vault>, req: &RunRequest) -> AppResult<(AiRule, Allowlists)> {
         let floor = req.at_least.unwrap_or(AiRule::Any);
         let Some(vault) = vault else {
-            return floor;
+            return Ok((floor, Vec::new()));
         };
-        let rules = privacy::rules(vault);
-        req.read_paths()
-            .map(|p| {
-                let text = vault.read_file(p).ok().map(|f| f.content);
-                privacy::rule_for_note(&rules, p, text.as_deref())
-            })
-            .max()
-            .unwrap_or(AiRule::Any)
-            .max(floor)
-    }
-
-    /// The model allowlists that apply to this request: one per distinct folder that sets
-    /// one, over every note it reads. A model must be on all of them.
-    fn allowlists(&self, vault: Option<&Vault>, req: &RunRequest) -> Vec<(String, Vec<String>)> {
-        let Some(vault) = vault else {
-            return Vec::new();
-        };
-        let lists = privacy::model_allowlists(vault);
-        let mut out: Vec<(String, Vec<String>)> = Vec::new();
+        let config = privacy::read_config(vault).map_err(AppError::Blocked)?;
+        let rules = privacy::FolderRules::new(
+            privacy::rules_from(config.as_ref()).map_err(AppError::Blocked)?,
+        );
+        let lists = privacy::allowlists_from(config.as_ref()).map_err(AppError::Blocked)?;
+        let mut rule = floor;
+        let mut allowed: Allowlists = Vec::new();
         for p in req.read_paths() {
-            if let Some((at, list)) = privacy::allowlist_for(&lists, p) {
-                if !out.iter().any(|(a, _)| a == at) {
-                    out.push((at.to_string(), list.to_vec()));
+            let text = match vault.read_file(p) {
+                Ok(f) => Some(f.content),
+                // Not there (yet): only its folder's rule applies.
+                Err(AppError::NotFound(_)) => None,
+                Err(e) => {
+                    return Err(AppError::Blocked(format!(
+                        "AXISNotes couldn't read \"{p}\" to check its AI access ({e}), so nothing was sent."
+                    )))
+                }
+            };
+            rule = rule.max(privacy::rule_for_note(&rules, p, text.as_deref()));
+            for (at, list) in privacy::allowlists_for(&lists, p) {
+                if !allowed.iter().any(|(a, _)| a == at) {
+                    allowed.push((at.to_string(), list.to_vec()));
                 }
             }
         }
-        out
+        Ok((rule, allowed))
     }
 
     pub async fn plan(&self, vault: Option<&Vault>, req: &RunRequest) -> AppResult<Plan> {
-        let rule = self.rule(vault, req);
-        let allowed = self.allowlists(vault, req);
+        let (rule, allowed) = self.policy(vault, req)?;
         let messages = self.expand(vault, req)?;
         let tokens = estimate_tokens(&messages);
         let first = self.candidates(req, rule, &allowed).await?.remove(0);
@@ -670,8 +677,7 @@ impl AiService {
         on_delta: &mut (dyn FnMut(&str) + Send),
     ) -> AppResult<RunResult> {
         let task = req.task();
-        let rule = self.rule(vault, &req);
-        let allowed = self.allowlists(vault, &req);
+        let policy = self.policy(vault, &req);
         let sources = req.sources.len() + req.attach.len() + req.passages.len();
         let messages = self.expand(vault, &req)?;
         let estimate = estimate_tokens(&messages);
@@ -689,6 +695,13 @@ impl AiService {
             cached_input_tokens: None,
             duration_ms: 0,
             sources,
+        };
+        let (rule, allowed) = match policy {
+            Ok(p) => p,
+            Err(e) => {
+                self.log(blocked("", "", &e.to_string()));
+                return Err(e);
+            }
         };
         if let Some(cap) = self.settings().max_input_tokens {
             if estimate > cap {

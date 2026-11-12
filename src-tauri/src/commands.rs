@@ -645,12 +645,14 @@ pub async fn vault_passages(
     include_local: bool,
 ) -> AppResult<VaultPassages> {
     let vault = state.vault()?;
-    let rules = crate::ai::privacy::rules(&vault);
+    // An unreadable rule set finds nothing (fail closed).
+    let rules = crate::ai::privacy::FolderRules::load(&vault).map_err(AppError::Blocked)?;
     state.with_index(|idx| {
         let marks = idx.ai_marks()?;
         let left_out = std::cell::Cell::new(0usize);
         let keep = |path: &str| {
-            let rule = crate::ai::privacy::rule_for(&rules, path)
+            let rule = rules
+                .rule(path)
                 .max(marks.get(path).copied().unwrap_or(AiRule::Any));
             let ok = rule == AiRule::Any || (include_local && rule == AiRule::Local);
             if !ok {

@@ -758,3 +758,99 @@ async fn plan_settings_expose_no_tokens_and_model_failure_has_no_api_catalog() {
     assert!(models.models.is_empty());
     assert!(models.error.is_some());
 }
+
+#[tokio::test]
+async fn privacy_rules_that_cant_be_read_block_before_any_provider_is_contacted() {
+    // Invalid JSON (a trailing comma), or a folders/models section of the wrong shape:
+    // nothing is sent, not even School notes, and the refusal is logged.
+    for config in [
+        r#"{"ai":{"folders":{"Medical":"never"},}}"#,
+        r#"{"ai":{"folders":["Medical"]}}"#,
+        r#"{"ai":{"folders":{},"models":"ollama/*"}}"#,
+    ] {
+        let e = env(vec![(200, OPENAI_OK)], std_providers(), &["openai"]);
+        e.vault
+            .write_file(".axisnotes/config.json", config, None)
+            .unwrap();
+        let (r, _) = run(&e, ask(&["School/Bio.md"])).await;
+        assert!(matches!(r, Err(AppError::Blocked(_))), "{config}: {r:?}");
+        assert!(
+            e.service
+                .plan(Some(&e.vault), &ask(&["School/Bio.md"]))
+                .await
+                .is_err(),
+            "{config}"
+        );
+        assert!(e.fx.requests.lock().unwrap().is_empty(), "{config}");
+        assert_eq!(e.service.read_log(1)[0].status, "blocked", "{config}");
+    }
+}
+
+#[tokio::test]
+async fn folder_rules_hold_however_the_rule_or_path_is_spelled() {
+    for (config, source) in [
+        // A capitalised value isn't dropped.
+        (
+            r#"{"ai":{"folders":{"Medical":"Never"}}}"#,
+            "Medical/scan.md",
+        ),
+        // An unknown value counts as never.
+        (
+            r#"{"ai":{"folders":{"Medical":"private"}}}"#,
+            "Medical/scan.md",
+        ),
+        // The rule's case differs from the folder's.
+        (
+            r#"{"ai":{"folders":{"medical":"never"}}}"#,
+            "Medical/scan.md",
+        ),
+        // The path's case differs from the rule's.
+        (
+            r#"{"ai":{"folders":{"Medical":"never"}}}"#,
+            "MEDICAL/scan.md",
+        ),
+    ] {
+        let e = env(vec![(200, OPENAI_OK)], std_providers(), &["openai"]);
+        e.vault
+            .write_file(".axisnotes/config.json", config, None)
+            .unwrap();
+        let (r, _) = run(&e, ask(&[source])).await;
+        assert!(
+            matches!(r, Err(AppError::Blocked(_))),
+            "{config} {source}: {r:?}"
+        );
+        assert!(e.fx.requests.lock().unwrap().is_empty());
+    }
+    // A model allowlist set with another case still applies.
+    let e = env(vec![(200, OPENAI_OK)], std_providers(), &["openai"]);
+    e.vault
+        .write_file(
+            ".axisnotes/config.json",
+            r#"{"ai":{"folders":{},"models":{"school":["ollama/*"]}}}"#,
+            None,
+        )
+        .unwrap();
+    let mut s = e.service.settings();
+    s.providers.retain(|p| p.id == "openai");
+    e.service.save_settings(s).unwrap();
+    let (r, _) = run(&e, ask(&["School/Bio.md"])).await;
+    assert!(matches!(r, Err(AppError::Blocked(_))), "{r:?}");
+    assert!(e.fx.requests.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_note_that_cant_be_read_to_check_its_mark_blocks_the_request() {
+    let e = env(vec![(200, OPENAI_OK)], std_providers(), &["openai"]);
+    // A note that exists but can't be read as text (not UTF-8), so its mark can't be checked.
+    std::fs::write(
+        e.vault.resolve("School/Locked.md").unwrap(),
+        [0xffu8, 0xfe, 0x00, 0x61],
+    )
+    .unwrap();
+    let (r, _) = run(&e, ask(&["School/Locked.md"])).await;
+    assert!(matches!(r, Err(AppError::Blocked(_))), "{r:?}");
+    assert!(e.fx.requests.lock().unwrap().is_empty());
+    // A note that isn't there (yet) is held to its folder's rule only.
+    let (r, _) = run(&e, ask(&["School/New.md"])).await;
+    assert_eq!(r.unwrap().provider_id, "openai");
+}
