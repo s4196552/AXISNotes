@@ -153,7 +153,7 @@ async function useHandwritingProvider(provider: string, model: string) {
 async function openNote(rel: string, title: string) {
   if (rel.includes("/")) await row(rel.slice(0, rel.lastIndexOf("/"))).click();
   await row(rel).click();
-  await expect($(".editor-title")).toHaveText(title);
+  await expect($("input.editor-title")).toHaveValue(title);
 }
 
 /** Put the cursor at the end of the open note. */
