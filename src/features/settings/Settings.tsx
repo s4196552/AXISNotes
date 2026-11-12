@@ -757,7 +757,7 @@ function Commands({ config, set }: SectionProps) {
           onBlur={(e) => setQ({ templateTrigger: e.target.value })}
         />
       </Field>
-      <Field label="Emoji" hint="Followed by at least two letters, e.g. :rocket">
+      <Field label="Emoji" hint="Opens the picker. Type a keyword to filter, e.g. :rocket.">
         <input
           aria-label="Emoji trigger"
           maxLength={3}

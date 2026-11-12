@@ -154,6 +154,23 @@ describe("slash commands", () => {
 });
 
 describe("emoji", () => {
+  it("opens on the trigger and respects a custom command trigger", async () => {
+    const at = async (doc: string, cfg = {}) => {
+      const view = viewWith(doc, cfg);
+      try {
+        return await emojiCompletions(new CompletionContext(view.state, doc.length, false));
+      } finally {
+        view.destroy();
+      }
+    };
+    expect((await at(":"))?.options.length).toBeGreaterThan(0);
+    expect((await at("launch :r"))?.options.length).toBeGreaterThan(0);
+    expect(await at("::")).toBeNull();
+    expect(await at(":", { slashTrigger: ":" })).toBeNull();
+    expect(await at(":", { emojiTrigger: "" })).toBeNull();
+    expect((await at(";", { emojiTrigger: ";" }))?.options.length).toBeGreaterThan(0);
+  });
+
   it("searches names before keywords and completes after the trigger", async () => {
     const data = await loadEmoji();
     const hits = searchEmoji(data, "rocket");

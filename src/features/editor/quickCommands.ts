@@ -913,14 +913,16 @@ export async function emojiCompletions(
 ): Promise<CompletionResult | null> {
   const cfg = context.state.facet(quickCommandConfig);
   if (!cfg.emojiTrigger) return null;
-  // Require two word characters so times like 10:30 don't trigger it.
+  if (cfg.slashTrigger === cfg.emojiTrigger && menuStart(context, cfg)) return null;
+  // Start with suggestions as soon as the trigger is typed. The boundary excludes 10:30.
   const m = context.matchBefore(
-    new RegExp(`(^|[\\s(])${escapeRe(cfg.emojiTrigger)}[a-z0-9_+-]{2,}$`, "i"),
+    new RegExp(`(^|[\\s(])${escapeRe(cfg.emojiTrigger)}[a-z0-9_+-]*$`, "i"),
   );
   if (!m) return null;
   const start = m.from + (/^[\s(]/.test(m.text) ? 1 : 0);
   const query = context.state.sliceDoc(start + cfg.emojiTrigger.length, context.pos);
   const data = await loadEmoji();
+  if (context.aborted) return null;
   return {
     from: start,
     filter: false,
