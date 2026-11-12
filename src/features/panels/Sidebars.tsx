@@ -19,6 +19,7 @@ import { lazyNamed } from "../../app/lazy";
 const LocalGraph = lazyNamed(() => import("../graph/GraphView"), "LocalGraph");
 import { backend } from "../../ipc";
 import { useConfig } from "../../app/config";
+import { useLayout } from "../../app/layout";
 import { HubView } from "../hub";
 import { useUi } from "../commands/ui";
 import { type LeftPanel, useAppStore } from "../../app/store";
@@ -72,6 +73,16 @@ const VIEWS: { label: string; title: string; Icon: typeof Search; open(): void }
   },
 ];
 
+function SidebarHub() {
+  return (
+    <div className="sidebar-hub">
+      <Suspense fallback={<p className="panel-note">Opening AXIS Hub…</p>}>
+        <HubView />
+      </Suspense>
+    </div>
+  );
+}
+
 export function LeftSidebar() {
   const vault = useAppStore((s) => s.vault);
   const selected = useAppStore((s) => s.leftPanel);
@@ -121,13 +132,7 @@ export function LeftSidebar() {
         {panel === "files" && <FileTree />}
         {panel === "search" && <SearchPanel />}
         {panel === "tags" && <TagsPanel />}
-        {panel === "hub" && (
-          <div className="sidebar-hub">
-            <Suspense fallback={<p className="panel-note">Opening AXIS Hub…</p>}>
-              <HubView />
-            </Suspense>
-          </div>
-        )}
+        {panel === "hub" && <SidebarHub />}
       </div>
       <PanelResizer side="left" />
     </aside>
@@ -194,6 +199,9 @@ function SectionToggle({
  */
 export function RightSidebar() {
   const chat = useSidebarChat((s) => s.open);
+  const hubEnabled = useConfig((s) => s.loaded && s.config.hubEnabled);
+  const selected = useLayout((s) => s.rightPanel);
+  const hub = !chat && hubEnabled && selected === "hub";
   const root = useAppStore((s) => s.vault?.root);
   const view = useAppStore((s) => s.mainView);
   const activePath = useAppStore((s) => s.activePath);
@@ -222,27 +230,42 @@ export function RightSidebar() {
   const isNote = kind === "markdown";
   const linkable = isNote || kind === "grid" || kind === "canvas";
   const onHome = view === "dashboard" && (tabPath ?? "") === "";
+
+  function selectPanel(panel: typeof selected) {
+    useLayout.getState().setRightPanel(panel);
+    useSidebarChat.setState({ open: false });
+  }
+
   return (
-    <aside className="sidebar sidebar-right" aria-label="Links">
+    <aside className="sidebar sidebar-right" aria-label="Right sidebar">
       {/* Under the window's own buttons, level with the tab row; it moves the window. */}
       {backend.windowFrame && <div className="sidebar-right-head" data-tauri-drag-region />}
       <div className="sidebar-tabs" role="tablist" aria-label="Right sidebar panels">
         <button
           type="button"
           role="tab"
-          aria-selected={!chat}
-          onClick={() => useSidebarChat.setState({ open: false })}
+          aria-selected={!chat && !hub}
+          onClick={() => selectPanel("details")}
         >
           Note details
         </button>
         <button type="button" role="tab" aria-selected={chat} onClick={() => openSidebarChat(null)}>
           <Sparkles size={14} /> AI chat
         </button>
+        {hubEnabled && (
+          <button type="button" role="tab" aria-selected={hub} onClick={() => selectPanel("hub")}>
+            <Grid2X2 size={14} aria-hidden="true" /> AXIS Hub
+          </button>
+        )}
       </div>
       {chat ? (
         <Suspense fallback={<p className="panel-note">Opening AI chat…</p>}>
           <SidebarChat key={root} />
         </Suspense>
+      ) : hub ? (
+        <div className="sidebar-body" role="tabpanel" aria-label="AXIS Hub">
+          <SidebarHub />
+        </div>
       ) : (
         <>
           {!onHome && (

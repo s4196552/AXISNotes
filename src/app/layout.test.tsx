@@ -24,13 +24,13 @@ beforeEach(async () => {
 });
 
 const nav = () => screen.queryByRole("complementary", { name: "Navigation" });
-const links = () => screen.queryByRole("complementary", { name: "Links" });
+const rightSidebar = () => screen.queryByRole("complementary", { name: "Right sidebar" });
 
 describe("side panels", () => {
   it("hides the right panel on its own, and brings it back", async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Hide right panel" }));
-    expect(links()).not.toBeInTheDocument(); // hidden from view and from screen readers
+    expect(rightSidebar()).not.toBeInTheDocument(); // hidden from view and from screen readers
     expect(nav()).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("axisnotes.layout")!)).toMatchObject({
       left: true,
@@ -40,7 +40,7 @@ describe("side panels", () => {
     const show = screen.getByRole("button", { name: "Show right panel" });
     expect(show).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(show);
-    expect(links()).toBeInTheDocument();
+    expect(rightSidebar()).toBeInTheDocument();
   });
 
   it("hides the left panel from its own header, and shows it again from the main area", () => {
@@ -49,7 +49,7 @@ describe("side panels", () => {
     expect(hide).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(hide);
     expect(nav()).not.toBeInTheDocument();
-    expect(links()).toBeInTheDocument();
+    expect(rightSidebar()).toBeInTheDocument();
 
     const show = screen.getByRole("button", { name: "Show left panel" });
     expect(show).toHaveAttribute("aria-pressed", "true");
@@ -62,12 +62,12 @@ describe("side panels", () => {
     render(<App />);
     act(() => commandForEvent(new KeyboardEvent("keydown", { key: "\\", ctrlKey: true }))!.run());
     expect(nav()).not.toBeInTheDocument();
-    expect(links()).not.toBeInTheDocument();
+    expect(rightSidebar()).not.toBeInTheDocument();
     act(() => useAppStore.getState().setLeftPanel("search"));
     expect(nav()).toBeInTheDocument();
-    expect(links()).not.toBeInTheDocument();
+    expect(rightSidebar()).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Show right panel" }));
-    expect(links()).toBeInTheDocument();
+    expect(rightSidebar()).toBeInTheDocument();
   });
 
   it("shows each side's shortcut once one is set, including after it's remapped", () => {
@@ -168,7 +168,7 @@ describe("resizing side panels", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Hide right panel" }));
     expect(columns(container)).toBe("0px minmax(0, 1fr) 0px");
-    expect(links()).not.toBeInTheDocument(); // gone for screen readers straight away
+    expect(rightSidebar()).not.toBeInTheDocument(); // gone for screen readers straight away
     expect(container.querySelector(".sidebar-right")).toBeInTheDocument(); // still sliding
     await waitFor(() => expect(container.querySelector(".sidebar-right")).toBeNull());
 
@@ -177,7 +177,7 @@ describe("resizing side panels", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hide right panel" }));
     fireEvent.click(screen.getByRole("button", { name: "Show right panel" }));
     await new Promise((r) => setTimeout(r, 250));
-    expect(links()).toBeInTheDocument();
+    expect(rightSidebar()).toBeInTheDocument();
   });
 
   it("ignores saved widths that aren't usable numbers, and clamps the rest", () => {

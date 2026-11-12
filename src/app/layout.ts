@@ -1,11 +1,12 @@
 import { create } from "zustand";
 
-// Which side panels are showing and how wide they are. Like zoom, it's a per-device
-// preference, so it lives in local storage rather than the vault.
+// Panel visibility, widths and the selected right panel are device preferences,
+// so they live in local storage rather than the vault.
 
 const KEY = "axisnotes.layout";
 
 export type Side = "left" | "right";
+type RightPanel = "details" | "hub";
 /** A window edge that reveals part of the app in Zen mode (see `src/app/zen.ts`). */
 export type ZenEdge = Side | "top";
 
@@ -41,6 +42,7 @@ interface Saved {
   right: boolean;
   leftWidth: number;
   rightWidth: number;
+  rightPanel: RightPanel;
 }
 
 /** A width within the allowed range, or the side's default for anything unusable. */
@@ -57,6 +59,7 @@ function stored(): Saved {
       right: v.right !== false,
       leftWidth: clampWidth("left", v.leftWidth),
       rightWidth: clampWidth("right", v.rightWidth),
+      rightPanel: v.rightPanel === "hub" ? "hub" : "details",
     };
   } catch {
     return {
@@ -64,6 +67,7 @@ function stored(): Saved {
       right: true,
       leftWidth: PANEL_WIDTH.default.left,
       rightWidth: PANEL_WIDTH.default.right,
+      rightPanel: "details",
     };
   }
 }
@@ -83,6 +87,7 @@ interface LayoutState extends Saved {
   zenReveal: ZenEdge | null;
   setZenReveal(edge: ZenEdge | null): void;
   setPanels(p: Partial<Pick<Saved, "left" | "right">>): void;
+  setRightPanel(rightPanel: RightPanel): void;
   /**
    * Set one panel's width (clamped). `save: false` applies it without writing local
    * storage, for the many updates of a drag; the drag saves once when it ends.
@@ -91,9 +96,9 @@ interface LayoutState extends Saved {
 }
 
 function save(s: Saved) {
-  const { left, right, leftWidth, rightWidth } = s;
+  const { left, right, leftWidth, rightWidth, rightPanel } = s;
   try {
-    localStorage.setItem(KEY, JSON.stringify({ left, right, leftWidth, rightWidth }));
+    localStorage.setItem(KEY, JSON.stringify({ left, right, leftWidth, rightWidth, rightPanel }));
   } catch {
     // Not saved; it still applies for this session.
   }
@@ -113,6 +118,10 @@ export const useLayout = create<LayoutState>((set, get) => ({
   },
   setPanels(p) {
     set(p);
+    save(get());
+  },
+  setRightPanel(rightPanel) {
+    set({ rightPanel });
     save(get());
   },
   setWidth(side, width, opts) {

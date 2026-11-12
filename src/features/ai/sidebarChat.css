@@ -96,11 +96,6 @@
 .sidebar-right:has(.sidebar-chat) {
   overflow: hidden;
 }
-.sidebar-right .sidebar-tabs button {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
 
 .sidebar-chat-toolbar {
   position: relative;
@@ -146,8 +141,4 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 8px;
-}
-.sidebar-right .sidebar-tabs [aria-selected="true"] {
-  color: var(--accent);
-  background: var(--bg-active);
 }

@@ -37,6 +37,20 @@
   background: var(--bg-active);
   color: var(--accent);
 }
+.sidebar-right > .sidebar-tabs {
+  flex: none;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.sidebar-right .sidebar-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sidebar-right .sidebar-tabs [aria-selected="true"] {
+  color: var(--accent);
+  background: var(--bg-active);
+}
 .sidebar-body {
   display: flex;
   flex-direction: column;

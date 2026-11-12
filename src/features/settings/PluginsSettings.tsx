@@ -22,7 +22,7 @@ export function PluginsSettings() {
         <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />{" "}
         Enable AXIS Hub
       </label>
-      <p className="muted">Open AXIS Hub from the sidebar or add it as a dashboard widget.</p>
+      <p className="muted">Open AXIS Hub in either sidebar or add it from dashboard Customize.</p>
       {enabled && (
         <button type="button" aria-expanded={managing} onClick={() => setManaging(!managing)}>
           {managing ? "Close shortcut packs" : "Manage shortcut packs"}
