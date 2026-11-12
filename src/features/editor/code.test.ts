@@ -1,10 +1,11 @@
 import { CompletionContext } from "@codemirror/autocomplete";
 import { history, undo } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { forceParsing } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { codeFence, codeLanguageCompletions, insertCode } from "./code";
 import { axisTheme } from "./theme";
 
@@ -28,6 +29,7 @@ describe("Markdown code", () => {
     for (const doc of ["```", "```PY", "~~~java", "intro\n\n```c++"]) {
       const v = view(doc);
       try {
+        expect(forceParsing(v, doc.length, 1000)).toBe(true);
         const result = codeLanguageCompletions(new CompletionContext(v.state, doc.length, false));
         expect(result?.options.map((c) => c.label)).toEqual(
           expect.arrayContaining(["Python", "Java"]),
@@ -45,6 +47,7 @@ describe("Markdown code", () => {
     ]) {
       const v = view(doc);
       try {
+        expect(forceParsing(v, doc.length, 1000)).toBe(true);
         expect(
           codeLanguageCompletions(new CompletionContext(v.state, doc.length, true)),
         ).toBeNull();
@@ -96,9 +99,13 @@ describe("Markdown code", () => {
     const doc = "```" + language + "\n" + source + "\n```";
     const v = view(doc);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 80));
-      expect(v.dom.querySelector(".cm-code-keyword")).not.toBeNull();
-      expect(v.dom.querySelector(".cm-code-string")).not.toBeNull();
+      await vi.waitFor(
+        () => {
+          expect(v.dom.querySelector(".cm-code-keyword")).not.toBeNull();
+          expect(v.dom.querySelector(".cm-code-string")).not.toBeNull();
+        },
+        { timeout: 10_000 },
+      );
       expect(v.state.doc.toString()).toBe(doc);
     } finally {
       v.destroy();

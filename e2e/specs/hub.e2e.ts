@@ -48,6 +48,45 @@ async function hubControl(host: string, selector: string, value?: string) {
   );
 }
 
+async function hubDrag(host: string, from: string, to: string, fraction = 0.5, cancel = false) {
+  const points = await browser.execute(
+    (host, from, to, fraction) => {
+      const root = document.querySelector(host)!.shadowRoot!;
+      const source = root.querySelector(from)!;
+      const target = root.querySelector(to)!;
+      source.scrollIntoView({ block: "nearest" });
+      target.scrollIntoView({ block: "nearest" });
+      return [source, target].map((element, index) => {
+        const box = element.getBoundingClientRect();
+        const at = index === 0 ? 0.5 : fraction;
+        return {
+          x: Math.round(box.left + box.width * at),
+          y: Math.round(box.top + box.height * at),
+        };
+      });
+    },
+    host,
+    from,
+    to,
+    fraction,
+  );
+  const device = { id: "hub-pointer" };
+  const pointer = browser.action("pointer", device).move(points[0]!).down();
+  pointer.move({ ...points[1]!, duration: 120 });
+  if (cancel) {
+    const highlighted = () =>
+      browser.execute(
+        (host) => !!document.querySelector(host)?.shadowRoot?.querySelector("[data-hub-drop]"),
+        host,
+      );
+    await pointer.perform(true);
+    expect(await highlighted()).toBe(true);
+    await browser.action("key").down(Key.Escape).up(Key.Escape).perform(true);
+    expect(await highlighted()).toBe(false);
+    await browser.action("pointer", device).up().perform(true);
+  } else await pointer.up().perform(true);
+}
+
 windows("AXIS Hub plugin", () => {
   it("uses one library across the dashboard and both sidebars and preserves it when disabled", async () => {
     const config = process.env.AXIS_CONFIG_DIR!;
@@ -174,5 +213,89 @@ windows("AXIS Hub plugin", () => {
       }),
     ).toBe(true);
     await hubText(rightHub, "#content", "Studio");
+  });
+
+  it("reorders and moves shortcuts and nested groups with real pointer gestures", async function () {
+    this.timeout(120_000);
+    const libraryPath = path.join(process.env.AXIS_CONFIG_DIR!, "hub", "library.json");
+    const makeShortcut = (id: string) => ({
+      id,
+      name: id,
+      target: { kind: "path", path: path.join(process.env.AXIS_CONFIG_DIR!, `${id}.txt`) },
+      icon: null,
+    });
+    fs.mkdirSync(path.dirname(libraryPath), { recursive: true });
+    fs.writeFileSync(
+      libraryPath,
+      JSON.stringify({
+        version: 1,
+        plugins: [
+          {
+            id: "launcher",
+            name: "Launcher",
+            enabled: true,
+            groups: [
+              {
+                id: "projects",
+                name: "Projects",
+                color: "mint",
+                groups: [],
+                shortcuts: ["Alpha", "Beta", "Gamma"].map(makeShortcut),
+              },
+              { id: "tools", name: "Tools", color: "blue", groups: [], shortcuts: [] },
+            ],
+          },
+        ],
+      }),
+    );
+    const groups = () => JSON.parse(fs.readFileSync(libraryPath, "utf8")).plugins[0].groups;
+    const hub = ".sidebar-right [data-axis-hub]";
+    await browser.refresh();
+    await $(".shell").waitForDisplayed();
+    const showRight = $('button[aria-label="Show right panel"]');
+    if (await showRight.isDisplayed()) await showRight.click();
+    await $(".sidebar-right").$("button=AXIS Hub").click();
+    await hubText(hub, "#content", "Projects");
+    await hubControl(hub, '[data-hub-group="projects"] .group-open');
+    await hubText(hub, "#page-title", "Projects");
+
+    await hubDrag(
+      hub,
+      '[data-hub-shortcut="Gamma"] .hub-drag-grip',
+      '[data-hub-shortcut="Alpha"]',
+      0.14,
+    );
+    await hubText(hub, "#notice", "Shortcut order saved");
+    expect(groups()[0].shortcuts.map(({ id }: { id: string }) => id)).toEqual([
+      "Gamma",
+      "Alpha",
+      "Beta",
+    ]);
+
+    await hubControl(hub, "#nav-home");
+    await hubDrag(hub, '[data-hub-shortcut="Gamma"]', '[data-hub-group="tools"]', 0.5, true);
+    expect(groups()[1].shortcuts).toEqual([]);
+    await hubDrag(hub, '[data-hub-shortcut="Gamma"]', '[data-hub-group="tools"]');
+    await hubText(hub, "#notice", "Moved Gamma");
+    expect(groups()[1].shortcuts).toEqual([makeShortcut("Gamma")]);
+
+    const tools = '[data-hub-group="tools"] .hub-drag-grip';
+    const projects = '[data-hub-group="projects"]';
+    await hubDrag(hub, tools, projects, 0.14);
+    await hubText(hub, "#notice", "Group order saved");
+    expect(groups().map(({ id }: { id: string }) => id)).toEqual(["tools", "projects"]);
+
+    await hubDrag(hub, tools, projects);
+    await hubText(hub, "#notice", "Moved Tools");
+    expect(groups()[0].groups[0].shortcuts).toEqual([makeShortcut("Gamma")]);
+
+    await hubControl(hub, `${projects} .group-open`);
+    await hubText(hub, "#page-title", "Projects");
+    await hubDrag(hub, tools, "[data-hub-parent]");
+    await hubControl(hub, "#nav-home");
+    await hubText(hub, '#content [data-hub-group="tools"]', "Tools");
+    expect(groups().map(({ id }: { id: string }) => id)).toEqual(["projects", "tools"]);
+    expect(groups()[0].groups).toEqual([]);
+    expect(groups()[1].shortcuts).toEqual([makeShortcut("Gamma")]);
   });
 });

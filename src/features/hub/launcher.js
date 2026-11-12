@@ -1,3 +1,5 @@
+import { DRAG_START } from "../../app/usePointerDrag";
+
 export function mountHub(root, bridge, mode) {
   const $ = (id) => root.getElementById(id);
   const dialog = $("dialog");
@@ -23,6 +25,7 @@ export function mountHub(root, bridge, mode) {
   let modalVersion = 0;
   let appDiscovery;
   let noticeTimer;
+  let stopDrag;
 
   function el(tag, className = "", text = "") {
     const element = document.createElement(tag);
@@ -171,7 +174,7 @@ export function mountHub(root, bridge, mode) {
   async function commit(edit, message, next) {
     if (saving) throw new Error("A library change is being saved. Try again in a moment.");
     const candidate = structuredClone(library);
-    edit(candidate);
+    if (edit(candidate) === false) return;
     const version = modalVersion;
     saving = true;
     try {
@@ -233,6 +236,7 @@ export function mountHub(root, bridge, mode) {
         pendingRefresh = true;
         return;
       }
+      if (snapshot.revision === revision) return;
       ({ library, revision } = snapshot);
       if (route.kind === "group" && !groupById(route.id)) route = { kind: "home" };
       if (route.kind === "plugin" && !enabled().some(({ id }) => id === route.id)) {
@@ -254,6 +258,7 @@ export function mountHub(root, bridge, mode) {
     if (shortcut.icon) {
       const icon = el("img", "app-icon");
       icon.alt = "";
+      icon.draggable = false;
       icon.src = shortcut.icon;
       icon.addEventListener("error", () => icon.replaceWith(iconText), { once: true });
       return icon;
@@ -275,7 +280,7 @@ export function mountHub(root, bridge, mode) {
     notice(`Opened ${shortcut.name}`);
   }
 
-  function tile(shortcut, mini = false) {
+  function tile(shortcut, group, mini = false) {
     const className = mini ? "app-tile mini-tile" : "app-tile";
     if (!shortcut) return el("span", `${className} tile-placeholder`);
     const control = button("", () => launch(shortcut), className);
@@ -283,6 +288,8 @@ export function mountHub(root, bridge, mode) {
     control.setAttribute("aria-label", `Open ${shortcut.name}`);
     control.style.setProperty("--tile-tint", colorFor(shortcut));
     control.append(iconFor(shortcut));
+    markShortcut(control, shortcut, group);
+    if (!searching()) dragSource(control, control, shortcutSource(shortcut, group), true);
     return control;
   }
 
@@ -295,18 +302,24 @@ export function mountHub(root, bridge, mode) {
 
   function groupCard(group) {
     const card = el("article", "group-card");
+    card.dataset.hubGroup = group.id;
     card.style.setProperty("--group-tint", colors[group.color]);
     const mosaic = el("div", "group-mosaic");
     const shortcuts = ordered(group.shortcuts, true);
-    for (let index = 0; index < 3; index += 1) mosaic.append(tile(shortcuts[index]));
+    for (let index = 0; index < 3; index += 1) mosaic.append(tile(shortcuts[index], group));
     const mini = el("div", "mini-grid");
-    for (let index = 3; index < 7; index += 1) mini.append(tile(shortcuts[index], true));
+    for (let index = 3; index < 7; index += 1) mini.append(tile(shortcuts[index], group, true));
     mosaic.append(mini);
     const footer = el("div", "group-footer");
     const open = button("", () => navigate({ kind: "group", id: group.id }), "group-open");
     const count = group.shortcuts.length;
     const detail = `${count} ${count === 1 ? "shortcut" : "shortcuts"}${group.groups.length ? ` · ${group.groups.length} ${group.groups.length === 1 ? "group" : "groups"}` : ""}`;
     open.append(el("span", "group-name", group.name), el("span", "group-meta", detail));
+    if (!searching()) {
+      const source = { kind: "group", id: group.id, name: group.name };
+      footer.append(grip(card, source));
+      dragSource(open, card, source, true);
+    }
     footer.append(
       open,
       iconButton("···", `Edit ${group.name} group`, () => groupDialog(group.id)),
@@ -317,6 +330,7 @@ export function mountHub(root, bridge, mode) {
 
   function shortcutCard(shortcut, group) {
     const card = el("article", "shortcut-card");
+    markShortcut(card, shortcut, group);
     const open = button("", () => launch(shortcut), "shortcut-launch");
     open.title = `Open ${shortcut.name}`;
     open.style.setProperty("--tile-tint", colorFor(shortcut));
@@ -329,6 +343,11 @@ export function mountHub(root, bridge, mode) {
     actions.append(
       iconButton("···", `Edit ${shortcut.name} shortcut`, () => shortcutDialog(group.id, shortcut)),
     );
+    if (!searching()) {
+      const source = shortcutSource(shortcut, group);
+      card.append(grip(card, source));
+      dragSource(open, card, source, true);
+    }
     card.append(open, actions);
     return card;
   }
@@ -357,6 +376,7 @@ export function mountHub(root, bridge, mode) {
   }
 
   function renderContent() {
+    stopDrag?.();
     const content = $("content");
     content.replaceChildren();
     const activeGroup = route.kind === "group" && groupById(route.id);
@@ -428,11 +448,12 @@ export function mountHub(root, bridge, mode) {
       const back = parent
         ? { kind: "group", id: parent.id }
         : { kind: "plugin", id: activeGroup.plugin.id };
+      const backButton = button(`‹ ${parent?.name || activeGroup.plugin.name}`, () =>
+        navigate(back),
+      );
+      backButton.dataset.hubParent = "";
       content.append(
-        grid("section-actions", [
-          button(`‹ ${parent?.name || activeGroup.plugin.name}`, () => navigate(back)),
-          button("Edit group", () => groupDialog(group.id)),
-        ]),
+        grid("section-actions", [backButton, button("Edit group", () => groupDialog(group.id))]),
       );
       if (group.shortcuts.length)
         content.append(
@@ -483,6 +504,219 @@ export function mountHub(root, bridge, mode) {
     const value = control.value.trim();
     if (!value) throw new Error(`Enter ${label}.`);
     return value;
+  }
+
+  function searching() {
+    return Boolean($("search").value.trim());
+  }
+
+  function shortcutSource(shortcut, group) {
+    return { kind: "shortcut", id: shortcut.id, name: shortcut.name, groupId: group.id };
+  }
+
+  function markShortcut(element, shortcut, group) {
+    element.dataset.hubShortcut = shortcut.id;
+    element.dataset.hubShortcutGroup = group.id;
+  }
+
+  function grip(card, source) {
+    const handle = el("span", "hub-drag-grip");
+    handle.setAttribute("aria-hidden", "true");
+    handle.title = `Drag ${source.name}`;
+    dragSource(handle, card, source);
+    return handle;
+  }
+
+  function dragSource(handle, card, source, mouseOnly = false) {
+    // WebView2's native file-drop handler takes HTML drag events. Use pointer gestures
+    // like Notes' tabs and dashboard, with a grip that leaves touch scrolling available.
+    handle.addEventListener("pointerdown", (press) => {
+      if (
+        saving ||
+        dialog.open ||
+        !press.isPrimary ||
+        press.button !== 0 ||
+        (mouseOnly && press.pointerType !== "mouse") ||
+        press.ctrlKey ||
+        press.metaKey ||
+        press.shiftKey ||
+        press.altKey
+      )
+        return;
+      stopDrag?.();
+      const listeners = new AbortController();
+      const options = { signal: listeners.signal };
+      let active = false;
+      let cancelled = false;
+      let target;
+
+      function show(drop) {
+        if (target?.element === drop?.element && target?.indicator === drop?.indicator) return;
+        if (target) delete target.element.dataset.hubDrop;
+        target = drop;
+        if (target) target.element.dataset.hubDrop = target.indicator;
+      }
+
+      function clear() {
+        show(null);
+        delete card.dataset.hubDragging;
+      }
+
+      function stop() {
+        listeners.abort();
+        clear();
+        if (handle.hasPointerCapture(press.pointerId))
+          handle.releasePointerCapture(press.pointerId);
+        stopDrag = undefined;
+      }
+
+      stopDrag = stop;
+      window.addEventListener(
+        "pointermove",
+        (event) => {
+          if (cancelled || event.pointerId !== press.pointerId) return;
+          if (!active) {
+            if (
+              Math.hypot(event.clientX - press.clientX, event.clientY - press.clientY) < DRAG_START
+            )
+              return;
+            active = true;
+            card.dataset.hubDragging = "";
+            handle.setPointerCapture(press.pointerId);
+          }
+          event.preventDefault();
+          show(dropFor(source, event.clientX, event.clientY));
+        },
+        options,
+      );
+      window.addEventListener(
+        "pointerup",
+        (event) => {
+          if (event.pointerId !== press.pointerId) return;
+          const drop = active && !cancelled && dropFor(source, event.clientX, event.clientY);
+          if (active && mouseOnly) {
+            // A preview tile is also a launch button. Consume the click at drag release.
+            const swallow = (click) => {
+              click.preventDefault();
+              click.stopImmediatePropagation();
+            };
+            handle.addEventListener("click", swallow, { capture: true, once: true });
+            setTimeout(() => handle.removeEventListener("click", swallow, true), 0);
+          }
+          stop();
+          if (drop) void saveDrop(source, drop).catch(showError);
+        },
+        options,
+      );
+      window.addEventListener(
+        "keydown",
+        (event) => {
+          if (event.key !== "Escape" || !active) return;
+          event.preventDefault();
+          event.stopPropagation();
+          cancelled = true;
+          clear();
+        },
+        { ...options, capture: true },
+      );
+      window.addEventListener(
+        "pointercancel",
+        (event) => {
+          if (event.pointerId === press.pointerId) stop();
+        },
+        options,
+      );
+      handle.addEventListener(
+        "lostpointercapture",
+        (event) => {
+          if (event.pointerId === press.pointerId) stop();
+        },
+        options,
+      );
+      window.addEventListener("blur", stop, options);
+    });
+  }
+
+  function beside(element, x, y, middle = false) {
+    const { left, top, width, height } = element.getBoundingClientRect();
+    const vertical =
+      !element.matches(".app-tile") && element.offsetWidth >= element.parentElement.clientWidth - 1;
+    const ratio = vertical ? (y - top) / height : (x - left) / width;
+    if (middle && ratio >= 0.25 && ratio <= 0.75) return null;
+    const after = ratio > 0.5;
+    return { after, indicator: `${after ? "after" : "before"}-${vertical ? "y" : "x"}` };
+  }
+
+  function dropFor(source, x, y) {
+    if (saving || dialog.open) return null;
+    const hit = root.elementFromPoint(x, y);
+    if (!hit || !root.contains(hit)) return null;
+    const parentButton = hit.closest("[data-hub-parent]");
+    if (parentButton) {
+      const { parents, plugin } = groupById(route.id);
+      const parent = parents.at(-1);
+      if (parent) return { element: parentButton, indicator: "inside", groupId: parent.id };
+      if (source.kind === "group")
+        return { element: parentButton, indicator: "inside", pluginId: plugin.id };
+      return null;
+    }
+    const manual = $("sort").value === "manual";
+    const groupCard = hit.closest("[data-hub-group]");
+    if (source.kind === "shortcut") {
+      if (groupCard && groupCard.dataset.hubGroup !== source.groupId)
+        return { element: groupCard, indicator: "inside", groupId: groupCard.dataset.hubGroup };
+      const element = hit.closest("[data-hub-shortcut]");
+      if (
+        !manual ||
+        element?.dataset.hubShortcutGroup !== source.groupId ||
+        element.dataset.hubShortcut === source.id
+      )
+        return null;
+      return {
+        element,
+        groupId: source.groupId,
+        anchorId: element.dataset.hubShortcut,
+        ...beside(element, x, y),
+      };
+    }
+    if (!groupCard || groupCard.dataset.hubGroup === source.id) return null;
+    const destination = groupById(groupCard.dataset.hubGroup);
+    if (destination.parents.some(({ id }) => id === source.id)) return null;
+    const original = groupById(source.id);
+    const position =
+      manual && original.siblings === destination.siblings && beside(groupCard, x, y, true);
+    if (position)
+      return {
+        element: groupCard,
+        groupId: destination.parents.at(-1)?.id,
+        pluginId: destination.plugin.id,
+        anchorId: destination.group.id,
+        ...position,
+      };
+    return { element: groupCard, indicator: "inside", groupId: destination.group.id };
+  }
+
+  function saveDrop(source, { groupId, pluginId, anchorId, after }) {
+    const message = anchorId
+      ? `${source.kind === "group" ? "Group" : "Shortcut"} order saved`
+      : `Moved ${source.name}`;
+    return commit((draft) => {
+      const destination = groupId && groupById(groupId, draft).group;
+      const movingGroup = source.kind === "group";
+      const from = movingGroup
+        ? groupById(source.id, draft).siblings
+        : groupById(source.groupId, draft).group.shortcuts;
+      const to = movingGroup
+        ? (destination?.groups ?? enabled(draft).find(({ id }) => id === pluginId).groups)
+        : destination.shortcuts;
+      const index = from.findIndex(({ id }) => id === source.id);
+      let insertion = anchorId
+        ? to.findIndex(({ id }) => id === anchorId) + Number(after)
+        : to.length;
+      if (from === to && index < insertion) insertion -= 1;
+      if (from === to && index === insertion) return false;
+      to.splice(insertion, 0, ...from.splice(index, 1));
+    }, message);
   }
 
   function destinationOptions(skip = "", pluginId) {
@@ -1054,6 +1288,7 @@ export function mountHub(root, bridge, mode) {
   void init();
   return () => {
     disposed = true;
+    stopDrag?.();
     unsubscribe();
     clearTimeout(noticeTimer);
     if (dialog.open) dialog.close();

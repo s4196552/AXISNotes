@@ -23,8 +23,8 @@ vi.mock("./mermaid", async (orig) => ({
 const requests: AiRunRequest[] = [];
 const MITOSIS = "flowchart TD\n  A[Prophase] --> B[Metaphase]\n  B --> C[Anaphase]";
 
-// Loading Mermaid (for its parser) is slow under jsdom; do it once, outside the tests.
-beforeAll(() => loadMermaid(), 90_000);
+// Loading Mermaid's parser under jsdom can take several minutes on Windows.
+beforeAll(() => loadMermaid(), 360_000);
 
 beforeEach(async () => {
   h.b = createMemoryBackend({
