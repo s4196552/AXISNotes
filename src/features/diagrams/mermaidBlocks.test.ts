@@ -49,6 +49,18 @@ describe("Mermaid blocks in the editor", () => {
     expect(v.dom.querySelector(".cm-mermaid")).not.toBeNull();
   });
 
+  it("opens the source from the diagram and leaves surrounding space inactive", async () => {
+    const v = open(DOC);
+    await vi.waitFor(() => expect(v.dom.querySelector(".cm-mermaid svg")).not.toBeNull());
+    const block = v.dom.querySelector(".cm-mermaid")!;
+    fireEvent.mouseDown(block, { button: 0 });
+    expect(v.contentDOM.textContent).not.toContain("```mermaid");
+    fireEvent.mouseDown(block.querySelector("svg")!, { button: 0 });
+    expect(v.contentDOM.textContent).toContain("```mermaid");
+    v.dispatch({ selection: { anchor: 0 } });
+    expect(v.contentDOM.textContent).not.toContain("```mermaid");
+  });
+
   it("previews a drag, persists the fence width on release, and cancels with Escape", async () => {
     const v = open(DOC.replace("mermaid", "mermaid width=300"));
     await vi.waitFor(() => expect(v.dom.querySelector(".cm-mermaid svg")).not.toBeNull());

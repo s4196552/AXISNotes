@@ -2,12 +2,9 @@
   display: flex;
   justify-content: center;
   margin: 6px 0;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  padding: 8px;
   color: var(--fg-muted);
   font-size: 13px;
-  cursor: pointer;
   overflow-x: auto;
 }
 .cm-mermaid svg {
@@ -16,15 +13,16 @@
   height: auto;
 }
 .cm-mermaid-frame {
+  position: relative;
   min-width: 0;
+  max-width: 100%;
+}
+.cm-mermaid-graphic {
+  cursor: pointer;
 }
 .cm-mermaid-frame[data-sized] svg {
   width: 100%;
   max-width: none !important;
-}
-.cm-mermaid-frame:has(.cm-image-handle):hover,
-.cm-mermaid-resizing .cm-mermaid-frame {
-  outline-color: var(--accent);
 }
 .cm-mermaid-frame:hover .cm-image-handle,
 .cm-mermaid-resizing .cm-image-handle {

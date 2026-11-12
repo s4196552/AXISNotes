@@ -83,18 +83,24 @@ describe("Markdown editing in live preview", () => {
     await browser.keys("quote");
     await $(".cm-tooltip-autocomplete").waitForDisplayed();
     await $(".cm-completionLabel=Quote").click();
-    await browser.waitUntil(() => read("Quick quote") === "> [!NOTE] QUOTE\n> Contents");
+    await browser.waitUntil(() => read("Quick quote") === "> [!NOTE] TITLE\n> Contents");
     await browser.keys("My quotation");
-    await browser.waitUntil(() => read("Quick quote") === "> [!NOTE] QUOTE\n> My quotation");
+    await browser.waitUntil(() => read("Quick quote") === "> [!NOTE] TITLE\n> My quotation");
   });
 
-  it("resizes a rendered Mermaid diagram and restores the saved width on reopening", async () => {
+  it("renders Mermaid without a frame, preserves resize and shows source on click", async () => {
     await open("Resizable diagram");
     await $(".cm-mermaid svg").waitForDisplayed({ timeout: 15000 });
     const frame = () => $(".cm-mermaid-frame");
     const before = await frame().getSize("width");
     const handle = frame().$('[data-handle="se"]');
     await frame().moveTo();
+    const chrome = await browser.execute(() => {
+      const wrapper = getComputedStyle(document.querySelector(".cm-mermaid")!);
+      const diagram = getComputedStyle(document.querySelector(".cm-mermaid-frame")!);
+      return [wrapper.borderTopWidth, diagram.outlineStyle];
+    });
+    expect(chrome).toEqual(["0px", "none"]);
     await browser
       .action("pointer", { parameters: { pointerType: "mouse" } })
       .move({ origin: handle })
@@ -112,5 +118,10 @@ describe("Markdown editing in live preview", () => {
     const qa = path.resolve(".agents/qa/T-232");
     fs.mkdirSync(qa, { recursive: true });
     await browser.saveScreenshot(path.join(qa, "resized-diagram.png"));
+    await $(".cm-mermaid svg").click();
+    await expect($(".cm-mermaid")).not.toExist();
+    await expect($(".cm-content")).toHaveText(expect.stringContaining("```mermaid width="));
+    await $(".cm-line=Intro").click();
+    await $(".cm-mermaid svg").waitForDisplayed();
   });
 });
