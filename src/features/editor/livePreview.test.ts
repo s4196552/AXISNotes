@@ -133,8 +133,8 @@ describe("live preview decorations", () => {
       "cm-lp-codeblock",
       "cm-lp-codeblock cm-lp-code-last cm-lp-fence cm-lp-fence-hidden",
     ]);
-    // The opening fence becomes the language label; the closing one is hidden.
-    expect(away).toContainEqual({ text: "```js", kind: "widget", cls: "CodeLanguageWidget" });
+    // The opening fence becomes the language and copy header; the closing one is hidden.
+    expect(away).toContainEqual({ text: "```js", kind: "widget", cls: "CodeBlockHeader" });
     expect(hidden(away)).toEqual(["```"]);
     // With the cursor in the block, its fences are back as typed.
     const editing = decorate(doc, 3);
@@ -143,7 +143,9 @@ describe("live preview decorations", () => {
       "cm-lp-codeblock",
       "cm-lp-codeblock cm-lp-code-last cm-lp-fence",
     ]);
-    expect(editing.filter((d) => d.kind === "widget" || d.kind === "hide")).toEqual([]);
+    expect(editing.filter((d) => d.kind === "widget" || d.kind === "hide")).toEqual([
+      { text: "", kind: "widget", cls: "CodeBlockHeader" },
+    ]);
   });
 
   it("colours a ```green block's code lines, with no language label", () => {
@@ -155,8 +157,7 @@ describe("live preview decorations", () => {
       "cm-lp-codeblock cm-tint-green",
       "cm-lp-codeblock cm-lp-code-last cm-lp-fence cm-lp-fence-hidden",
     ]);
-    expect(away.some((d) => d.kind === "widget")).toBe(false);
-    expect(hidden(away)).toContain("```green");
+    expect(away).toContainEqual({ text: "```green", kind: "widget", cls: "CodeBlockHeader" });
     // While editing, the fences show as typed and the code stays coloured.
     const editing = decorate(doc, 3);
     expect(editing.filter((d) => d.kind === "line").map((d) => d.cls)[1]).toBe(
@@ -171,7 +172,8 @@ describe("live preview decorations", () => {
     expect(codeLanguageLabel("mylang")).toBe("mylang");
     expect(codeLanguageLabel("")).toBe("");
     const plain = decorate("x\n```\ncode\n```", 1);
-    expect(hidden(plain)).toEqual(["```", "```"]);
+    expect(plain).toContainEqual({ text: "```", kind: "widget", cls: "CodeBlockHeader" });
+    expect(hidden(plain)).toEqual(["```"]);
     const mermaid = decorate("x\n```mermaid\ngraph TD\n```", 1);
     expect(mermaid.filter((d) => d.kind === "widget" || d.kind === "hide")).toEqual([]);
   });

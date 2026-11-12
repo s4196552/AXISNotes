@@ -1,6 +1,7 @@
 import { ensureSyntaxTree, LanguageDescription, syntaxTree } from "@codemirror/language";
 import { codeColor, codeColorClass } from "./codeColors";
 import { languages } from "@codemirror/language-data";
+import { Copy } from "lucide-react";
 import type { EditorState, Range } from "@codemirror/state";
 import {
   Decoration,
@@ -14,6 +15,8 @@ import { mathRanges } from "./math";
 import { VERBATIM } from "./listAutoformat";
 import { taggedCode } from "./inlineCodeLanguage";
 import { isMermaidInfo } from "../diagrams/mermaidInfo";
+import { useAppStore } from "../../app/store";
+import { lucideSvg } from "./lucideSvg";
 
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
@@ -21,19 +24,42 @@ type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 // hold the cursor/selection, and the text is styled as rendered Markdown. Everything is
 // derived from the Lezer Markdown syntax tree, only for the requested (visible) ranges.
 
-/** The language of a code block, shown in its top-right corner (like Obsidian). */
-class CodeLanguageWidget extends WidgetType {
-  constructor(readonly label: string) {
+/** The language and copy action in the block's top-right corner. */
+class CodeBlockHeader extends WidgetType {
+  constructor(
+    readonly label: string,
+    readonly code: string,
+  ) {
     super();
   }
-  eq(other: CodeLanguageWidget) {
-    return other.label === this.label;
+  eq(other: CodeBlockHeader) {
+    return other.label === this.label && other.code === this.code;
   }
   toDOM() {
-    const span = document.createElement("span");
-    span.className = "cm-lp-code-lang";
-    span.textContent = this.label;
-    return span;
+    const header = document.createElement("span");
+    header.className = "cm-lp-code-header";
+    if (this.label) {
+      const label = document.createElement("span");
+      label.textContent = this.label;
+      header.append(label);
+    }
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "cm-lp-code-copy";
+    copy.title = "Copy code";
+    copy.setAttribute("aria-label", "Copy code");
+    copy.append(lucideSvg(Copy, 14));
+    copy.addEventListener("mousedown", (event) => event.preventDefault());
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(this.code);
+        useAppStore.getState().notify("Copied code");
+      } catch {
+        useAppStore.getState().setError("Couldn't copy the code to the clipboard.");
+      }
+    });
+    header.append(copy);
+    return header;
   }
 }
 
@@ -259,10 +285,12 @@ export function buildDecorations(
             const last = state.doc.lineAt(node.to).number;
             const info = node.getChild("CodeInfo");
             const language = info ? state.sliceDoc(info.from, info.to) : "";
-            const closed = last > first && /^\s*(`{3,}|~{3,})\s*$/.test(state.doc.line(last).text);
+            const closed = node.getChildren("CodeMark").length > 1;
             // The fences show as typed while a selection is in the block; else the block is
-            // a box with its language in the corner. Mermaid blocks draw as diagrams.
-            const editing = touched(node.from, node.to) || isMermaidInfo(language);
+            // a box with a header in the corner. Mermaid blocks draw as diagrams.
+            const diagram = isMermaidInfo(language);
+            const inBlock = touched(node.from, node.to);
+            const editing = inBlock || diagram;
             // ```green: the code in that colour, with no language label (codeColors.ts).
             const tint = codeColor(language);
             const body: { from: number; text: string }[] = [];
@@ -277,19 +305,24 @@ export function buildDecorations(
               out.push(line(cls.join(" ")).range(l.from));
               if (!fence) body.push({ from: l.from, text: l.text });
             }
-            if (!editing) {
+            if (!diagram || inBlock) {
               const open = state.doc.line(first);
-              const label = tint ? "" : codeLanguageLabel(language);
+              const label = editing || tint ? "" : codeLanguageLabel(language);
+              // The parser separates code text from fences and surrounding Markdown.
+              const code = node
+                .getChildren("CodeText")
+                .map((part) => state.sliceDoc(part.from, part.to))
+                .join("");
+              const widget = new CodeBlockHeader(label, code);
               out.push(
-                (label
-                  ? Decoration.replace({ widget: new CodeLanguageWidget(label) })
-                  : hide
-                ).range(open.from, open.to),
+                editing
+                  ? Decoration.widget({ widget, side: -1 }).range(open.to)
+                  : Decoration.replace({ widget }).range(open.from, open.to),
               );
-              if (closed) {
-                const end = state.doc.line(last);
-                if (end.to > end.from) out.push(hide.range(end.from, end.to));
-              }
+            }
+            if (!editing && closed) {
+              const end = state.doc.line(last);
+              if (end.to > end.from) out.push(hide.range(end.from, end.to));
             }
             // Indent guides: a thin line at each indent level of the code.
             const unit = indentUnit(body.map((b) => b.text));
