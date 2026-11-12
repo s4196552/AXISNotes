@@ -494,6 +494,76 @@ button.app-tile:hover {
 .shortcut-card:hover {
   border-color: #526256;
 }
+.hub-drag-grip {
+  display: grid;
+  place-items: center;
+  flex: 0 0 24px;
+  min-height: 30px;
+  border-radius: 6px;
+  color: var(--quiet);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.hub-drag-grip::before {
+  content: "";
+  width: 8px;
+  height: 12px;
+  background: radial-gradient(circle, currentColor 1px, transparent 1.4px) 0 0 / 4px 4px;
+}
+.hub-drag-grip:hover {
+  color: var(--fg);
+  background: var(--surface-raised);
+}
+[data-hub-dragging] {
+  opacity: 0.5;
+}
+[data-hub-dragging],
+[data-hub-dragging] .hub-drag-grip {
+  cursor: grabbing;
+}
+[data-hub-drop="inside"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+[data-hub-drop]:not([data-hub-drop="inside"]) {
+  position: relative;
+}
+[data-hub-drop]:not([data-hub-drop="inside"])::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+[data-hub-drop$="-x"]::after {
+  inset-block: 0;
+  width: 3px;
+}
+[data-hub-drop$="-y"]::after {
+  inset-inline: 0;
+  height: 3px;
+}
+[data-hub-drop="before-x"]::after {
+  left: -5px;
+}
+[data-hub-drop="after-x"]::after {
+  right: -5px;
+}
+[data-hub-drop="before-y"]::after {
+  top: -5px;
+}
+[data-hub-drop="after-y"]::after {
+  bottom: -5px;
+}
+.app-tile[data-hub-drop="before-x"]::after {
+  left: 0;
+}
+.app-tile[data-hub-drop="after-x"]::after {
+  right: 0;
+}
 .shortcut-launch {
   display: grid;
   grid-template-columns: 37px minmax(0, 1fr);
