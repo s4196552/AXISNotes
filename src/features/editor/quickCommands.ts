@@ -153,7 +153,7 @@ export function openCommandMenu(view: EditorView) {
 type CommandIcon = LucideIcon | readonly [LucideIcon, LucideIcon];
 
 /** Text before and after the cursor in a block: `[before, after]`. */
-type BlockText = readonly [string, string];
+type BlockText = readonly [head: string, tail: string, select?: number];
 
 interface SlashCommand {
   id: string;
@@ -204,10 +204,11 @@ function lineAround(state: EditorState, from: number, to: number) {
 }
 
 /** Write a block over `from..to` with the cursor at the split. */
-function putBlock(view: EditorView, from: number, to: number, [head, tail]: BlockText) {
+function putBlock(view: EditorView, from: number, to: number, [head, tail, select = 0]: BlockText) {
+  const anchor = from + head.length;
   view.dispatch({
     changes: { from, to, insert: head + tail },
-    selection: { anchor: from + head.length },
+    selection: { anchor, head: anchor + select },
   });
 }
 
@@ -221,8 +222,8 @@ function turnInto(view: EditorView, from: number, to: number, block: SlashComman
 function newBlock(view: EditorView, from: number, to: number, block: SlashCommand["block"] & {}) {
   const { line, kept, text } = lineAround(view.state, from, to);
   if (!text) return putBlock(view, line.from, line.to, block(""));
-  const [head, tail] = block("");
-  putBlock(view, line.from, line.to, [`${kept}\n${head}`, tail]);
+  const [head, tail, select] = block("");
+  putBlock(view, line.from, line.to, [`${kept}\n${head}`, tail, select]);
 }
 
 function setPageStyle(style: PageStyle) {
@@ -239,6 +240,9 @@ function setPageStyle(style: PageStyle) {
 const prefixed =
   (prefix: string) =>
   (t: string): BlockText => [prefix + t, ""];
+
+const QUOTE_HEADER = "> [!NOTE] QUOTE";
+const QUOTE_PLACEHOLDER = "Contents";
 
 export const SLASH_COMMANDS: SlashCommand[] = [
   {
@@ -333,8 +337,11 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     label: "Quote",
     icon: TextQuote,
     description: "Set text apart as a quote",
-    markdown: ">",
-    block: prefixed("> "),
+    markdown: QUOTE_HEADER,
+    block: (text) =>
+      text
+        ? [QUOTE_HEADER + "\n> " + text, ""]
+        : [QUOTE_HEADER + "\n> ", QUOTE_PLACEHOLDER, QUOTE_PLACEHOLDER.length],
   },
   {
     id: "callout",

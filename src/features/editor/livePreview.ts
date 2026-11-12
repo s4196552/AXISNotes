@@ -13,6 +13,7 @@ import {
 import { mathRanges } from "./math";
 import { VERBATIM } from "./listAutoformat";
 import { taggedCode } from "./inlineCodeLanguage";
+import { isMermaidInfo } from "../diagrams/mermaidInfo";
 
 type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 
@@ -261,7 +262,7 @@ export function buildDecorations(
             const closed = last > first && /^\s*(`{3,}|~{3,})\s*$/.test(state.doc.line(last).text);
             // The fences show as typed while a selection is in the block; else the block is
             // a box with its language in the corner. Mermaid blocks draw as diagrams.
-            const editing = touched(node.from, node.to) || /^mermaid$/i.test(language.trim());
+            const editing = touched(node.from, node.to) || isMermaidInfo(language);
             // ```green: the code in that colour, with no language label (codeColors.ts).
             const tint = codeColor(language);
             const body: { from: number; text: string }[] = [];

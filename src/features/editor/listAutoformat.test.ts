@@ -1,4 +1,4 @@
-import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { yamlFrontmatter } from "@codemirror/lang-yaml";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
@@ -190,12 +190,30 @@ describe("lists start as you type", () => {
     expect(nested.state.doc.toString()).toBe("- a\n    - b");
   });
 
-  it("continues the list on Enter (Markdown's own keymap)", () => {
-    const view = editor();
-    type(view, "-a");
-    const enter = markdownKeymap.find((k) => k.key === "Enter")!.run!;
-    enter(view);
-    expect(shown(view)).toBe("- a\n- |");
+  it.each([
+    ["- a|", "- a\n- |"],
+    ["1. a|", "1. a\n2. |"],
+    ["- [x] a|", "- [x] a\n- [ ] |"],
+    ["1. [x] a|", "1. [x] a\n2. [ ] |"],
+    ["- a\n- |", "- a\n|"],
+    ["1. a\n2. |", "1. a\n|"],
+    ["- [x] a\n- [ ] |", "- [x] a\n|"],
+    ["1. [x] a\n2. [ ]|", "1. [x] a\n|"],
+    ["- parent\n  - child\n  - |", "- parent\n  - child\n- |"],
+    ["> - a\n> - |", "> - a\n> |"],
+    ["- [ ] |", "|"],
+  ])("handles Enter in %s", (doc, expected) => {
+    const view = editor(doc);
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", { key: "Enter" }), "editor")).toBe(
+      true,
+    );
+    expect(shown(view)).toBe(expected);
+  });
+
+  it("leaves an empty-looking list marker inside a code fence to the normal Enter key", () => {
+    const view = editor("~~~\n- |\n~~~");
+    runScopeHandlers(view, new KeyboardEvent("keydown", { key: "Enter" }), "editor");
+    expect(shown(view)).toBe("~~~\n- |\n~~~");
   });
 });
 

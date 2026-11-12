@@ -1,3 +1,7 @@
+import {
+  insertNewlineContinueMarkup,
+  insertNewlineContinueMarkupCommand,
+} from "@codemirror/lang-markdown";
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { type EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
@@ -133,4 +137,70 @@ const undoKey = Prec.highest(
   ]),
 );
 
-export const listAutoformat = [autoField, typing, undoKey];
+const listStart =
+  /^((?:[ \t]*>[ \t]?)*)([ \t]*)([-+*]|\d{1,9}[.)])(?:[ \t]+(\[[ xX]\])(?=[ \t]|$))?(?=[ \t]|$)[ \t]*/;
+const leaveList = insertNewlineContinueMarkupCommand({ nonTightLists: false });
+
+const smartEnter = Prec.high(
+  keymap.of([
+    {
+      key: "Enter",
+      run(view) {
+        const { state } = view;
+        const { main, ranges } = state.selection;
+        if (state.readOnly || view.composing || !main.empty || ranges.length !== 1) return false;
+        const line = state.doc.lineAt(main.head);
+        const marker = listStart.exec(line.text);
+        if (!marker || main.head < line.from + marker[0].trimEnd().length) return false;
+        const [prefix, quote, indent, bullet, task] = marker;
+        const markerStart = line.from + quote!.length + indent!.length;
+        if (verbatim(state, markerStart)) return false;
+
+        if (prefix.length === line.length) {
+          // Keep CodeMirror's nested-list outdent and ordered-list renumbering. Some
+          // unfinished markers aren't parsed yet, including a checkbox without a space.
+          let exited = false;
+          if (main.head === line.to) {
+            leaveList({
+              state,
+              dispatch(tr) {
+                if (tr.newDoc.lines !== state.doc.lines) return;
+                view.dispatch(tr);
+                exited = true;
+              },
+            });
+          }
+          if (exited) return true;
+          const from = line.from + quote!.length;
+          view.dispatch({
+            changes: { from, to: line.to },
+            selection: { anchor: from },
+            scrollIntoView: true,
+            userEvent: "input",
+          });
+          return true;
+        }
+
+        // The Markdown command continues checked and unchecked bullets already. Give
+        // numbered tasks an unchecked box too, while preserving its list renumbering.
+        if (!task || !/^\d/.test(bullet!) || main.head < line.from + prefix.length) return false;
+        return insertNewlineContinueMarkup({
+          state,
+          dispatch(tr) {
+            const head = tr.newSelection.main.head;
+            view.dispatch(
+              { changes: tr.changes, userEvent: "input", scrollIntoView: true },
+              {
+                changes: { from: head, insert: "[ ] " },
+                selection: { anchor: head + 4 },
+                sequential: true,
+              },
+            );
+          },
+        });
+      },
+    },
+  ]),
+);
+
+export const listAutoformat = [autoField, typing, undoKey, smartEnter];

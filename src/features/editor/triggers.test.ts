@@ -933,7 +933,12 @@ describe("command menu: new blocks, Turn into and descriptions", () => {
     if (!opt) throw new Error(`no ${label} ${detail ?? ""}`);
     const apply = opt.apply as (v: EditorView, c: Completion, f: number, t: number) => unknown;
     await apply(view, opt, r.from, view.state.selection.main.head);
-    return { doc: view.state.doc.toString(), cursor: view.state.selection.main.head };
+    const { from, to, head } = view.state.selection.main;
+    return {
+      doc: view.state.doc.toString(),
+      cursor: head,
+      selected: view.state.sliceDoc(from, to),
+    };
   }
 
   it("turns the current line into another block, keeping its text", async () => {
@@ -959,7 +964,16 @@ describe("command menu: new blocks, Turn into and descriptions", () => {
     expect(below.doc).toBe("x = 1\n```\n```");
     expect(below.cursor).toBe("x = 1\n```".length);
     const empty = await run("", "code", "Code block");
-    expect(empty).toEqual({ doc: "```\n```", cursor: 3 });
+    expect(empty).toMatchObject({ doc: "```\n```", cursor: 3 });
+  });
+
+  it("inserts the Quote callout and selects its body placeholder", async () => {
+    const quote = "> [!NOTE] QUOTE\n> Contents";
+    expect(await run("", "quote", "Quote")).toMatchObject({ doc: quote, selected: "Contents" });
+    expect((await run("Notes ", "quote", "Quote")).doc).toBe(`Notes\n${quote}`);
+    expect((await run("Existing text ", "quote", "Quote", TURN_INTO)).doc).toBe(
+      "> [!NOTE] QUOTE\n> Existing text",
+    );
   });
 
   it("starts a new block under a line with text, or replaces an empty one", async () => {

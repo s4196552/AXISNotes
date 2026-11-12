@@ -1,6 +1,7 @@
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { fireEvent } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mermaidBlocks } from "./mermaidBlocks";
 
@@ -46,6 +47,27 @@ describe("Mermaid blocks in the editor", () => {
     expect(v.contentDOM.textContent).toContain("```mermaid");
     v.dispatch({ selection: { anchor: 0 } });
     expect(v.dom.querySelector(".cm-mermaid")).not.toBeNull();
+  });
+
+  it("previews a drag, persists the fence width on release, and cancels with Escape", async () => {
+    const v = open(DOC.replace("mermaid", "mermaid width=300"));
+    await vi.waitFor(() => expect(v.dom.querySelector(".cm-mermaid svg")).not.toBeNull());
+    const frame = () => v.dom.querySelector<HTMLElement>(".cm-mermaid-frame")!;
+    const handle = () => frame().querySelector('[data-handle="se"]')!;
+    expect(frame().style.width).toBe("300px");
+    fireEvent.pointerDown(handle(), { button: 0, pointerId: 1, clientX: 300 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 360 });
+    expect(frame().style.width).toBe("360px");
+    expect(v.state.doc.line(3).text).toBe("```mermaid width=300");
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 360 });
+    expect(v.state.doc.line(3).text).toBe("```mermaid width=360");
+    expect(frame().style.width).toBe("360px");
+    fireEvent.pointerDown(handle(), { button: 0, pointerId: 1, clientX: 360 });
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 410 });
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: 410 });
+    expect(frame().style.width).toBe("360px");
+    expect(v.state.doc.toString()).toBe(DOC.replace("mermaid", "mermaid width=360"));
   });
 
   it("shows Mermaid's error for an invalid diagram", async () => {

@@ -49,6 +49,7 @@ import { countWords, wordCount } from "./wordCount";
 import { useStatusSlot } from "./statusSlot";
 import { outlinerKeys, outlineView } from "./outlinerView";
 import { listAutoformat } from "./listAutoformat";
+import { verticalNavigation } from "./verticalNavigation";
 import { symbolAutoformat } from "./symbolAutoformat";
 import { inlineCodeLanguage } from "./inlineCodeLanguage";
 import { inlineMarks } from "./inlineMarks";
@@ -410,6 +411,7 @@ export function Editor({ path }: EditorProps) {
               notes: () => store().notes,
             }),
             axisTheme,
+            verticalNavigation,
             // Ctrl+/ is the command menu (a remappable app command), not "toggle comment".
             keymap.of([
               ...defaultKeymap.filter((k) => k.key !== "Mod-/"),

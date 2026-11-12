@@ -11,8 +11,24 @@
   overflow-x: auto;
 }
 .cm-mermaid svg {
+  display: block;
   max-width: 100%;
   height: auto;
+}
+.cm-mermaid-frame {
+  min-width: 0;
+}
+.cm-mermaid-frame[data-sized] svg {
+  width: 100%;
+  max-width: none !important;
+}
+.cm-mermaid-frame:has(.cm-image-handle):hover,
+.cm-mermaid-resizing .cm-mermaid-frame {
+  outline-color: var(--accent);
+}
+.cm-mermaid-frame:hover .cm-image-handle,
+.cm-mermaid-resizing .cm-image-handle {
+  opacity: 1;
 }
 .cm-mermaid-error {
   justify-content: flex-start;
