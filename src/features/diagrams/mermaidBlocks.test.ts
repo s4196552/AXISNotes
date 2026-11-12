@@ -49,13 +49,26 @@ describe("Mermaid blocks in the editor", () => {
     expect(v.dom.querySelector(".cm-mermaid")).not.toBeNull();
   });
 
-  it("opens the source from the diagram and leaves surrounding space inactive", async () => {
+  it("selects the rendered diagram on click and opens the source on double-click", async () => {
     const v = open(DOC);
     await vi.waitFor(() => expect(v.dom.querySelector(".cm-mermaid svg")).not.toBeNull());
     const block = v.dom.querySelector(".cm-mermaid")!;
     fireEvent.mouseDown(block, { button: 0 });
     expect(v.contentDOM.textContent).not.toContain("```mermaid");
-    fireEvent.mouseDown(block.querySelector("svg")!, { button: 0 });
+    const svg = block.querySelector("svg")!;
+    fireEvent.pointerDown(svg, { button: 2, pointerId: 1 });
+    expect(v.dom.querySelector(".cm-mermaid-guides")).toBeNull();
+    fireEvent.pointerDown(svg, { button: 0, pointerId: 1, clientX: 40, clientY: 25 });
+    const guides = v.dom.querySelector<HTMLElement>(".cm-mermaid-guides")!;
+    expect(guides.style.getPropertyValue("--guide-x")).toBe("40px");
+    fireEvent.pointerMove(window, { pointerId: 1, clientX: 90, clientY: 60 });
+    expect(guides.style.getPropertyValue("--guide-x")).toBe("90px");
+    expect(guides.style.getPropertyValue("--guide-y")).toBe("60px");
+    fireEvent.pointerUp(window, { pointerId: 1 });
+    expect(v.dom.querySelector(".cm-mermaid-guides")).toBeNull();
+    await vi.waitFor(() => expect(block.classList.contains("cm-mermaid-selected")).toBe(true));
+    expect(v.contentDOM.textContent).not.toContain("```mermaid");
+    fireEvent.doubleClick(svg, { button: 0 });
     expect(v.contentDOM.textContent).toContain("```mermaid");
     v.dispatch({ selection: { anchor: 0 } });
     expect(v.contentDOM.textContent).not.toContain("```mermaid");
@@ -66,6 +79,8 @@ describe("Mermaid blocks in the editor", () => {
     await vi.waitFor(() => expect(v.dom.querySelector(".cm-mermaid svg")).not.toBeNull());
     const frame = () => v.dom.querySelector<HTMLElement>(".cm-mermaid-frame")!;
     const handle = () => frame().querySelector('[data-handle="se"]')!;
+    fireEvent.click(frame().querySelector("svg")!);
+    await vi.waitFor(() => expect(v.dom.querySelector(".cm-mermaid-selected")).not.toBeNull());
     expect(frame().style.width).toBe("300px");
     fireEvent.pointerDown(handle(), { button: 0, pointerId: 1, clientX: 300 });
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 360 });
@@ -74,9 +89,12 @@ describe("Mermaid blocks in the editor", () => {
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 360 });
     expect(v.state.doc.line(3).text).toBe("```mermaid width=360");
     expect(frame().style.width).toBe("360px");
+    await vi.waitFor(() => expect(v.dom.querySelector(".cm-mermaid-selected")).not.toBeNull());
     fireEvent.pointerDown(handle(), { button: 0, pointerId: 1, clientX: 360 });
     fireEvent.pointerMove(window, { pointerId: 1, clientX: 410 });
+    expect(v.dom.querySelector(".cm-mermaid-guides")).not.toBeNull();
     fireEvent.keyDown(window, { key: "Escape" });
+    expect(v.dom.querySelector(".cm-mermaid-guides")).toBeNull();
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 410 });
     expect(frame().style.width).toBe("360px");
     expect(v.state.doc.toString()).toBe(DOC.replace("mermaid", "mermaid width=360"));

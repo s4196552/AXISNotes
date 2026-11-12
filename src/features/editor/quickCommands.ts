@@ -154,7 +154,7 @@ export function openCommandMenu(view: EditorView) {
 type CommandIcon = LucideIcon | readonly [LucideIcon, LucideIcon];
 
 /** Text before and after the cursor in a block: `[before, after]`. */
-type BlockText = readonly [head: string, tail: string, select?: number];
+type BlockText = readonly [head: string, tail: string];
 
 interface SlashCommand {
   id: string;
@@ -205,11 +205,10 @@ function lineAround(state: EditorState, from: number, to: number) {
 }
 
 /** Write a block over `from..to` with the cursor at the split. */
-function putBlock(view: EditorView, from: number, to: number, [head, tail, select = 0]: BlockText) {
-  const anchor = from + head.length;
+function putBlock(view: EditorView, from: number, to: number, [head, tail]: BlockText) {
   view.dispatch({
     changes: { from, to, insert: head + tail },
-    selection: { anchor, head: anchor + select },
+    selection: { anchor: from + head.length },
   });
 }
 
@@ -223,8 +222,8 @@ function turnInto(view: EditorView, from: number, to: number, block: SlashComman
 function newBlock(view: EditorView, from: number, to: number, block: SlashCommand["block"] & {}) {
   const { line, kept, text } = lineAround(view.state, from, to);
   if (!text) return putBlock(view, line.from, line.to, block(""));
-  const [head, tail, select] = block("");
-  putBlock(view, line.from, line.to, [`${kept}\n${head}`, tail, select]);
+  const [head, tail] = block("");
+  putBlock(view, line.from, line.to, [`${kept}\n${head}`, tail]);
 }
 
 function setPageStyle(style: PageStyle) {
@@ -339,10 +338,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     icon: TextQuote,
     description: "Set text apart as a quote",
     markdown: QUOTE_HEADER,
-    block: (text) =>
-      text
-        ? [QUOTE_HEADER + "\n> " + text, ""]
-        : [QUOTE_HEADER + "\n> ", QUOTE_PLACEHOLDER, QUOTE_PLACEHOLDER.length],
+    block: (text) => [QUOTE_HEADER, "\n> " + (text || QUOTE_PLACEHOLDER)],
   },
   {
     id: "callout",

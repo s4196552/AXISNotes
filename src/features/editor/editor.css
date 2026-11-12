@@ -432,6 +432,24 @@ input.editor-title::placeholder {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+.cm-lp-code-copied {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 2px 8px #0003;
+  pointer-events: none;
+}
+.cm-lp-code-copied:empty {
+  opacity: 0;
+  padding: 0;
+  border: 0;
+}
 .cm-code-indent {
   box-shadow: inset 1px 0 0 var(--syntax-guide);
 }

@@ -20,13 +20,43 @@
 .cm-mermaid-graphic {
   cursor: pointer;
 }
+.cm-mermaid-graphic:focus-visible,
+.cm-mermaid-selected .cm-mermaid-frame {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
 .cm-mermaid-frame[data-sized] svg {
   width: 100%;
   max-width: none !important;
 }
-.cm-mermaid-frame:hover .cm-image-handle,
+.cm-mermaid-frame .cm-image-handle {
+  pointer-events: none;
+}
+.cm-mermaid-selected .cm-image-handle,
 .cm-mermaid-resizing .cm-image-handle {
   opacity: 1;
+  pointer-events: auto;
+}
+.cm-mermaid-guides {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.cm-mermaid-guides::before,
+.cm-mermaid-guides::after {
+  position: absolute;
+  content: "";
+  opacity: 0.55;
+}
+.cm-mermaid-guides::before {
+  inset: var(--guide-y) 0 auto;
+  border-top: 1px dashed var(--accent);
+}
+.cm-mermaid-guides::after {
+  inset: 0 auto 0 var(--guide-x);
+  border-left: 1px dashed var(--accent);
 }
 .cm-mermaid-error {
   justify-content: flex-start;

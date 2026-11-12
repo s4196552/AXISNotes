@@ -13,7 +13,47 @@ export function resizeDiagram(
   const badge = frame.ownerDocument.createElement("div");
   badge.className = "cm-image-size";
   badge.hidden = true;
+  const guides = frame.ownerDocument.createElement("div");
+  guides.className = "cm-mermaid-guides";
+  guides.setAttribute("aria-hidden", "true");
+  let pointer: AbortController | undefined;
   let cancel: (() => void) | undefined;
+
+  function endGuides() {
+    pointer?.abort();
+    pointer = undefined;
+    guides.remove();
+  }
+
+  function startGuides(event: PointerEvent) {
+    if (event.button !== 0 || pointer || view.state.readOnly) return;
+    pointer = new AbortController();
+    const { signal } = pointer;
+    function moveGuides(e: PointerEvent) {
+      if (e.pointerId !== event.pointerId) return;
+      const rect = view.dom.getBoundingClientRect();
+      guides.style.setProperty("--guide-x", `${(e.clientX - rect.left) / view.scaleX}px`);
+      guides.style.setProperty("--guide-y", `${(e.clientY - rect.top) / view.scaleY}px`);
+    }
+    function release(e: PointerEvent) {
+      if (e.pointerId === event.pointerId) endGuides();
+    }
+    moveGuides(event);
+    view.dom.append(guides);
+    win.addEventListener("pointermove", moveGuides, { signal });
+    win.addEventListener("pointerup", release, { signal });
+    win.addEventListener("pointercancel", release, { signal });
+    win.addEventListener("blur", endGuides, { signal });
+    win.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape") endGuides();
+      },
+      { signal, capture: true },
+    );
+  }
+
+  frame.addEventListener("pointerdown", startGuides, true);
 
   function preview(next: number | null) {
     frame.style.width = next === null ? "" : `${next}px`;
@@ -91,5 +131,9 @@ export function resizeDiagram(
     frame.append(handle);
   }
   frame.append(badge);
-  return () => cancel?.();
+  return () => {
+    cancel?.();
+    endGuides();
+    frame.removeEventListener("pointerdown", startGuides, true);
+  };
 }

@@ -24,6 +24,8 @@ type SyntaxNode = ReturnType<typeof syntaxTree>["topNode"];
 // hold the cursor/selection, and the text is styled as rendered Markdown. Everything is
 // derived from the Lezer Markdown syntax tree, only for the requested (visible) ranges.
 
+const copyFeedbackTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
+
 /** The language and copy action in the block's top-right corner. */
 class CodeBlockHeader extends WidgetType {
   constructor(
@@ -49,17 +51,33 @@ class CodeBlockHeader extends WidgetType {
     copy.title = "Copy code";
     copy.setAttribute("aria-label", "Copy code");
     copy.append(lucideSvg(Copy, 14));
+    const feedback = document.createElement("span");
+    feedback.className = "cm-lp-code-copied";
+    feedback.setAttribute("role", "status");
     copy.addEventListener("mousedown", (event) => event.preventDefault());
     copy.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(this.code);
-        useAppStore.getState().notify("Copied code");
+        if (!header.isConnected) return;
+        feedback.textContent = "Copied";
+        clearTimeout(copyFeedbackTimers.get(header));
+        copyFeedbackTimers.set(
+          header,
+          setTimeout(() => {
+            feedback.textContent = "";
+            copyFeedbackTimers.delete(header);
+          }, 1500),
+        );
       } catch {
         useAppStore.getState().setError("Couldn't copy the code to the clipboard.");
       }
     });
-    header.append(copy);
+    header.append(copy, feedback);
     return header;
+  }
+  destroy(dom: HTMLElement) {
+    clearTimeout(copyFeedbackTimers.get(dom));
+    copyFeedbackTimers.delete(dom);
   }
 }
 
