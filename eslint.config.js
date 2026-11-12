@@ -18,7 +18,7 @@ export default tseslint.config(
   {
     // The browser extension: plain JavaScript modules.
     extends: [js.configs.recommended],
-    files: ["extension/**/*.js", "scripts/**/*.mjs"],
+    files: ["extension/**/*.js", "scripts/**/*.mjs", "src/features/hub/*.js"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",

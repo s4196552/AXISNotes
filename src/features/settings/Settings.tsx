@@ -12,6 +12,7 @@ import {
   Palette,
   Paperclip,
   Plus,
+  Puzzle,
   RefreshCw,
   Scissors,
   Sparkles,
@@ -42,6 +43,7 @@ import { ClipperSettings } from "../clipper/ClipperSettings";
 import { ClaudeSettings } from "../claude/ClaudeSettings";
 import { UpdatesSettings } from "../updates/UpdatesSettings";
 import { HotkeysSettings } from "./HotkeysSettings";
+import { PluginsSettings } from "./PluginsSettings";
 import { ThemePicker } from "./ThemePicker";
 import { LogoSettings } from "../packs/LogoSettings";
 import { filterSettings, hasAll, HIDDEN, wordsOf } from "./settingsSearch";
@@ -66,6 +68,7 @@ export type Section =
   | "agent"
   | "claude"
   | "clipper"
+  | "plugins"
   | "updates"
   | "about";
 
@@ -83,6 +86,7 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "agent", label: "Agent", icon: Bot },
   { id: "claude", label: "Claude", icon: Cable },
   { id: "clipper", label: "Web clipper", icon: Scissors },
+  { id: "plugins", label: "Plugins", icon: Puzzle },
   { id: "updates", label: "Updates", icon: RefreshCw },
   { id: "about", label: "About", icon: Info },
 ];
@@ -133,6 +137,8 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
         return <ClaudeSettings />;
       case "clipper":
         return <ClipperSettings />;
+      case "plugins":
+        return <PluginsSettings />;
       case "updates":
         return <UpdatesSettings />;
       case "hotkeys":
@@ -214,6 +220,7 @@ const LIVE_KEYWORDS: Partial<Record<Section, string>> = {
   updates:
     "check for updates when axisnotes starts install updates automatically updates folder version",
   packs: "icon packs image packs emoji add pack icons images",
+  plugins: "AXIS Hub plugins launcher shortcut packs apps files folders dashboard sidebar",
   claude: "claude desktop claude code mcp connector plan subscription copy command config",
 };
 

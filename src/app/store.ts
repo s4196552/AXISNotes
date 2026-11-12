@@ -20,7 +20,7 @@ export interface OpenTarget {
 /** A jump target bound to the note it was requested for. */
 export type PendingTarget = OpenTarget & { path: string };
 
-export type LeftPanel = "files" | "search" | "tags";
+export type LeftPanel = "files" | "search" | "tags" | "hub";
 export type MainView = View;
 
 /** How to open a note. */

@@ -139,6 +139,7 @@ describe("LeftSidebar", () => {
       "Files",
       "Search",
       "Tags",
+      "AXIS Hub",
     ]);
     const views = within(screen.getByRole("toolbar", { name: "Open a view" }));
     expect(views.getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([

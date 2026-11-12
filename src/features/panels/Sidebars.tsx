@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Clock,
   FolderTree,
+  Grid2X2,
   Hash,
   House,
   ListChecks,
@@ -17,6 +18,8 @@ import { lazyNamed } from "../../app/lazy";
 // The local graph (and its graph library) loads right after the first paint.
 const LocalGraph = lazyNamed(() => import("../graph/GraphView"), "LocalGraph");
 import { backend } from "../../ipc";
+import { useConfig } from "../../app/config";
+import { HubView } from "../hub";
 import { useUi } from "../commands/ui";
 import { type LeftPanel, useAppStore } from "../../app/store";
 import { Calendar } from "../daily/Calendar";
@@ -38,6 +41,7 @@ const TABS: { id: LeftPanel; label: string; Icon: typeof Search }[] = [
   { id: "files", label: "Files", Icon: FolderTree },
   { id: "search", label: "Search", Icon: Search },
   { id: "tags", label: "Tags", Icon: Hash },
+  { id: "hub", label: "AXIS Hub", Icon: Grid2X2 },
 ];
 
 /** Views that open in a tab of the main area (not side panels, so never shown as selected). */
@@ -70,7 +74,9 @@ const VIEWS: { label: string; title: string; Icon: typeof Search; open(): void }
 
 export function LeftSidebar() {
   const vault = useAppStore((s) => s.vault);
-  const panel = useAppStore((s) => s.leftPanel);
+  const selected = useAppStore((s) => s.leftPanel);
+  const hubEnabled = useConfig((s) => s.config.hubEnabled);
+  const panel = selected === "hub" && !hubEnabled ? "files" : selected;
   const setPanel = useAppStore((s) => s.setLeftPanel);
   return (
     <aside className="sidebar" aria-label="Navigation">
@@ -89,7 +95,7 @@ export function LeftSidebar() {
       {/* Panel tabs on the left; buttons that open a view in a tab after a divider. */}
       <div className="sidebar-tabs">
         <div className="sidebar-seg" role="tablist" aria-label="Sidebar panels">
-          {TABS.map(({ id, label, Icon }) => (
+          {TABS.filter(({ id }) => id !== "hub" || hubEnabled).map(({ id, label, Icon }) => (
             <button
               key={id}
               role="tab"
@@ -115,6 +121,13 @@ export function LeftSidebar() {
         {panel === "files" && <FileTree />}
         {panel === "search" && <SearchPanel />}
         {panel === "tags" && <TagsPanel />}
+        {panel === "hub" && (
+          <div className="sidebar-hub">
+            <Suspense fallback={<p className="panel-note">Opening AXIS Hub…</p>}>
+              <HubView />
+            </Suspense>
+          </div>
+        )}
       </div>
       <PanelResizer side="left" />
     </aside>

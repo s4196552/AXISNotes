@@ -5,6 +5,7 @@ mod clipper;
 mod clipper_commands;
 mod commands;
 mod error;
+mod hub;
 mod import;
 mod index;
 mod mcp;
@@ -142,6 +143,13 @@ pub fn run() {
             updates_commands::updates_save_settings,
             updates_commands::updates_check,
             updates_commands::updates_install,
+            hub::hub_load,
+            hub::hub_save,
+            hub::hub_launch,
+            hub::hub_apps,
+            hub::hub_target_icon,
+            hub::hub_custom_icon,
+            hub::hub_validate_plugin,
         ])
         .run(tauri::generate_context!())
         .expect("error while running AXISNotes");

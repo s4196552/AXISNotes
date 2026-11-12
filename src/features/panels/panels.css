@@ -5,7 +5,7 @@
   padding: 5px 8px;
   border-bottom: 1px solid var(--border);
 }
-/* Files / Search / Tags: a segmented control, one of them always selected. */
+/* Sidebar panel tabs: a segmented control, one of them always selected. */
 .sidebar-seg {
   display: flex;
   gap: 2px;
@@ -42,6 +42,13 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+}
+
+.sidebar-hub {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
 }
 
 .panel {
@@ -278,7 +285,7 @@ mark {
 .sidebar:not(.sidebar-right) {
   container: left-panel / inline-size;
 }
-@container left-panel (max-width: 250px) {
+@container left-panel (max-width: 275px) {
   .sidebar-tabs {
     gap: 4px;
   }

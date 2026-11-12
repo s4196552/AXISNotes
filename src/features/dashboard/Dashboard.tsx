@@ -1,4 +1,5 @@
 import {
+  Suspense,
   createContext,
   createElement,
   type FormEvent,
@@ -23,6 +24,7 @@ import {
   Columns2,
   Folder,
   GripVertical,
+  Grid2X2,
   FolderTree,
   History,
   House,
@@ -52,6 +54,7 @@ import { PRIORITY } from "../tasks/taskModel";
 import { toggleTask } from "../tasks/toggleTask";
 import { kindIcon } from "../tabs/tabInfo";
 import { displayName } from "../filetree/treeModel";
+import { HubView } from "../hub";
 import { saveWidgets, setDashboard } from "./setDashboard";
 import {
   addDays,
@@ -103,6 +106,7 @@ const WIDGET_ICONS: Record<WidgetType, typeof Pin> = {
   schedule: CalendarClock,
   links: Pin,
   recent: History,
+  hub: Grid2X2,
 };
 
 const errorText = (e: unknown) => (isBackendError(e) ? e.message : String(e));
@@ -490,28 +494,31 @@ function WidgetOptionsRow({ widget: w, folder }: { widget: Widget; folder: strin
 }
 
 function AddWidget({ folder }: { folder: string }) {
+  const hubEnabled = useConfig((s) => s.config.hubEnabled);
   return (
     <section className="dashboard-widget wide dashboard-add" aria-label="Add a widget">
       <h2 className="dashboard-widget-title">
         <Plus size={15} aria-hidden /> Add a widget
       </h2>
       <div className="dashboard-add-list">
-        {WIDGET_TYPES.map(({ type, label, description }) => {
-          const Icon = WIDGET_ICONS[type];
-          return (
-            <button
-              key={type}
-              className="dashboard-add-item"
-              onClick={() => saveWidgets(folder, (ws) => addWidget(ws, type))}
-            >
-              <Icon size={16} aria-hidden />
-              <span>
-                <strong>{label}</strong>
-                <span className="muted">{description}</span>
-              </span>
-            </button>
-          );
-        })}
+        {WIDGET_TYPES.filter(({ type }) => type !== "hub" || hubEnabled).map(
+          ({ type, label, description }) => {
+            const Icon = WIDGET_ICONS[type];
+            return (
+              <button
+                key={type}
+                className="dashboard-add-item"
+                onClick={() => saveWidgets(folder, (ws) => addWidget(ws, type))}
+              >
+                <Icon size={16} aria-hidden />
+                <span>
+                  <strong>{label}</strong>
+                  <span className="muted">{description}</span>
+                </span>
+              </button>
+            );
+          },
+        )}
       </div>
     </section>
   );
@@ -662,7 +669,19 @@ function WidgetBody(props: { widget: Widget; folder: string; editing: boolean; t
       return <LinksWidget widget={widget} folder={folder} editing={props.editing} />;
     case "recent":
       return <RecentWidget folder={folder} count={widget.options?.count ?? DEFAULT_RECENT_COUNT} />;
+    case "hub":
+      return <HubWidget />;
   }
+}
+
+function HubWidget() {
+  const enabled = useConfig((s) => s.config.hubEnabled);
+  if (!enabled) return <p className="muted">Enable AXIS Hub in Settings → Plugins.</p>;
+  return (
+    <Suspense fallback={<p className="muted">Opening AXIS Hub…</p>}>
+      <HubView />
+    </Suspense>
+  );
 }
 
 function TaskCheck({ task, today }: { task: TaskRef; today: string }) {

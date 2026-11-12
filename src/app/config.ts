@@ -94,6 +94,8 @@ export interface AxisConfig {
   fileOrder: Record<string, string[]>;
   /** Dashboard layouts by folder path; "" is the vault's Home (see features/dashboard). */
   dashboards: Dashboards;
+  /** AXIS Hub plugin availability for this vault. */
+  hubEnabled: boolean;
   dailyNotes: {
     folder: string;
     /** Date format for the file name, e.g. `YYYY-MM-DD`. */
@@ -163,6 +165,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
   entryColors: {},
   fileOrder: {},
   dashboards: {},
+  hubEnabled: true,
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   home: { openOnStartup: false, onLastTabClose: false },
   templatesFolder: "Templates",

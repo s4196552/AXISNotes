@@ -4,7 +4,8 @@ import type { TaskRef, VaultEntry } from "../../ipc";
 // config (`.axisnotes/config.json` → `dashboards`), keyed by folder path, "" being Home.
 // Pure functions; Dashboard.tsx reads and writes them through `useConfig`.
 
-export type WidgetType = "contents" | "calendar" | "tasks" | "schedule" | "links" | "recent";
+export type WidgetType =
+  "contents" | "calendar" | "tasks" | "schedule" | "links" | "recent" | "hub";
 
 /** How far ahead a tasks widget looks: today (and overdue), or the next 7 days too. */
 export type TaskRange = "today" | "week";
@@ -60,6 +61,7 @@ export const WIDGET_TYPES: { type: WidgetType; label: string; description: strin
   { type: "schedule", label: "Day schedule", description: "Today's items that have a time" },
   { type: "links", label: "Pinned", description: "Shortcuts to files and folders" },
   { type: "recent", label: "Recent", description: "Recently changed files" },
+  { type: "hub", label: "AXIS Hub", description: "Launch grouped apps, files and websites" },
 ];
 
 const TYPES = new Set<string>(WIDGET_TYPES.map((w) => w.type));

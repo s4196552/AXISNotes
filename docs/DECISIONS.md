@@ -2,6 +2,20 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-12 — AXIS Hub as a bundled Notes plugin (T-230)
+
+- The Windows launcher is available as a dashboard widget and sidebar panel.
+  Settings → Plugins controls availability for the vault. The views share one
+  device-local library with the previous Hub prototype, and the plugin opens
+  its launcher UI on demand.
+- The plugin retains the validated JSON shortcut pack format. Native commands
+  resolve saved IDs and handle Windows app discovery, icon extraction and
+  launch. Revision-checked atomic writes let multiple mounted views safely
+  share the same library.
+- Promote `tempfile` 3.27.0 (MIT OR Apache-2.0) from dev-only for atomic writes.
+  Use the already locked Windows dependencies `windows` 0.61.3 and `png` 0.18.1
+  directly for the Windows Shell and PNG encoding. Both are MIT OR Apache-2.0.
+
 ## 2026-11-09: Middle-click opens in a new tab everywhere (T-203)
 
 - **One rule for everything that opens a note on click:** a click opens it in the current tab; Ctrl/Cmd+click or a middle-click (pressing the scroll wheel) opens it in a new tab, as in Obsidian and browsers.

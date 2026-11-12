@@ -1,0 +1,69 @@
+<div id="app-shell">
+  <nav class="hub-navigation" aria-label="Hub">
+    <button id="nav-home" class="button" type="button">Library</button>
+    <button id="plugins-button" class="button" type="button">Shortcut packs</button>
+  </nav>
+  <div id="main">
+    <div class="workspace">
+      <header class="page-header">
+        <div class="page-intro">
+          <h2 id="page-title">Library</h2>
+          <p id="page-subtitle">Open your apps, files, folders, and websites.</p>
+        </div>
+        <div class="page-actions">
+          <button id="add-group" class="button" type="button">
+            <span class="glyph-plus" aria-hidden="true"></span> New group
+          </button>
+          <button id="add-shortcut" class="button primary" type="button">
+            <span class="glyph-plus" aria-hidden="true"></span> Add shortcut
+          </button>
+        </div>
+      </header>
+
+      <div id="view-controls">
+        <label class="search-field" for="search">
+          <span class="glyph-search" aria-hidden="true"></span>
+          <span class="sr-only">Search shortcuts and groups</span>
+          <input
+            id="search"
+            type="search"
+            placeholder="Search your library"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </label>
+        <label class="sort-field" for="sort">
+          <span class="sort-label">Sort by</span>
+          <select id="sort">
+            <option value="manual">Manual order</option>
+            <option value="name">Name</option>
+            <option value="type">Type</option>
+          </select>
+          <span class="glyph-chevron" aria-hidden="true"></span>
+        </label>
+      </div>
+
+      <div id="content" aria-busy="true">
+        <p class="loading-state">Loading your shortcuts…</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog id="dialog" aria-labelledby="dialog-title">
+  <div class="dialog-panel">
+    <header class="dialog-header">
+      <h2 id="dialog-title">AXIS Hub</h2>
+      <button
+        id="dialog-close"
+        class="button icon-button close-button"
+        type="button"
+        aria-label="Close dialog"
+      >
+        ×
+      </button>
+    </header>
+    <div id="dialog-body"></div>
+  </div>
+</dialog>
+<div id="notice" role="status" aria-live="polite"></div>
