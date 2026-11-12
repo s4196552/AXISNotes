@@ -503,7 +503,9 @@ impl Vault {
         if !dir_abs.is_dir() {
             return Err(AppError::NotFound(dir.to_string()));
         }
-        if meta.is_dir() && dir_abs.starts_with(&src) {
+        // Compared as the file system spells them, so `notes/Sub` is inside `Notes` on
+        // Windows and macOS too.
+        if meta.is_dir() && same_or_inside(&dir_abs, &src) {
             return Err(AppError::InvalidName(format!(
                 "cannot copy {from} into itself"
             )));
@@ -514,14 +516,27 @@ impl Vault {
             .to_string_lossy()
             .into_owned();
         let dst = dir_abs.join(self.free_copy_name(&dir_abs, &name, meta.is_dir())?);
+        // The copy is made with `create_new`/`create_dir`, so something that appears at
+        // `dst` meanwhile is never overwritten, and only what this call made is removed
+        // if the copy fails part way.
         if meta.is_dir() {
-            if let Err(e) = copy_dir(&src, &dst) {
-                // Only the half-made copy goes; the original is untouched.
+            fs::create_dir(&dst)?;
+            if let Err(e) = copy_dir_into(&src, &dst) {
                 let _ = fs::remove_dir_all(&dst);
                 return Err(e.into());
             }
         } else {
-            fs::copy(&src, &dst)?;
+            let mut out = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&dst)?;
+            let copied =
+                fs::File::open(&src).and_then(|mut input| std::io::copy(&mut input, &mut out));
+            drop(out);
+            if let Err(e) = copied {
+                let _ = fs::remove_file(&dst);
+                return Err(e.into());
+            }
         }
         self.entry_for(&dst, true)
     }
@@ -597,16 +612,33 @@ pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "sv
 /// The largest image that can be copied in.
 pub const MAX_IMAGE_BYTES: u64 = 25 * 1024 * 1024;
 
-/// Copy the folder `from` to the new folder `to`. Linked folders inside are skipped, so
-/// a link back up the tree can't make the copy endless; linked files are copied.
-fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
-    fs::create_dir(to)?;
+/// Whether `path` is `folder` or inside it, comparing the paths as the file system
+/// resolves them (so a different capitalisation of the same folder still counts).
+fn same_or_inside(path: &Path, folder: &Path) -> bool {
+    match (dunce::canonicalize(path), dunce::canonicalize(folder)) {
+        (Ok(p), Ok(f)) => p.starts_with(f),
+        _ => {
+            if cfg!(any(windows, target_os = "macos")) {
+                let lower = |p: &Path| PathBuf::from(p.to_string_lossy().to_lowercase());
+                lower(path).starts_with(lower(folder))
+            } else {
+                path.starts_with(folder)
+            }
+        }
+    }
+}
+
+/// Copy what's in the folder `from` into the new, empty folder `to`. Linked folders inside
+/// are skipped, so a link back up the tree can't make the copy endless; linked files are
+/// copied.
+fn copy_dir_into(from: &Path, to: &Path) -> std::io::Result<()> {
     for entry in fs::read_dir(from)? {
         let entry = entry?;
         let target = to.join(entry.file_name());
         let kind = entry.file_type()?;
         if kind.is_dir() {
-            copy_dir(&entry.path(), &target)?;
+            fs::create_dir(&target)?;
+            copy_dir_into(&entry.path(), &target)?;
         } else if kind.is_file() || (kind.is_symlink() && entry.path().is_file()) {
             fs::copy(entry.path(), &target)?;
         }
@@ -845,6 +877,14 @@ pub(crate) mod tests {
         for dir in ["School", "School/Week 1"] {
             assert!(matches!(
                 v.copy_entry("School", dir),
+                Err(AppError::InvalidName(_))
+            ));
+        }
+        // However the folder is spelled, it still can't go into itself (Windows and macOS
+        // find "school/Week 1" inside "School").
+        if cfg!(any(windows, target_os = "macos")) {
+            assert!(matches!(
+                v.copy_entry("School", "school/Week 1"),
                 Err(AppError::InvalidName(_))
             ));
         }

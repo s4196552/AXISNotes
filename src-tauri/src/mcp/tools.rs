@@ -21,6 +21,9 @@ struct Tool {
     schema: fn() -> Value,
 }
 
+/// The most index hits one search reads while looking for notes Claude may see.
+const MAX_SEARCH_HITS: usize = 32_000;
+
 fn path_prop() -> Value {
     json!({ "type": "string", "description": "Vault-relative path with forward slashes, e.g. \"School/Biology.md\". read_note and backlinks also take a note name." })
 }
@@ -260,11 +263,20 @@ impl Server {
     fn search_notes(&mut self, a: &Access, args: &Value) -> Result<Value, String> {
         let query = text_arg(args, "query")?;
         let limit = limit_arg(args, 20, 100);
-        // Ask for more than needed: hidden notes are dropped afterwards.
-        let hits = self.index()?.search(query, 500).map_err(app)?;
-        let results: Vec<Value> = hits
+        // Hidden notes are dropped after the search, so ask for more until there are
+        // enough visible ones or the index has no more matches.
+        let mut fetch = 500;
+        let visible = loop {
+            let hits = self.index()?.search_up_to(query, fetch).map_err(app)?;
+            let exhausted = hits.len() < fetch;
+            let visible: Vec<_> = hits.into_iter().filter(|h| a.can_see(&h.path)).collect();
+            if visible.len() >= limit || exhausted || fetch >= MAX_SEARCH_HITS {
+                break visible;
+            }
+            fetch = (fetch * 4).min(MAX_SEARCH_HITS);
+        };
+        let results: Vec<Value> = visible
             .into_iter()
-            .filter(|h| a.can_see(&h.path))
             .take(limit)
             .map(|h| {
                 json!({

@@ -497,3 +497,37 @@ fn serves_a_session_over_a_stream() {
         .unwrap()
         .contains("powerhouse"));
 }
+
+#[test]
+fn search_finds_shared_notes_ranked_below_many_hidden_ones() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join("Medical")).unwrap();
+    fs::create_dir_all(root.join("School")).unwrap();
+    fs::create_dir_all(root.join(".axisnotes")).unwrap();
+    // 600 short, dense hidden notes outrank one long shared note.
+    for i in 0..600 {
+        fs::write(
+            root.join(format!("Medical/Result {i}.md")),
+            "Mitochondria mitochondria.\n",
+        )
+        .unwrap();
+    }
+    let long = format!(
+        "{}\nOne line about mitochondria.\n",
+        "Other words. ".repeat(400)
+    );
+    fs::write(root.join("School/Biology.md"), long).unwrap();
+    fs::write(root.join(".axisnotes/config.json"), ON_RW).unwrap();
+    let mut v = Vault {
+        server: Server::open(root).unwrap(),
+        dir,
+        next: 0,
+    };
+    let found = paths(
+        &v.ok("search_notes", json!({ "query": "mitochondria" })),
+        "results",
+        "path",
+    );
+    assert_eq!(found, ["School/Biology.md"]);
+}

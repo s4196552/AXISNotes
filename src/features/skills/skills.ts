@@ -246,6 +246,15 @@ const GENERIC: Record<SkillFormat, string> = {
   both: "",
 };
 
+// A skill that writes files keeps replying with its JSON object of files; the format
+// says which kinds of file to write, never how to reply.
+const GENERIC_FILES: Record<SkillFormat, string> = {
+  markdown:
+    "Write every file as a Markdown note (.md); don't write any .html file. Keep replying with the JSON object described above.",
+  html: "Write the lesson or result files as self-contained HTML pages (.html): one inline <style> and, if needed, one inline <script>; no external files, fonts, images or network requests. Notes that track progress stay Markdown (.md). Keep replying with the JSON object described above.",
+  both: "",
+};
+
 /**
  * The skill as it runs in `format`: its instructions keep the shared part and that
  * format's section, and a page/note skill makes a page or a note to match.
@@ -255,7 +264,10 @@ export function withFormat(s: Skill, format: SkillFormat | null | undefined): Sk
   const { shared, sections } = splitFormats(s.instructions);
   const own = sections[f];
   // A conversation stays a conversation; its format is how it's kept (see `transcriptHtml`).
-  const generic = s.output === "chat" || f === defaultFormat(s) ? "" : GENERIC[f];
+  const generic =
+    s.output === "chat" || f === defaultFormat(s)
+      ? ""
+      : (s.output === "files" ? GENERIC_FILES : GENERIC)[f];
   const extra = own ?? generic;
   const instructions = extra ? `${shared}\n\n${extra}` : shared;
   const output: SkillOutput =

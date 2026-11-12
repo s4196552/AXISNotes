@@ -2,6 +2,8 @@ import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { isNotePath, noteName } from "../../lib/markdown";
 import { MAX_FOLDER_NOTES, ruleForPath } from "../ai/folderScope";
+import { stricter } from "../../lib/aiAccess";
+import { findEntry } from "../filetree/treeModel";
 import { queueAiBlock } from "../ai/aiBlock";
 import { folderOf } from "../drafts/drafts";
 import type { Skill } from "./skills";
@@ -22,8 +24,12 @@ export interface PickedNotes {
 
 /** The notes in the picked paths: picked notes, and every note inside picked folders. */
 export function pickedNotes(paths: string[]): PickedNotes {
-  const notes = useAppStore.getState().notes.map((n) => n.path);
+  const refs = useAppStore.getState().notes;
+  const notes = refs.map((n) => n.path);
+  // A note's own mark (AI output made from stricter notes) counts, as in folderScope.
+  const marks = new Map(refs.map((n) => [n.path, n.aiAccess ?? "any"] as const));
   const rules = useConfig.getState().config.ai.folders;
+  const ruleOf = (p: string) => stricter(ruleForPath(rules, p), marks.get(p) ?? "any");
   const found = new Set<string>();
   for (const p of paths) {
     if (isNotePath(p)) {
@@ -34,8 +40,8 @@ export function pickedNotes(paths: string[]): PickedNotes {
     for (const n of notes) if (!dir || n.startsWith(`${dir}/`)) found.add(n);
   }
   const sorted = [...found].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const never = sorted.filter((p) => ruleForPath(rules, p) === "never");
-  const allowed = sorted.filter((p) => ruleForPath(rules, p) !== "never");
+  const never = sorted.filter((p) => ruleOf(p) === "never");
+  const allowed = sorted.filter((p) => ruleOf(p) !== "never");
   return {
     include: allowed.slice(0, MAX_FOLDER_NOTES),
     never,
@@ -43,9 +49,16 @@ export function pickedNotes(paths: string[]): PickedNotes {
   };
 }
 
+/** Whether a picked path is a folder: as the file tree has it, else by its name. */
+function isFolder(path: string): boolean {
+  const entry = findEntry(useAppStore.getState().tree, path);
+  if (entry) return entry.kind === "dir";
+  return !isNotePath(path) && !/\.[a-z0-9]+$/i.test(path);
+}
+
 /** The deepest folder holding every picked item (a picked folder counts as its own). */
 export function commonFolder(paths: string[]): string {
-  const dirs = paths.map((p) => (isNotePath(p) || /\.[a-z0-9]+$/i.test(p) ? folderOf(p) : p));
+  const dirs = paths.map((p) => (isFolder(p) ? p : folderOf(p)));
   if (!dirs.length) return "";
   let common = dirs[0]!.split("/").filter(Boolean);
   for (const d of dirs.slice(1)) {
@@ -59,7 +72,7 @@ export function commonFolder(paths: string[]): string {
 
 /** The skills offered for picked items: Teach me needs one folder as its workspace. */
 export const skillsForPicked = (skills: Skill[], paths: string[]) =>
-  skills.filter((s) => s.reads !== "folder" || (paths.length === 1 && !isNotePath(paths[0]!)));
+  skills.filter((s) => s.reads !== "folder" || (paths.length === 1 && isFolder(paths[0]!)));
 
 /**
  * Run `skill` on the picked items: make a note in their folder and open it with an AI
@@ -79,7 +92,7 @@ export async function runSkillOnPicked(skill: Skill, paths: string[]): Promise<s
   }
   const folder = commonFolder(paths);
   const label =
-    paths.length === 1 && !isNotePath(paths[0]!)
+    paths.length === 1 && isFolder(paths[0]!)
       ? paths[0]!.slice(paths[0]!.lastIndexOf("/") + 1) || "vault"
       : `${include.length} ${include.length === 1 ? "note" : "notes"}`;
   const left = [

@@ -149,6 +149,12 @@ fn json_key_path(key: &str) -> String {
 
 impl Index {
     pub fn search(&self, query: &str, limit: usize) -> AppResult<Vec<SearchHit>> {
+        self.search_up_to(query, limit.clamp(1, 500))
+    }
+
+    /// `search` without its 500-hit cap, for callers that filter the hits afterwards
+    /// (Claude's search drops notes kept from cloud AI) and so may need more.
+    pub fn search_up_to(&self, query: &str, limit: usize) -> AppResult<Vec<SearchHit>> {
         let terms = parse_query(query);
         let mut positive: Vec<String> = Vec::new();
         let mut negative: Vec<String> = Vec::new();
@@ -226,7 +232,7 @@ impl Index {
         } else {
             sql.push_str(" ORDER BY n.mtime DESC");
         }
-        sql.push_str(&format!(" LIMIT {}", limit.clamp(1, 500)));
+        sql.push_str(&format!(" LIMIT {}", limit.max(1)));
 
         let mut stmt = self.conn().prepare(&sql).map_err(db_err)?;
         let rows = stmt

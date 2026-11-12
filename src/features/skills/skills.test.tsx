@@ -564,6 +564,23 @@ describe("Markdown or HTML for every skill", () => {
     expect(withFormat(byId("grill-me"), "html")).toEqual(byId("grill-me"));
   });
 
+  it("keeps a files skill without format sections replying with its files", () => {
+    const own = parseSkill(
+      ["---", "name: course", "output: files", "---", 'Reply with {"message", "files"}.'].join(
+        "\n",
+      ),
+      "Skills/course/SKILL.md",
+    )!;
+    for (const f of ["markdown", "html"] as const) {
+      const run = withFormat(own, f);
+      expect(run.output).toBe("files");
+      expect(run.instructions).toMatch(/Keep replying with the JSON object/);
+      expect(run.instructions).not.toMatch(/Reply with only|Answer in Markdown only/);
+    }
+    expect(withFormat(own, "markdown").instructions).toMatch(/don't write any \.html file/);
+    expect(withFormat(own, "both").instructions).toBe('Reply with {"message", "files"}.');
+  });
+
   it("gives a skill without format sections a general instruction for the other format", () => {
     const own = parseSkill(
       ["---", "name: summary", "output: markdown", "---", "Summarise the note."].join("\n"),
@@ -653,6 +670,26 @@ describe("skills on files picked in the tree", () => {
       skillsForPicked(BUILTIN_SKILLS, ["Bio/Cells.md", "Bio/Genes.md"]).map((s) => s.id),
     ).not.toContain("teach");
     expect(skillsForPicked(BUILTIN_SKILLS, ["Bio"]).map((s) => s.id)).toContain("teach");
+  });
+
+  it("leaves out notes whose own mark is 'never' and keeps dotted folders as folders", async () => {
+    useAppStore.setState((st) => ({
+      notes: st.notes.map((n) => (n.path === "Bio/Genes.md" ? { ...n, aiAccess: "never" } : n)),
+    }));
+    expect(pickedNotes(["Bio"])).toEqual({
+      include: ["Bio/Cells.md"],
+      never: ["Bio/Genes.md", "Bio/Private.md"],
+      overLimit: 0,
+    });
+    await h.b.createFile("School/Biology 2.0/Week 1.md", "Cells");
+    await useAppStore.getState().refreshTree();
+    expect(commonFolder(["School/Biology 2.0"])).toBe("School/Biology 2.0");
+    expect(commonFolder(["School/Biology 2.0/Week 1.md"])).toBe("School/Biology 2.0");
+    expect(skillsForPicked(BUILTIN_SKILLS, ["School/Biology 2.0"]).map((s) => s.id)).toContain(
+      "teach",
+    );
+    // Not in the tree: decided by the name.
+    expect(commonFolder(["Gone/photo.png"])).toBe("Gone");
   });
 
   it("refuses when everything picked is 'AI: never'", async () => {
