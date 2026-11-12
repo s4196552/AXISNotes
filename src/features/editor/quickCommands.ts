@@ -73,8 +73,9 @@ import { pickAndEmbed } from "./media";
 import { openAiBlock } from "../ai/aiBlock";
 import { skillIcon, skillList } from "../skills/skillIcons";
 import { groupSkills, skillSection, skillSectionCategory } from "../skills/skillGroups";
+import { noteIconOptions, renderIconCompletion } from "./noteIconOptions";
 
-// The command menu (Ctrl+/, or an optional typed trigger) and `:` emoji, with
+// The command menu (Ctrl+/, or an optional typed trigger) and `:` emoji and icons, with
 // configurable triggers. The other typed menus (`@@`, `((`, `::`, `{{`) are in triggers.ts.
 
 export interface QuickCommandConfig {
@@ -732,6 +733,7 @@ const isCommand = (c: Completion): c is CommandCompletion => "commandIcon" in c;
  * Pass to `autocompletion({ addToOptions })`.
  */
 export const commandMenuRender = [
+  { position: 20, render: renderIconCompletion },
   {
     position: 20,
     render(c: Completion) {
@@ -875,7 +877,7 @@ export function slashCompletions(context: CompletionContext): CompletionResult |
   return { from: typedFrom, options, validFor, ...(level ? { filter: false } : {}) };
 }
 
-// ---- Emoji ----
+// ---- Emoji and icons ----
 
 type EmojiData = Record<string, string[]>;
 let emojiData: EmojiData | null = null;
@@ -921,15 +923,19 @@ export async function emojiCompletions(
   if (!m) return null;
   const start = m.from + (/^[\s(]/.test(m.text) ? 1 : 0);
   const query = context.state.sliceDoc(start + cfg.emojiTrigger.length, context.pos);
-  const data = await loadEmoji();
+  const [data, icons] = await Promise.all([loadEmoji(), noteIconOptions(query)]);
   if (context.aborted) return null;
   return {
     from: start,
     filter: false,
-    options: searchEmoji(data, query).map(({ emoji, name }) => ({
-      label: `${emoji}  ${name.replace(/_/g, " ")}`,
-      apply: emoji,
-      type: "text",
-    })),
+    options: [
+      ...searchEmoji(data, query, query ? 40 : 4).map(({ emoji, name }) => ({
+        label: `${emoji}  ${name.replace(/_/g, " ")}`,
+        apply: emoji,
+        type: "text",
+        section: { name: "Emoji", rank: 0 },
+      })),
+      ...icons,
+    ],
   };
 }

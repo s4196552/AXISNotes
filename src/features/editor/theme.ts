@@ -61,6 +61,28 @@ const editorTheme = EditorView.theme({
   // Command menu, like Notion's: an icon tile instead of CodeMirror's glyph, the label with
   // a description under it, and the Markdown hint on the right.
   ".cm-completionIcon-command": { display: "none" },
+  ".cm-completionIcon-note-icon": { display: "none" },
+  ".cm-note-icon-preview": {
+    display: "inline-flex",
+    width: "16px",
+    height: "16px",
+    verticalAlign: "middle",
+    marginRight: "8px",
+  },
+  ".cm-inline-note-icon": {
+    display: "inline-flex",
+    width: "1em",
+    height: "1em",
+    alignItems: "center",
+    justifyContent: "center",
+    verticalAlign: "-0.125em",
+    cursor: "text",
+  },
+  ".cm-note-icon-preview > img, .cm-inline-note-icon > img, .cm-inline-note-icon > svg": {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+  },
   ".cm-tooltip.cm-tooltip-autocomplete > ul:has(> li > .cm-commandIcon)": {
     maxHeight: "min(26em, 45vh)",
     minWidth: "320px",

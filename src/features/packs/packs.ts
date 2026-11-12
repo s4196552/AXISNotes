@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { backend, isBackendError, type Pack, type PackKind } from "../../ipc";
 import { builtinLogoUrl } from "./builtinLogos";
+import { currentVault } from "../files/unsavedWork";
 
 // Icon and image packs the user added, kept in the vault's hidden `.axisnotes/packs/`.
 // Icons and covers point at pack files by vault path, so a pack image is used where it
@@ -37,6 +38,7 @@ export function matchesPackFile(path: string, query: string): boolean {
 
 interface PacksState {
   packs: Pack[];
+  vaultRoot: string | null;
   /** False until the first load for the open vault finishes. */
   loaded: boolean;
   error: string;
@@ -52,16 +54,20 @@ let generation = 0;
 
 export const usePacks = create<PacksState>()((set, get) => ({
   packs: [],
+  vaultRoot: null,
   loaded: false,
   error: "",
   async load() {
     const mine = ++generation;
+    const vaultRoot = currentVault();
     try {
       const packs = await backend.listPacks();
       // A newer load (e.g. after switching vaults) wins.
-      if (mine === generation) set({ packs, loaded: true, error: "" });
+      if (mine === generation && vaultRoot === currentVault())
+        set({ packs, vaultRoot, loaded: true, error: "" });
     } catch (e) {
-      if (mine === generation) set({ packs: [], loaded: true, error: message(e) });
+      if (mine === generation && vaultRoot === currentVault())
+        set({ packs: [], vaultRoot, loaded: true, error: message(e) });
     }
   },
   async add(kind, from) {

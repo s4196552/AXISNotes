@@ -29,6 +29,7 @@ import { tables } from "./tables";
 import { outlineFolding } from "./outliner";
 import { toggles } from "./toggles";
 import { imageSelecting, imageTools } from "./imageEditor";
+import { inlineIcons, inlineIconTarget } from "./inlineIcons";
 import { readImageLayout } from "../../lib/imageLayout";
 
 // Note/section/block embeds (`![[Note]]`, `![[Note#Heading]]`, `![[Note#^id]]`) rendered as
@@ -570,7 +571,7 @@ function embedWidgetFor(text: string, from: string, readOnly: boolean): WidgetTy
   }
   const md = parseMarkdownEmbed(embed);
   // A Markdown image of a note or other file stays as text.
-  if (md && (isWebUrl(md.src) || mediaKind(md.src)))
+  if (md && !inlineIconTarget(md.src) && (isWebUrl(md.src) || mediaKind(md.src)))
     return new MediaWidget(md.src, md.width, md.alt, from, text, readOnly);
   return null;
 }
@@ -656,5 +657,5 @@ export async function anchorCompletions(
 }
 
 export function embeds(path: string) {
-  return [notePath.of(path), embedField, imageSelecting];
+  return [notePath.of(path), embedField, imageSelecting, inlineIcons];
 }

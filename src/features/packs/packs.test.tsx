@@ -7,6 +7,7 @@ import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { splitFrontmatter } from "../../lib/markdown";
 import { useUi } from "../commands/ui";
 import { Editor } from "../editor/Editor";
+import { noteIconOptions } from "../editor/noteIconOptions";
 import { EntryIcon } from "../icons/EntryIcon";
 import { IconPicker } from "../icons/IconPicker";
 import { isPackPath, matchesPackFile, packCount, packFileLabel, usePacks } from "./packs";
@@ -47,6 +48,34 @@ beforeEach(async () => {
 });
 
 describe("pack helpers", () => {
+  it("adds the chosen image from the note picker and makes it searchable", async () => {
+    const previous = useAppStore.getState().vault;
+    useAppStore.setState({ vault: await h.b.currentVault() });
+    vi.spyOn(h.b, "pickImage").mockResolvedValue("Downloads/Feather/svg/moon-crescent.svg");
+    const view = new EditorView();
+    try {
+      const add = (await noteIconOptions("")).find((option) => option.label === "Add icon…");
+      if (!add || typeof add.apply !== "function") throw new Error("Missing Add icon action");
+      add.apply(view, add, 0, 0);
+      await waitFor(() =>
+        expect(usePacks.getState().packs[0]?.files).toContain(
+          ".axisnotes/packs/icons/My icons/moon-crescent.svg",
+        ),
+      );
+      expect(await noteIconOptions("crescent")).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            label: "moon crescent",
+            apply: "![moon crescent](</.axisnotes/packs/icons/My%20icons/moon-crescent.svg>)",
+          }),
+        ]),
+      );
+    } finally {
+      view.destroy();
+      useAppStore.setState({ vault: previous });
+    }
+  });
+
   it("recognises pack paths and labels pack files", () => {
     expect(isPackPath(".axisnotes/packs/icons/Feather/star.svg")).toBe(true);
     expect(isPackPath(".axisnotes/packs/icons/../../secret.png")).toBe(false);
