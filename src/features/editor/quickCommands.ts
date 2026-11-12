@@ -242,7 +242,7 @@ const prefixed =
   (prefix: string) =>
   (t: string): BlockText => [prefix + t, ""];
 
-const QUOTE_HEADER = "> [!NOTE] QUOTE";
+const QUOTE_HEADER = "> [!NOTE] TITLE";
 const QUOTE_PLACEHOLDER = "Contents";
 
 export const SLASH_COMMANDS: SlashCommand[] = [

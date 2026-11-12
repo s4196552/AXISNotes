@@ -39,11 +39,11 @@ class MermaidWidget extends WidgetType {
   toDOM(view: EditorView) {
     const wrap = document.createElement("div");
     wrap.className = "cm-mermaid";
-    wrap.title = "Click to edit the diagram's code";
     const frame = document.createElement("div");
-    frame.className = "cm-mermaid-frame cm-image-box";
+    frame.className = "cm-mermaid-frame";
     const graphic = document.createElement("div");
     graphic.className = "cm-mermaid-graphic";
+    graphic.title = "Click to edit the diagram's code";
     graphic.setAttribute("role", "img");
     graphic.setAttribute("aria-label", "Mermaid diagram (click to edit)");
     frame.append(graphic);
@@ -101,6 +101,7 @@ class MermaidWidget extends WidgetType {
     wrap.addEventListener("mousedown", (e) => {
       if (e.button !== 0 || isResizeHandle(e)) return;
       e.preventDefault();
+      if (!(e.target instanceof Node) || !graphic.contains(e.target)) return;
       const pos = view.posAtDOM(wrap);
       const line = view.state.doc.lineAt(pos);
       const inside = Math.min(line.to + 1, view.state.doc.length);

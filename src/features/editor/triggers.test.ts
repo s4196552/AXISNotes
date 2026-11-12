@@ -968,11 +968,11 @@ describe("command menu: new blocks, Turn into and descriptions", () => {
   });
 
   it("inserts the Quote callout and selects its body placeholder", async () => {
-    const quote = "> [!NOTE] QUOTE\n> Contents";
+    const quote = "> [!NOTE] TITLE\n> Contents";
     expect(await run("", "quote", "Quote")).toMatchObject({ doc: quote, selected: "Contents" });
     expect((await run("Notes ", "quote", "Quote")).doc).toBe(`Notes\n${quote}`);
     expect((await run("Existing text ", "quote", "Quote", TURN_INTO)).doc).toBe(
-      "> [!NOTE] QUOTE\n> Existing text",
+      "> [!NOTE] TITLE\n> Existing text",
     );
   });
 

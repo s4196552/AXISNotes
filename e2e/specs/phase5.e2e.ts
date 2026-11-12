@@ -357,7 +357,7 @@ describe("Phase 5: AI features on the real app", () => {
     await $(".cm-mermaid svg").waitForDisplayed({ timeout: 15_000 });
     await snapshot("06-diagram-in-note");
     // Editable by hand: clicking the diagram shows its code.
-    await $(".cm-mermaid").click();
+    await $(".cm-mermaid-graphic").click();
     await expect($(".cm-content")).toHaveText(expect.stringContaining("A[Prophase]"));
   });
 
