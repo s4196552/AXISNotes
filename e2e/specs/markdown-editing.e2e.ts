@@ -130,11 +130,11 @@ describe("Markdown editing in live preview", () => {
     await $(".cm-tooltip-autocomplete").waitForDisplayed();
     await $(".cm-completionLabel=Quote").click();
     await browser.waitUntil(() => read("Quick quote") === "> [!NOTE] TITLE\n> Contents");
-    await browser.keys("My quotation");
-    await browser.waitUntil(() => read("Quick quote") === "> [!NOTE] TITLE\n> My quotation");
+    await browser.keys(" extended");
+    await browser.waitUntil(() => read("Quick quote") === "> [!NOTE] TITLE extended\n> Contents");
   });
 
-  it("renders Mermaid without a frame, preserves resize and shows source on click", async () => {
+  it("selects Mermaid for resizing on click and shows source on double-click", async () => {
     await open("Resizable diagram");
     await $(".cm-mermaid svg").waitForDisplayed({ timeout: 15000 });
     const frame = () => $(".cm-mermaid-frame");
@@ -147,24 +147,47 @@ describe("Markdown editing in live preview", () => {
       return [wrapper.borderTopWidth, diagram.outlineStyle];
     });
     expect(chrome).toEqual(["0px", "none"]);
-    await browser
-      .action("pointer", { parameters: { pointerType: "mouse" } })
-      .move({ origin: handle })
-      .down()
-      .move({ origin: handle, x: -65, duration: 250 })
-      .up()
-      .perform();
+    await $(".cm-mermaid-graphic").click();
+    await expect($(".cm-mermaid-selected")).toExist();
+    await expect($(".cm-mermaid svg")).toBeDisplayed();
+    const pointer = () =>
+      browser.action("pointer", { id: "diagram-resize", parameters: { pointerType: "mouse" } });
+    const guides = $(".cm-mermaid-guides");
+    const guideX = () =>
+      browser.execute(() => {
+        const guide = document.querySelector<HTMLElement>(".cm-mermaid-guides")!;
+        return parseFloat(guide.style.getPropertyValue("--guide-x"));
+      });
+    await pointer().move({ origin: handle }).down().perform(true);
+    await expect(guides).toBeDisplayed();
+    const start = await guideX();
+    await pointer().move({ origin: "pointer", x: -65, y: 0, duration: 250 }).perform(true);
+    expect(await guideX()).toBeLessThan(start);
+    const guideExtendsBelowDiagram = await browser.execute(() => {
+      const guide = document.querySelector<HTMLElement>(".cm-mermaid-guides")!;
+      const bounds = guide.getBoundingClientRect();
+      const y = parseFloat(getComputedStyle(guide, "::before").top);
+      const diagramBottom = document
+        .querySelector(".cm-mermaid-frame")!
+        .getBoundingClientRect().bottom;
+      return y < guide.clientHeight && bounds.top + y > diagramBottom;
+    });
+    expect(guideExtendsBelowDiagram).toBe(true);
+    const qa = path.resolve(".agents/qa/T-241");
+    fs.mkdirSync(qa, { recursive: true });
+    await browser.saveScreenshot(path.join(qa, "diagram-guides.png"));
+    await pointer().up().perform();
     await browser.waitUntil(() => /mermaid width=\d+/.test(read("Resizable diagram")));
+    await expect(guides).not.toBeDisplayed();
+    await expect($(".cm-mermaid-selected")).toExist();
     const width = Number(/mermaid width=(\d+)/.exec(read("Resizable diagram"))![1]);
     expect(width).toBeLessThan(before);
     expect(read("Resizable diagram")).toBe(diagramDoc.replace("mermaid", `mermaid width=${width}`));
     await open("Vertical");
     await open("Resizable diagram");
     await expect(frame()).toHaveAttribute("style", `width: ${width}px;`);
-    const qa = path.resolve(".agents/qa/T-232");
-    fs.mkdirSync(qa, { recursive: true });
     await browser.saveScreenshot(path.join(qa, "resized-diagram.png"));
-    await $(".cm-mermaid svg").click();
+    await $(".cm-mermaid-graphic").doubleClick();
     await expect($(".cm-mermaid")).not.toExist();
     await expect($(".cm-content")).toHaveText(expect.stringContaining("```mermaid width="));
     await $(".cm-line=Intro").click();

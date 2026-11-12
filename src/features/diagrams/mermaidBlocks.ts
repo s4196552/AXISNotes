@@ -1,12 +1,74 @@
 import { syntaxTree } from "@codemirror/language";
-import { type EditorState, type Range, StateField } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView, WidgetType } from "@codemirror/view";
+import { type EditorState, MapMode, type Range, StateEffect, StateField } from "@codemirror/state";
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  ViewPlugin,
+  type ViewUpdate,
+  WidgetType,
+} from "@codemirror/view";
 import { isDarkTheme, renderMermaid } from "./mermaid";
 import { diagramWidth, isMermaidInfo, setDiagramWidth } from "./mermaidInfo";
 import { resizeDiagram } from "./resizeDiagram";
 
-// ```mermaid code blocks render as diagrams in the editor. Putting the cursor in the
-// block (or clicking the diagram) shows the code again for editing.
+// A click selects the rendered diagram for resizing. Double-click or move the caret
+// into the block to edit its source.
+
+const selectDiagram = StateEffect.define<number | null>();
+const diagramSelection = StateField.define<number | null>({
+  create: () => null,
+  update(value, tr) {
+    for (const effect of tr.effects) if (effect.is(selectDiagram)) return effect.value;
+    if (value === null || tr.selection) return null;
+    return tr.changes.mapPos(value, 1, MapMode.TrackDel);
+  },
+});
+
+const lineFrom = (view: EditorView, widget: HTMLElement) =>
+  view.state.doc.lineAt(view.posAtDOM(widget)).from;
+
+const selectionUI = ViewPlugin.fromClass(
+  class {
+    constructor(readonly view: EditorView) {}
+    update(update: ViewUpdate) {
+      const selected = this.view.state.field(diagramSelection);
+      if (
+        !update.docChanged &&
+        !update.viewportChanged &&
+        selected === update.startState.field(diagramSelection)
+      )
+        return;
+      this.view.requestMeasure({
+        key: this,
+        read: () => null,
+        write: () => {
+          const current = this.view.state.field(diagramSelection);
+          for (const widget of this.view.contentDOM.querySelectorAll<HTMLElement>(".cm-mermaid")) {
+            if (widget.closest(".cm-editor") !== this.view.dom) continue;
+            const active = current !== null && lineFrom(this.view, widget) === current;
+            widget.classList.toggle("cm-mermaid-selected", active);
+            widget.querySelector('[role="button"]')?.setAttribute("aria-pressed", String(active));
+          }
+        },
+      });
+    }
+  },
+  {
+    eventHandlers: {
+      mousedown(_event, view) {
+        if (view.state.field(diagramSelection) !== null)
+          view.dispatch({ effects: selectDiagram.of(null) });
+        return false;
+      },
+      keydown(event, view) {
+        if (event.key !== "Escape" || view.state.field(diagramSelection) === null) return false;
+        view.dispatch({ effects: selectDiagram.of(null) });
+        return true;
+      },
+    },
+  },
+);
 
 const cache = new Map<string, string>();
 const CACHE_SIZE = 40;
@@ -43,9 +105,19 @@ class MermaidWidget extends WidgetType {
     frame.className = "cm-mermaid-frame";
     const graphic = document.createElement("div");
     graphic.className = "cm-mermaid-graphic";
-    graphic.title = "Click to edit the diagram's code";
-    graphic.setAttribute("role", "img");
-    graphic.setAttribute("aria-label", "Mermaid diagram (click to edit)");
+    graphic.title = this.readOnly
+      ? "Double-click to view source"
+      : "Click to resize. Double-click to edit source.";
+    graphic.setAttribute("role", this.readOnly ? "img" : "button");
+    graphic.setAttribute(
+      "aria-label",
+      this.readOnly ? "Mermaid diagram" : "Select diagram to resize",
+    );
+    if (!this.readOnly) {
+      graphic.tabIndex = 0;
+      graphic.setAttribute("aria-pressed", "false");
+      graphic.setAttribute("aria-keyshortcuts", "F2");
+    }
     frame.append(graphic);
     wrap.append(frame);
     let disposeResize: (() => void) | undefined;
@@ -98,15 +170,38 @@ class MermaidWidget extends WidgetType {
         },
       );
     }
-    wrap.addEventListener("mousedown", (e) => {
-      if (e.button !== 0 || isResizeHandle(e)) return;
-      e.preventDefault();
-      if (!(e.target instanceof Node) || !graphic.contains(e.target)) return;
+    function showSource() {
       const pos = view.posAtDOM(wrap);
       const line = view.state.doc.lineAt(pos);
       const inside = Math.min(line.to + 1, view.state.doc.length);
       view.dispatch({ selection: { anchor: inside }, scrollIntoView: true });
       view.focus();
+    }
+    function select() {
+      if (view.state.readOnly) return;
+      view.dispatch({ effects: selectDiagram.of(lineFrom(view, wrap)) });
+      view.focus();
+    }
+    wrap.addEventListener("mousedown", (event) => {
+      if (event.button === 0) event.preventDefault();
+    });
+    graphic.addEventListener("pointerdown", (event) => {
+      if (event.button === 0) select();
+    });
+    graphic.addEventListener("click", (event) => {
+      if (event.button === 0 && event.detail === 0) select();
+    });
+    graphic.addEventListener("dblclick", (event) => {
+      if (event.button === 0) showSource();
+    });
+    graphic.addEventListener("keydown", (event) => {
+      if (event.key === "F2") {
+        event.preventDefault();
+        showSource();
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        select();
+      }
     });
     return wrap;
   }
@@ -118,17 +213,9 @@ class MermaidWidget extends WidgetType {
   destroy(dom: HTMLElement) {
     cleanup.get(dom)?.();
   }
-
-  ignoreEvent(event: Event) {
-    return isResizeHandle(event);
-  }
 }
 
 const cleanup = new WeakMap<HTMLElement, () => void>();
-
-function isResizeHandle(event: Event) {
-  return event.target instanceof Element && event.target.closest(".cm-image-handle") !== null;
-}
 
 function build(state: EditorState): DecorationSet {
   const out: Range<Decoration>[] = [];
@@ -160,7 +247,7 @@ function build(state: EditorState): DecorationSet {
 }
 
 /** Render ```mermaid blocks as diagrams (except the one being edited). */
-export const mermaidBlocks = StateField.define<DecorationSet>({
+const renderedDiagrams = StateField.define<DecorationSet>({
   create: build,
   update: (value, tr) =>
     tr.docChanged ||
@@ -171,3 +258,5 @@ export const mermaidBlocks = StateField.define<DecorationSet>({
       : value,
   provide: (f) => EditorView.decorations.from(f),
 });
+
+export const mermaidBlocks = [diagramSelection, renderedDiagrams, selectionUI];

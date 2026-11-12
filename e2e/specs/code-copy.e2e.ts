@@ -45,6 +45,9 @@ describe("Code block copy", () => {
     });
     expect(aligned).toBe(true);
     await (await buttons())[0]!.click();
+    const feedback = $(".cm-lp-code-first .cm-lp-code-copied");
+    await expect(feedback).toHaveText("Copied");
+    await expect(feedback).toHaveText("");
     await (await buttons())[1]!.click();
     await (await buttons())[2]!.click();
     expect(await copies()).toEqual([code, "second block", "  quoted"]);
@@ -53,7 +56,8 @@ describe("Code block copy", () => {
     await expect($(".cm-lp-code-first")).toHaveText("````python");
     await (await buttons())[0]!.click();
     expect(await copies()).toEqual([code, "second block", "  quoted", code]);
-    await expect($(".cm-lp-code-first")).toHaveText("````python");
+    await expect($(".cm-lp-code-first")).toHaveText(expect.stringContaining("````python"));
+    await expect(feedback).toHaveText("Copied");
     expect(fs.readFileSync(note, "utf8")).toBe(source);
   });
 });

@@ -967,13 +967,22 @@ describe("command menu: new blocks, Turn into and descriptions", () => {
     expect(empty).toMatchObject({ doc: "```\n```", cursor: 3 });
   });
 
-  it("inserts the Quote callout and selects its body placeholder", async () => {
+  it("inserts the Quote callout with the caret after TITLE", async () => {
+    const title = "> [!NOTE] TITLE";
     const quote = "> [!NOTE] TITLE\n> Contents";
-    expect(await run("", "quote", "Quote")).toMatchObject({ doc: quote, selected: "Contents" });
-    expect((await run("Notes ", "quote", "Quote")).doc).toBe(`Notes\n${quote}`);
-    expect((await run("Existing text ", "quote", "Quote", TURN_INTO)).doc).toBe(
-      "> [!NOTE] TITLE\n> Existing text",
-    );
+    expect(await run("", "quote", "Quote")).toMatchObject({
+      doc: quote,
+      cursor: title.length,
+      selected: "",
+    });
+    expect(await run("Notes ", "quote", "Quote")).toMatchObject({
+      doc: `Notes\n${quote}`,
+      cursor: `Notes\n${title}`.length,
+    });
+    expect(await run("Existing text ", "quote", "Quote", TURN_INTO)).toMatchObject({
+      doc: `${title}\n> Existing text`,
+      cursor: title.length,
+    });
   });
 
   it("starts a new block under a line with text, or replaces an empty one", async () => {
