@@ -1,6 +1,6 @@
 import { foldService } from "@codemirror/language";
 import type { EditorState, Line, Text, TransactionSpec } from "@codemirror/state";
-import { headingSectionAt, structuralLine } from "./headingSections";
+import { calloutBlocks, headingSectionAt, headingTitleAt, structuralLine } from "./headingSections";
 
 // Outliner operations on plain Markdown: list items (with their nested children) and
 // heading sections can be indented, outdented, moved among siblings, folded and dragged.
@@ -92,7 +92,28 @@ export function blockAt(state: EditorState, lineNo: number): Block | null {
   return sectionAt(state, lineNo) ?? listItemAt(state, lineNo);
 }
 
-function blockText(state: EditorState, b: Block): string {
+/** The unit selected or moved by a line handle. It shares the folding boundaries. */
+export function handledBlockAt(state: EditorState, lineNo: number) {
+  if (!structuralLine(state, lineNo)) return null;
+  const line = state.doc.line(lineNo);
+  const heading = headingTitleAt(state, lineNo);
+  if (heading && heading.first !== lineNo) return null;
+  const callout = line.text.startsWith(">") && calloutBlocks(state).find((b) => b.first === lineNo);
+  const insertAfter = callout
+    ? callout.last
+    : heading
+      ? state.doc.lineAt(heading.to).number
+      : lineNo;
+  return {
+    first: lineNo,
+    last: heading?.last ?? listItemSpans(state).get(lineNo) ?? (callout ? callout.last : lineNo),
+    insertAfter,
+  };
+}
+
+type LineSpan = Pick<Block, "first" | "last">;
+
+function blockText(state: EditorState, b: LineSpan): string {
   return state.sliceDoc(state.doc.line(b.first).from, state.doc.line(b.last).to);
 }
 
@@ -245,18 +266,35 @@ export function moveBlockTo(
     const targetIndent = indentWidth(state.doc.line(target.first).text);
     text = reindent(text, targetIndent - block.indent);
   }
-  const insertAt = after ? state.doc.line(target.last).to : state.doc.line(target.first).from;
+  return moveLinesToBoundary(state, block, after ? target.last : target.first - 1, text);
+}
+
+/** Move a range of full lines to the gap after `after` (0 means before line 1). */
+export function moveLinesToBoundary(
+  state: EditorState,
+  block: LineSpan,
+  after: number,
+  text = blockText(state, block),
+): TransactionSpec | null {
+  if (after < 0 || after > state.doc.lines || (after >= block.first - 1 && after <= block.last))
+    return null;
+  const { doc, lineBreak } = state;
+  const upward = after < block.first;
+  const at = upward ? doc.line(after + 1).from : doc.line(after).to;
+  const endsDocument = block.last === doc.lines;
   const remove = {
-    from: state.doc.line(block.first).from,
-    to:
-      block.last < state.doc.lines
-        ? state.doc.line(block.last + 1).from
-        : state.doc.line(block.last).to,
+    from: endsDocument ? doc.line(block.first - 1).to : doc.line(block.first).from,
+    to: endsDocument ? doc.length : doc.line(block.last + 1).from,
   };
-  if (block.last === state.doc.lines && block.first > 1)
-    remove.from = state.doc.line(block.first - 1).to;
-  const insert = after ? "\n" + text : text + "\n";
-  return { changes: [remove, { from: insertAt, insert }] };
+  const changes = state.changes([
+    remove,
+    { from: at, insert: upward ? text + lineBreak : lineBreak + text },
+  ]);
+  return {
+    changes,
+    selection: { anchor: changes.mapPos(at, -1) + (upward ? 0 : 1) },
+    scrollIntoView: true,
+  };
 }
 
 const spanCache = new WeakMap<Text, Map<number, number>>();

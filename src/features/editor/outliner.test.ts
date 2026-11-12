@@ -2,10 +2,12 @@ import { foldable } from "@codemirror/language";
 import { EditorSelection, EditorState, type TransactionSpec } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import {
+  handledBlockAt,
   indentListItem,
   listItemAt,
   moveBlock,
   moveBlockTo,
+  moveLinesToBoundary,
   outlineFolding,
   sectionAt,
 } from "./outliner";
@@ -97,6 +99,29 @@ describe("drag and drop", () => {
     expect(drop(1, 5, true)).toBe("- b\n  - b1\n  - b2\n- c\n- a");
     expect(drop(4, 1, false)).toBe("- b2\n- a\n- b\n  - b1\n- c"); // outdented to target level
     expect(drop(2, 3, false)).toBe("(no change)"); // into itself
+  });
+
+  it("moves plain lines between other lines, including past a blank line", () => {
+    const s = at("First\n\nMiddle\nLast|");
+    expect(apply(s, moveLinesToBoundary(s, { first: 4, last: 4 }, 1))).toBe(
+      "First\n|Last\n\nMiddle",
+    );
+    expect(apply(s, moveLinesToBoundary(s, { first: 1, last: 1 }, 2))).toBe(
+      "\n|First\nMiddle\nLast",
+    );
+  });
+
+  it("uses fold boundaries for heading, list and toggle handles", () => {
+    const state = EditorState.create({
+      doc: "# Main\n## Child\n- Item\n  - Child\n# Peer\n> [!toggle]- More\n> Hidden\nAfter",
+    });
+    expect(handledBlockAt(state, 1)).toEqual({ first: 1, last: 4, insertAfter: 1 });
+    expect(handledBlockAt(state, 3)).toEqual({ first: 3, last: 4, insertAfter: 3 });
+    expect(handledBlockAt(state, 6)).toEqual({ first: 6, last: 7, insertAfter: 7 });
+    expect(handledBlockAt(state, 8)).toEqual({ first: 8, last: 8, insertAfter: 8 });
+    const setext = EditorState.create({ doc: "Title\n=====\nText" });
+    expect(handledBlockAt(setext, 1)).toEqual({ first: 1, last: 3, insertAfter: 2 });
+    expect(handledBlockAt(setext, 2)).toBeNull();
   });
 });
 

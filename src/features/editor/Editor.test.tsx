@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
 import { AUTOSAVE_DELAY_MS, Editor } from "./Editor";
+import { commandMenuAnchor } from "./quickCommands";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -222,7 +223,7 @@ describe("Editor", () => {
     expect(container.querySelector(".cm-foldGutter")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Outline view" }));
     await waitFor(() => expect(container.querySelector(".cm-foldGutter")).not.toBeNull());
-    expect(container.querySelectorAll(".cm-outline-handle").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".cm-line-grip").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Outline view" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -234,5 +235,28 @@ describe("Editor", () => {
     render(<Editor path="Missing.md" />);
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Save failed"));
     expect(useAppStore.getState().error).toMatch(/not found/);
+  });
+
+  it("adds below a heading and opens the command menu at the new line", async () => {
+    h.b = createMemoryBackend({ "Note.md": "# Start\nBody\n# Next" });
+    const { view } = await open();
+    const heading = [...view.contentDOM.querySelectorAll(".cm-line")].find((line) =>
+      line.textContent?.includes("Start"),
+    )!;
+    fireEvent.click(heading.querySelector(".cm-line-add")!);
+    expect(view.state.doc.toString()).toBe("# Start\n\nBody\n# Next");
+    expect(view.state.selection.main.head).toBe(view.state.doc.line(2).from);
+    expect(view.state.field(commandMenuAnchor)).toBe(view.state.doc.line(2).from);
+  });
+
+  it("selects a heading and its contents by double-clicking its grip", async () => {
+    h.b = createMemoryBackend({ "Note.md": "# Start\n## Subheading\nBody\n# Next" });
+    const { view } = await open();
+    const heading = [...view.contentDOM.querySelectorAll(".cm-line")].find((line) =>
+      line.textContent?.includes("Start"),
+    )!;
+    fireEvent.doubleClick(heading.querySelector(".cm-line-grip")!);
+    const { from, to } = view.state.selection.main;
+    expect(view.state.sliceDoc(from, to)).toBe("# Start\n## Subheading\nBody");
   });
 });

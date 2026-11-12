@@ -48,6 +48,7 @@ import { takeEditorFocus } from "./focusRequest";
 import { countWords, wordCount } from "./wordCount";
 import { useStatusSlot } from "./statusSlot";
 import { outlinerKeys, outlineView } from "./outlinerView";
+import { blockTools } from "./blockTools";
 import { listAutoformat } from "./listAutoformat";
 import { verticalNavigation } from "./verticalNavigation";
 import { symbolAutoformat } from "./symbolAutoformat";
@@ -388,6 +389,7 @@ export function Editor({ path }: EditorProps) {
             mediaInput,
             quickCompartment.current.of(quickCommandConfig.of(quickConfig())),
             outlinerKeys,
+            blockTools,
             inlineCodeLanguage,
             symbolAutoformat,
             listAutoformat,

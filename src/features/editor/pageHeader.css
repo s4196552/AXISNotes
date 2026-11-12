@@ -85,6 +85,7 @@
   max-width: var(--editor-width);
   margin: 0 auto;
   padding: 20px 24px 0;
+  padding-inline-start: var(--note-inline-padding, 24px);
 }
 .page-header.has-cover .page-meta {
   padding-top: 8px;
