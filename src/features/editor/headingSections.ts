@@ -29,6 +29,7 @@ export interface CalloutBlock {
 interface Structure {
   headings: HeadingSection[];
   byLine: Map<number, HeadingSection>;
+  byTitleLine: Map<number, HeadingSection>;
   structural: Set<number>;
   callouts: CalloutBlock[];
 }
@@ -48,6 +49,7 @@ function structure(state: EditorState): Structure {
   if (found) return found;
   const headings: HeadingSection[] = [];
   const byLine = new Map<number, HeadingSection>();
+  const byTitleLine = new Map<number, HeadingSection>();
   const structural = new Set<number>();
   const stack: HeadingSection[] = [];
   let fence: { marker: string; depth: number } | null = null;
@@ -143,6 +145,7 @@ function structure(state: EditorState): Structure {
     };
     headings.push(heading);
     byLine.set(first, heading);
+    for (let titleLine = first; titleLine <= n; titleLine++) byTitleLine.set(titleLine, heading);
     stack.push(heading);
   }
   while (stack.length) finish(stack.pop()!, doc.lines);
@@ -159,7 +162,7 @@ function structure(state: EditorState): Structure {
     callouts.push({ first: n, last, head });
     n = last;
   }
-  const result = { headings, byLine, structural, callouts };
+  const result = { headings, byLine, byTitleLine, structural, callouts };
   cache.set(doc, result);
   return result;
 }
@@ -168,6 +171,8 @@ export const headingSections = (state: EditorState): readonly HeadingSection[] =
   structure(state).headings;
 export const headingSectionAt = (state: EditorState, line: number) =>
   structure(state).byLine.get(line);
+export const headingTitleAt = (state: EditorState, line: number) =>
+  structure(state).byTitleLine.get(line);
 export const structuralLine = (state: EditorState, line: number) =>
   structure(state).structural.has(line);
 /** Every callout and toggle in the note, in order, outside code. */

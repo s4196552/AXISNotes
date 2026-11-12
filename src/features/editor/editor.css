@@ -1,4 +1,5 @@
 .editor {
+  --note-inline-padding: calc(42px + var(--fold-arrow-size));
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -12,6 +13,7 @@
   max-width: var(--editor-width);
   margin: 0 auto;
   padding: 28px 24px 4px;
+  padding-inline-start: var(--note-inline-padding);
 }
 /* Whatever follows the title (tools, save state) sits together at the right. */
 .editor-header > .editor-title + *,
@@ -156,9 +158,10 @@ input.editor-title::placeholder {
   font-family: var(--font-ui);
   line-height: 1.5;
 }
-.note-scroller > .cm-content {
+.editor-host .note-scroller > .cm-content {
   flex: 1 1 0;
   min-width: 0;
+  padding-inline-start: var(--note-inline-padding);
 }
 .editor-host .note-scroller > .cm-gutters {
   background: transparent;
@@ -611,21 +614,80 @@ input.editor-title::placeholder {
   background-color: transparent;
 }
 
-/* Outline view */
-.cm-outline-handle {
-  display: inline-block;
-  width: 14px;
-  margin-left: -18px;
-  margin-right: 4px;
-  color: var(--fg-muted);
-  opacity: 0;
-  cursor: grab;
+/* Line controls sit in the margin, so showing them never shifts the text. */
+.cm-has-line-tools {
+  position: relative;
+}
+.cm-has-line-tools::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--note-inline-padding));
+  inset-block-start: var(--line-tools-top, 0px);
+  width: var(--note-inline-padding);
+  height: 1lh;
+  min-height: 18px;
+}
+.cm-line-tools {
+  position: absolute;
+  inset-inline-start: -35px;
+  inset-block-start: var(--line-tools-top, 0px);
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 1lh;
+  min-height: 18px;
+  text-indent: 0;
+  visibility: hidden;
   user-select: none;
-  font-size: 12px;
 }
-.cm-line:hover .cm-outline-handle {
-  opacity: 0.8;
+.cm-has-line-tools:has(> .cm-heading-arrow, > .cm-toggle-hang, > .cm-list-arrow) > .cm-line-tools {
+  inset-inline-start: calc(-41px - var(--fold-arrow-size));
 }
+.cm-line.cm-lp-h {
+  --line-tools-top: var(--heading-gap);
+}
+.cm-line.cm-lp-li:not(.cm-lp-h) {
+  --line-tools-top: var(--list-spacing);
+}
+.cm-has-line-tools:hover > .cm-line-tools,
+.cm-focused .cm-line-tools-active > .cm-line-tools,
+.cm-has-line-tools:focus-within > .cm-line-tools {
+  visibility: visible;
+}
+.cm-line-tools button {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 18px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  padding: 0;
+}
+.cm-line-tools button:hover,
+.cm-line-tools button:focus-visible {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+.cm-line-tools .cm-line-grip {
+  cursor: grab;
+  touch-action: none;
+}
+.cm-line-dragging,
+.cm-line-dragging * {
+  cursor: grabbing !important;
+}
+.cm-line-drop-marker {
+  position: fixed;
+  z-index: 1000;
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+/* Outline view */
 .cm-gutters {
   background: transparent;
   border: none;

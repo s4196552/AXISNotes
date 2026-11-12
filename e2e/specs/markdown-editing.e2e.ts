@@ -35,6 +35,10 @@ describe("Markdown editing in live preview", () => {
     fs.writeFileSync(file("List edits"), "- [x] Packed");
     fs.writeFileSync(file("Quick quote"), "");
     fs.writeFileSync(file("Resizable diagram"), diagramDoc);
+    fs.writeFileSync(
+      file("Line controls"),
+      "Opening\n# First\n## Child\nBody\n# Second\nTarget row\n",
+    );
   });
 
   it("moves one rendered row at a time with plain, Ctrl and Shift arrows", async () => {
@@ -74,6 +78,48 @@ describe("Markdown editing in live preview", () => {
     await browser.keys(Key.Enter);
     await browser.keys("Paragraph");
     await browser.waitUntil(() => read("List edits") === "- [x] Packed\nParagraph");
+  });
+
+  it("shows line controls on hover and selection, inserts below, and moves or selects a block", async () => {
+    await open("Line controls");
+    const intro = $(".cm-line=Opening");
+    const first = $(".cm-lp-h1*=First");
+    await intro.click();
+    await first.moveTo();
+    await intro.$(".cm-line-add").waitForDisplayed();
+    const grip = () => first.$(".cm-line-grip");
+    await grip().waitForDisplayed();
+    const arrow = () => first.$(".cm-heading-arrow");
+    await arrow().click();
+    await expect($(".cm-lp-h2*=Child")).not.toExist();
+    await arrow().click();
+    await $(".cm-lp-h2*=Child").waitForDisplayed();
+    await first.moveTo();
+    await grip().doubleClick();
+    const selected = await browser.execute(() => document.getSelection()?.toString());
+    expect(selected).toContain("First");
+    expect(selected).toContain("Child");
+    expect(selected).toContain("Body");
+    expect(selected).not.toContain("Second");
+
+    await intro.moveTo();
+    await intro.$(".cm-line-add").click();
+    await $(".cm-tooltip-autocomplete").waitForDisplayed();
+    await browser.waitUntil(() => read("Line controls").startsWith("Opening\n\n# First"));
+    await browser.keys(Key.Escape);
+    const target = $(".cm-line=Target row");
+    const height = await target.getSize("height");
+    await first.moveTo();
+    await browser
+      .action("pointer", { parameters: { pointerType: "mouse" } })
+      .move({ origin: grip() })
+      .down()
+      .move({ origin: target, y: Math.floor(height / 2) - 1, duration: 300 })
+      .up()
+      .perform();
+    await browser.waitUntil(
+      () => read("Line controls") === "Opening\n\n# Second\nTarget row\n# First\n## Child\nBody\n",
+    );
   });
 
   it("inserts the Quote template from Ctrl+/", async () => {
