@@ -49,6 +49,8 @@ pub fn run() {
         .setup(|app| {
             ai_commands::manage(app.handle());
             clipper_commands::manage(app.handle());
+            // The last custom logo on the taskbar before the page loads (see taskbar_icon).
+            taskbar_icon::restore(app.handle());
             if let Ok(path) = std::env::var(OPEN_VAULT_ENV) {
                 let state = app.state::<commands::AppState>();
                 if let Err(e) = state.open_at_startup(app.handle(), &path) {

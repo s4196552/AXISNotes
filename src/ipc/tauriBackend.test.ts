@@ -20,9 +20,9 @@ vi.mock("@tauri-apps/api/core", async (orig) => ({
   ...(await orig<typeof import("@tauri-apps/api/core")>()),
   convertFileSrc: (path: string, protocol = "asset") =>
     `http://${protocol}.localhost/${encodeURIComponent(path)}`,
-  invoke: async (cmd: string, args?: { rgba: number[] }) => {
+  invoke: async (cmd: string, args?: { rgba: number[]; branded: boolean }) => {
     if (cmd === "set_taskbar_icon") {
-      calls.push(`taskbar icon ${args?.rgba.length}`);
+      calls.push(`taskbar icon ${args?.rgba.length} ${args?.branded ? "branded" : "original"}`);
       if (taskbarFails) throw new Error("Taskbar failure");
     }
     return cmd === "current_vault" ? { root: "C:\\Vault", name: "Vault" } : null;
@@ -38,17 +38,20 @@ beforeEach(() => {
 
 describe("window and taskbar logos", () => {
   it("updates both native icon sizes and releases the temporary image", async () => {
-    await createTauriBackend().setWindowIcon(new Array(256 * 256 * 4).fill(0));
-    expect(calls).toEqual(["window icon", "taskbar icon 262144", "close image"]);
+    await createTauriBackend().setWindowIcon(new Array(256 * 256 * 4).fill(0), true);
+    expect(calls).toEqual(["window icon", "taskbar icon 262144 branded", "close image"]);
+    calls.length = 0;
+    await createTauriBackend().setWindowIcon(new Array(256 * 256 * 4).fill(0), false);
+    expect(calls[1]).toBe("taskbar icon 262144 original");
   });
   it("releases the image when the taskbar update fails and rejects invalid sizes", async () => {
     taskbarFails = true;
     await expect(
-      createTauriBackend().setWindowIcon(new Array(256 * 256 * 4).fill(0)),
+      createTauriBackend().setWindowIcon(new Array(256 * 256 * 4).fill(0), true),
     ).rejects.toThrow("Taskbar failure");
     expect(calls.at(-1)).toBe("close image");
     calls.length = 0;
-    await expect(createTauriBackend().setWindowIcon([0])).rejects.toThrow(
+    await expect(createTauriBackend().setWindowIcon([0], true)).rejects.toThrow(
       "Invalid window icon size",
     );
     expect(calls).toEqual([]);

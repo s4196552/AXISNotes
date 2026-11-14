@@ -488,8 +488,12 @@ export interface Backend {
   createDir(path: string): Promise<VaultEntry>;
   /** Show a native picker for one image file; resolves null if cancelled. */
   pickImage(): Promise<string | null>;
-  /** Set the main window/taskbar icon from exactly 256×256 RGBA pixels. */
-  setWindowIcon(rgba: number[]): Promise<void>;
+  /**
+   * Set the main window/taskbar icon from exactly 256×256 RGBA pixels. `branded` is false
+   * for the original AXIS logo; a custom logo also gives the window its own taskbar identity
+   * on Windows, so the taskbar shows it instead of the installed shortcut's icon.
+   */
+  setWindowIcon(rgba: number[], branded: boolean): Promise<void>;
   /**
    * Copy the image at `source` (a path on disk) into the vault folder `folder` under a
    * free name (`photo 1.png` if `photo.png` exists). Images only, up to 25 MB.

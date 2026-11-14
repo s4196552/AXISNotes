@@ -75,12 +75,12 @@ export function createTauriBackend(): Backend {
       return typeof picked === "string" ? picked : null;
     },
     importFont: (source) => invoke("import_font", { source }),
-    async setWindowIcon(rgba) {
+    async setWindowIcon(rgba, branded) {
       if (rgba.length !== 256 * 256 * 4) throw new Error("Invalid window icon size.");
       const image = await Image.new(rgba, 256, 256);
       try {
         await getCurrentWindow().setIcon(image);
-        await invoke("set_taskbar_icon", { rgba });
+        await invoke("set_taskbar_icon", { rgba, branded });
       } finally {
         await image.close();
       }
