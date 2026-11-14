@@ -53,6 +53,7 @@ import { About } from "./About";
 import { PacksSettings } from "../packs/PacksSettings";
 import { Field, type SectionProps } from "./parts";
 import { Typography } from "./Typography";
+import { EasyOnTheEyes } from "./EasyOnTheEyes";
 import "./settings.css";
 
 export type Section =
@@ -469,6 +470,7 @@ function Appearance({ config, set }: SectionProps) {
         onChange={(theme) => set((c) => ({ ...c, theme }))}
       />
       {config.theme === "axis:translucent" && <Translucency a={a} setA={setA} />}
+      <EasyOnTheEyes config={config} set={set} />
       <Field
         label="Zoom"
         hint="Everything gets bigger or smaller. Also Ctrl + = / Ctrl + − / Ctrl + 0. Ctrl + mouse wheel zooms only the part of the window under the pointer (a side panel, the tabs or the main view); Ctrl + 0 resets those too."

@@ -81,6 +81,9 @@ export interface AxisConfig {
     lineHeight: number;
     /** Bold the start of each word where notes are shown rendered (the file is unchanged). */
     bionicReading: boolean;
+    /** A warm filter over the window, and its strength in percent. */
+    nightLight: boolean;
+    nightLightStrength: number;
     editorWidth: EditorWidth;
     foldArrow: FoldArrow;
     headingColors: HeadingColors;
@@ -162,6 +165,8 @@ export const DEFAULT_CONFIG: AxisConfig = {
     letterSpacing: 0,
     lineHeight: 1.5,
     bionicReading: false,
+    nightLight: false,
+    nightLightStrength: 35,
     editorWidth: "medium",
     foldArrow: "triangle",
     headingColors: "theme",
@@ -230,7 +235,8 @@ export function migrateWindowEffect(raw: unknown): unknown {
 export const REMOVED_THEMES: ReadonlyMap<string, string> = new Map([
   ["axis:minimal", "light"],
   ["axis:retro", "light"],
-  ["axis:contrast", "dark"],
+  // The old Contrast theme became High contrast dark (T-249).
+  ["axis:contrast", "axis:hc-dark"],
   ["axis:glass", "system"],
 ]);
 

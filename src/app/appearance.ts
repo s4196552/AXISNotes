@@ -22,6 +22,9 @@ export const BUILTIN_THEMES = [
   "dark",
   "axis:darker",
   "axis:translucent",
+  "axis:hc-dark",
+  "axis:hc-light",
+  "axis:eink",
 ] as const;
 export type BuiltinTheme = (typeof BUILTIN_THEMES)[number];
 
@@ -39,7 +42,45 @@ export const THEME_INFO: Record<
     note: "See your desktop through it; opacity is yours",
     mode: "system",
   },
+  "axis:hc-dark": {
+    label: "High contrast dark",
+    note: "White on black with bright outlines",
+    mode: "dark",
+  },
+  "axis:hc-light": {
+    label: "High contrast light",
+    note: "Dark on white with strong outlines",
+    mode: "light",
+  },
+  "axis:eink": {
+    label: "E-ink",
+    note: "Greyscale paper and ink; nothing moves",
+    mode: "light",
+  },
 };
+
+/** Night light strength, in percent (Settings → Appearance → Easy on the eyes). */
+export const NIGHT_LIGHT = { min: 10, max: 80, step: 5 };
+const NIGHT_LIGHT_ID = "axis-night-light";
+
+/** The warm filter over the window, or none. `strength` is a percentage. */
+export function applyNightLight(on: boolean, strength: number) {
+  let el = document.getElementById(NIGHT_LIGHT_ID);
+  if (!on) {
+    el?.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("div");
+    el.id = NIGHT_LIGHT_ID;
+    el.setAttribute("aria-hidden", "true");
+    document.body.appendChild(el);
+  }
+  const pct = Number.isFinite(strength)
+    ? Math.min(NIGHT_LIGHT.max, Math.max(NIGHT_LIGHT.min, strength))
+    : 35;
+  el.style.setProperty("--night-light", String(pct / 100));
+}
 
 export function isBuiltinTheme(theme: string): theme is BuiltinTheme {
   return (BUILTIN_THEMES as readonly string[]).includes(theme);
