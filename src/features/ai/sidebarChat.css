@@ -16,7 +16,7 @@
 }
 .sidebar-chat-log {
   flex: 1;
-  min-height: 120px;
+  min-height: 0;
   overflow: auto;
   padding: 8px 12px;
   overflow-wrap: anywhere;
@@ -122,6 +122,25 @@
   font: 12px/1.55 var(--font-mono);
   margin: 6px 0;
   user-select: text;
+}
+.sidebar-chat-answer-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 6px 0;
+}
+.sidebar-chat-answer-actions button {
+  font-size: 11px;
+}
+.sidebar-chat-turn .answer-text {
+  user-select: text;
+}
+.sidebar-chat-html {
+  width: 100%;
+  height: 420px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
 }
 .sidebar-chat-toolbar .ai-model-picker {
   position: static;

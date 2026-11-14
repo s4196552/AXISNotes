@@ -79,6 +79,7 @@ import { ancestorsOf, useRevealRequest } from "./reveal";
 import { useSkills } from "../skills/skills";
 import { skillIcon } from "../skills/skillIcons";
 import { runSkillOnPicked, skillsForPicked } from "../skills/skillOnFiles";
+import { sendFilesToSidebar } from "../ai/sidebarChatState";
 import { clipFor, itemsLabel, useTreeClipboard } from "./clipboard";
 import {
   batch,
@@ -1037,6 +1038,12 @@ export function FileTree() {
         >
           {many ? (
             <>
+              <MenuItem
+                label="Send selected notes to AI chat"
+                icon={Sparkles}
+                onClick={() => void sendFilesToSidebar(many)}
+                close={setMenu}
+              />
               <SkillItems paths={many} close={setMenu} />
               <MenuItem
                 label={`Copy ${many.length} items`}
@@ -1098,6 +1105,14 @@ export function FileTree() {
               )}
               {menu.entry && (
                 <>
+                  {(menu.entry.kind === "dir" || isNotePath(menu.entry.path)) && (
+                    <MenuItem
+                      label="Send to AI chat"
+                      icon={Sparkles}
+                      onClick={() => void sendFilesToSidebar([menu.entry!.path])}
+                      close={setMenu}
+                    />
+                  )}
                   {(menu.entry.kind === "dir" || isNotePath(menu.entry.path)) && (
                     <MenuItem
                       label={

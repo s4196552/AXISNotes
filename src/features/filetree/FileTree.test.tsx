@@ -9,6 +9,7 @@ import { FileTree } from "./FileTree";
 import { RowColorsDialog } from "./RowColors";
 import { rowColors } from "./rowColorsModel";
 import { useTreeClipboard } from "./clipboard";
+import { useSidebarChat } from "../ai/sidebarChatState";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -67,6 +68,21 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("FileTree", () => {
+  it("sends a right-clicked note to the right AI chat without opening a modal or generating", async () => {
+    await setup({ "Bio.md": "# Biology\nCells make ATP." });
+    useUi.setState({ modal: null });
+    useSidebarChat.setState({ open: false, context: null });
+    fireEvent.contextMenu(row("Bio"), { clientX: 20, clientY: 20 });
+    expect(screen.getByRole("menuitem", { name: "Ask AI about this note" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Send to AI chat" }));
+    await waitFor(() => expect(useSidebarChat.getState().open).toBe(true));
+    expect(useSidebarChat.getState().context).toMatchObject({
+      sources: ["Bio.md"],
+      text: "# Biology\nCells make ATP.",
+    });
+    expect(useAppStore.getState().activePath).toBeNull();
+    expect(useUi.getState().modal).toBeNull();
+  });
   it("renders nested folders collapsed, notes without .md, other files dimmed", async () => {
     await setup({ "School/Bio.md": "", "School/Math/Calc.md": "", "Ideas.md": "", "doc.pdf": "" });
     expect(row("School")).toHaveAttribute("aria-expanded", "false");

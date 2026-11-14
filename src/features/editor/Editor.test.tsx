@@ -5,6 +5,7 @@ import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend
 import { useAppStore } from "../../app/store";
 import { AUTOSAVE_DELAY_MS, Editor } from "./Editor";
 import { commandMenuAnchor } from "./quickCommands";
+import { PaneContext } from "../../app/paneContext";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -29,6 +30,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   h.b = createMemoryBackend({ "Note.md": "# Title\n\nHello **world**" });
   useAppStore.setState({
+    vault: null,
     error: null,
     activePath: "Note.md",
     pendingTarget: null,
@@ -50,6 +52,33 @@ const type = (view: EditorView, text: string) =>
   act(() => view.dispatch({ changes: { from: view.state.doc.length, insert: text } }));
 
 describe("Editor", () => {
+  it("keeps cursor positions separate for the same note path in other panes and vaults", async () => {
+    useAppStore.setState({ vault: { root: "/position-one", name: "One" } });
+    const mount = async (pane: string) => {
+      const result = render(
+        <PaneContext.Provider value={{ id: pane, focused: true }}>
+          <Editor path="Note.md" />
+        </PaneContext.Provider>,
+      );
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Saved"));
+      const view = EditorView.findFromDOM(
+        result.container.querySelector(".cm-editor") as HTMLElement,
+      )!;
+      return { ...result, view };
+    };
+    const first = await mount("first");
+    act(() => first.view.dispatch({ selection: { anchor: 18 } }));
+    first.unmount();
+    const second = await mount("second");
+    expect(second.view.state.selection.main.head).not.toBe(18);
+    second.unmount();
+    const again = await mount("first");
+    expect(again.view.state.selection.main.head).toBe(18);
+    again.unmount();
+    useAppStore.setState({ vault: { root: "/position-two", name: "Two" } });
+    const other = await mount("first");
+    expect(other.view.state.selection.main.head).not.toBe(18);
+  });
   it("loads the note and shows its title", async () => {
     const { view } = await open();
     expect(view.state.doc.toString()).toBe("# Title\n\nHello **world**");

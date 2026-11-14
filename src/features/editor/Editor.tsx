@@ -114,17 +114,22 @@ export const AUTOSAVE_DELAY_MS = 500;
  */
 const viewStates = new Map<
   string,
-  { anchor: number; head: number; scrollTop: number; folds: FoldRange[] }
+  {
+    anchor: number;
+    head: number;
+    scroll: ReturnType<EditorView["scrollSnapshot"]>;
+    folds: FoldRange[];
+  }
 >();
 const VIEW_STATE_LIMIT = 200;
 
-function rememberViewState(path: string, view: EditorView) {
+function rememberViewState(key: string, view: EditorView) {
   const { anchor, head } = view.state.selection.main;
-  viewStates.delete(path); // re-insert as the newest
-  viewStates.set(path, {
+  viewStates.delete(key); // re-insert as the newest
+  viewStates.set(key, {
     anchor,
     head,
-    scrollTop: view.scrollDOM.scrollTop,
+    scroll: view.scrollSnapshot(),
     folds: viewFolds(view.state),
   });
   if (viewStates.size > VIEW_STATE_LIMIT) viewStates.delete(viewStates.keys().next().value!);
@@ -175,7 +180,9 @@ export function Editor({ path }: EditorProps) {
 
   const [status, setStatus] = useState<SaveStatus>("loading");
   // With split panes, only the focused pane's note takes commands and shows its counts.
-  const { focused } = usePane();
+  const { focused, id: paneId } = usePane();
+  const vaultRoot = useAppStore((s) => s.vault?.root);
+  const viewKey = JSON.stringify([vaultRoot ?? "", paneId, path]);
   const focusedRef = useRef(focused);
   useLayoutEffect(() => {
     focusedRef.current = focused;
@@ -332,9 +339,9 @@ export function Editor({ path }: EditorProps) {
   // passive cleanup sees the clamped/reset offset after that layout has gone away.
   useLayoutEffect(
     () => () => {
-      if (view.current) rememberViewState(path, view.current);
+      if (view.current) rememberViewState(viewKey, view.current);
     },
-    [path],
+    [viewKey],
   );
 
   // Create the editor once the note has loaded.
@@ -351,7 +358,7 @@ export function Editor({ path }: EditorProps) {
         const store = useAppStore.getState;
         // Back where it was, unless a link asked for a heading/block/line.
         const pending = store().pendingTarget?.path === path;
-        const saved = pending ? undefined : viewStates.get(path);
+        const saved = pending ? undefined : viewStates.get(viewKey);
         const len = file.content.length;
         const daily = dailyDateOf(path);
         const initial = EditorState.create({
@@ -467,6 +474,7 @@ export function Editor({ path }: EditorProps) {
         created = new EditorView({
           parent: host.current,
           state: start === head ? initial : initial.update({ selection: { anchor: start } }).state,
+          scrollTo: saved?.scroll,
         });
         if (saved?.folds.length)
           created.dispatch({ effects: restoreFolds(created.state, saved.folds) });
@@ -483,13 +491,6 @@ export function Editor({ path }: EditorProps) {
           titleRef.current.focus();
           titleRef.current.select();
         } else if (want) created.focus();
-        if (saved) {
-          const v = created;
-          v.requestMeasure({
-            read: () => {},
-            write: () => (v.scrollDOM.scrollTop = saved.scrollTop),
-          });
-        }
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -522,7 +523,7 @@ export function Editor({ path }: EditorProps) {
       view.current = null;
       clearActiveEditor(created);
     };
-  }, [path, save, scheduleSave, syncProps, scheduleCount, countNow, pageTopHost]);
+  }, [path, viewKey, save, scheduleSave, syncProps, scheduleCount, countNow, pageTopHost]);
 
   // The focused pane's note is the one commands edit.
   useEffect(() => {
