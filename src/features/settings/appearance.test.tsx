@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import {
+  applyCursor,
   applyTypography,
   FOLD_ARROWS,
   foldArrowVars,
@@ -356,6 +357,7 @@ describe("settings sections", () => {
     expect(tabsOf("Appearance")).toEqual([
       "Theme & layout",
       "Typography",
+      "Cursor",
       "Colours",
       "Icon & image packs",
     ]);
@@ -386,5 +388,45 @@ describe("settings sections", () => {
     expect(providers).toHaveFocus();
     fireEvent.keyDown(providers, { key: "ArrowLeft" });
     expect(screen.getByRole("tab", { name: "Claude" })).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+describe("text cursor (T-250)", () => {
+  it("applies shape, thickness, colour and blinking to the document", () => {
+    const root = document.documentElement;
+    applyCursor({ shape: "underline", width: 4, color: "#ff8800", blink: false });
+    expect(root.style.getPropertyValue("--caret-width")).toBe("4px");
+    expect(root.style.getPropertyValue("--caret-color")).toBe("#ff8800");
+    expect(root.dataset.caretShape).toBe("underline");
+    expect(root.dataset.caretBlink).toBe("off");
+    // Out-of-range or hand-edited values fall back safely.
+    applyCursor({ shape: "zigzag" as never, width: 99, color: "red; x: y", blink: true });
+    expect(root.style.getPropertyValue("--caret-width")).toBe("8px");
+    expect(root.style.getPropertyValue("--caret-color")).toBe("");
+    expect(root.dataset.caretShape).toBeUndefined();
+    expect(root.dataset.caretBlink).toBeUndefined();
+    applyCursor(DEFAULT_CONFIG.appearance.cursor);
+    expect(root.style.getPropertyValue("--caret-width")).toBe("");
+  });
+
+  it("is set on Appearance → Cursor and saved in the vault's config", async () => {
+    render(<Settings section="cursor" onClose={vi.fn()} />);
+    expect(screen.getByRole("tab", { name: "Cursor" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("radio", { name: "Block" }));
+    expect(screen.getByRole("slider", { name: "Cursor thickness" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: "Bar" }));
+    fireEvent.change(screen.getByRole("slider", { name: "Cursor thickness" }), {
+      target: { value: "3" },
+    });
+    expect(screen.getByText("3 px")).toBeInTheDocument();
+    fireEvent.input(screen.getByLabelText("Cursor colour"), { target: { value: "#00aa55" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Cursor blinks" }));
+    await waitFor(async () =>
+      expect(
+        JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).appearance.cursor,
+      ).toEqual({ shape: "bar", width: 3, color: "#00aa55", blink: false }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Use theme accent" }));
+    expect(useConfig.getState().config.appearance.cursor.color).toBe("");
   });
 });

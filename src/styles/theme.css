@@ -132,6 +132,11 @@
   color-scheme: light;
 }
 
+/* Text boxes use the cursor colour from Settings → Appearance → Cursor. */
+:root {
+  caret-color: var(--caret-color, auto);
+}
+
 /* Scrollbars in the theme's colors, thin. */
 * {
   scrollbar-width: thin;

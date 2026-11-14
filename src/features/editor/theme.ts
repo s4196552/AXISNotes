@@ -22,9 +22,13 @@ const editorTheme = EditorView.theme({
     maxWidth: "var(--editor-width)",
     margin: "0 auto",
     padding: "8px 24px 40vh",
-    caretColor: "var(--accent)",
+    caretColor: "var(--caret-color, var(--accent))",
   },
-  ".cm-cursor": { borderLeftColor: "var(--accent)" },
+  // Settings → Appearance → Cursor sets these (and the shape/blink rules in editor.css).
+  ".cm-cursor": {
+    borderLeftColor: "var(--caret-color, var(--accent))",
+    borderLeftWidth: "var(--caret-width, 1.2px)",
+  },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
     backgroundColor: "var(--selection)",
   },

@@ -9,6 +9,7 @@ import {
   applyTranslucency,
   applyTypography,
   applyNightLight,
+  applyCursor,
   onTransparencyEffectsChange,
 } from "./app/appearance";
 import { applyAppColors } from "./app/appColors";
@@ -128,6 +129,7 @@ export default function App() {
     return applyWindowLogo(typography.logo, (message) => useAppStore.getState().notify(message));
   }, [typography.logo, vault?.root, configLoaded]);
   useEffect(() => applyTypography(typography), [typography]);
+  useEffect(() => applyCursor(typography.cursor), [typography.cursor]);
   const { nightLight, nightLightStrength } = typography;
   useEffect(
     () => applyNightLight(nightLight, nightLightStrength),
