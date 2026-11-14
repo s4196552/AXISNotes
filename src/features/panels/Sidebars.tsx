@@ -21,6 +21,7 @@ import { backend } from "../../ipc";
 import { useConfig } from "../../app/config";
 import { useLayout } from "../../app/layout";
 import { HubView } from "../hub";
+import { Ribbon } from "../ribbon/Ribbon";
 import { useUi } from "../commands/ui";
 import { type LeftPanel, useAppStore } from "../../app/store";
 import { Calendar } from "../daily/Calendar";
@@ -94,50 +95,57 @@ export function LeftSidebar() {
   const hubEnabled = useConfig((s) => s.config.hubEnabled);
   const panel = selected === "hub" && !hubEnabled ? "files" : selected;
   const setPanel = useAppStore((s) => s.setLeftPanel);
+  const ribbon = useConfig((s) => s.config.ribbon.enabled);
   return (
-    <aside className="sidebar" aria-label="Navigation">
-      <header className="sidebar-header" title={vault?.root} data-tauri-drag-region>
-        <VaultMenu />
-        <PanelToggle side="left" className="sidebar-settings" />
-        <button
-          className="sidebar-settings"
-          aria-label="Settings"
-          title="Settings (Ctrl+,)"
-          onClick={() => useUi.getState().open({ kind: "settings" })}
-        >
-          <SettingsIcon size={15} />
-        </button>
-      </header>
-      {/* Panel tabs on the left; buttons that open a view in a tab after a divider. */}
-      <div className="sidebar-tabs">
-        <div className="sidebar-seg" role="tablist" aria-label="Sidebar panels">
-          {TABS.filter(({ id }) => id !== "hub" || hubEnabled).map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={panel === id}
-              aria-label={label}
-              title={label}
-              className={panel === id ? "active" : undefined}
-              onClick={() => setPanel(id)}
-            >
-              <Icon size={15} />
-            </button>
-          ))}
+    <aside className={ribbon ? "sidebar with-ribbon" : "sidebar"} aria-label="Navigation">
+      {ribbon && <Ribbon />}
+      <div className="sidebar-main">
+        <header className="sidebar-header" title={vault?.root} data-tauri-drag-region>
+          <VaultMenu />
+          <PanelToggle side="left" className="sidebar-settings" />
+          <button
+            className="sidebar-settings"
+            aria-label="Settings"
+            title="Settings (Ctrl+,)"
+            onClick={() => useUi.getState().open({ kind: "settings" })}
+          >
+            <SettingsIcon size={15} />
+          </button>
+        </header>
+        {/* Panel tabs on the left; buttons that open a view in a tab after a divider. */}
+        <div className="sidebar-tabs">
+          <div className="sidebar-seg" role="tablist" aria-label="Sidebar panels">
+            {TABS.filter(({ id }) => id !== "hub" || hubEnabled).map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={panel === id}
+                aria-label={label}
+                title={label}
+                className={panel === id ? "active" : undefined}
+                onClick={() => setPanel(id)}
+              >
+                <Icon size={15} />
+              </button>
+            ))}
+          </div>
+          {/* With the ribbon on, these are its buttons instead. */}
+          {!ribbon && (
+            <div className="sidebar-views" role="toolbar" aria-label="Open a view">
+              {VIEWS.map(({ label, title, Icon, open }) => (
+                <button key={label} aria-label={label} title={title} onClick={open}>
+                  <Icon size={15} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        <div className="sidebar-views" role="toolbar" aria-label="Open a view">
-          {VIEWS.map(({ label, title, Icon, open }) => (
-            <button key={label} aria-label={label} title={title} onClick={open}>
-              <Icon size={15} />
-            </button>
-          ))}
+        <div className="sidebar-body" role="tabpanel">
+          {panel === "files" && <FileTree />}
+          {panel === "search" && <SearchPanel />}
+          {panel === "tags" && <TagsPanel />}
+          {panel === "hub" && <SidebarHub />}
         </div>
-      </div>
-      <div className="sidebar-body" role="tabpanel">
-        {panel === "files" && <FileTree />}
-        {panel === "search" && <SearchPanel />}
-        {panel === "tags" && <TagsPanel />}
-        {panel === "hub" && <SidebarHub />}
       </div>
       <PanelResizer side="left" />
     </aside>

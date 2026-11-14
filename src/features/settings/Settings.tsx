@@ -9,6 +9,7 @@ import {
   LayoutTemplate,
   type LucideIcon,
   Paintbrush,
+  PanelLeftDashed,
   Palette,
   Paperclip,
   Plus,
@@ -55,6 +56,7 @@ import { PacksSettings } from "../packs/PacksSettings";
 import { Field, type SectionProps } from "./parts";
 import { Typography } from "./Typography";
 import { CursorSettings } from "./CursorSettings";
+import { RibbonSettings } from "./RibbonSettings";
 import { EasyOnTheEyes } from "./EasyOnTheEyes";
 import "./settings.css";
 
@@ -62,6 +64,7 @@ export type Section =
   | "appearance"
   | "typography"
   | "cursor"
+  | "ribbon"
   | "colours"
   | "packs"
   | "spelling"
@@ -82,6 +85,7 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "typography", label: "Typography", icon: Type },
   { id: "cursor", label: "Cursor", icon: TextCursor },
+  { id: "ribbon", label: "Ribbon", icon: PanelLeftDashed },
   { id: "colours", label: "Colours", icon: Paintbrush },
   { id: "packs", label: "Icon & image packs", icon: Images },
   { id: "spelling", label: "Spelling", icon: SpellCheck },
@@ -108,7 +112,7 @@ const PAGES: { label: string; icon: LucideIcon; parts: Section[] }[] = [
   {
     label: "Appearance",
     icon: Palette,
-    parts: ["appearance", "typography", "cursor", "colours", "packs"],
+    parts: ["appearance", "typography", "cursor", "ribbon", "colours", "packs"],
   },
   { label: "Spelling", icon: SpellCheck, parts: ["spelling"] },
   { label: "Home & daily notes", icon: CalendarDays, parts: ["daily"] },
@@ -152,6 +156,8 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
         return <Typography config={config} set={set} />;
       case "cursor":
         return <CursorSettings config={config} set={set} />;
+      case "ribbon":
+        return <RibbonSettings config={config} set={set} />;
       case "colours":
         return <Colours config={config} set={set} />;
       case "packs":
