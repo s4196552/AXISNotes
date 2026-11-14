@@ -91,8 +91,37 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "about", label: "About", icon: Info },
 ];
 
+/**
+ * What the sidebar lists: one page per topic. Related sections share a page and switch
+ * with tabs (Appearance, Colours and packs; commands and shortcuts; AI, Agent and Claude).
+ * Sections keep their own ids, so links to a section (`section="claude"`) still land on it.
+ */
+const PAGES: { label: string; icon: LucideIcon; parts: Section[] }[] = [
+  { label: "Appearance", icon: Palette, parts: ["appearance", "colours", "packs"] },
+  { label: "Spelling", icon: SpellCheck, parts: ["spelling"] },
+  { label: "Home & daily notes", icon: CalendarDays, parts: ["daily"] },
+  { label: "Templates", icon: LayoutTemplate, parts: ["templates"] },
+  { label: "Files & links", icon: Paperclip, parts: ["files"] },
+  { label: "Commands & shortcuts", icon: SquareSlash, parts: ["commands", "hotkeys"] },
+  { label: "AI", icon: Sparkles, parts: ["ai", "agent", "claude"] },
+  { label: "Web clipper", icon: Scissors, parts: ["clipper"] },
+  { label: "Plugins", icon: Puzzle, parts: ["plugins"] },
+  { label: "Updates", icon: RefreshCw, parts: ["updates"] },
+  { label: "About", icon: Info, parts: ["about"] },
+];
+
+/** A section's name as a tab on its page, where the page's own name would repeat it. */
+const TAB_LABELS: Partial<Record<Section, string>> = {
+  appearance: "Theme & layout",
+  ai: "Providers & models",
+};
+
+const pageOf = (section: Section) => PAGES.find((p) => p.parts.includes(section))!;
+const sectionLabel = (id: Section) => SECTIONS.find((s) => s.id === id)!.label;
+
 export function Settings({ onClose, section: initial }: { onClose(): void; section?: Section }) {
   const [section, setSection] = useState<Section>(initial ?? "appearance");
+  const page = pageOf(section);
   const [query, setQuery] = useState("");
   const searching = query.trim() !== "";
   const config = useConfig((s) => s.config);
@@ -174,20 +203,20 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
               }
             }}
           />
-          {SECTIONS.map((s) => (
+          {PAGES.map((p) => (
             <button
-              key={s.id}
-              aria-current={!searching && section === s.id ? "page" : undefined}
-              onClick={() => open(s.id)}
+              key={p.label}
+              aria-current={!searching && page === p ? "page" : undefined}
+              onClick={() => open(p.parts[0]!)}
             >
-              <s.icon size={16} aria-hidden="true" />
-              {s.label}
+              <p.icon size={16} aria-hidden="true" />
+              {p.label}
             </button>
           ))}
         </nav>
         <div className="settings-body">
           <header className="settings-header">
-            <h2>{searching ? "Search results" : SECTIONS.find((s) => s.id === section)!.label}</h2>
+            <h2>{searching ? "Search results" : page.label}</h2>
             <button aria-label="Close settings" onClick={onClose}>
               <X size={16} />
             </button>
@@ -195,7 +224,49 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
           {searching ? (
             <SearchResults query={query} render={render} open={open} />
           ) : (
-            render(section)
+            <>
+              {page.parts.length > 1 && (
+                <div
+                  className="settings-subtabs"
+                  role="tablist"
+                  aria-label={page.label}
+                  onKeyDown={(e) => {
+                    // Arrow keys move between the tabs, as in any tab list.
+                    const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+                    if (!step) return;
+                    e.preventDefault();
+                    const at = page.parts.indexOf(section);
+                    const next = page.parts[(at + step + page.parts.length) % page.parts.length]!;
+                    setSection(next);
+                    document.getElementById(`settings-tab-${next}`)?.focus();
+                  }}
+                >
+                  {page.parts.map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      id={`settings-tab-${id}`}
+                      aria-selected={section === id}
+                      // Tab reaches the chosen tab; arrows move between them.
+                      tabIndex={section === id ? 0 : -1}
+                      aria-controls="settings-tabpanel"
+                      onClick={() => setSection(id)}
+                    >
+                      {TAB_LABELS[id] ?? sectionLabel(id)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div
+                id="settings-tabpanel"
+                {...(page.parts.length > 1
+                  ? { role: "tabpanel", "aria-labelledby": `settings-tab-${section}` }
+                  : {})}
+              >
+                {render(section)}
+              </div>
+            </>
           )}
         </div>
       </div>

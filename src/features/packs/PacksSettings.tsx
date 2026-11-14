@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import type { Pack } from "../../ipc";
 import { AddPack, PackImage } from "./PackParts";
 import { packCount, TEXT_COLOR, usePacks } from "./packs";
-import { LogoSettings } from "./LogoSettings";
 
-/** Settings → Icon & image packs: what's in the vault, adding and removing packs. */
+/**
+ * Settings → Appearance → Icon & image packs: what's in the vault, adding and removing
+ * packs. (The app logo is on the Theme & layout tab of the same page.)
+ */
 export function PacksSettings() {
   const { packs, loaded, error, load } = usePacks();
   useEffect(() => {
@@ -13,7 +15,6 @@ export function PacksSettings() {
 
   return (
     <>
-      <LogoSettings />
       <p className="settings-hint">
         Packs are kept in this vault (in its hidden <code>.axisnotes/packs</code> folder), so they
         go wherever the vault goes. Icon packs appear under Packs in the icon picker; image packs in

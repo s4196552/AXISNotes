@@ -47,6 +47,34 @@
   border: none;
   background: transparent;
 }
+/* Tabs for the sections that share a page (Appearance · Colours · Icon & image packs). */
+.settings-subtabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0 0 8px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-sidebar);
+}
+.settings-subtabs button {
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--radius, 7px);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 13px;
+  font-weight: 560;
+}
+.settings-subtabs button:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+.settings-subtabs button[aria-selected="true"] {
+  color: var(--accent);
+  background: var(--bg-active);
+}
 .settings-field {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);

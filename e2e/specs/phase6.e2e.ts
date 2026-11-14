@@ -60,11 +60,13 @@ async function command(label: string) {
   await browser.keys(Key.Enter);
 }
 
-async function openSettings(section: string) {
+/** Open Settings at a page, and at one of its tabs when the page has several. */
+async function openSettings(page: string, tab?: string) {
   await command("Open settings");
   const dialog = $('[role="dialog"][aria-label="Settings"]');
   await dialog.waitForDisplayed();
-  await dialog.$("nav").$(`button=${section}`).click();
+  await dialog.$("nav").$(`button=${page}`).click();
+  if (tab) await dialog.$('[role="tablist"]').$(`button=${tab}`).click();
   return dialog;
 }
 
@@ -230,7 +232,7 @@ describe("Phase 6: web clipper, import and polish on the real app", () => {
   });
 
   it("remaps a keyboard shortcut and uses it", async () => {
-    const dialog = await openSettings("Keyboard shortcuts");
+    const dialog = await openSettings("Commands & shortcuts", "Keyboard shortcuts");
     await dialog.$('input[aria-label="Filter commands"]').setValue("Open settings");
     await dialog.$('button[aria-label="Shortcut for Open settings"]').click();
     await browser.keys([Key.Ctrl, Key.Shift, "y"]);

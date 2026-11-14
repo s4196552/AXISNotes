@@ -10,8 +10,7 @@
   --stroke: var(--border, #333d37);
   --muted: var(--fg-muted, #a2afa6);
   --quiet: var(--fg-muted, #849289);
-  --accent-ink: white;
-  --danger: var(--danger-fg, #c95851);
+  --accent-ink: var(--accent-fg, #fff);
   --cell: color-mix(in srgb, var(--fg) 4%, var(--surface));
   --cell-stroke: color-mix(in srgb, var(--fg) 9%, transparent);
   --icon-bg: color-mix(in srgb, var(--fg) 8%, var(--surface));
@@ -344,9 +343,9 @@ select option {
   place-items: center;
   height: 40px;
   border-radius: 9px;
-  border: 1px solid #415647;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--stroke));
   color: var(--accent);
-  background: #29392d;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   font-size: 18px;
 }
 .plugin-info {
@@ -837,7 +836,7 @@ button.app-tile:active {
   align-content: center;
   min-height: 283px;
   padding: 32px 22px;
-  border: 1px dashed #48574b;
+  border: 1px dashed var(--stroke);
   border-radius: 18px;
   text-align: center;
   background: var(--surface-raised);
@@ -848,8 +847,8 @@ button.app-tile:active {
   width: 52px;
   height: 52px;
   margin-bottom: 15px;
-  background: #29392d;
-  border: 1px solid #415647;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--stroke));
   border-radius: 13px;
   color: var(--accent);
   font-size: 25px;
@@ -877,14 +876,14 @@ button.app-tile:active {
   width: min(540px, calc(100vw - 26px));
   max-height: min(82vh, 760px);
   padding: 0;
-  border: 1px solid #4b5a4d;
+  border: 1px solid var(--stroke);
   border-radius: 17px;
   color: inherit;
   background: var(--surface);
-  box-shadow: 0 26px 85px #000a;
+  box-shadow: var(--shadow-modal, 0 26px 85px #000a);
 }
 #dialog::backdrop {
-  background: #070a08b8;
+  background: var(--scrim, #070a08b8);
   backdrop-filter: blur(3px);
 }
 .dialog-panel {
@@ -948,7 +947,7 @@ label.form-field,
   border: 1px solid var(--stroke);
   border-radius: 8px;
   background: var(--surface);
-  color: #eef1ed;
+  color: var(--fg);
   font-weight: 450;
 }
 #dialog input[type="color"] {
@@ -970,10 +969,10 @@ label.form-field,
 #dialog .dialog-error {
   margin: 0 0 12px;
   padding: 9px 10px;
-  border: 1px solid #8b504c;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--stroke));
   border-radius: 8px;
   color: var(--danger);
-  background: #472c2a;
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
   overflow-wrap: anywhere;
 }
 .dialog-actions {
@@ -1006,7 +1005,7 @@ label.form-field,
 }
 .app-result:hover,
 .app-result:has(input:checked) {
-  border-color: #688369;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--stroke));
   background: var(--surface-raised);
 }
 .app-result:focus-within {
@@ -1051,11 +1050,11 @@ label.form-field,
   z-index: 2;
   max-width: min(440px, calc(100vw - 40px));
   padding: 11px 14px;
-  border: 1px solid #60775e;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--stroke));
   border-radius: 11px;
-  color: #e5f4e4;
-  background: #26372a;
-  box-shadow: 0 5px 25px #0006;
+  color: var(--fg);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop, 0 5px 25px #0006);
   overflow-wrap: anywhere;
 }
 #notice:empty {
@@ -1066,9 +1065,9 @@ label.form-field,
   clip-path: inset(50%);
 }
 #notice[data-error="true"] {
-  color: #ffe6e3;
-  background: #472c2a;
-  border-color: #8b504c;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--stroke));
 }
 
 @container hub (max-width: 420px) {

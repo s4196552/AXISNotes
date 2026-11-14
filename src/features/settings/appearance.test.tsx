@@ -290,7 +290,7 @@ describe("settings sections", () => {
     render(<Settings onClose={vi.fn()} />);
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
     const buttons = nav.querySelectorAll("button");
-    expect(buttons.length).toBe(16);
+    expect(buttons.length).toBe(11);
     for (const b of buttons) {
       expect(b.querySelector("svg[aria-hidden='true']")).not.toBeNull();
       expect(b.textContent).not.toBe("");
@@ -299,5 +299,44 @@ describe("settings sections", () => {
       "aria-current",
       "page",
     );
+  });
+
+  it("groups related sections on one page, with tabs between them", () => {
+    render(<Settings onClose={vi.fn()} />);
+    const nav = screen.getByRole("navigation", { name: "Settings sections" });
+    const tabsOf = (page: string) => {
+      fireEvent.click(within(nav).getByRole("button", { name: page }));
+      return within(screen.getByRole("tablist", { name: page }))
+        .getAllByRole("tab")
+        .map((t) => t.textContent);
+    };
+    expect(tabsOf("Appearance")).toEqual(["Theme & layout", "Colours", "Icon & image packs"]);
+    expect(tabsOf("Commands & shortcuts")).toEqual(["Quick commands", "Keyboard shortcuts"]);
+    expect(tabsOf("AI")).toEqual(["Providers & models", "Agent", "Claude"]);
+    // A page with one section has no tabs.
+    fireEvent.click(within(nav).getByRole("button", { name: "Spelling" }));
+    expect(screen.queryByRole("tablist")).toBeNull();
+    for (const gone of ["Colours", "Icon & image packs", "Keyboard shortcuts", "Agent", "Claude"])
+      expect(within(nav).queryByRole("button", { name: gone })).toBeNull();
+  });
+
+  it("opens a grouped section on its page and tab, and moves between tabs with arrows", () => {
+    render(<Settings section="claude" onClose={vi.fn()} />);
+    expect(screen.getByRole("heading", { level: 2, name: "AI" })).toBeInTheDocument();
+    const claude = screen.getByRole("tab", { name: "Claude" });
+    expect(claude).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", claude.id);
+    expect(
+      within(screen.getByRole("navigation", { name: "Settings sections" })).getByRole("button", {
+        name: "AI",
+      }),
+    ).toHaveAttribute("aria-current", "page");
+    // Right from the last tab wraps to the first; left goes back.
+    fireEvent.keyDown(claude, { key: "ArrowRight" });
+    const providers = screen.getByRole("tab", { name: "Providers & models" });
+    expect(providers).toHaveAttribute("aria-selected", "true");
+    expect(providers).toHaveFocus();
+    fireEvent.keyDown(providers, { key: "ArrowLeft" });
+    expect(screen.getByRole("tab", { name: "Claude" })).toHaveAttribute("aria-selected", "true");
   });
 });

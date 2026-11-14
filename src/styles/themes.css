@@ -266,3 +266,25 @@
 :root[data-glass="liquid"] .modal-backdrop {
   background: transparent;
 }
+/* Settings: its sections pane is glass like the sidebars, with capsule rows and tabs. */
+:root[data-glass="liquid"] .settings-nav {
+  border-right-color: transparent;
+  background: var(--lg-pane);
+}
+:root[data-glass="liquid"] :is(.settings-nav button, .settings-search) {
+  border-radius: 999px;
+}
+:root[data-glass="liquid"] .settings-nav button[aria-current="page"],
+:root[data-glass="liquid"] .settings-subtabs button[aria-selected="true"] {
+  color: var(--fg);
+  background: var(--lg-control);
+  box-shadow: var(--lg-control-shadow);
+}
+:root[data-glass="liquid"] .settings-subtabs {
+  border: none;
+  border-radius: 999px;
+  background: var(--lg-well);
+}
+:root[data-glass="liquid"] .settings-subtabs button {
+  border-radius: 999px;
+}

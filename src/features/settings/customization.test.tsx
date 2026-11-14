@@ -202,7 +202,12 @@ describe("settings", () => {
     fireEvent.click(within(dialog).getByRole("checkbox", { name: "Open Home when a vault opens" }));
     await waitFor(() => expect(savedConfig().home.openOnStartup).toBe(false));
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Quick commands" }));
+    // Quick commands is the first tab of Commands & shortcuts.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Commands & shortcuts" }));
+    expect(within(dialog).getByRole("tab", { name: "Quick commands" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     fireEvent.click(within(dialog).getByRole("checkbox", { name: "Table" }));
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Custom command name" }), {
       target: { value: "Signature" },
