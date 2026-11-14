@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useConfig } from "../../app/config";
+import { usePointerDrag } from "../../app/usePointerDrag";
 import { arrange, moveInOrder, type RibbonItem, useRibbonItems } from "./registry";
 import "./builtin";
 import "./ribbon.css";
@@ -25,47 +26,39 @@ export function useRibbon() {
   return { arranged, hidden: config.ribbon.hidden, move };
 }
 
-const DRAG_TYPE = "application/x-axis-ribbon";
-
 /**
- * Drag-and-drop between the items of a list (the ribbon, or its list in Settings): drop
- * before the item under the pointer, or after the last one.
+ * Dragging buttons within a list (the ribbon, or its list in Settings) to reorder them,
+ * with pointer events like the app's other drags (the desktop webview swallows HTML drag
+ * and drop). Items carry `data-ribbon-id`; the drop goes before or after the item under the
+ * pointer, by which half of it the pointer is over.
  */
-export function useRibbonDrag(ids: string[], move: (id: string, before: string | null) => void) {
-  const [over, setOver] = useState<string | null>(null);
-  const dragging = useRef<string | null>(null);
-  const props = (id: string) => ({
-    draggable: true,
-    "data-drop": over === id ? "" : undefined,
-    onDragStart: (e: React.DragEvent) => {
-      dragging.current = id;
-      e.dataTransfer.setData(DRAG_TYPE, id);
-      e.dataTransfer.effectAllowed = "move";
+export function useRibbonDrag(
+  root: React.RefObject<HTMLElement | null>,
+  ids: string[],
+  move: (id: string, before: string | null) => void,
+) {
+  const { press, dragging, target } = usePointerDrag<string, { id: string; after: boolean }>(
+    (x, y, dragged) => {
+      const el = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-ribbon-id]");
+      if (!el || !root.current?.contains(el)) return null;
+      const id = el.dataset.ribbonId!;
+      if (id === dragged) return null;
+      const r = el.getBoundingClientRect();
+      return { id, after: y > r.top + r.height / 2 };
     },
-    onDragOver: (e: React.DragEvent) => {
-      if (!dragging.current) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      setOver(id);
+    (dragged, at) => {
+      const before = at.after ? (ids[ids.indexOf(at.id) + 1] ?? null) : at.id;
+      if (before !== dragged) move(dragged, before);
     },
-    onDragLeave: () => setOver((o) => (o === id ? null : o)),
-    onDrop: (e: React.DragEvent) => {
-      e.preventDefault();
-      const from = dragging.current ?? e.dataTransfer.getData(DRAG_TYPE);
-      setOver(null);
-      dragging.current = null;
-      if (!from || from === id) return;
-      // Dropping on a later item puts the dragged one after it; on an earlier one, before.
-      const a = ids.indexOf(from);
-      const b = ids.indexOf(id);
-      move(from, a < b ? (ids[b + 1] ?? null) : id);
-    },
-    onDragEnd: () => {
-      dragging.current = null;
-      setOver(null);
-    },
+  );
+  /** Props for each item: start a drag on press, and show where it would land. */
+  return (id: string) => ({
+    "data-ribbon-id": id,
+    "data-dragging": dragging === id ? "" : undefined,
+    "data-drop": target?.id === id ? (target.after ? "after" : "before") : undefined,
+    onPointerDown: (e: React.PointerEvent) => press(e, id),
+    onDragStart: (e: React.DragEvent) => e.preventDefault(),
   });
-  return props;
 }
 
 /**
@@ -76,7 +69,8 @@ export function Ribbon() {
   const { arranged, hidden, move } = useRibbon();
   const shown = arranged.filter((i) => !hidden.includes(i.id));
   const ids = shown.map((i) => i.id);
-  const drag = useRibbonDrag(ids, move);
+  const toolbar = useRef<HTMLDivElement>(null);
+  const drag = useRibbonDrag(toolbar, ids, move);
   const [focusId, setFocusId] = useState<string | null>(null);
   const refs = useRef(new Map<string, HTMLButtonElement>());
   const current = focusId && ids.includes(focusId) ? focusId : ids[0];
@@ -99,7 +93,7 @@ export function Ribbon() {
 
   return (
     <nav className="ribbon" aria-label="Ribbon">
-      <div role="toolbar" aria-orientation="vertical" aria-label="Ribbon buttons">
+      <div ref={toolbar} role="toolbar" aria-orientation="vertical" aria-label="Ribbon buttons">
         {shown.map((item) => (
           <button
             key={item.id}

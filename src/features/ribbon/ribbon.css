@@ -36,14 +36,21 @@
   background: transparent;
   color: var(--fg-muted);
   cursor: pointer;
+  touch-action: none;
 }
 .ribbon-button:hover {
   background: var(--bg-hover);
   color: var(--fg);
 }
-.ribbon-button[data-drop],
-.ribbon-settings-row[data-drop] {
+/* Dragging: the button being moved is faded; a line shows where it will land. */
+:is(.ribbon-button, .ribbon-settings-row)[data-dragging] {
+  opacity: 0.4;
+}
+:is(.ribbon-button, .ribbon-settings-row)[data-drop="before"] {
   box-shadow: inset 0 2px 0 var(--accent);
+}
+:is(.ribbon-button, .ribbon-settings-row)[data-drop="after"] {
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 /* Settings → Appearance → Ribbon: the buttons as rows to show, hide and reorder. */
@@ -64,6 +71,7 @@
   border-radius: var(--radius);
   background: var(--bg);
   cursor: grab;
+  touch-action: none;
 }
 .ribbon-settings-row .grip {
   color: var(--fg-muted);

@@ -29,19 +29,18 @@ const ribbonLabels = () =>
 const savedRibbon = async () =>
   JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).ribbon;
 
-/** A drag from one ribbon button onto another, as the WebView sends it. */
-function drag(from: HTMLElement, to: HTMLElement) {
-  const data = new Map<string, string>();
-  const dataTransfer = {
-    setData: (k: string, v: string) => void data.set(k, v),
-    getData: (k: string) => data.get(k) ?? "",
-    effectAllowed: "",
-    dropEffect: "",
-  };
-  fireEvent.dragStart(from, { dataTransfer });
-  fireEvent.dragOver(to, { dataTransfer });
-  fireEvent.drop(to, { dataTransfer });
-  fireEvent.dragEnd(from, { dataTransfer });
+/**
+ * A pointer drag from one button onto the top (or bottom) half of another (jsdom has no
+ * layout: the target's box and the element under the pointer are given).
+ */
+function drag(from: HTMLElement, to: HTMLElement, half: "top" | "bottom" = "top") {
+  const box = { left: 0, top: 0, width: 30, height: 30, right: 30, bottom: 30, x: 0, y: 0 };
+  vi.spyOn(to, "getBoundingClientRect").mockReturnValue(box as DOMRect);
+  document.elementFromPoint = () => to;
+  const y = half === "top" ? 5 : 25;
+  fireEvent.pointerDown(from, { button: 0, clientX: 15, clientY: 300 });
+  fireEvent.pointerMove(window, { clientX: 15, clientY: y });
+  fireEvent.pointerUp(window, { clientX: 15, clientY: y });
 }
 
 describe("ribbon order", () => {
@@ -113,10 +112,11 @@ describe("the ribbon beside the left panel", () => {
       screen.getByRole("button", { name: "Home" }),
     );
     expect(ribbonLabels().slice(0, 2)).toEqual(["Tasks", "Home"]);
-    // Dropping on a later button puts it after that one.
+    // Dropping on the lower half of a button puts it after that one.
     drag(
       screen.getByRole("button", { name: "Tasks" }),
       screen.getByRole("button", { name: "Search" }),
+      "bottom",
     );
     expect(ribbonLabels().slice(0, 4)).toEqual([
       "Home",

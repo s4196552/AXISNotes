@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
 import { useRibbon, useRibbonDrag } from "../ribbon/Ribbon";
 import { Field, type SectionProps } from "./parts";
@@ -6,7 +7,8 @@ import { Field, type SectionProps } from "./parts";
 export function RibbonSettings({ config, set }: SectionProps) {
   const { arranged, hidden, move } = useRibbon();
   const ids = arranged.map((i) => i.id);
-  const drag = useRibbonDrag(ids, move);
+  const list = useRef<HTMLUListElement>(null);
+  const drag = useRibbonDrag(list, ids, move);
   const setRibbon = (patch: Partial<typeof config.ribbon>) =>
     set((c) => ({ ...c, ribbon: { ...c.ribbon, ...patch } }));
   return (
@@ -32,7 +34,7 @@ export function RibbonSettings({ config, set }: SectionProps) {
             shown while the plugin is on.
           </div>
         </div>
-        <ul className="ribbon-settings-list" aria-labelledby="ribbon-buttons-label">
+        <ul ref={list} className="ribbon-settings-list" aria-labelledby="ribbon-buttons-label">
           {arranged.map((item, i) => (
             <li key={item.id} className="ribbon-settings-row" {...drag(item.id)}>
               <GripVertical size={14} className="grip" aria-hidden="true" />
