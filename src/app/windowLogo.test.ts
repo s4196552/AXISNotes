@@ -2,7 +2,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { applyWindowLogo } from "./windowLogo";
 import { backend } from "../ipc";
 vi.mock("../ipc", () => ({
-  backend: { fileUrl: (path: string) => `asset://${path}`, setWindowIcon: vi.fn(async () => {}) },
+  backend: {
+    fileUrl: (path: string) => `asset://${path}`,
+    setWindowIcon: vi.fn<(rgba: number[], branded: boolean) => Promise<void>>(async () => {}),
+  },
 }));
 const images: FakeImage[] = [];
 class FakeImage {
@@ -37,6 +40,8 @@ it("converts the selected image to bounded RGBA pixels for the native icon", asy
   images[0]!.onload!();
   await vi.waitFor(() => expect(backend.setWindowIcon).toHaveBeenCalledOnce());
   expect(vi.mocked(backend.setWindowIcon).mock.calls[0]![0]).toHaveLength(256 * 256 * 4);
+  // A custom logo gets its own taskbar identity; the original keeps the installed one.
+  expect(vi.mocked(backend.setWindowIcon).mock.calls[0]![1]).toBe(true);
   close();
 });
 it("ignores a stale decode after the effect is disposed", async () => {
@@ -58,5 +63,13 @@ it("restores original pixels for a missing image and reports a native failure", 
   await vi.waitFor(() =>
     expect(error).toHaveBeenCalledWith(expect.stringContaining("Native error")),
   );
+  expect(vi.mocked(backend.setWindowIcon).mock.calls[0]![1]).toBe(false);
+  close();
+});
+it("treats the original logo as unbranded", async () => {
+  const close = applyWindowLogo("", vi.fn());
+  images[0]!.onload!();
+  await vi.waitFor(() => expect(backend.setWindowIcon).toHaveBeenCalledOnce());
+  expect(vi.mocked(backend.setWindowIcon).mock.calls[0]![1]).toBe(false);
   close();
 });
