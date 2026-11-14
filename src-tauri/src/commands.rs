@@ -435,6 +435,22 @@ pub fn import_image(
     Ok(entry)
 }
 
+/// The vault folder imported fonts are copied into (Settings → Appearance → Typography).
+pub const FONTS_FOLDER: &str = "Attachments/Fonts";
+
+/// Copy a font file (TTF, OTF, WOFF, WOFF2) into the vault's fonts folder under a free name.
+#[tauri::command]
+pub fn import_font(state: State<AppState>, source: String) -> AppResult<VaultEntry> {
+    let v = state.vault()?;
+    let source = PathBuf::from(source);
+    let name = crate::vault::font_file_name(&source)?;
+    let rel = v.free_path(FONTS_FOLDER, &name)?;
+    state.touch(&v, &rel)?;
+    let entry = v.copy_font_in(&source, &rel)?;
+    state.reindex(&v, change(ChangeKind::Created, &[&rel]));
+    Ok(entry)
+}
+
 #[tauri::command]
 pub fn create_dir(state: State<AppState>, path: String) -> AppResult<VaultEntry> {
     let v = state.vault()?;

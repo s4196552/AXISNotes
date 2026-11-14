@@ -123,6 +123,12 @@ export async function applyAppearance(config: Pick<AxisConfig, "theme" | "snippe
 }
 
 export const NOTE_FONT_SIZES = { min: 11, max: 32 };
+/** Letter spacing of note text, in em. */
+export const LETTER_SPACING = { min: -0.05, max: 0.2, step: 0.01 };
+/** Line height of note text, as a multiple of its size. */
+export const LINE_HEIGHT = { min: 1.1, max: 2.6, step: 0.05 };
+const clamp = (v: number, r: { min: number; max: number }, fallback: number) =>
+  Number.isFinite(v) ? Math.min(r.max, Math.max(r.min, v)) : fallback;
 export const EDITOR_WIDTHS: Record<EditorWidth, { label: string; css: string }> = {
   narrow: { label: "Narrow", css: "640px" },
   medium: { label: "Medium", css: "760px" },
@@ -258,7 +264,14 @@ export function fontStack(family: string, fallback: string): string {
 export function applyTypography(
   a: Pick<
     AxisConfig["appearance"],
-    "noteFontSize" | "noteFont" | "uiFont" | "editorWidth" | "foldArrow" | "headingColors"
+    | "noteFontSize"
+    | "noteFont"
+    | "uiFont"
+    | "editorWidth"
+    | "foldArrow"
+    | "headingColors"
+    | "letterSpacing"
+    | "lineHeight"
   >,
 ) {
   const style = document.documentElement.style;
@@ -267,6 +280,12 @@ export function applyTypography(
     Math.max(NOTE_FONT_SIZES.min, Math.round(a.noteFontSize) || 15),
   );
   style.setProperty("--note-font-size", `${size}px`);
+  const spacing = clamp(a.letterSpacing, LETTER_SPACING, 0);
+  if (spacing) style.setProperty("--note-letter-spacing", `${Math.round(spacing * 100) / 100}em`);
+  else style.removeProperty("--note-letter-spacing");
+  const line = clamp(a.lineHeight, LINE_HEIGHT, 1.5);
+  if (line !== 1.5) style.setProperty("--note-line-height", String(Math.round(line * 100) / 100));
+  else style.removeProperty("--note-line-height");
   style.setProperty("--editor-width", (EDITOR_WIDTHS[a.editorWidth] ?? EDITOR_WIDTHS.medium).css);
   for (const [name, value] of Object.entries(foldArrowVars(a.foldArrow)))
     style.setProperty(name, value);

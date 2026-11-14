@@ -169,8 +169,12 @@ describe("text size, fonts and editor width", () => {
       editorWidth: "full",
       foldArrow: "plus",
       headingColors: "rainbow",
+      letterSpacing: 0.05,
+      lineHeight: 1.8,
     });
     expect(style.getPropertyValue("--note-font-size")).toBe("20px");
+    expect(style.getPropertyValue("--note-letter-spacing")).toBe("0.05em");
+    expect(style.getPropertyValue("--note-line-height")).toBe("1.8");
     expect(style.getPropertyValue("--editor-width")).toBe("none");
     // Plus and minus: a different open icon, and no turn.
     expect(style.getPropertyValue("--fold-closed")).toBe(FOLD_ARROWS.plus.closed);
@@ -189,8 +193,13 @@ describe("text size, fonts and editor width", () => {
       editorWidth: "medium",
       foldArrow: "triangle",
       headingColors: "theme",
+      letterSpacing: 9,
+      lineHeight: 1.5,
     });
     expect(style.getPropertyValue("--note-font-size")).toBe("32px");
+    // Spacing stays in range; the default line height leaves the theme's own.
+    expect(style.getPropertyValue("--note-letter-spacing")).toBe("0.2em");
+    expect(style.getPropertyValue("--note-line-height")).toBe("");
     expect(style.getPropertyValue("--editor-width")).toBe("760px");
     expect(style.getPropertyValue("--fold-open")).toBe(FOLD_ARROWS.triangle.closed);
     expect(style.getPropertyValue("--fold-turn")).toBe("90deg");
@@ -202,20 +211,31 @@ describe("text size, fonts and editor width", () => {
 
   it("are set in Settings → Appearance and saved in the vault's config", async () => {
     render(<Settings section="appearance" onClose={vi.fn()} />);
-    fireEvent.change(screen.getByRole("slider", { name: "Note text size" }), {
-      target: { value: "19" },
-    });
-    expect(screen.getByText("19 px")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "Editor width" }), {
       target: { value: "wide" },
     });
-    const noteFont = screen.getByRole("combobox", { name: "Note font" });
-    await waitFor(() => expect(noteFont).toHaveTextContent("Georgia"));
-    fireEvent.change(noteFont, { target: { value: "Georgia" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Zoom" }), {
       target: { value: "1.5" },
     });
     expect(useZoom.getState().zoom).toBe(1.5);
+    // Fonts and text size are on the Typography tab.
+    expect(screen.queryByRole("slider", { name: "Note text size" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Typography" }));
+    fireEvent.change(screen.getByRole("slider", { name: "Note text size" }), {
+      target: { value: "19" },
+    });
+    expect(screen.getByText("19 px")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("slider", { name: "Letter spacing" }), {
+      target: { value: "0.03" },
+    });
+    expect(screen.getByText("+0.03 em")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("slider", { name: "Line height" }), {
+      target: { value: "1.75" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Bionic Reading" }));
+    const noteFont = screen.getByRole("combobox", { name: "Note font" });
+    await waitFor(() => expect(noteFont).toHaveTextContent("Georgia"));
+    fireEvent.change(noteFont, { target: { value: "Georgia" } });
     await waitFor(async () =>
       expect(JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).appearance).toEqual(
         {
@@ -223,6 +243,9 @@ describe("text size, fonts and editor width", () => {
           noteFontSize: 19,
           noteFont: "Georgia",
           editorWidth: "wide",
+          letterSpacing: 0.03,
+          lineHeight: 1.75,
+          bionicReading: true,
         },
       ),
     );
@@ -279,9 +302,29 @@ describe("text size, fonts and editor width", () => {
         appearance: { ...DEFAULT_CONFIG.appearance, uiFont: "Rare Sans" },
       },
     });
-    render(<Settings section="appearance" onClose={vi.fn()} />);
+    render(<Settings section="typography" onClose={vi.fn()} />);
     expect(screen.getByRole("combobox", { name: "Interface font" })).toHaveValue("Rare Sans");
     expect(screen.getByText("Rare Sans (not installed)")).toBeInTheDocument();
+  });
+
+  it("imports a font into the vault and offers it under “In this vault”", async () => {
+    h.b.pickFont = async () => "C:\\Downloads\\Atkinson Hyperlegible.woff2";
+    render(<Settings section="typography" onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Import font…" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Added Atkinson Hyperlegible");
+    await expect(
+      h.b.readFile("Attachments/Fonts/Atkinson Hyperlegible.woff2"),
+    ).resolves.toBeTruthy();
+    const noteFont = screen.getByRole("combobox", { name: "Note font" });
+    const group = within(noteFont).getAllByRole("group")[0]!;
+    expect(group).toHaveAttribute("label", "In this vault");
+    expect(
+      within(group).getByRole("option", { name: "Atkinson Hyperlegible" }),
+    ).toBeInTheDocument();
+    // Anything else is refused.
+    h.b.pickFont = async () => "C:\\Downloads\\tool.exe";
+    fireEvent.click(screen.getByRole("button", { name: "Import font…" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("not a font file"));
   });
 });
 
@@ -310,7 +353,12 @@ describe("settings sections", () => {
         .getAllByRole("tab")
         .map((t) => t.textContent);
     };
-    expect(tabsOf("Appearance")).toEqual(["Theme & layout", "Colours", "Icon & image packs"]);
+    expect(tabsOf("Appearance")).toEqual([
+      "Theme & layout",
+      "Typography",
+      "Colours",
+      "Icon & image packs",
+    ]);
     expect(tabsOf("Commands & shortcuts")).toEqual(["Quick commands", "Keyboard shortcuts"]);
     expect(tabsOf("AI")).toEqual(["Providers & models", "Agent", "Claude"]);
     // A page with one section has no tabs.

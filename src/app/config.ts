@@ -75,6 +75,12 @@ export interface AxisConfig {
     noteFontSize: number;
     noteFont: string;
     uiFont: string;
+    /** Extra space between letters in notes, in em (0 = the font's own). */
+    letterSpacing: number;
+    /** Line height of note text, as a multiple of the text size. */
+    lineHeight: number;
+    /** Bold the start of each word where notes are shown rendered (the file is unchanged). */
+    bionicReading: boolean;
     editorWidth: EditorWidth;
     foldArrow: FoldArrow;
     headingColors: HeadingColors;
@@ -153,6 +159,9 @@ export const DEFAULT_CONFIG: AxisConfig = {
     noteFontSize: 15,
     noteFont: "",
     uiFont: "",
+    letterSpacing: 0,
+    lineHeight: 1.5,
+    bionicReading: false,
     editorWidth: "medium",
     foldArrow: "triangle",
     headingColors: "theme",

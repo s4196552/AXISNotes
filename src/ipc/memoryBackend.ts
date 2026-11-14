@@ -12,6 +12,7 @@ import { noteMark, stricter } from "../lib/aiAccess";
 import { headingAt } from "../lib/searchText";
 import { compareTasks, findTasks } from "../lib/tasks";
 import { isImagePath } from "../lib/attachments";
+import { isFontPath, VAULT_FONTS_FOLDER } from "../lib/fonts";
 import { svgIsMonochrome } from "../lib/svgMonochrome";
 import { createMemoryAi } from "./memoryAi";
 import type {
@@ -366,6 +367,19 @@ export function createMemoryBackend(
     currentVersion: "0.0.0",
   };
 
+  /** A copied-in file (image or font) at a free name in `folder`, creating the folder. */
+  const copyIn = (name: string, folder: string): VaultEntry => {
+    const dir = normalize(folder);
+    const dot = name.lastIndexOf(".");
+    const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+    let p = dir ? `${dir}/${name}` : name;
+    for (let n = 1; nodes.has(p); n++) p = `${dir ? dir + "/" : ""}${stem} ${n}${ext}`;
+    for (let d = dir; d && !nodes.has(d); d = d.includes("/") ? d.slice(0, d.lastIndexOf("/")) : "")
+      put(d, { kind: "dir", content: "", modifiedMs: tick() });
+    put(p, { kind: "file", content: "", modifiedMs: tick() });
+    return entry(p);
+  };
+
   return {
     ...ai,
     claudeConnectorInfo: async () => null,
@@ -545,19 +559,14 @@ export function createMemoryBackend(
       requireVault();
       const name = baseName(source.replace(/\\/g, "/"));
       if (!isImagePath(name)) fail("InvalidName", `${name} is not an image`);
-      const dir = normalize(folder);
-      const dot = name.lastIndexOf(".");
-      const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
-      let p = dir ? `${dir}/${name}` : name;
-      for (let n = 1; nodes.has(p); n++) p = `${dir ? dir + "/" : ""}${stem} ${n}${ext}`;
-      for (
-        let d = dir;
-        d && !nodes.has(d);
-        d = d.includes("/") ? d.slice(0, d.lastIndexOf("/")) : ""
-      )
-        put(d, { kind: "dir", content: "", modifiedMs: tick() });
-      put(p, { kind: "file", content: "", modifiedMs: tick() });
-      return entry(p);
+      return copyIn(name, folder);
+    },
+    pickFont: async () => null,
+    async importFont(source) {
+      requireVault();
+      const name = baseName(source.replace(/\\/g, "/"));
+      if (!isFontPath(name)) fail("InvalidName", `${name} is not a font file`);
+      return copyIn(name, VAULT_FONTS_FOLDER);
     },
     async listPacks() {
       requireVault();

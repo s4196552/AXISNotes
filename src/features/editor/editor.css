@@ -1450,3 +1450,8 @@ body.cm-image-drag-copy * {
 .note-ai-menu button:focus-visible {
   background: var(--bg-hover);
 }
+
+/* Bionic Reading (Settings → Appearance → Typography): the bold start of each word. */
+.cm-bionic {
+  font-weight: 700;
+}

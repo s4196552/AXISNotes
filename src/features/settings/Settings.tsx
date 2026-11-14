@@ -18,14 +18,13 @@ import {
   Sparkles,
   SpellCheck,
   SquareSlash,
+  Type,
   X,
 } from "lucide-react";
 import { backend } from "../../ipc";
 import { type AxisConfig, type EditorWidth, useConfig } from "../../app/config";
 import {
   EDITOR_WIDTHS,
-  fontStack,
-  NOTE_FONT_SIZES,
   onTransparencyEffectsChange,
   transparencyEffectsOff,
   WINDOW_EFFECTS,
@@ -52,10 +51,13 @@ import { AppColorPicker } from "./AppColorPicker";
 import { HeadingColorPicker } from "./HeadingColorPicker";
 import { About } from "./About";
 import { PacksSettings } from "../packs/PacksSettings";
+import { Field, type SectionProps } from "./parts";
+import { Typography } from "./Typography";
 import "./settings.css";
 
 export type Section =
   | "appearance"
+  | "typography"
   | "colours"
   | "packs"
   | "spelling"
@@ -74,6 +76,7 @@ export type Section =
 
 const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "typography", label: "Typography", icon: Type },
   { id: "colours", label: "Colours", icon: Paintbrush },
   { id: "packs", label: "Icon & image packs", icon: Images },
   { id: "spelling", label: "Spelling", icon: SpellCheck },
@@ -97,7 +100,7 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
  * Sections keep their own ids, so links to a section (`section="claude"`) still land on it.
  */
 const PAGES: { label: string; icon: LucideIcon; parts: Section[] }[] = [
-  { label: "Appearance", icon: Palette, parts: ["appearance", "colours", "packs"] },
+  { label: "Appearance", icon: Palette, parts: ["appearance", "typography", "colours", "packs"] },
   { label: "Spelling", icon: SpellCheck, parts: ["spelling"] },
   { label: "Home & daily notes", icon: CalendarDays, parts: ["daily"] },
   { label: "Templates", icon: LayoutTemplate, parts: ["templates"] },
@@ -136,6 +139,8 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
     switch (id) {
       case "appearance":
         return <Appearance config={config} set={set} />;
+      case "typography":
+        return <Typography config={config} set={set} />;
       case "colours":
         return <Colours config={config} set={set} />;
       case "packs":
@@ -350,23 +355,6 @@ function SearchResults(p: {
   );
 }
 
-function Field(p: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="settings-field">
-      <div>
-        <div className="settings-label">{p.label}</div>
-        {p.hint && <div className="settings-hint muted">{p.hint}</div>}
-      </div>
-      <div className="settings-control">{p.children}</div>
-    </div>
-  );
-}
-
-interface SectionProps {
-  config: AxisConfig;
-  set(fn: (c: AxisConfig) => AxisConfig): void;
-}
-
 /** The Translucent theme's settings: window opacity, and blur behind it. */
 function Translucency(p: {
   a: AxisConfig["appearance"];
@@ -442,29 +430,6 @@ function Translucency(p: {
   );
 }
 
-/** A font picker: the default, then every installed family, each shown in its own font. */
-function FontSelect(p: {
-  label: string;
-  fonts: string[];
-  value: string;
-  defaultLabel: string;
-  onChange(font: string): void;
-}) {
-  // A font chosen on another computer stays listed even if it isn't installed here.
-  const missing = p.value && !p.fonts.includes(p.value);
-  return (
-    <select aria-label={p.label} value={p.value} onChange={(e) => p.onChange(e.target.value)}>
-      <option value="">{p.defaultLabel}</option>
-      {missing && <option value={p.value}>{p.value} (not installed)</option>}
-      {p.fonts.map((f) => (
-        <option key={f} value={f} style={{ fontFamily: fontStack(f, "inherit") }}>
-          {f}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 /** Settings → Colours: the user's own sidebar and note-area colours over the theme. */
 function Colours({ config, set }: SectionProps) {
   const setAppColors = (appColors: AxisConfig["appearance"]["appColors"]) =>
@@ -486,11 +451,9 @@ function Colours({ config, set }: SectionProps) {
 function Appearance({ config, set }: SectionProps) {
   const [themes, setThemes] = useState<string[]>([]);
   const [snippets, setSnippets] = useState<string[]>([]);
-  const [fonts, setFonts] = useState<string[]>([]);
   useEffect(() => {
     void backend.listAxisFiles("themes").then(setThemes, () => {});
     void backend.listAxisFiles("snippets").then(setSnippets, () => {});
-    void backend.listFonts().then(setFonts, () => {});
   }, []);
   const zoom = useZoom((s) => s.zoom);
   const setZoom = useZoom((s) => s.setZoom);
@@ -533,37 +496,6 @@ function Appearance({ config, set }: SectionProps) {
           </button>
           {zoom !== 1 && <button onClick={zoomReset}>Reset</button>}
         </span>
-      </Field>
-      <Field label="Note text size" hint="The text of your notes; headings grow with it.">
-        <span className="range-control">
-          <input
-            type="range"
-            aria-label="Note text size"
-            min={NOTE_FONT_SIZES.min}
-            max={NOTE_FONT_SIZES.max}
-            value={a.noteFontSize}
-            onChange={(e) => setA({ noteFontSize: Number(e.target.value) })}
-          />
-          <span className="muted">{a.noteFontSize} px</span>
-        </span>
-      </Field>
-      <Field label="Note font">
-        <FontSelect
-          label="Note font"
-          fonts={fonts}
-          value={a.noteFont}
-          defaultLabel="Same as the interface"
-          onChange={(noteFont) => setA({ noteFont })}
-        />
-      </Field>
-      <Field label="Interface font">
-        <FontSelect
-          label="Interface font"
-          fonts={fonts}
-          value={a.uiFont}
-          defaultLabel="Default (system)"
-          onChange={(uiFont) => setA({ uiFont })}
-        />
       </Field>
       <Field
         label="Boxy layout"

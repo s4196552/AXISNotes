@@ -605,6 +605,49 @@ impl Vault {
         self.write_bytes(rel, &bytes)?;
         self.entry_for(&self.resolve_entry(rel)?, false)
     }
+
+    /// Copy a font file from anywhere on disk to the free vault path `rel` (see `free_path`).
+    pub fn copy_font_in(&self, source: &Path, rel: &str) -> AppResult<VaultEntry> {
+        font_file_name(source)?;
+        if self.resolve_entry(rel)?.exists() {
+            return Err(AppError::AlreadyExists(rel.to_string()));
+        }
+        let bytes = fs::read(source)?;
+        if bytes.len() as u64 > MAX_FONT_BYTES {
+            return Err(AppError::Io("the font is larger than 25 MB".into()));
+        }
+        self.write_bytes(rel, &bytes)?;
+        self.entry_for(&self.resolve_entry(rel)?, false)
+    }
+}
+
+/// Font files that can be copied into the vault (Settings → Appearance → Typography).
+pub const FONT_EXTENSIONS: &[&str] = &["ttf", "otf", "woff", "woff2"];
+/// The largest font that can be copied in.
+pub const MAX_FONT_BYTES: u64 = 25 * 1024 * 1024;
+
+/// The file name of `source` if it is a font file that may be copied into the vault.
+pub fn font_file_name(source: &Path) -> AppResult<String> {
+    let meta =
+        fs::metadata(source).map_err(|_| AppError::NotFound(source.display().to_string()))?;
+    if !meta.is_file() {
+        return Err(AppError::NotFound(source.display().to_string()));
+    }
+    let name = source
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = Path::new(&name)
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    if !FONT_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(AppError::InvalidName(format!("{name} is not a font file")));
+    }
+    if meta.len() > MAX_FONT_BYTES {
+        return Err(AppError::Io("the font is larger than 25 MB".into()));
+    }
+    Ok(name)
 }
 
 /// Image types that can be copied into the vault (page covers and icons).
@@ -916,6 +959,34 @@ pub(crate) mod tests {
         assert!(matches!(
             v.create_dir(" spaced"),
             Err(AppError::InvalidName(_))
+        ));
+    }
+
+    #[test]
+    fn copies_a_font_in_and_refuses_other_files() {
+        let (_d, v) = vault();
+        let outside = tempfile::tempdir().unwrap();
+        let src = outside.path().join("Atkinson Hyperlegible.WOFF2");
+        fs::write(&src, b"wOF2 fake").unwrap();
+        let name = font_file_name(&src).unwrap();
+        let rel = v.free_path("Attachments/Fonts", &name).unwrap();
+        assert_eq!(rel, "Attachments/Fonts/Atkinson Hyperlegible.WOFF2");
+        let entry = v.copy_font_in(&src, &rel).unwrap();
+        assert_eq!(entry.path, rel);
+        assert_eq!(fs::read(v.resolve(&rel).unwrap()).unwrap(), b"wOF2 fake");
+        assert!(matches!(
+            v.copy_font_in(&src, &rel),
+            Err(AppError::AlreadyExists(_))
+        ));
+        let script = outside.path().join("font.exe");
+        fs::write(&script, b"MZ").unwrap();
+        assert!(matches!(
+            font_file_name(&script),
+            Err(AppError::InvalidName(_))
+        ));
+        assert!(matches!(
+            font_file_name(&outside.path().join("missing.ttf")),
+            Err(AppError::NotFound(_))
         ));
     }
 
