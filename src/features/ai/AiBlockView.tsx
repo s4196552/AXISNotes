@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { type AiPlan, type AiRunRequest, backend, isBackendError } from "../../ipc";
-import { stricter } from "../../lib/aiAccess";
+import { markText, stricter } from "../../lib/aiAccess";
 import { useAppStore } from "../../app/store";
 import { aiBlockSpec, closeAiBlock, insertionFor } from "./aiBlock";
 import { createDraft } from "../drafts/drafts";
@@ -41,6 +41,7 @@ import {
 } from "../skills/skills";
 import {
   homeFolder,
+  keepSkillFile,
   runSkill,
   saveConversation,
   savePageNextTo,
@@ -48,7 +49,17 @@ import {
   skillRequest,
   writeFiles,
 } from "../skills/skillRun";
-import { ChatActions, ChatTranscript, FilesResult, PageResult } from "../skills/SkillResult";
+import { ChatActions, ChatTranscript } from "../skills/SkillResult";
+import { SkillOutput } from "../skills/SkillOutput";
+import {
+  loadSkillDestination,
+  saveSkillDestination,
+  showSkillResults,
+  useSkillResults,
+  openSkillSideView,
+  RESULT_DESTINATIONS,
+  type SkillDestination,
+} from "../skills/skillDestination";
 import { skillIcon } from "../skills/skillIcons";
 import { useUi } from "../commands/ui";
 import { cleanReply } from "./fixPrompt";
@@ -78,10 +89,13 @@ const errorPhase = (e: unknown): AiBlockPhase => ({
   blocked: isBackendError(e) && e.code === "Blocked",
 });
 
-function initialState(hasSelection: boolean, skill: string | null): AiBlockState {
+function initialState(hasSelection: boolean, skill: string | null, path: string): AiBlockState {
   const vault = useAppStore.getState().vault?.root;
   return {
     skill,
+    sourcePath: path,
+    vaultRoot: vault,
+    destination: skill ? loadSkillDestination(vault) : "note",
     turns: [],
     html: null,
     files: null,
@@ -102,6 +116,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
   const [plan, setPlan] = useState<AiPlan | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
+  const openingSideView = useRef(false);
   const fresh = useRef(!useAiBlocks.getState().blocks[id]);
   const baseSkill =
     useSkills((s) => (state?.skill ? s.skills.find((k) => k.id === state.skill) : undefined)) ??
@@ -115,14 +130,21 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
 
   useEffect(() => {
     if (useAiBlocks.getState().blocks[id]) return;
-    useAiBlocks.getState().init(id, initialState(Boolean(selection?.text), spec?.skill ?? null));
+    useAiBlocks
+      .getState()
+      .init(id, initialState(Boolean(selection?.text), spec?.skill ?? null, path));
+    if (spec?.skill && loadSkillDestination(useAppStore.getState().vault?.root) === "sidebar")
+      showSkillResults(id);
     // Without a remembered choice, start from the effort set in Settings → AI.
     if (!loadChoice(useAppStore.getState().vault?.root))
       backend.aiSettings().then(
-        (v) =>
-          useAiBlocks.getState().patch(id, {
-            choice: { ...useAiBlocks.getState().blocks[id]!.choice, effort: v.settings.effort },
-          }),
+        (v) => {
+          const block = useAiBlocks.getState().blocks[id];
+          if (block)
+            useAiBlocks.getState().patch(id, {
+              choice: { ...block.choice, effort: v.settings.effort },
+            });
+        },
         () => {},
       );
   }, [id, path, selection?.text, spec?.skill]);
@@ -268,7 +290,11 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
   }
 
   async function runTheSkill(cur: AiBlockState) {
+    const root = useAppStore.getState().vault?.root;
+    const current = () =>
+      root === useAppStore.getState().vault?.root && Boolean(useAiBlocks.getState().blocks[id]);
     const s = withFormat((await freshSkill(baseSkill!.id)) ?? baseSkill!, cur.format);
+    if (!current()) return;
     const req = skillRequest({
       skill: s,
       prompt: cur.prompt,
@@ -295,7 +321,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         (runId) => patch({ answer: "", phase: { kind: "running", runId, thinking: true } }),
         (d) => useAiBlocks.getState().appendAnswer(id, d),
       );
-      if (!useAiBlocks.getState().blocks[id]) return;
+      if (!current()) return;
       const done = { kind: "done" as const, result: out.result };
       // What a skill makes is saved at once, with the AI icon; a save that fails leaves
       // the result shown with a button to try again.
@@ -340,11 +366,43 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
           phase: done,
         });
       } else patch({ answer: out.result.text, phase: done });
+      if (!current()) return;
+      if (cur.destination === "sidebar") showSkillResults(id);
+      if (cur.destination === "sideview") await showSideView();
     } catch (e) {
       if (!useAiBlocks.getState().blocks[id]) return; // closed meanwhile
       patch({
         phase: isBackendError(e) && e.code === "Cancelled" ? { kind: "idle" } : errorPhase(e),
       });
+    }
+  }
+
+  /** All output types use the same saved result files in a separate pane. */
+  async function showSideView() {
+    const cur = useAiBlocks.getState().blocks[id];
+    if (!cur || cur.phase.kind !== "done" || cur.vaultRoot !== useAppStore.getState().vault?.root)
+      return;
+    if (openingSideView.current) return;
+    openingSideView.current = true;
+    try {
+      let file = cur.saved?.[0];
+      if (skill?.output === "markdown" && (!file || cur.resultText !== cur.answer)) {
+        // Keep earlier runs intact, and do not overwrite a result the user edited.
+        file = await keepSkillFile(
+          homeFolder(path),
+          `${noteName(path)} - ${skill.title}`,
+          markText("result.md", cur.answer, cur.phase.result.rule),
+          ".md",
+        );
+        patch({ saved: [file], resultText: cur.answer, saveError: undefined });
+      }
+      if (file) openSkillSideView(id, file);
+      else
+        patch({ saveError: cur.saveError ?? "Save the result before opening it in a side view." });
+    } catch (e) {
+      patch({ saveError: isBackendError(e) || e instanceof Error ? e.message : String(e) });
+    } finally {
+      openingSideView.current = false;
     }
   }
 
@@ -475,6 +533,8 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
                         format: f,
                         html: null,
                         files: null,
+                        saved: [],
+                        resultText: undefined,
                         answer: "",
                         phase: { kind: "idle" },
                       })
@@ -484,6 +544,31 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
               </button>
             ))}
           </span>
+        )}
+        {baseSkill && (
+          <label className="ai-result-destination">
+            Results in
+            <select
+              aria-label="Results in"
+              value={state.destination ?? "note"}
+              disabled={running}
+              onChange={(e) => {
+                const destination = e.target.value as SkillDestination;
+                patch({ destination });
+                saveSkillDestination(useAppStore.getState().vault?.root, destination);
+                if (destination === "sidebar") showSkillResults(id);
+                else if (useSkillResults.getState().selected === id)
+                  useSkillResults.setState({ open: false });
+                if (destination === "sideview" && phase.kind === "done") void showSideView();
+              }}
+            >
+              {Object.entries(RESULT_DESTINATIONS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
         <button
           type="button"
@@ -579,15 +664,24 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         </p>
       )}
 
-      {skill?.output === "chat" && (state.turns?.length || running) ? (
-        <ChatTranscript turns={state.turns ?? []} answer={running ? state.answer : ""} />
-      ) : skill && (skill.output === "html" || skill.output === "files") ? (
-        running && (
-          <p className="ai-block-summary muted" aria-label="Answer" aria-busy>
-            {state.answer
-              ? `Writing… ${state.answer.length.toLocaleString()} characters`
-              : "Thinking…"}
+      {skill ? (
+        state.destination === "sidebar" ? (
+          <p className="ai-block-summary muted">
+            Results appear in the sidebar.{" "}
+            <button onClick={() => showSkillResults(id)}>Show results</button>
           </p>
+        ) : state.destination === "sideview" &&
+          state.resultPath &&
+          phase.kind === "done" &&
+          !state.saveError ? (
+          <p className="ai-block-summary muted">Saved result: {state.resultPath}</p>
+        ) : (
+          <SkillOutput
+            id={id}
+            path={path}
+            skill={baseSkill!}
+            onDone={() => closeAiBlock(view, id, false)}
+          />
         )
       ) : (
         <>
@@ -609,30 +703,10 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
         </>
       )}
 
-      {phase.kind === "done" && state.saveError && (
-        <p className="ai-error ai-block-error" role="alert">
-          {state.saveError}
-        </p>
-      )}
-      {phase.kind === "done" && skill?.output === "html" && state.html && (
-        <PageResult
-          skill={skill}
-          html={state.html}
-          path={path}
-          saved={state.saved ?? []}
-          onSaved={(saved) => patch({ saved, saveError: undefined })}
-          onDone={() => closeAiBlock(view, id, false)}
-        />
-      )}
-      {phase.kind === "done" && skill?.output === "files" && state.files && (
-        <FilesResult
-          files={state.files}
-          onError={(saveError) => patch({ saveError })}
-          path={path}
-          saved={state.saved ?? []}
-          onSaved={(saved) => patch({ saved, saveError: undefined })}
-          onDone={() => closeAiBlock(view, id, false)}
-        />
+      {skill && state.destination === "sideview" && phase.kind === "done" && (
+        <div className="ai-block-actions">
+          <button onClick={() => void showSideView()}>Open result beside note</button>
+        </div>
       )}
       {skill?.output === "chat" && !running && (state.turns?.length ?? 0) > 0 && (
         <ChatActions

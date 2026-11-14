@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { SkillFormat } from "../skills/skills";
+import type { SkillDestination } from "../skills/skillDestination";
 import {
   type AiEffort,
   type AiModel,
@@ -28,6 +29,14 @@ export type AiBlockPhase =
   | { kind: "error"; message: string; blocked: boolean };
 
 export interface AiBlockState {
+  /** Skill result placement and source context, retained while browsing other notes. */
+  destination?: SkillDestination;
+  sourcePath?: string;
+  vaultRoot?: string;
+  resultPane?: string;
+  resultPath?: string;
+  /** Markdown snapshot already saved for the side view; repeated opens reuse it. */
+  resultText?: string;
   prompt: string;
   /** Send the note the block is in. */
   useNote: boolean;

@@ -1,4 +1,4 @@
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -36,6 +36,11 @@ import { TagsPanel } from "./TagsPanel";
 import { VaultMenu } from "../vault/VaultMenu";
 import { openSidebarChat, useSidebarChat } from "../ai/sidebarChatState";
 const SidebarChat = lazyNamed(() => import("../ai/SidebarChat"), "SidebarChat");
+import { showSkillResults, useSkillResults } from "../skills/skillDestination";
+const SkillResultsSidebar = lazyNamed(
+  () => import("../skills/SkillResultsSidebar"),
+  "SkillResultsSidebar",
+);
 import "./panels.css";
 
 const TABS: { id: LeftPanel; label: string; Icon: typeof Search }[] = [
@@ -199,9 +204,17 @@ function SectionToggle({
  */
 export function RightSidebar() {
   const chat = useSidebarChat((s) => s.open);
+  const results = useSkillResults((s) => s.open);
   const hubEnabled = useConfig((s) => s.loaded && s.config.hubEnabled);
   const selected = useLayout((s) => s.rightPanel);
-  const hub = !chat && hubEnabled && selected === "hub";
+  // Skill results and AI chat open on top of the chosen panel (details or Hub).
+  const hub = !chat && !results && hubEnabled && selected === "hub";
+  // AI chat opened from elsewhere (the note's right-click menu) comes to the front.
+  const chatWasOpen = useRef(chat);
+  useEffect(() => {
+    if (chat && !chatWasOpen.current) useSkillResults.setState({ open: false });
+    chatWasOpen.current = chat;
+  }, [chat]);
   const root = useAppStore((s) => s.vault?.root);
   const view = useAppStore((s) => s.mainView);
   const activePath = useAppStore((s) => s.activePath);
@@ -234,6 +247,7 @@ export function RightSidebar() {
   function selectPanel(panel: typeof selected) {
     useLayout.getState().setRightPanel(panel);
     useSidebarChat.setState({ open: false });
+    useSkillResults.setState({ open: false });
   }
 
   return (
@@ -244,12 +258,20 @@ export function RightSidebar() {
         <button
           type="button"
           role="tab"
-          aria-selected={!chat && !hub}
+          aria-selected={!chat && !results && !hub}
           onClick={() => selectPanel("details")}
         >
           Note details
         </button>
-        <button type="button" role="tab" aria-selected={chat} onClick={() => openSidebarChat(null)}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={chat && !results}
+          onClick={() => {
+            useSkillResults.setState({ open: false });
+            openSidebarChat(null);
+          }}
+        >
           <Sparkles size={14} /> AI chat
         </button>
         {hubEnabled && (
@@ -257,8 +279,15 @@ export function RightSidebar() {
             <Grid2X2 size={14} aria-hidden="true" /> AXIS Hub
           </button>
         )}
+        <button type="button" role="tab" aria-selected={results} onClick={() => showSkillResults()}>
+          Skill results
+        </button>
       </div>
-      {chat ? (
+      {results ? (
+        <Suspense fallback={<p className="panel-note">Opening skill results…</p>}>
+          <SkillResultsSidebar key={root} />
+        </Suspense>
+      ) : chat ? (
         <Suspense fallback={<p className="panel-note">Opening AI chat…</p>}>
           <SidebarChat key={root} />
         </Suspense>
