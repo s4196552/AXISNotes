@@ -35,13 +35,16 @@ export function applyWindowLogo(logo: string, onError: (message: string) => void
   void (async () => {
     try {
       let rgba: number[];
+      // Only a logo other than the original needs its own taskbar identity (see taskbar_icon.rs).
+      let branded = url !== original;
       try {
         rgba = await decode(url);
       } catch {
         if (cancelled) return;
         rgba = await decode(original);
+        branded = false;
       }
-      if (!cancelled) await backend.setWindowIcon(rgba);
+      if (!cancelled) await backend.setWindowIcon(rgba, branded);
     } catch (error) {
       if (!cancelled)
         onError(

@@ -117,10 +117,13 @@ export default function App() {
   }, [theme, snippets]);
 
   const typography = useConfig((s) => s.config.appearance);
-  useEffect(
-    () => applyWindowLogo(typography.logo, (message) => useAppStore.getState().notify(message)),
-    [typography.logo, vault?.root],
-  );
+  const configLoaded = useConfig((s) => s.loaded);
+  useEffect(() => {
+    // Wait for the vault's settings: applying the defaults first would briefly undo a custom
+    // logo that the app already put on the taskbar at startup.
+    if (!configLoaded) return;
+    return applyWindowLogo(typography.logo, (message) => useAppStore.getState().notify(message));
+  }, [typography.logo, vault?.root, configLoaded]);
   useEffect(() => applyTypography(typography), [typography]);
   const { windowOpacity, windowEffect } = typography;
   useEffect(() => {

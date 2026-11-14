@@ -20,6 +20,22 @@ function windowIcon(kind: "Big" | "Small" = "Big") {
   ).trim();
 }
 
+/** The main window's explicit AppUserModelID and relaunch icon, "|" separated. */
+function windowIdentity() {
+  return execFileSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-File",
+      path.resolve("e2e/window-identity.ps1"),
+      "-Application",
+      process.env.AXIS_E2E_APP!,
+    ],
+    { windowsHide: true, encoding: "utf8" },
+  ).trim();
+}
+const BRANDED = "app.axis.axisnotes.logo";
+
 const qa = path.resolve(".agents/qa/T-224");
 const vault = process.env.AXIS_E2E_VAULT!;
 const nativeIcons: Record<string, string> = {};
@@ -58,6 +74,10 @@ describe("Custom app logo and default pack", () => {
         selectedIcons.push(windowIcon());
         nativeIcons[title] = selectedIcons.at(-1)!;
         expect(windowIcon("Small")).toBe(selectedIcons.at(-1));
+        // The installed shortcut's identity would make the taskbar draw its icon instead.
+        const [id, icon] = windowIdentity().split("|");
+        expect(id).toBe(BRANDED);
+        expect(icon).toMatch(/[\\/]taskbar[\\/]logo-[0-9a-f]{16}\.ico,0$/);
       }
       await browser.saveScreenshot(path.join(qa, `${title}.png`));
     }
@@ -75,7 +95,10 @@ describe("Custom app logo and default pack", () => {
     await $("button=Restore original logo").click();
     await expect($("button=AXIS Original")).toHaveAttribute("aria-pressed", "true");
     await loaded();
-    if (process.platform === "win32") await browser.waitUntil(() => windowIcon() === originalIcon);
+    if (process.platform === "win32") {
+      await browser.waitUntil(() => windowIcon() === originalIcon);
+      await browser.waitUntil(() => windowIdentity() === "|");
+    }
   });
   it("renders a custom image imported through the native backend", async () => {
     const source = path.resolve("src/assets/logos/risograph.png");
@@ -113,7 +136,7 @@ describe("Custom app logo and default pack", () => {
       const host = window as unknown as {
         __TAURI_INTERNALS__: { invoke(c: string, a: object): Promise<unknown> };
       };
-      host.__TAURI_INTERNALS__.invoke("set_taskbar_icon", { rgba: [1, 2, 3] }).then(
+      host.__TAURI_INTERNALS__.invoke("set_taskbar_icon", { rgba: [1, 2, 3], branded: true }).then(
         () => done(null),
         (error: unknown) => done(error),
       );
