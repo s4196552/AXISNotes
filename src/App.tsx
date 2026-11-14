@@ -33,6 +33,8 @@ import { usePresence } from "./features/panels/presence";
 import { Workspace } from "./features/panes/Workspace";
 import { WindowControls } from "./features/window/WindowControls";
 import { applyWindowLogo } from "./app/windowLogo";
+import { applyVaultFonts } from "./app/vaultFonts";
+import { type VaultFont, vaultFonts } from "./lib/fonts";
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
@@ -125,6 +127,10 @@ export default function App() {
     return applyWindowLogo(typography.logo, (message) => useAppStore.getState().notify(message));
   }, [typography.logo, vault?.root, configLoaded]);
   useEffect(() => applyTypography(typography), [typography]);
+  // Fonts imported into the vault, usable by name like installed ones.
+  // (A string, so the effect reruns only when the font files change.)
+  const fontFiles = useAppStore((s) => JSON.stringify(vaultFonts(s.tree)));
+  useEffect(() => applyVaultFonts(JSON.parse(fontFiles) as VaultFont[]), [fontFiles, vault?.root]);
   const { windowOpacity, windowEffect } = typography;
   useEffect(() => {
     const apply = () => void applyTranslucency(theme, { windowOpacity, windowEffect });

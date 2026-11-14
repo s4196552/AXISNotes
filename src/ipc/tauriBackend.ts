@@ -21,6 +21,7 @@ import type {
   VaultInfo,
 } from "./types";
 import { IMAGE_EXTENSIONS } from "../lib/attachments";
+import { FONT_EXTENSIONS } from "../lib/fonts";
 
 /** Serves vault web pages to sandboxed frames: `SCHEME` in src-tauri/src/pages.rs. */
 const PAGE_PROTOCOL = "axispage";
@@ -66,6 +67,14 @@ export function createTauriBackend(): Backend {
       return typeof picked === "string" ? picked : null;
     },
     importImage: (source, folder) => invoke("import_image", { source, folder }),
+    async pickFont() {
+      const picked = await open({
+        multiple: false,
+        filters: [{ name: "Fonts", extensions: [...FONT_EXTENSIONS] }],
+      });
+      return typeof picked === "string" ? picked : null;
+    },
+    importFont: (source) => invoke("import_font", { source }),
     async setWindowIcon(rgba, branded) {
       if (rgba.length !== 256 * 256 * 4) throw new Error("Invalid window icon size.");
       const image = await Image.new(rgba, 256, 256);

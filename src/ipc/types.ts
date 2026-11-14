@@ -499,6 +499,13 @@ export interface Backend {
    * free name (`photo 1.png` if `photo.png` exists). Images only, up to 25 MB.
    */
   importImage(source: string, folder: string): Promise<VaultEntry>;
+  /** Show a native picker for one font file (TTF, OTF, WOFF, WOFF2); null if cancelled. */
+  pickFont(): Promise<string | null>;
+  /**
+   * Copy the font file at `source` into the vault's `Attachments/Fonts` folder under a free
+   * name, so its notes can use it on any computer. Fonts only, up to 25 MB.
+   */
+  importFont(source: string): Promise<VaultEntry>;
   /** Icon and image packs in the vault's hidden `.axisnotes/packs/`, icon packs first. */
   listPacks(): Promise<Pack[]>;
   /** Native picker for a pack: a folder or a `.zip` file. Resolves null if cancelled. */
