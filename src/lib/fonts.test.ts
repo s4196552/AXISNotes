@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { VaultEntry } from "../ipc";
 import { fontFaceCss, isFontPath, vaultFonts } from "./fonts";
@@ -60,5 +61,19 @@ describe("fonts imported into the vault", () => {
     expect(css).toBe(
       '@font-face { font-family: "OddName"; src: url("http://asset.localhost/Attachments/Fonts/Odd.ttf") format("truetype"); font-display: swap; }',
     );
+  });
+});
+
+describe("the desktop app's content security policy", () => {
+  it("lets imported fonts load from the vault (the asset protocol)", () => {
+    const conf = JSON.parse(readFileSync("src-tauri/tauri.conf.json", "utf8"));
+    const fontSrc = (conf.app.security.csp as string)
+      .split(";")
+      .map((d) => d.trim())
+      .find((d) => d.startsWith("font-src"));
+    // Without it, font-src falls back to default-src 'self' and every vault font is blocked.
+    expect(fontSrc).toBeDefined();
+    expect(fontSrc).toContain("asset:");
+    expect(fontSrc).toContain("http://asset.localhost");
   });
 });
