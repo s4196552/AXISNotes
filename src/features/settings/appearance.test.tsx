@@ -358,6 +358,7 @@ describe("settings sections", () => {
       "Theme & layout",
       "Typography",
       "Cursor",
+      "Ribbon",
       "Colours",
       "Icon & image packs",
     ]);

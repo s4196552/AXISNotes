@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { useAppStore } from "../../app/store";
+import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { linkTextFor } from "./mentions";
 import { SearchPanel } from "./SearchPanel";
@@ -133,7 +134,12 @@ describe("LeftSidebar", () => {
   });
 
   it("keeps the panel tabs apart from the buttons that open views", () => {
+    // With the ribbon off; with it on, these buttons are in the ribbon (ribbon.test.tsx).
+    useConfig.setState({
+      config: { ...DEFAULT_CONFIG, ribbon: { ...DEFAULT_CONFIG.ribbon, enabled: false } },
+    });
     render(<LeftSidebar />);
+    expect(screen.queryByRole("navigation", { name: "Ribbon" })).toBeNull();
     const tabs = within(screen.getByRole("tablist", { name: "Sidebar panels" }));
     expect(tabs.getAllByRole("tab").map((t) => t.getAttribute("aria-label"))).toEqual([
       "Files",

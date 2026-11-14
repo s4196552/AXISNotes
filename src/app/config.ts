@@ -107,6 +107,11 @@ export interface AxisConfig {
   dashboards: Dashboards;
   /** AXIS Hub plugin availability for this vault. */
   hubEnabled: boolean;
+  /**
+   * The ribbon beside the left panel (Settings → Appearance → Ribbon): on/off, the user's
+   * button order and hidden buttons, by button id (see features/ribbon).
+   */
+  ribbon: { enabled: boolean; order: string[]; hidden: string[] };
   dailyNotes: {
     folder: string;
     /** Date format for the file name, e.g. `YYYY-MM-DD`. */
@@ -192,6 +197,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
   fileOrder: {},
   dashboards: {},
   hubEnabled: true,
+  ribbon: { enabled: true, order: [], hidden: [] },
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   home: { openOnStartup: false, onLastTabClose: false },
   templatesFolder: "Templates",
