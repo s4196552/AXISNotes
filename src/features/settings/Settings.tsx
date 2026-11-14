@@ -18,6 +18,7 @@ import {
   Sparkles,
   SpellCheck,
   SquareSlash,
+  TextCursor,
   Type,
   X,
 } from "lucide-react";
@@ -53,12 +54,14 @@ import { About } from "./About";
 import { PacksSettings } from "../packs/PacksSettings";
 import { Field, type SectionProps } from "./parts";
 import { Typography } from "./Typography";
+import { CursorSettings } from "./CursorSettings";
 import { EasyOnTheEyes } from "./EasyOnTheEyes";
 import "./settings.css";
 
 export type Section =
   | "appearance"
   | "typography"
+  | "cursor"
   | "colours"
   | "packs"
   | "spelling"
@@ -78,6 +81,7 @@ export type Section =
 const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "typography", label: "Typography", icon: Type },
+  { id: "cursor", label: "Cursor", icon: TextCursor },
   { id: "colours", label: "Colours", icon: Paintbrush },
   { id: "packs", label: "Icon & image packs", icon: Images },
   { id: "spelling", label: "Spelling", icon: SpellCheck },
@@ -101,7 +105,11 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
  * Sections keep their own ids, so links to a section (`section="claude"`) still land on it.
  */
 const PAGES: { label: string; icon: LucideIcon; parts: Section[] }[] = [
-  { label: "Appearance", icon: Palette, parts: ["appearance", "typography", "colours", "packs"] },
+  {
+    label: "Appearance",
+    icon: Palette,
+    parts: ["appearance", "typography", "cursor", "colours", "packs"],
+  },
   { label: "Spelling", icon: SpellCheck, parts: ["spelling"] },
   { label: "Home & daily notes", icon: CalendarDays, parts: ["daily"] },
   { label: "Templates", icon: LayoutTemplate, parts: ["templates"] },
@@ -142,6 +150,8 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
         return <Appearance config={config} set={set} />;
       case "typography":
         return <Typography config={config} set={set} />;
+      case "cursor":
+        return <CursorSettings config={config} set={set} />;
       case "colours":
         return <Colours config={config} set={set} />;
       case "packs":

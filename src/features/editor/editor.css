@@ -1455,3 +1455,18 @@ body.cm-image-drag-copy * {
 .cm-bionic {
   font-weight: 700;
 }
+
+/* The text cursor (Settings → Appearance → Cursor): a block or underline instead of the
+   bar, and no blinking. Thickness and colour are --caret-width / --caret-color. */
+:root[data-caret-shape="block"] .cm-editor .cm-cursor {
+  border-left-width: 0.6em;
+  opacity: 0.55;
+}
+:root[data-caret-shape="underline"] .cm-editor .cm-cursor {
+  border-left: none;
+  border-bottom: max(var(--caret-width, 2px), 2px) solid var(--caret-color, var(--accent));
+  width: 0.6em;
+}
+:root[data-caret-blink="off"] .cm-editor .cm-cursorLayer {
+  animation: none !important;
+}

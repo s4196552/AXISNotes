@@ -84,6 +84,8 @@ export interface AxisConfig {
     /** A warm filter over the window, and its strength in percent. */
     nightLight: boolean;
     nightLightStrength: number;
+    /** The text cursor (caret) in notes and text boxes (Settings → Appearance → Cursor). */
+    cursor: CursorStyle;
     editorWidth: EditorWidth;
     foldArrow: FoldArrow;
     headingColors: HeadingColors;
@@ -152,6 +154,15 @@ export interface AxisConfig {
   };
 }
 
+/** How the text cursor looks: a bar, a block or an underline, its thickness in pixels
+ *  (1 = the default thin bar), its colour ("" = the theme's accent) and whether it blinks. */
+export interface CursorStyle {
+  shape: "bar" | "block" | "underline";
+  width: number;
+  color: string;
+  blink: boolean;
+}
+
 export const DEFAULT_CONFIG: AxisConfig = {
   ai: { folders: {}, models: {} },
   claude: { enabled: false, allowChanges: false },
@@ -167,6 +178,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     bionicReading: false,
     nightLight: false,
     nightLightStrength: 35,
+    cursor: { shape: "bar", width: 1, color: "", blink: true },
     editorWidth: "medium",
     foldArrow: "triangle",
     headingColors: "theme",

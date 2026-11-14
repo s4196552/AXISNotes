@@ -1,6 +1,7 @@
 import { backend, type OsWindowEffect } from "../ipc";
 import {
   type AxisConfig,
+  type CursorStyle,
   type EditorWidth,
   type FoldArrow,
   type HeadingColors,
@@ -58,6 +59,28 @@ export const THEME_INFO: Record<
     mode: "light",
   },
 };
+
+/** Cursor thickness in pixels (Settings → Appearance → Cursor). */
+export const CURSOR_WIDTH = { min: 1, max: 8 };
+const CURSOR_SHAPES = ["bar", "block", "underline"] as const;
+
+/** Apply the text cursor style to notes and every text box. */
+export function applyCursor(c: CursorStyle) {
+  const root = document.documentElement;
+  const width = Number.isFinite(c.width)
+    ? Math.min(CURSOR_WIDTH.max, Math.max(CURSOR_WIDTH.min, Math.round(c.width)))
+    : 1;
+  if (width > 1) root.style.setProperty("--caret-width", `${width}px`);
+  else root.style.removeProperty("--caret-width");
+  // Only a real colour reaches CSS (the value comes from a hand-editable config).
+  if (/^#[0-9a-f]{3,8}$/i.test(c.color)) root.style.setProperty("--caret-color", c.color);
+  else root.style.removeProperty("--caret-color");
+  const shape = (CURSOR_SHAPES as readonly string[]).includes(c.shape) ? c.shape : "bar";
+  if (shape === "bar") delete root.dataset.caretShape;
+  else root.dataset.caretShape = shape;
+  if (c.blink === false) root.dataset.caretBlink = "off";
+  else delete root.dataset.caretBlink;
+}
 
 /** Night light strength, in percent (Settings → Appearance → Easy on the eyes). */
 export const NIGHT_LIGHT = { min: 10, max: 80, step: 5 };
