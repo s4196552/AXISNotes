@@ -3,7 +3,8 @@
 .sidebar.with-ribbon {
   flex-direction: row;
 }
-.sidebar.with-ribbon > .sidebar-main {
+/* The panel's own contents, with or without the ribbon beside them. */
+.sidebar > .sidebar-main {
   display: flex;
   flex-direction: column;
   flex: 1;
