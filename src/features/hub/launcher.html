@@ -1,23 +1,15 @@
 <div id="app-shell">
-  <nav class="hub-navigation" aria-label="Hub">
-    <button id="nav-home" class="button" type="button">Library</button>
-    <button id="plugins-button" class="button" type="button">Shortcut packs</button>
-  </nav>
   <div id="main">
     <div class="workspace">
       <header class="page-header">
         <div class="page-intro">
           <h2 id="page-title">Library</h2>
-          <p id="page-subtitle">Open your apps, files, folders, and websites.</p>
+          <p id="page-subtitle" hidden></p>
         </div>
-        <div class="page-actions">
-          <button id="add-group" class="button" type="button">
-            <span class="glyph-plus" aria-hidden="true"></span> New group
-          </button>
-          <button id="add-shortcut" class="button primary" type="button">
-            <span class="glyph-plus" aria-hidden="true"></span> Add shortcut
-          </button>
-        </div>
+        <nav class="hub-navigation" aria-label="Hub">
+          <button id="nav-home" class="tab" type="button">Library</button>
+          <button id="plugins-button" class="tab" type="button">Packs</button>
+        </nav>
       </header>
 
       <div id="view-controls">
@@ -27,20 +19,30 @@
           <input
             id="search"
             type="search"
-            placeholder="Search your library"
+            placeholder="Search apps, files and sites"
             autocomplete="off"
             spellcheck="false"
           />
         </label>
-        <label class="sort-field" for="sort">
-          <span class="sort-label">Sort by</span>
-          <select id="sort">
-            <option value="manual">Manual order</option>
-            <option value="name">Name</option>
-            <option value="type">Type</option>
-          </select>
-          <span class="glyph-chevron" aria-hidden="true"></span>
-        </label>
+        <div class="page-actions">
+          <label class="sort-field" for="sort" title="Sort">
+            <span class="sort-label sr-only">Sort by</span>
+            <select id="sort">
+              <option value="manual">My order</option>
+              <option value="name">Name</option>
+              <option value="type">Type</option>
+            </select>
+            <span class="glyph-chevron" aria-hidden="true"></span>
+          </label>
+          <button id="add-group" class="button" type="button" title="New group">
+            <span class="glyph-folder" aria-hidden="true"></span>
+            <span class="action-text">Group</span>
+          </button>
+          <button id="add-shortcut" class="button primary" type="button" title="Add shortcut">
+            <span class="glyph-plus" aria-hidden="true"></span>
+            <span class="action-text">Add</span>
+          </button>
+        </div>
       </div>
 
       <div id="content" aria-busy="true">

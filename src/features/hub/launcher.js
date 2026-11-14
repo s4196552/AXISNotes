@@ -275,21 +275,107 @@ export function mountHub(root, bridge, mode) {
     return palette[Math.abs(hash) % palette.length];
   }
 
+  // An icon's own colour, for its tile (Email's blue, Calendar's red). Kept per icon.
+  const iconTints = new Map();
+
+  function iconTint(src) {
+    if (!iconTints.has(src))
+      iconTints.set(
+        src,
+        readTint(src).catch(() => null),
+      );
+    return iconTints.get(src);
+  }
+
+  async function readTint(src) {
+    const image = new Image();
+    image.src = src;
+    await image.decode();
+    const size = 16;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = size;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+    context.drawImage(image, 0, 0, size, size);
+    const { data } = context.getImageData(0, 0, size, size);
+    let red = 0;
+    let green = 0;
+    let blue = 0;
+    let weight = 0;
+    for (let at = 0; at < data.length; at += 4) {
+      if (data[at + 3] < 128) continue;
+      const [r, g, b] = [data[at], data[at + 1], data[at + 2]];
+      // Colourful pixels count most; white, black and grey hardly at all.
+      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      if (chroma < 28) continue;
+      red += r * chroma;
+      green += g * chroma;
+      blue += b * chroma;
+      weight += chroma;
+    }
+    if (!weight) return null;
+    const hex = (value) =>
+      Math.round(value / weight)
+        .toString(16)
+        .padStart(2, "0");
+    return `#${hex(red)}${hex(green)}${hex(blue)}`;
+  }
+
+  /** Give a tile its shortcut's colour: the icon's own when it has one, else a palette colour. */
+  function tint(element, shortcut) {
+    element.style.setProperty("--tile-tint", colorFor(shortcut));
+    if (!shortcut.icon) return;
+    void iconTint(shortcut.icon).then((color) => {
+      if (color && !disposed) element.style.setProperty("--tile-tint", color);
+    });
+  }
+
   async function launch(shortcut) {
     await invoke("launch", { shortcutId: shortcut.id });
     notice(`Opened ${shortcut.name}`);
   }
 
-  function tile(shortcut, group, mini = false) {
-    const className = mini ? "app-tile mini-tile" : "app-tile";
-    if (!shortcut) return el("span", `${className} tile-placeholder`);
-    const control = button("", () => launch(shortcut), className);
+  /** Right-click (or the context-menu key) edits what was clicked, like a desktop. */
+  function editOnContextMenu(element, edit) {
+    element.addEventListener("contextmenu", (event) => {
+      if (saving || dialog.open) return;
+      event.preventDefault();
+      event.stopPropagation();
+      edit();
+    });
+  }
+
+  /** A small app icon in a group tile: one click opens it, right-click edits it. */
+  function tile(shortcut, group) {
+    const control = button("", () => launch(shortcut), "app-tile");
     control.title = shortcut.name;
     control.setAttribute("aria-label", `Open ${shortcut.name}`);
-    control.style.setProperty("--tile-tint", colorFor(shortcut));
+    tint(control, shortcut);
     control.append(iconFor(shortcut));
     markShortcut(control, shortcut, group);
+    editOnContextMenu(control, () => shortcutDialog(group.id, shortcut));
     if (!searching()) dragSource(control, control, shortcutSource(shortcut, group), true);
+    return control;
+  }
+
+  /** A folder icon for a group inside a group: up to four of its icons, like a phone. */
+  function folderTile(group) {
+    const control = button(
+      "",
+      () => navigate({ kind: "group", id: group.id }),
+      "app-tile folder-tile",
+    );
+    control.dataset.hubGroup = group.id;
+    control.title = group.name;
+    control.setAttribute("aria-label", `Open ${group.name} group`);
+    control.style.setProperty("--group-tint", colors[group.color] || colors.slate);
+    for (const shortcut of ordered(group.shortcuts, true).slice(0, 4)) {
+      const mini = el("span", "folder-mini");
+      tint(mini, shortcut);
+      mini.append(iconFor(shortcut));
+      control.append(mini);
+    }
+    editOnContextMenu(control, () => groupDialog(group.id));
     return control;
   }
 
@@ -300,56 +386,145 @@ export function mountHub(root, bridge, mode) {
     return control;
   }
 
-  function groupCard(group) {
-    const card = el("article", "group-card");
-    card.dataset.hubGroup = group.id;
-    card.style.setProperty("--group-tint", colors[group.color]);
-    const mosaic = el("div", "group-mosaic");
-    const shortcuts = ordered(group.shortcuts, true);
-    for (let index = 0; index < 3; index += 1) mosaic.append(tile(shortcuts[index], group));
-    const mini = el("div", "mini-grid");
-    for (let index = 3; index < 7; index += 1) mini.append(tile(shortcuts[index], group, true));
-    mosaic.append(mini);
-    const footer = el("div", "group-footer");
-    const open = button("", () => navigate({ kind: "group", id: group.id }), "group-open");
+  function countLabel(group) {
     const count = group.shortcuts.length;
-    const detail = `${count} ${count === 1 ? "shortcut" : "shortcuts"}${group.groups.length ? ` · ${group.groups.length} ${group.groups.length === 1 ? "group" : "groups"}` : ""}`;
-    open.append(el("span", "group-name", group.name), el("span", "group-meta", detail));
+    const subgroups = group.groups.length;
+    return `${count} ${count === 1 ? "item" : "items"}${subgroups ? ` · ${subgroups} ${subgroups === 1 ? "group" : "groups"}` : ""}`;
+  }
+
+  /** A group's label row: its colour, name and count (opens it), then its menu. */
+  function groupHeader(card, group) {
+    const header = el("div", "group-footer cell-header");
+    const open = button("", () => navigate({ kind: "group", id: group.id }), "group-open");
+    open.title = `Open ${group.name}`;
+    const dot = el("span", "group-dot");
+    dot.setAttribute("aria-hidden", "true");
+    open.append(
+      dot,
+      el("span", "group-name", group.name),
+      el("span", "group-meta", countLabel(group)),
+    );
     if (!searching()) {
       const source = { kind: "group", id: group.id, name: group.name };
-      footer.append(grip(card, source));
+      header.append(grip(card, source));
       dragSource(open, card, source, true);
     }
-    footer.append(
+    header.append(
       open,
       iconButton("···", `Edit ${group.name} group`, () => groupDialog(group.id)),
     );
-    card.append(mosaic, footer);
+    return header;
+  }
+
+  const CELL_SLOTS = 8;
+
+  /**
+   * A group as a tile in the bento grid: its apps as icons that open with one click,
+   * groups inside it as folder icons, and "+N" when there are more than fit.
+   */
+  function groupCard(group) {
+    const card = el("article", "group-card bento-cell");
+    card.dataset.hubGroup = group.id;
+    card.style.setProperty("--group-tint", colors[group.color] || colors.slate);
+    const shortcuts = ordered(group.shortcuts, true);
+    const subgroups = ordered(group.groups);
+    const total = shortcuts.length + subgroups.length;
+    if (total > 4) card.classList.add("wide");
+    if (shortcuts.length === 1 && !subgroups.length) card.classList.add("solo");
+    const body = el("div", "cell-icons");
+    const room = total > CELL_SLOTS ? CELL_SLOTS - 1 : CELL_SLOTS;
+    body.append(...shortcuts.slice(0, room).map((shortcut) => tile(shortcut, group)));
+    body.append(...subgroups.slice(0, Math.max(0, room - shortcuts.length)).map(folderTile));
+    if (total > room) {
+      const more = button(
+        `+${total - room}`,
+        () => navigate({ kind: "group", id: group.id }),
+        "app-tile more-tile",
+      );
+      more.setAttribute("aria-label", `Show all ${total} in ${group.name}`);
+      more.title = `Show all in ${group.name}`;
+      body.append(more);
+    }
+    if (!total) {
+      const add = button("", () => shortcutDialog(group.id), "app-tile add-tile");
+      add.setAttribute("aria-label", `Add a shortcut to ${group.name}`);
+      add.title = `Add a shortcut to ${group.name}`;
+      add.append(el("span", "glyph-plus"));
+      body.append(add);
+    }
+    editOnContextMenu(card, () => groupDialog(group.id));
+    card.append(groupHeader(card, group), body);
     return card;
   }
 
+  /** A large launch tile: icon at the top, name at the bottom, menu in the corner. */
   function shortcutCard(shortcut, group) {
-    const card = el("article", "shortcut-card");
+    const card = el("article", "shortcut-card launch-tile");
     markShortcut(card, shortcut, group);
+    tint(card, shortcut);
     const open = button("", () => launch(shortcut), "shortcut-launch");
     open.title = `Open ${shortcut.name}`;
-    open.style.setProperty("--tile-tint", colorFor(shortcut));
+    const icon = el("span", "launch-icon");
+    icon.append(iconFor(shortcut));
     open.append(
-      iconFor(shortcut),
+      icon,
       el("span", "shortcut-label", shortcut.name),
       el("span", "shortcut-meta", kinds[shortcut.target.kind]),
     );
     const actions = el("div", "shortcut-actions");
+    if (!searching()) {
+      const source = shortcutSource(shortcut, group);
+      actions.append(grip(card, source));
+      dragSource(open, card, source, true);
+    }
     actions.append(
       iconButton("···", `Edit ${shortcut.name} shortcut`, () => shortcutDialog(group.id, shortcut)),
     );
-    if (!searching()) {
-      const source = shortcutSource(shortcut, group);
-      card.append(grip(card, source));
-      dragSource(open, card, source, true);
-    }
+    editOnContextMenu(card, () => shortcutDialog(group.id, shortcut));
     card.append(open, actions);
     return card;
+  }
+
+  /**
+   * The first group (Favorites, unless reordered) as a row of large colour tiles at the
+   * top, so the apps used most open with one click. Groups inside it follow as folders.
+   */
+  function featuredSection(group) {
+    const section = el("section", "featured");
+    section.dataset.hubGroup = group.id;
+    section.style.setProperty("--group-tint", colors[group.color] || colors.slate);
+    const shortcuts = ordered(group.shortcuts, true);
+    const shown = shortcuts.slice(0, 8);
+    const tiles = grid(
+      "launch-grid",
+      shown.map((shortcut) => shortcutCard(shortcut, group)),
+    );
+    if (shortcuts.length > shown.length) {
+      const more = button(
+        `+${shortcuts.length - shown.length} more`,
+        () => navigate({ kind: "group", id: group.id }),
+        "launch-more",
+      );
+      tiles.append(more);
+    }
+    for (const inner of ordered(group.groups)) {
+      const folder = button("", () => navigate({ kind: "group", id: inner.id }), "launch-more");
+      folder.dataset.hubGroup = inner.id;
+      folder.title = `Open ${inner.name}`;
+      folder.append(el("span", "glyph-folder"), el("span", "", inner.name));
+      editOnContextMenu(folder, () => groupDialog(inner.id));
+      tiles.append(folder);
+    }
+    editOnContextMenu(section, () => groupDialog(group.id));
+    section.append(groupHeader(section, group), tiles);
+    return section;
+  }
+
+  /** A dashed tile at the end of the grid for a new group. */
+  function newGroupTile() {
+    const add = button("", () => groupDialog(), "bento-cell new-cell");
+    add.append(el("span", "glyph-plus"), el("span", "", "New group"));
+    return add;
   }
 
   function grid(className, entries) {
@@ -405,7 +580,7 @@ export function mountHub(root, bridge, mode) {
         [activeGroup.plugin.name, ...activeGroup.parents.map(({ name }) => name)].join(" / "),
       );
     else if (plugin) page(plugin.name, plugin.description || "Shortcut groups");
-    else page("Library", "Open your apps, files, folders and websites from one place.");
+    else page("Library", "");
 
     const search = $("search").value.trim().toLocaleLowerCase();
     if (search) {
@@ -421,7 +596,7 @@ export function mountHub(root, bridge, mode) {
       if (groupMatches.length)
         content.append(
           grid(
-            "group-grid",
+            "group-grid bento",
             groupMatches.map(({ group }) => groupCard(group)),
           ),
         );
@@ -429,7 +604,7 @@ export function mountHub(root, bridge, mode) {
         const results = new Map(found.map(({ group, shortcut }) => [shortcut.id, group]));
         content.append(
           grid(
-            "shortcut-grid",
+            "shortcut-grid launch-grid",
             ordered(
               found.map(({ shortcut }) => shortcut),
               true,
@@ -458,12 +633,12 @@ export function mountHub(root, bridge, mode) {
       if (group.shortcuts.length)
         content.append(
           grid(
-            "shortcut-grid",
+            "shortcut-grid launch-grid",
             ordered(group.shortcuts, true).map((item) => shortcutCard(item, group)),
           ),
         );
       if (group.groups.length)
-        content.append(grid("group-grid", ordered(group.groups).map(groupCard)));
+        content.append(grid("group-grid bento", ordered(group.groups).map(groupCard)));
       if (!group.groups.length && !group.shortcuts.length) {
         content.append(
           emptyState(
@@ -480,8 +655,19 @@ export function mountHub(root, bridge, mode) {
     }
 
     const topGroups = plugin ? plugin.groups : enabled().flatMap(({ groups }) => groups);
-    if (topGroups.length) content.append(grid("group-grid", ordered(topGroups).map(groupCard)));
-    else
+    if (topGroups.length) {
+      const top = ordered(topGroups);
+      // The first group in the user's own order (Favorites, unless reordered) leads as
+      // large tiles once it has apps in it, whatever the sort; the rest form the grid.
+      const featured = topGroups[0]?.shortcuts.length ? topGroups[0] : undefined;
+      if (featured) content.append(featuredSection(featured));
+      content.append(
+        grid("group-grid bento", [
+          ...top.filter((group) => group !== featured).map(groupCard),
+          newGroupTile(),
+        ]),
+      );
+    } else
       content.append(
         emptyState(
           "Create a group",
