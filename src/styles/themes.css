@@ -288,3 +288,161 @@
 :root[data-glass="liquid"] .settings-subtabs button {
   border-radius: 999px;
 }
+
+/* ---------------------------------------------------------------- High contrast */
+/* After VS Code's High Contrast Dark and Light: pure black/white surfaces, every pane and
+   control outlined in the contrast border, the selected item and keyboard focus in the
+   active border (orange / blue), links and selection as strong as the text. */
+:root[data-theme="hc-dark"],
+[data-theme-preview="hc-dark"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --bg-sidebar: #000000;
+  --bg-elevated: #000000;
+  --bg-hover: #000000;
+  --bg-active: #000000;
+  --fg: #ffffff;
+  --fg-muted: #ffffff;
+  --border: #6fc3df;
+  --accent: #f38518;
+  --accent-fg: #000000;
+  --link: #21a6ff;
+  --heading: #ffffff;
+  --danger: #f48771;
+  --code-bg: #000000;
+  --selection: #264f78;
+  --scrim: rgb(0 0 0 / 0.7);
+  --scrollbar: #6fc3df;
+  --list-marker: #ffffff;
+  --indent-guide: #6fc3df;
+  --hc-active: #f38518;
+  --shadow-pop: 0 0 0 1px #6fc3df;
+  --shadow-modal: 0 0 0 1px #6fc3df;
+}
+:root[data-theme="hc-light"],
+[data-theme-preview="hc-light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-sidebar: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-hover: #ffffff;
+  --bg-active: #ffffff;
+  --fg: #292929;
+  --fg-muted: #292929;
+  --border: #0f4a85;
+  --accent: #0f4a85;
+  --accent-fg: #ffffff;
+  --link: #0f4a85;
+  --heading: #000000;
+  --danger: #b5200d;
+  --code-bg: #ffffff;
+  --selection: #add6ff;
+  --scrim: rgb(0 0 0 / 0.45);
+  --scrollbar: #0f4a85;
+  --list-marker: #292929;
+  --indent-guide: #0f4a85;
+  --hc-active: #006bbd;
+  --shadow-pop: 0 0 0 1px #0f4a85;
+  --shadow-modal: 0 0 0 1px #0f4a85;
+}
+/* Outlines instead of tints: panes, the selected row/tab and keyboard focus. */
+:root:is([data-theme="hc-dark"], [data-theme="hc-light"]) :is(.sidebar, .content, .modal) {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+:root:is([data-theme="hc-dark"], [data-theme="hc-light"])
+  :is(
+    .filetree-row.selected,
+    .filetree-row.active,
+    .tab.active,
+    .settings-nav button[aria-current="page"],
+    .settings-subtabs button[aria-selected="true"]
+  ) {
+  outline: 1px dashed var(--hc-active);
+  outline-offset: -1px;
+}
+:root:is([data-theme="hc-dark"], [data-theme="hc-light"])
+  :is(button, input, select, textarea, [role="tab"], [tabindex]):focus-visible {
+  outline: 2px solid var(--hc-active);
+  outline-offset: 1px;
+}
+:root:is([data-theme="hc-dark"], [data-theme="hc-light"]) :is(button, select, input):hover {
+  outline: 1px dashed var(--hc-active);
+}
+:root:is([data-theme="hc-dark"], [data-theme="hc-light"]) a {
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------- E-ink */
+/* Easy on the eyes: paper white and ink black, greys only (pictures too), no shadows or
+   glass, and nothing moves — no animations or transitions. */
+:root[data-theme="eink"],
+[data-theme-preview="eink"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-sidebar: #f2f2f2;
+  --bg-elevated: #ffffff;
+  --bg-hover: #e6e6e6;
+  --bg-active: #d4d4d4;
+  --fg: #000000;
+  --fg-muted: #404040;
+  --border: #000000;
+  --accent: #000000;
+  --accent-fg: #ffffff;
+  --link: #000000;
+  --heading: #000000;
+  --danger: #000000;
+  --code-bg: #eeeeee;
+  --selection: #c8c8c8;
+  --scrim: rgb(0 0 0 / 0.35);
+  --scrollbar: #808080;
+  --list-marker: #000000;
+  --indent-guide: #bdbdbd;
+  --shadow-pop: 0 0 0 1px #000000;
+  --shadow-modal: 0 0 0 2px #000000;
+  --syntax-keyword: #000000;
+  --syntax-string: #404040;
+  --syntax-comment: #707070;
+  --syntax-number: #000000;
+  --syntax-function: #000000;
+  --syntax-definition: #000000;
+  --syntax-variable: #202020;
+  --syntax-builtin: #000000;
+  --syntax-type: #000000;
+  --syntax-operator: #000000;
+  --callout-blue: #000000;
+  --callout-cyan: #000000;
+  --callout-green: #000000;
+  --callout-orange: #000000;
+  --callout-red: #000000;
+  --callout-purple: #000000;
+  --callout-gray: #000000;
+}
+:root[data-theme="eink"] *,
+:root[data-theme="eink"] *::before,
+:root[data-theme="eink"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+  backdrop-filter: none !important;
+  text-shadow: none !important;
+}
+:root[data-theme="eink"] :is(img, video, canvas, iframe, svg image, .cm-image) {
+  filter: grayscale(1);
+}
+:root[data-theme="eink"] a {
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------- Night light */
+/* A warm filter over the whole window (Settings → Appearance → Easy on the eyes): it
+   multiplies away blue light; `--night-light` is its strength (0–1). Clicks pass through. */
+#axis-night-light {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  background: rgb(255 150 60);
+  mix-blend-mode: multiply;
+  opacity: var(--night-light, 0.35);
+}

@@ -5,6 +5,7 @@ import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import {
   applyAppearance,
+  applyNightLight,
   applyTranslucency,
   BUILTIN_THEMES,
   effectiveMode,
@@ -319,7 +320,7 @@ describe("Settings → Appearance → Theme", () => {
     expect(within(group).getByRole("radio", { name: "Darker" })).toBeChecked();
   });
 
-  it("no longer offers High contrast, Retro, Glass or Minimal, or has styles for them", () => {
+  it("no longer offers the old Contrast, Retro, Glass or Minimal, or has styles for them", () => {
     render(<Settings section="appearance" onClose={vi.fn()} />);
     const group = screen.getByRole("radiogroup", { name: "Theme" });
     for (const name of ["High contrast", "Retro", "Glass", "Minimal"])
@@ -346,7 +347,7 @@ describe("removed themes (0.3.58)", () => {
   it("a vault saved with one falls back to its light/dark counterpart on load", async () => {
     expect(await load("axis:minimal")).toBe("light");
     expect(await load("axis:retro")).toBe("light");
-    expect(await load("axis:contrast")).toBe("dark");
+    expect(await load("axis:contrast")).toBe("axis:hc-dark");
     expect(await load("axis:glass")).toBe("system");
     // Kept themes and a user's own same-named theme are untouched.
     expect(await load("axis:darker")).toBe("axis:darker");
@@ -357,7 +358,7 @@ describe("removed themes (0.3.58)", () => {
   it("still styles the app, without an error, if an old id reaches it", async () => {
     const warn = vi.spyOn(console, "warn");
     await applyAppearance({ theme: "axis:contrast", snippets: [] });
-    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.dataset.theme).toBe("hc-dark");
     expect(document.getElementById("axis-user-theme")?.textContent).toBe("");
     await applyAppearance({ theme: "axis:retro", snippets: [] });
     expect(document.documentElement.dataset.theme).toBe("light");
@@ -374,6 +375,56 @@ describe("removed themes (0.3.58)", () => {
     await load("axis:contrast");
     render(<Settings section="appearance" onClose={vi.fn()} />);
     const group = screen.getByRole("radiogroup", { name: "Theme" });
-    expect(within(group).getByRole("radio", { name: "Dark" })).toBeChecked();
+    expect(within(group).getByRole("radio", { name: "High contrast dark" })).toBeChecked();
+  });
+});
+
+describe("easy on the eyes and high contrast (T-249)", () => {
+  it("adds High contrast dark and light, after VS Code's, and an E-ink theme without motion", async () => {
+    for (const name of ["hc-dark", "hc-light", "eink"]) {
+      await applyAppearance({ theme: `axis:${name}`, snippets: [] });
+      expect(document.documentElement.dataset.theme).toBe(name);
+    }
+    const css = readFileSync("src/styles/themes.css", "utf8");
+    // VS Code's High Contrast colours: black with #6FC3DF borders and #F38518 focus, and
+    // white with #0F4A85 borders and #006BBD focus.
+    expect(css).toMatch(/hc-dark[\s\S]*--bg: #000000;[\s\S]*--border: #6fc3df;[\s\S]*#f38518/);
+    expect(css).toMatch(/hc-light[\s\S]*--bg: #ffffff;[\s\S]*--border: #0f4a85;[\s\S]*#006bbd/);
+    expect(css).toMatch(/data-theme="eink"\] \*[\s\S]*animation: none !important;/);
+    expect(THEME_INFO["axis:hc-dark"].mode).toBe("dark");
+    expect(THEME_INFO["axis:eink"].mode).toBe("light");
+  });
+
+  it("turns Night light and E-ink on and off from Theme & layout", async () => {
+    render(<Settings section="appearance" onClose={vi.fn()} />);
+    const section = screen.getByRole("region", { name: "Easy on the eyes" });
+    expect(within(section).queryByRole("slider", { name: "Night light warmth" })).toBeNull();
+    fireEvent.click(within(section).getByRole("checkbox", { name: "Night light" }));
+    fireEvent.change(within(section).getByRole("slider", { name: "Night light warmth" }), {
+      target: { value: "60" },
+    });
+    fireEvent.click(within(section).getByRole("checkbox", { name: "E-ink" }));
+    await waitFor(async () => {
+      const saved = JSON.parse((await h.b.readFile(".axisnotes/config.json")).content);
+      expect(saved.theme).toBe("axis:eink");
+      expect(saved.appearance).toMatchObject({ nightLight: true, nightLightStrength: 60 });
+    });
+    expect(screen.getByRole("radio", { name: "E-ink" })).toBeChecked();
+    fireEvent.click(within(section).getByRole("checkbox", { name: "E-ink" }));
+    await waitFor(() => expect(useConfig.getState().config.theme).toBe("system"));
+  });
+
+  it("puts the warm filter over the window without catching clicks", () => {
+    applyNightLight(true, 60);
+    const filter = document.getElementById("axis-night-light")!;
+    expect(filter.style.getPropertyValue("--night-light")).toBe("0.6");
+    expect(filter).toHaveAttribute("aria-hidden", "true");
+    applyNightLight(true, 500);
+    expect(filter.style.getPropertyValue("--night-light")).toBe("0.8");
+    applyNightLight(false, 60);
+    expect(document.getElementById("axis-night-light")).toBeNull();
+    expect(readFileSync("src/styles/themes.css", "utf8")).toMatch(
+      /#axis-night-light \{[\s\S]*pointer-events: none;/,
+    );
   });
 });

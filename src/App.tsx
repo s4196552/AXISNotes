@@ -8,6 +8,7 @@ import {
   applyAppearance,
   applyTranslucency,
   applyTypography,
+  applyNightLight,
   onTransparencyEffectsChange,
 } from "./app/appearance";
 import { applyAppColors } from "./app/appColors";
@@ -127,6 +128,11 @@ export default function App() {
     return applyWindowLogo(typography.logo, (message) => useAppStore.getState().notify(message));
   }, [typography.logo, vault?.root, configLoaded]);
   useEffect(() => applyTypography(typography), [typography]);
+  const { nightLight, nightLightStrength } = typography;
+  useEffect(
+    () => applyNightLight(nightLight, nightLightStrength),
+    [nightLight, nightLightStrength],
+  );
   // Fonts imported into the vault, usable by name like installed ones.
   // (A string, so the effect reruns only when the font files change.)
   const fontFiles = useAppStore((s) => JSON.stringify(vaultFonts(s.tree)));
