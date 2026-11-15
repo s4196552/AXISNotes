@@ -63,7 +63,7 @@ import {
 import { skillIcon } from "../skills/skillIcons";
 import { useUi } from "../commands/ui";
 import { cleanReply } from "./fixPrompt";
-import { recordTeach, withStudySources } from "../comprehension/studyResults";
+import { recordTeach, STUDY_SKILLS, withStudySources } from "../comprehension/studyResults";
 // The block is the first AI view many sessions open: load its styles with it.
 import "./ai.css";
 
@@ -338,7 +338,9 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       if (out.kind === "html") {
         // A study page carries the notes it was made from, so the results it reports to
         // the comprehension heatmap can be checked against them.
-        const html = withStudySources(out.html, req.attach ?? []);
+        const html = STUDY_SKILLS.has(s.id)
+          ? withStudySources(out.html, req.attach ?? [])
+          : out.html;
         const saved = await keep(async () => [await savePageNextTo(path, s, html)]);
         patch({ html, saved, answer: "", phase: done });
       } else if (out.kind === "files") {

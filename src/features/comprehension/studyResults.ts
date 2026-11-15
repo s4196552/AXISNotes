@@ -21,6 +21,9 @@ import { useComprehension } from "./store";
 // Each item names the note (and heading) it tests, as "path#Heading". Only notes in the
 // vault that AI may read are taken: a page can't report on a note it was never given.
 
+/** The skills whose pages report results (their pages carry `SOURCES_META`). */
+export const STUDY_SKILLS: ReadonlySet<string> = new Set(["test", "flashcards"]);
+
 /** The meta tag a saved study page carries with the notes it was made from. */
 export const SOURCES_META = "axisnotes-sources";
 

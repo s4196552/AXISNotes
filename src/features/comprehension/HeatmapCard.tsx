@@ -1,4 +1,12 @@
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Brain, Paintbrush, Sparkles } from "lucide-react";
 import { backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
@@ -100,6 +108,7 @@ export function HeatmapCard(p: {
   const [focus, setFocus] = useState(0);
   const [tip, setTip] = useState<{ unit: Unit; x: number; y: number } | null>(null);
   const grid = useRef<HTMLDivElement>(null);
+  const unitGroup = useId();
 
   const setLevel = (u: Unit, level: Level | null) =>
     void useComprehension.getState().change((f) => setManual(f, u.key, level));
@@ -207,7 +216,7 @@ export function HeatmapCard(p: {
               <label key={m}>
                 <input
                   type="radio"
-                  name={`heatmap-unit-${title}`}
+                  name={unitGroup}
                   checked={topic.unit === m}
                   onChange={() => p.onUnitChange!(m)}
                 />

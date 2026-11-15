@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { readFileSync } from "node:fs";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,6 +35,7 @@ import {
   recordTeach,
   resolveSource,
   studySourcesOf,
+  useStudyResults,
   withStudySources,
 } from "./studyResults";
 import { HeatmapCard } from "./HeatmapCard";
@@ -286,6 +288,41 @@ describe("study results", () => {
     expect(levelOf(f.units[`${m11}#Anomaly`])).toBe(2);
     // M12 wasn't read by the lesson, so its level goes to the only note it read.
     expect(Object.keys(f.units)).toEqual([`${m11}#Anomaly`, m11]);
+  });
+});
+
+describe("a study page's frame", () => {
+  beforeEach(() => setup());
+
+  function Page({ path }: { path: string }) {
+    const ref = useRef<HTMLIFrameElement>(null);
+    useStudyResults(ref, path);
+    return <iframe ref={ref} title="page" />;
+  }
+
+  it("reports results only while the learner is using it, once per result", async () => {
+    const m10 = `${CYBER}/M10 Firewalls.md`;
+    await h.b.createFile(
+      `${CYBER}/M10 - Practice test.html`,
+      withStudySources("<html><head></head></html>", [m10]),
+    );
+    render(<Page path={`${CYBER}/M10 - Practice test.html`} />);
+    const frame = screen.getByTitle("page") as HTMLIFrameElement;
+    const data = {
+      axisnotesStudy: { kind: "test", items: [{ source: `${m10}#Stateful`, correct: true }] },
+    };
+    const post = () =>
+      act(async () => {
+        window.dispatchEvent(new MessageEvent("message", { data, source: frame.contentWindow }));
+        await new Promise((r) => setTimeout(r, 20));
+      });
+    // Not focused: a page can't report on its own as it loads.
+    await post();
+    expect(h.b.files()[COMPREHENSION_PATH]).toBeUndefined();
+    frame.focus();
+    await post();
+    await post();
+    await waitFor(() => expect(saved().units[`${m10}#Stateful`]?.results).toHaveLength(1));
   });
 });
 
