@@ -64,6 +64,7 @@ import { configuredSpellcheck, recheck } from "../spellcheck";
 import { bionicReading } from "./bionic";
 import { headingIndicator } from "./headingIndicator";
 import { mermaidBlocks } from "../diagrams/mermaidBlocks";
+import { heatmapBlocks } from "../comprehension/heatmapBlock";
 import "../diagrams/diagrams.css";
 import {
   commandMenuAnchor,
@@ -416,6 +417,7 @@ export function Editor({ path }: EditorProps) {
             obsidianSyntax,
             toggles,
             mermaidBlocks,
+            heatmapBlocks,
             math,
             spellCompartment.current.of(configuredSpellcheck()),
             bionicCompartment.current.of(

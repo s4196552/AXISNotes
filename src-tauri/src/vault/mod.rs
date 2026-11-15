@@ -745,7 +745,10 @@ pub fn read_skill_folder(skill_md: &Path) -> AppResult<SkillFolder> {
             files.push((rel, text));
         }
     }
-    if !files.iter().any(|(r, _)| r.eq_ignore_ascii_case("SKILL.md")) {
+    if !files
+        .iter()
+        .any(|(r, _)| r.eq_ignore_ascii_case("SKILL.md"))
+    {
         return Err(AppError::Io("SKILL.md couldn't be read as text".into()));
     }
     Ok(SkillFolder { name, files })

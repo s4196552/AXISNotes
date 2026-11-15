@@ -194,6 +194,104 @@ impl AppState {
         Ok(rel)
     }
 
+    /// Copy notes and folders from outside the vault into `dir` for a comprehension
+    /// heatmap topic (T-261). Folders keep their layout; only Markdown notes are copied
+    /// (anything else is listed as failed), hidden items and links are skipped. Items
+    /// already in the vault stay where they are. `paths` are the top-level items.
+    fn import_notes_tree(
+        &self,
+        sources: &[PathBuf],
+        dir: &str,
+        vault_root: Option<&str>,
+    ) -> AppResult<Imported> {
+        let v = self.vault_at(vault_root)?;
+        let mut out = Imported::default();
+        let mut budget = MAX_TREE_FILES;
+        for src in sources {
+            let name = src
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+            if let Some(rel) = attachments::in_vault(&v, src) {
+                out.paths.push(rel);
+                continue;
+            }
+            let result = if src.is_dir() {
+                self.import_notes_dir(&v, src, dir, &name, 0, &mut budget, &mut out)
+            } else if is_markdown(src) {
+                self.import_file(&v, src, dir, &name)
+            } else {
+                Err(AppError::InvalidName(format!(
+                    "{name} isn't a Markdown note (.md)"
+                )))
+            };
+            match result {
+                Ok(rel) => out.paths.push(rel),
+                Err(e) => out.failed.push(ImportFailure {
+                    name,
+                    error: e.to_string(),
+                }),
+            }
+        }
+        Ok(out)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn import_notes_dir(
+        &self,
+        v: &Vault,
+        src: &Path,
+        dir: &str,
+        name: &str,
+        depth: usize,
+        budget: &mut usize,
+        out: &mut Imported,
+    ) -> AppResult<String> {
+        if depth > MAX_TREE_DEPTH {
+            return Err(AppError::InvalidName(format!(
+                "{name} is nested too deeply"
+            )));
+        }
+        let rel = v.free_path(dir, name)?;
+        self.touch(v, &rel)?;
+        v.create_dir(&rel)?;
+        let mut children: Vec<_> = fs::read_dir(src)?.filter_map(Result::ok).collect();
+        children.sort_by_key(|e| e.file_name());
+        for child in children {
+            let child_name = child.file_name().to_string_lossy().into_owned();
+            let Ok(meta) = fs::symlink_metadata(child.path()) else {
+                continue;
+            };
+            if crate::vault::is_hidden_name(&child_name) || meta.file_type().is_symlink() {
+                continue;
+            }
+            let result = if meta.is_dir() {
+                self.import_notes_dir(v, &child.path(), &rel, &child_name, depth + 1, budget, out)
+                    .map(|_| ())
+            } else if is_markdown(&child.path()) {
+                if *budget == 0 {
+                    Err(AppError::InvalidName(format!(
+                        "{child_name}: more than {MAX_TREE_FILES} notes at once"
+                    )))
+                } else {
+                    *budget -= 1;
+                    self.import_file(v, &child.path(), &rel, &child_name)
+                        .map(|_| ())
+                }
+            } else {
+                continue;
+            };
+            if let Err(e) = result {
+                out.failed.push(ImportFailure {
+                    name: child_name,
+                    error: e.to_string(),
+                });
+            }
+        }
+        Ok(rel)
+    }
+
     /// Open `path` as the vault at startup (used by `AXIS_OPEN_VAULT`, e.g. in E2E tests).
     pub fn open_at_startup(&self, app: &AppHandle, path: &str) -> AppResult<VaultInfo> {
         self.activate(app, Vault::open(&PathBuf::from(path))?)
@@ -391,6 +489,53 @@ pub async fn import_dropped(
 ) -> AppResult<Imported> {
     let files = std::mem::take(&mut *dropped.0.lock().unwrap());
     state.import_files(&files, &dir, vault_root.as_deref())
+}
+
+/// At most this many notes are copied by one heatmap import, at most this deep.
+const MAX_TREE_FILES: usize = 2000;
+const MAX_TREE_DEPTH: usize = 16;
+
+fn is_markdown(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("md") || e.eq_ignore_ascii_case("markdown"))
+}
+
+/// Add notes from outside the vault to a comprehension heatmap topic (T-261): `from` is
+/// "files" (a picker for Markdown notes), "folder" (a folder picker) or "dropped" (what
+/// was just dropped on the window). They're copied into `dir`; nothing if cancelled.
+#[tauri::command]
+pub async fn import_study_notes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    dropped: State<'_, DroppedFiles>,
+    dir: String,
+    from: String,
+    vault_root: Option<String>,
+) -> AppResult<Imported> {
+    use tauri_plugin_dialog::DialogExt;
+    let sources: Vec<PathBuf> = match from.as_str() {
+        "dropped" => std::mem::take(&mut *dropped.0.lock().unwrap()),
+        "files" => app
+            .dialog()
+            .file()
+            .set_title("Add notes to the heatmap")
+            .add_filter("Markdown notes", &["md", "markdown"])
+            .blocking_pick_files()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|f| f.into_path().ok())
+            .collect(),
+        "folder" => app
+            .dialog()
+            .file()
+            .set_title("Add a folder of notes to the heatmap")
+            .blocking_pick_folder()
+            .and_then(|f| f.into_path().ok())
+            .into_iter()
+            .collect(),
+        other => return Err(AppError::InvalidName(format!("unknown source: {other}"))),
+    };
+    state.import_notes_tree(&sources, &dir, vault_root.as_deref())
 }
 
 /// Let the user pick images, videos or audio files, and import them into `dir`. Empty
@@ -981,5 +1126,61 @@ mod font_tests {
         sorted.dedup();
         assert_eq!(fonts, sorted);
         assert!(fonts.iter().all(|f| !f.starts_with('@')));
+    }
+}
+
+#[cfg(test)]
+mod study_import_tests {
+    use super::*;
+
+    #[test]
+    fn imports_folders_of_notes_keeping_their_layout_and_skipping_the_rest() {
+        let vault_dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let course = outside.path().join("CyberSec OPs");
+        fs::create_dir_all(course.join("Week 1")).unwrap();
+        fs::create_dir_all(course.join(".hidden")).unwrap();
+        fs::write(course.join("M10 Firewalls.md"), "# Firewalls").unwrap();
+        fs::write(course.join("Week 1").join("M11.md"), "## IDS").unwrap();
+        fs::write(course.join("slides.pdf"), "pdf").unwrap();
+        fs::write(course.join(".hidden").join("secret.md"), "no").unwrap();
+        let loose = outside.path().join("Extra.md");
+        fs::write(&loose, "extra").unwrap();
+        let photo = outside.path().join("photo.png");
+        fs::write(&photo, "png").unwrap();
+
+        let vault = Vault::open(vault_dir.path()).unwrap();
+        let state = AppState::default();
+        *state.vault.lock().unwrap() = Some(vault.clone());
+        let out = state
+            .import_notes_tree(&[course.clone(), loose, photo], "Study/Cyber", None)
+            .unwrap();
+        assert_eq!(
+            out.paths,
+            ["Study/Cyber/CyberSec OPs", "Study/Cyber/Extra.md"]
+        );
+        assert_eq!(out.failed.len(), 1);
+        assert_eq!(out.failed[0].name, "photo.png");
+        assert_eq!(
+            vault
+                .read_file("Study/Cyber/CyberSec OPs/Week 1/M11.md")
+                .unwrap()
+                .content,
+            "## IDS"
+        );
+        assert!(vault
+            .read_file("Study/Cyber/CyberSec OPs/M10 Firewalls.md")
+            .is_ok());
+        assert!(vault
+            .read_file("Study/Cyber/CyberSec OPs/slides.pdf")
+            .is_err());
+        assert!(vault
+            .read_file("Study/Cyber/CyberSec OPs/.hidden/secret.md")
+            .is_err());
+        // The same folder again gets a free name instead of mixing into the first copy.
+        let again = state
+            .import_notes_tree(&[course], "Study/Cyber", None)
+            .unwrap();
+        assert_eq!(again.paths, ["Study/Cyber/CyberSec OPs 1"]);
     }
 }

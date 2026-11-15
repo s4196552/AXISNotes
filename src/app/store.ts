@@ -70,6 +70,8 @@ export interface AppState {
   openFile(path: string | null, target?: OpenTarget, opts?: OpenOptions): void;
   /** Show a folder's dashboard ("" = the vault's Home). */
   openDashboard(folder: string, opts?: OpenOptions): void;
+  /** Show the comprehension heatmap view, at a topic (its id) or the first one. */
+  openHeatmap(topic: string | null, opts?: OpenOptions): void;
   /**
    * Home as the start page: its tab if one is open, else the active tab if it's empty, else
    * a new tab before the others. Never replaces a tab that shows something.
@@ -158,7 +160,9 @@ const isSameOrInside = (path: string, dir: string) => path === dir || path.start
  */
 function withTabs(tabs: TabsState) {
   const tab = T.activeTab(tabs);
-  return { tabs, activePath: tab.view === "dashboard" ? null : tab.path, mainView: tab.view };
+  // A dashboard's or heatmap's path is its folder or topic, not an open note.
+  const noNote = tab.view === "dashboard" || tab.view === "heatmap";
+  return { tabs, activePath: noNote ? null : tab.path, mainView: tab.view };
 }
 
 /** The workspace with the focused pane's live tabs in it. */
@@ -297,6 +301,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
+  openHeatmap(topic, opts) {
+    set({
+      ...withTabs(T.navigate(get().tabs, { path: topic, view: "heatmap" }, opts)),
+      pendingTarget: null,
+    });
+  },
+
   openDashboard(folder, opts) {
     set({
       ...withTabs(T.navigate(get().tabs, { path: folder, view: "dashboard" }, opts)),
@@ -432,7 +443,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // "note" again brings that tab's note back (a dashboard's folder is no note to go back to).
   setMainView(view) {
     const tab = T.activeTab(get().tabs);
-    const path = tab.view === "dashboard" ? null : tab.path;
+    const path = tab.view === "dashboard" || tab.view === "heatmap" ? null : tab.path;
     set({ ...withTabs(T.navigate(get().tabs, { path, view })), pendingTarget: null });
   },
 

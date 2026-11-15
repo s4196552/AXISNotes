@@ -254,7 +254,10 @@ export function installFileDrops(): () => void {
       // The window reports physical pixels; the page works in CSS pixels.
       const cx = x / window.devicePixelRatio;
       const cy = y / window.devicePixelRatio;
-      const content = document.elementFromPoint(cx, cy)?.closest(".content");
+      const target = document.elementFromPoint(cx, cy);
+      // Views that take dropped files themselves (the comprehension heatmap).
+      if (target?.closest("[data-own-file-drops]")) return;
+      const content = target?.closest(".content");
       const view = editorAt(cx, cy) ?? (content ? (getActiveEditor()?.view ?? null) : null);
       if (!view) return;
       const at = view.posAtCoords({ x: cx, y: cy }) ?? undefined;

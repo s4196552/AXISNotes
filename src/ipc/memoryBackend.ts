@@ -482,6 +482,7 @@ export function createMemoryBackend(
     // The browser preview has no files dropped from outside, and no file picker.
     importDropped: async () => ({ paths: [], failed: [] }),
     pickAttachments: async () => ({ paths: [], failed: [] }),
+    importStudyNotes: async () => ({ paths: [], failed: [] }),
     onFilesDropped: async () => () => {},
     // The browser preview can't read files on disk: importing adds sample notes.
     inspectImport: async (kind, source) => ({

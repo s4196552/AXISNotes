@@ -672,6 +672,16 @@ export interface Backend {
   /** Let the user pick images, video or audio and import them into `dir` (nothing if
    *  they cancel). */
   pickAttachments(dir: string, vaultRoot?: string): Promise<Imported>;
+  /**
+   * Copy notes from outside the vault into `dir` for a comprehension heatmap topic: picked
+   * Markdown files, a picked folder (kept as a folder) or what was just dropped on the
+   * window. `paths` are the top-level items, already in the vault ones where they are.
+   */
+  importStudyNotes(
+    dir: string,
+    from: "files" | "folder" | "dropped",
+    vaultRoot?: string,
+  ): Promise<Imported>;
   /** Files from outside were dropped on the window, at `x`, `y` in physical pixels. */
   onFilesDropped(cb: (drop: FilesDropped) => void): Promise<() => void>;
 

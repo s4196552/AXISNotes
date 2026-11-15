@@ -341,6 +341,8 @@ export interface SkillFile {
 export interface SkillFiles {
   message: string;
   files: SkillFile[];
+  /** Teach me's levels for parts of the course notes (comprehension heatmap, T-261). */
+  comprehension?: { source: string; level: 1 | 2 | 3 | 4 | 5 }[];
 }
 
 const MAX_FILES = 12;
@@ -348,7 +350,7 @@ const MAX_FILE_BYTES = 512 * 1024;
 
 /** Files a skill wants written, checked: plain names, .md or .html, sizes kept small. */
 export function parseSkillFiles(answer: string): SkillFiles {
-  const v = parseAnswer<{ message: string; files: SkillFile[] }>(answer, {
+  const v = parseAnswer<{ message: string; files: SkillFile[]; comprehension?: unknown }>(answer, {
     type: "object",
     props: {
       message: { type: "string", optional: true },
@@ -376,5 +378,22 @@ export function parseSkillFiles(answer: string): SkillFiles {
     return { path, content: /\.html?$/i.test(path) ? makeCopyable(content) : content };
   });
   if (problems.length) throw new InvalidAnswer(problems);
-  return { message: v.message ?? "", files };
+  // Teach me's levels are extra: anything malformed is dropped rather than failing the lesson.
+  const comprehension = Array.isArray(v.comprehension)
+    ? (v.comprehension as { source?: unknown; level?: unknown }[])
+        .filter(
+          (c): c is { source: string; level: 1 | 2 | 3 | 4 | 5 } =>
+            !!c &&
+            typeof c.source === "string" &&
+            typeof c.level === "number" &&
+            [1, 2, 3, 4, 5].includes(c.level),
+        )
+        .slice(0, 200)
+        .map((c) => ({ source: c.source, level: c.level }))
+    : [];
+  return {
+    message: v.message ?? "",
+    files,
+    ...(comprehension.length ? { comprehension } : {}),
+  };
 }

@@ -998,3 +998,62 @@ The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq,
 - **Settings → AI → Skills** lists every skill and makes new ones as `Skills/<name>/SKILL.md`. **Import skill…** copies a skill folder written for another AI tool (picked by its `SKILL.md`, Agent Skills layout) into `Skills/`: only its Markdown/text files (that folder and one level down, at most 40 files of 512 KB each), never scripts. The native `import_skill` command does the copy.
 - Vault skills carry their reference files and the skills they name ("call the Skill tool with …") into a run, up to 60,000 characters, because a run can't open files or call tools.
 - **Bundled content, not a dependency:** Matt Pocock's skills (https://github.com/mattpocock/skills, **MIT**, commit `5863806dd4e15c63174bee4e7515a4256792ecfa`), the Markdown of the engineering and productivity skills except `setup-matt-pocock-skills`, in `src/features/skills/packs/mattPocock.ts`. It is loaded only when someone adds the collection, which writes them to `Skills/Matt Pocock/` with the licence (`LICENSE.md`). Each SKILL.md is adapted to run as an AI chat on the open note (`output: chat`, a short note that it can't run tools), and one whose name a built-in skill already has (`grill-me`, `handoff`, `teach`) gets a `-pocock` suffix so it adds to AXISNotes' own instead of replacing it.
+
+## 2026-11-15 — T-261: comprehension heatmap and its levels file
+
+- **What it is:** a topic is a set of vault notes and folders. Its heatmap has one square per
+  unit: each note, or each section of a note (the note's top headings; a lone H1 that titles
+  the note doesn't count, and a note without headings is one square). Squares are gray (no
+  data) or one of five levels: 1 Bad (red), 2 Weak (pink), 3 Fair (yellow), 4 Good (light
+  green), 5 Best (green). Colours are theme tokens `--heat-0`…`--heat-5` in `themes.css`.
+- **Storage: `.axisnotes/comprehension.json`**, plain JSON written only by the app, read
+  again before every change (so hand edits survive) and parsed leniently (malformed parts are
+  dropped, never the file). Notes stay the source of truth: units are rebuilt from the notes
+  each time the heatmap is drawn, and the file only holds topics and per-unit levels:
+  ```json
+  {
+    "version": 1,
+    "topics": [
+      {
+        "id": "topic-…",
+        "title": "CyberSec OPs",
+        "unit": "sections",
+        "sources": ["AXIS/Education/RMIT UNI/SEM 3/CyberSec OPs"]
+      }
+    ],
+    "units": {
+      "AXIS/…/M10.md#Firewalls": {
+        "manual": 4,
+        "results": [
+          { "at": "2026-11-15T09:00:00Z", "from": "test", "score": 0.6, "right": 3, "total": 5 }
+        ]
+      }
+    }
+  }
+  ```
+  Unit keys are `path` (a note) or `path#Heading` (a section). A unit's level is `manual` if
+  set, else the average score of its latest three results (`<0.35` Bad, `<0.55` Weak, `<0.75`
+  Fair, `<0.9` Good, else Best); a section without data shows its note's level, and a note
+  without its own data the average of its sections'. At most 20 results are kept per unit.
+  Levels are keyed by note, not topic, so deleting a topic keeps them. Renaming a note
+  leaves its old keys behind (they stop showing); relinking renamed notes is a follow-up.
+- **Why `.axisnotes/`:** it is per-vault app data like `config.json`, and the Claude
+  connector and AI folder scopes never read `.axisnotes`, so headings of notes kept from AI
+  don't leak through it.
+- **In a note:** a fenced block, plain Markdown that other apps show as code:
+  ` ```heatmap ` with `title:`, `unit: notes|sections` and `source:` lines. The card loads
+  only when a note has one. The view is a tab (`view: "heatmap"`, path = topic id).
+- **Where levels come from:** Practice test and Flash cards pages post
+  `{axisnotesStudy: {kind, items: [{source: "path#Heading", correct}]}}` to the app when the
+  learner finishes; the app takes it only from the page's own frame while it has focus, and
+  only for notes the page was made from (a `<meta name="axisnotes-sources">` the app adds
+  when saving the page) that AI may read. Teach me returns an optional `comprehension` list of
+  `{source, level}` with its lesson JSON, checked the same way against the notes it read.
+  The user can set or clear a level by hand (Set levels, or keys 1–5 / 0 on a square).
+- **AI rules:** the heatmap itself sends nothing to AI. "Practise weak spots" runs the Practice
+  test skill through `runSkillOnPicked`, which leaves out notes marked "AI: never" and lets
+  the Rust layer enforce "local only". Results are never recorded for "AI: never" notes.
+- **Notes from outside the vault** (Upload notes/folder, or dropping files and folders from
+  Explorer on the view) go through a native command `import_study_notes` that copies only
+  Markdown notes, keeps folder layout, skips hidden items and links, and never overwrites
+  (free names). No new dependencies.

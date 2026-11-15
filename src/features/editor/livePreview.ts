@@ -15,6 +15,7 @@ import { mathRanges } from "./math";
 import { VERBATIM } from "./listAutoformat";
 import { taggedCode } from "./inlineCodeLanguage";
 import { isMermaidInfo } from "../diagrams/mermaidInfo";
+import { isHeatmapInfo } from "../comprehension/heatmapBlock";
 import { useAppStore } from "../../app/store";
 import { lucideSvg } from "./lucideSvg";
 
@@ -305,8 +306,9 @@ export function buildDecorations(
             const language = info ? state.sliceDoc(info.from, info.to) : "";
             const closed = node.getChildren("CodeMark").length > 1;
             // The fences show as typed while a selection is in the block; else the block is
-            // a box with a header in the corner. Mermaid blocks draw as diagrams.
-            const diagram = isMermaidInfo(language);
+            // a box with a header in the corner. Mermaid blocks draw as diagrams, and
+            // ```heatmap blocks as comprehension heatmaps (comprehension/heatmapBlock.ts).
+            const diagram = isMermaidInfo(language) || isHeatmapInfo(language);
             const inBlock = touched(node.from, node.to);
             const editing = inBlock || diagram;
             // ```green: the code in that colour, with no language label (codeColors.ts).
