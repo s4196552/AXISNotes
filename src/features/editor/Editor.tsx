@@ -43,6 +43,7 @@ import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { PageHeader } from "./PageHeader";
 import { NoteTitle } from "./NoteTitle";
+import { NoteAiAccess } from "../ai/NoteAiAccess";
 import { DAILY_TITLE_FORMAT, startBelowTitle, titleHeading, titleOf } from "./titleHeading";
 import { takeEditorFocus } from "./focusRequest";
 import { countWords, wordCount } from "./wordCount";
@@ -665,6 +666,7 @@ export function Editor({ path }: EditorProps) {
           beforeRename={async () => (await flush()) === null}
           focusBody={() => view.current?.focus()}
         />
+        <NoteAiAccess path={path} />
         <div className="editor-tools">
           <button
             className={`editor-tool${outlineOn ? " active" : ""}`}

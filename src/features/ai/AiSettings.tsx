@@ -544,6 +544,7 @@ function folderPaths(tree: VaultEntry | null): string[] {
 
 function FolderRules() {
   const folders = useConfig((s) => s.config.ai.folders);
+  const titleButton = useConfig((s) => s.config.ai.titleButton !== false);
   const update = useConfig((s) => s.update);
   const tree = useAppStore((s) => s.tree);
   const options = useMemo(() => folderPaths(tree), [tree]);
@@ -620,6 +621,19 @@ function FolderRules() {
           <Plus size={14} /> Add rule
         </button>
       </div>
+      <label className="ai-enabled">
+        <input
+          type="checkbox"
+          checked={titleButton}
+          onChange={(e) =>
+            void update((c) => ({ ...c, ai: { ...c.ai, titleButton: e.target.checked } }))
+          }
+        />
+        Show the AI access button beside note titles
+      </label>
+      <p className="settings-hint muted">
+        Its icon shows whether AI can read the open note; click it to set the note's own rule.
+      </p>
     </section>
   );
 }

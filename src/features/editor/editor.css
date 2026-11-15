@@ -17,8 +17,21 @@
 }
 /* Whatever follows the title (tools, save state) sits together at the right. */
 .editor-header > .editor-title + *,
-.editor-header > .editor-title-row + * {
+.editor-header > .editor-title-row + *,
+.editor-header > .note-ai-access + * {
   margin-left: auto;
+}
+/* The AI access button sits right after the note's name. */
+.editor-header > .editor-title + .note-ai-access,
+.editor-header > .editor-title-row + .note-ai-access {
+  margin-left: 0;
+}
+@supports (field-sizing: content) {
+  .editor-header > input.editor-title {
+    flex: 0 1 auto;
+    min-width: 4ch;
+    field-sizing: content;
+  }
 }
 .editor-tool {
   flex: none;
