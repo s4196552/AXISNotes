@@ -887,17 +887,29 @@ input.editor-title::placeholder {
 }
 
 /* Markdown tables stay ordinary Markdown on disk; wide tables scroll inside the note. */
+/* Tables, drawn and edited like Obsidian's (T-259): sized to their content with quiet
+   borders; click a cell to type; grips beside a row and above a column (shown while the
+   pointer is over it) open its menu or drag it; the + bars on the right and bottom add a
+   column or row. A table wider than the note scrolls inside it. */
 .cm-markdown-table {
-  margin: 10px 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) 16px;
+  grid-template-rows: auto 16px;
+  margin: 4px 0 4px -14px;
   /* The editor is a flex item: exclude the table's minimum width from its
      intrinsic size so overflow belongs to the table, not the entire note. */
   contain: inline-size;
   min-width: 0;
-  max-width: 100%;
-  font-family: var(--font-ui);
+  max-width: calc(100% + 14px);
 }
 .cm-table-scroll {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
   max-width: 100%;
+  /* Room for the grips, which sit outside the cells. */
+  padding: 12px 0 0 14px;
   overflow-x: auto;
 }
 .cm-table-scroll:focus-visible {
@@ -905,45 +917,24 @@ input.editor-title::placeholder {
   outline-offset: 2px;
 }
 .cm-markdown-table table {
-  width: 100%;
-  table-layout: fixed;
+  width: auto;
   border-collapse: collapse;
-  font-size: 0.95em;
+  font-size: inherit;
+  line-height: 1.5;
 }
 .cm-markdown-table :is(th, td) {
-  padding: 8px 10px;
+  position: relative;
+  padding: 4px 10px;
   border: 1px solid var(--border);
   vertical-align: top;
-  min-width: 110px;
+  min-width: 96px;
+  max-width: 420px;
   white-space: normal;
   overflow-wrap: anywhere;
 }
 .cm-markdown-table th {
-  background: var(--bg-hover);
   font-weight: 600;
-}
-.cm-markdown-table tbody tr:nth-child(even) {
-  background: var(--bg-hover);
-}
-.cm-table-tools,
-.cm-image-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 6px 0;
-}
-.cm-table-tools button,
-.cm-image-tools button {
-  font: inherit;
-  font-size: 12px;
-  padding: 4px 8px;
-}
-.cm-markdown-table textarea {
-  width: 100%;
-  min-width: 110px;
-  box-sizing: border-box;
-  resize: vertical;
-  font: inherit;
+  text-align: left;
 }
 .cm-table-link {
   padding: 0;
@@ -953,8 +944,10 @@ input.editor-title::placeholder {
   font: inherit;
   cursor: pointer;
 }
+.cm-table-link:hover {
+  text-decoration: underline;
+}
 .cm-markdown-table [data-table-cell] {
-  position: relative;
   cursor: text;
 }
 .cm-markdown-table [data-table-cell]:focus-visible {
@@ -970,19 +963,174 @@ input.editor-title::placeholder {
   width: 100%;
   height: 100%;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 4px 10px;
   border: 0;
   border-radius: 0;
   outline: 2px solid var(--accent);
   outline-offset: -2px;
   background: var(--bg);
   color: inherit;
+  font: inherit;
+  line-height: inherit;
   text-align: inherit;
-  font-weight: inherit;
   resize: none;
 }
-.cm-table-link:hover {
-  text-decoration: underline;
+/* Grips: six dots beside a row and above a column. */
+.cm-table-grip {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+  opacity: 0;
+  cursor: grab;
+  touch-action: none;
+  transition: opacity 0.12s;
+}
+.cm-table-grip::before {
+  content: "";
+  width: 6px;
+  height: 10px;
+  background: radial-gradient(circle, currentColor 1px, transparent 1.3px) 0 0 / 3px 3.4px;
+}
+.cm-table-grip-row {
+  top: 50%;
+  left: -14px;
+  width: 12px;
+  height: 20px;
+  transform: translateY(-50%);
+}
+.cm-table-grip-column {
+  top: -12px;
+  left: 50%;
+  width: 20px;
+  height: 11px;
+  transform: translateX(-50%);
+}
+.cm-table-grip-column::before {
+  width: 10px;
+  height: 6px;
+  background-size: 3.4px 3px;
+}
+.cm-table-grip.show,
+.cm-table-grip:focus-visible,
+.cm-table-grip[aria-expanded="true"] {
+  opacity: 1;
+}
+.cm-table-grip:hover {
+  background: var(--bg-active, var(--bg-hover));
+  color: var(--fg);
+}
+/* Dragging a row or column: where it will land. */
+.cm-table-dragging,
+.cm-table-dragging * {
+  cursor: grabbing !important;
+}
+.cm-markdown-table [data-drop="before"] {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.cm-markdown-table [data-drop="after"] {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.cm-markdown-table [data-drop="left"] {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.cm-markdown-table [data-drop="right"] {
+  box-shadow: inset -2px 0 0 var(--accent);
+}
+/* The + bars along the right and bottom edges. */
+.cm-table-add {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.cm-table-add-column {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 12px 0 0 2px;
+}
+.cm-table-add-row {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 2px 0 0 14px;
+}
+.cm-markdown-table:hover .cm-table-add {
+  opacity: 0.7;
+}
+.cm-markdown-table .cm-table-add:hover {
+  opacity: 1;
+  background: var(--bg-active, var(--bg-hover));
+  color: var(--fg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-table-grip,
+  .cm-table-add {
+    transition: none;
+  }
+}
+/* The menu of a row, column or cell. */
+.cm-table-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated, var(--bg));
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+.cm-table-menu button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: start;
+}
+.cm-table-menu button:hover,
+.cm-table-menu button:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+.cm-table-menu button.danger {
+  color: var(--danger, #d9534f);
+}
+.cm-table-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+.cm-table-tools,
+.cm-image-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+.cm-table-tools button,
+.cm-image-tools button {
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
 }
 .cm-image-embed[data-kind="image"] {
   cursor: default;
