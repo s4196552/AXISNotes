@@ -185,13 +185,13 @@ export function headingsOf(text: string): Heading[] {
  */
 export function sectionsOf(text: string): Heading[] {
   let hs = headingsOf(text);
-  if (!hs.length) return [];
-  const h1s = hs.filter((h) => h.level === 1);
-  if (h1s.length === 1) {
-    // A lone H1 titles the note: its H2s (or whatever is below it) are the sections, and
-    // with nothing below it the whole note is one square.
-    hs = hs.filter((h) => h.level > 1);
+  // A lone top heading titles the note ("# Biology", "## Module 3: …"): the level below it
+  // holds the sections, and with nothing below it the whole note is one square.
+  for (;;) {
     if (!hs.length) return [];
+    const level = Math.min(...hs.map((h) => h.level));
+    if (hs.filter((h) => h.level === level).length > 1) break;
+    hs = hs.filter((h) => h.level > level);
   }
   const top = Math.min(...hs.map((h) => h.level));
   const seen = new Set<string>();

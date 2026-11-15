@@ -56,7 +56,7 @@ const NOTES: Record<string, string> = {
   [`${CYBER}/M11 IDS.md`]:
     "---\ntags: [ids]\n---\n## Signatures\n\n```\n## not a heading\n```\n## Anomaly\n",
   [`${CYBER}/M12 Crypto.md`]: "No headings here.",
-  "Private/Medical.md": "## Results\n",
+  "Private/Medical.md": "## Results\n\n## Plan\n",
 };
 
 async function setup(files: Record<string, string> = NOTES) {
@@ -92,6 +92,10 @@ describe("model", () => {
     ]);
     expect(sectionsOf("plain")).toEqual([]);
     expect(sectionsOf("# Only a title\ntext")).toEqual([]);
+    // A lone title at any level is skipped (as in "## Module 3: …" notes).
+    expect(
+      sectionsOf("## Module 3\n### Kernel\n#### a\n### Registry\n#### b").map((s) => s.text),
+    ).toEqual(["Kernel", "Registry"]);
   });
 
   it("builds a column per note, with the note as one square when it has no sections", () => {
