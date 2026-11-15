@@ -6,6 +6,17 @@
    Translucent    the window itself is see-through, with an opacity setting (light + dark);
                   its Liquid glass effect adds Apple-style glass panes, capsules and lenses */
 
+/* ---------------------------------------------------------------- Emphasis colours */
+/* The colours bold, italic and strikethrough text get when the user turns them on without
+   picking their own (Settings → Appearance → Theme & layout; app/appearance.ts). Every theme
+   gets these; a theme or snippet can set its own. `light-dark()` follows the theme's mode. */
+:root,
+[data-theme-preview] {
+  --text-bold-theme: var(--accent);
+  --text-italic-theme: light-dark(#0f766e, #5eead4);
+  --text-strike-theme: var(--fg-muted);
+}
+
 /* ---------------------------------------------------------------- Darker */
 :root[data-theme="darker"],
 [data-theme-preview="darker"] {
@@ -417,6 +428,7 @@
   --callout-red: #000000;
   --callout-purple: #000000;
   --callout-gray: #000000;
+  --text-italic-theme: #000000;
 }
 :root[data-theme="eink"] *,
 :root[data-theme="eink"] *::before,

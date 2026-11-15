@@ -243,14 +243,19 @@ input.editor-title::placeholder {
 .cm-lp-h6 * {
   font-weight: var(--h6-weight);
 }
+/* Their own colours, when turned on in Settings → Appearance (app/appearance.ts sets the
+   variables); unset, the text keeps its colour. */
 .cm-lp-strong {
   font-weight: 700;
+  color: var(--text-bold, inherit);
 }
 .cm-lp-em {
   font-style: italic;
+  color: var(--text-italic, inherit);
 }
 .cm-lp-strike {
   text-decoration: line-through;
+  color: var(--text-strike, inherit);
 }
 .cm-lp-code {
   font-family: var(--font-mono);

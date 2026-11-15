@@ -34,6 +34,21 @@ export type EditorWidth = "narrow" | "medium" | "wide" | "full";
 /** How the arrows that fold headings and toggle lists look (see `FOLD_ARROWS`). */
 export type FoldArrow = "triangle" | "chevron" | "arrow" | "circle" | "plus" | "square";
 
+/**
+ * An optional colour for one kind of emphasised text (Settings → Appearance → Theme &
+ * layout). Off: the text keeps the theme's colour. On: `light` and `dark` (`#rrggbb`) are
+ * used in light and dark themes; "" uses the theme's suggestion (`--text-*-theme` tokens in
+ * themes.css). Only how text looks: the Markdown is unchanged.
+ */
+export interface TextColor {
+  on: boolean;
+  light: string;
+  dark: string;
+}
+export type TextColorKind = "bold" | "italic" | "strike";
+export type TextColors = Record<TextColorKind, TextColor>;
+const NO_TEXT_COLOR: TextColor = { on: false, light: "", dark: "" };
+
 /** A colour preset for headings 1–6 (see `HEADING_COLORS`); "theme" keeps the theme's. */
 export type HeadingColors = "theme" | "accent" | "rainbow" | "amber" | "ocean" | "forest" | "berry";
 
@@ -91,6 +106,8 @@ export interface AxisConfig {
     editorWidth: EditorWidth;
     foldArrow: FoldArrow;
     headingColors: HeadingColors;
+    /** Own colours for bold, italic and strikethrough text, each off by default. */
+    textColors: TextColors;
     /** Lines at the note's right edge for its headings; pointing at them lists them. */
     headingIndicator: boolean;
     /** Translucent theme: how opaque the window is (percent), and what shows behind it. */
@@ -191,6 +208,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     editorWidth: "medium",
     foldArrow: "triangle",
     headingColors: "theme",
+    textColors: { bold: NO_TEXT_COLOR, italic: NO_TEXT_COLOR, strike: NO_TEXT_COLOR },
     headingIndicator: true,
     windowOpacity: 80,
     windowEffect: "frosted",

@@ -5,7 +5,10 @@ import {
   type EditorWidth,
   type FoldArrow,
   type HeadingColors,
+  isHexColor,
   REMOVED_THEMES,
+  type TextColorKind,
+  type TextColors,
   type WindowEffect,
 } from "./config";
 
@@ -314,6 +317,43 @@ export function headingColorVars(preset: HeadingColors): Record<string, string> 
       light === dark ? light : `light-dark(${light}, ${dark})`,
     ]),
   );
+}
+
+/** The emphasised text that can have its own colour, with its CSS variable. */
+export const TEXT_COLOR_KINDS: readonly { id: TextColorKind; label: string; css: string }[] = [
+  { id: "bold", label: "Bold", css: "--text-bold" },
+  { id: "italic", label: "Italic", css: "--text-italic" },
+  { id: "strike", label: "Strikethrough", css: "--text-strike" },
+];
+
+/**
+ * The `--text-bold`/`--text-italic`/`--text-strike` values for the colours turned on: the
+ * user's light and dark colours, or the theme's suggestion for either left unset. Kinds
+ * turned off are left out, so their text keeps the theme's colour. Only plain hex colours
+ * reach CSS (the config is hand-editable).
+ */
+export function textColorVars(colors: Partial<TextColors> | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const k of TEXT_COLOR_KINDS) {
+    const c = colors?.[k.id];
+    if (!c?.on) continue;
+    const theme = `var(${k.css}-theme)`;
+    const light = isHexColor(c.light) ? c.light : theme;
+    const dark = isHexColor(c.dark) ? c.dark : theme;
+    out[k.css] = light === dark ? light : `light-dark(${light}, ${dark})`;
+  }
+  return out;
+}
+
+/** Set (or clear) the emphasised-text colours on the page (editor.css, ai.css). */
+export function applyTextColors(colors: Partial<TextColors> | undefined) {
+  const style = document.documentElement.style;
+  const vars = textColorVars(colors);
+  for (const k of TEXT_COLOR_KINDS) {
+    const value = vars[k.css];
+    if (value) style.setProperty(k.css, value);
+    else style.removeProperty(k.css);
+  }
 }
 
 const UI_FONT_FALLBACK = '"Segoe UI", system-ui, -apple-system, sans-serif';

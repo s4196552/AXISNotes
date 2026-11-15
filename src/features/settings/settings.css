@@ -617,3 +617,60 @@
 .skill-row-source {
   overflow-wrap: anywhere;
 }
+
+/* Bold, italic and strikethrough colours (TextColorSettings.tsx): a row per kind, with a
+   light and a dark chip that each show the sample in that mode's colour. */
+.text-color-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.text-color-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.text-color-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 112px;
+}
+.text-color-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 3px 2px 8px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.text-color-chip[data-mode="light"] {
+  color-scheme: light;
+  background: #ffffff;
+  color: #1f2328;
+}
+.text-color-chip[data-mode="dark"] {
+  color-scheme: dark;
+  background: #1e1f24;
+  color: #e6e7ea;
+}
+.text-color-reset {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+}
+.text-color-chip input[type="color"] {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+.text-color-row:not([data-on]) .text-color-chip {
+  opacity: 0.55;
+}
