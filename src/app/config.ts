@@ -89,6 +89,8 @@ export interface AxisConfig {
     editorWidth: EditorWidth;
     foldArrow: FoldArrow;
     headingColors: HeadingColors;
+    /** Lines at the note's right edge for its headings; pointing at them lists them. */
+    headingIndicator: boolean;
     /** Translucent theme: how opaque the window is (percent), and what shows behind it. */
     windowOpacity: number;
     windowEffect: WindowEffect;
@@ -187,6 +189,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     editorWidth: "medium",
     foldArrow: "triangle",
     headingColors: "theme",
+    headingIndicator: true,
     windowOpacity: 80,
     windowEffect: "frosted",
     appColors: NO_APP_COLORS,
