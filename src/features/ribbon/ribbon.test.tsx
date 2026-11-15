@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { useAppStore } from "../../app/store";
+import { useLayout } from "../../app/layout";
+import { useSidebarChat } from "../ai/sidebarChatState";
 import { LeftSidebar } from "../panels/Sidebars";
 import { Settings } from "../settings/Settings";
 import { arrange, moveInOrder, registerRibbonItem, ribbonItems } from "./registry";
@@ -69,6 +71,7 @@ describe("the ribbon beside the left panel", () => {
       "New note",
       "Today's daily note",
       "Search",
+      "AI chat",
       "Graph view",
       "Tasks",
       "Time report",
@@ -81,6 +84,16 @@ describe("the ribbon beside the left panel", () => {
     expect(useAppStore.getState().mainView).toBe("tasks");
     fireEvent.click(screen.getByRole("button", { name: "AXIS Hub" }));
     expect(useAppStore.getState().leftPanel).toBe("hub");
+  });
+
+  it("opens AI chat in the right panel, and closes it when pressed again (T-255)", () => {
+    useLayout.getState().setPanels({ right: false });
+    render(<LeftSidebar />);
+    fireEvent.click(screen.getByRole("button", { name: "AI chat" }));
+    expect(useSidebarChat.getState().open).toBe(true);
+    expect(useLayout.getState().right).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "AI chat" }));
+    expect(useSidebarChat.getState().open).toBe(false);
   });
 
   it("shows a plugin's button only while the plugin is on, and lets plugins add their own", () => {
