@@ -58,6 +58,8 @@ export interface AxisConfig {
     folders: Record<string, AiRule>;
     /** Allowed models per folder/note, "<provider id>/<model>" or "<provider id>/*". */
     models: Record<string, string[]>;
+    /** The AI access button beside each note's title (Settings → AI). */
+    titleButton?: boolean;
   };
   /**
    * Claude Desktop / Claude Code access through the MCP connector (Settings → Claude),
@@ -171,7 +173,7 @@ export interface CursorStyle {
 }
 
 export const DEFAULT_CONFIG: AxisConfig = {
-  ai: { folders: {}, models: {} },
+  ai: { folders: {}, models: {}, titleButton: true },
   claude: { enabled: false, allowChanges: false },
   theme: "system",
   snippets: [],

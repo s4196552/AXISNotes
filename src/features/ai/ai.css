@@ -890,3 +890,58 @@
   border: 0;
   background: white;
 }
+
+/* The AI access button beside a note's title, and its menu. */
+.note-ai-access {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+}
+.note-ai-access-button.rule-any {
+  opacity: 0.6;
+}
+.note-ai-access-button.rule-local {
+  color: var(--accent);
+}
+.note-ai-access-button.rule-never {
+  color: var(--danger, #d9534f);
+}
+.note-ai-access-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated, var(--bg));
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+  font-size: 13px;
+}
+.note-ai-access-menu [role="menuitemradio"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--fg);
+  text-align: start;
+}
+.note-ai-access-menu [role="menuitemradio"]:hover,
+.note-ai-access-menu [role="menuitemradio"]:focus-visible {
+  background: var(--bg-hover);
+}
+.note-ai-access-menu .unchecked {
+  visibility: hidden;
+}
+.note-ai-access-hint {
+  max-width: 260px;
+  margin: 4px 8px;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
