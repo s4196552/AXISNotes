@@ -1,5 +1,8 @@
 import { backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
+import { useConfig } from "../../app/config";
+import { stricter } from "../../lib/aiAccess";
+import { ruleForPath } from "../ai/folderScope";
 import type { Skill } from "./skills";
 
 // What a vault skill brings along when it runs. Skills in the Agent Skills layout (like
@@ -51,12 +54,23 @@ const NO_TOOLS =
  */
 export async function withReferences(skill: Skill, all: readonly Skill[]): Promise<Skill> {
   if (skill.source === "built-in") return skill;
-  const notes = useAppStore.getState().notes.map((n) => n.path);
-  const files = referencePaths(skill.source, notes);
+  const notes = useAppStore.getState().notes;
+  // Only text any AI may read goes along: a file or skill kept from AI (or to local models)
+  // by its folder's rule or its own mark is left out, since these travel as instructions.
+  const folders = useConfig.getState().config.ai.folders;
+  const marks = new Map(notes.map((n) => [n.path, n.aiAccess ?? "any"] as const));
+  const open = (path: string) =>
+    stricter(ruleForPath(folders, path), marks.get(path) ?? "any") === "any";
+  const files = referencePaths(
+    skill.source,
+    notes.map((n) => n.path),
+  ).filter(open);
   const named = namedSkills(skill.instructions)
     .filter((id) => id !== skill.id)
     .map((id) => all.find((s) => s.id === id))
-    .filter((s): s is Skill => !!s && s.id !== skill.id);
+    .filter(
+      (s): s is Skill => !!s && s.id !== skill.id && (s.source === "built-in" || open(s.source)),
+    );
   if (!files.length && !named.length) return skill;
   const parts: string[] = [];
   let budget = MAX_REFERENCE_CHARS;

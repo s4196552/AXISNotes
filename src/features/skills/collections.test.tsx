@@ -111,6 +111,14 @@ describe("skill collections (T-257)", () => {
     expect(tdd.instructions.length).toBeLessThan(
       MATT_POCOCK_FILES["tdd/SKILL.md"]!.length + MAX_REFERENCE_CHARS + 2000,
     );
+    // A reference file kept from AI by its folder's rule stays out.
+    useConfig.setState({
+      config: {
+        ...DEFAULT_CONFIG,
+        ai: { ...DEFAULT_CONFIG.ai, folders: { "Skills/Matt Pocock/tdd/tests.md": "local" } },
+      },
+    });
+    expect((await freshSkill("tdd"))!.instructions).not.toContain("## File tests.md");
     // Built-in skills are unchanged.
     expect((await freshSkill("mindmap"))!.instructions).not.toContain("Included with this skill");
   });
