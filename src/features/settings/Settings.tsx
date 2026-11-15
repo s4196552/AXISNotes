@@ -545,6 +545,17 @@ function Appearance({ config, set }: SectionProps) {
           onChange={(headingColors) => setA({ headingColors })}
         />
       </Field>
+      <Field
+        label="Heading indicator"
+        hint="Short lines at the right edge of a note, one per heading: the longest for its biggest headings. Point at them to see the headings and jump to one."
+      >
+        <input
+          type="checkbox"
+          aria-label="Heading indicator"
+          checked={a.headingIndicator}
+          onChange={(e) => setA({ headingIndicator: e.target.checked })}
+        />
+      </Field>
       <Field label="Fold arrows" hint="The arrows that fold headings and toggle lists.">
         <FoldArrowPicker value={a.foldArrow} onChange={(foldArrow) => setA({ foldArrow })} />
       </Field>

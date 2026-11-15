@@ -61,6 +61,7 @@ import { formatDate } from "../../lib/dates";
 import { allCommands } from "../commands/registry";
 import { configuredSpellcheck, recheck } from "../spellcheck";
 import { bionicReading } from "./bionic";
+import { headingIndicator } from "./headingIndicator";
 import { mermaidBlocks } from "../diagrams/mermaidBlocks";
 import "../diagrams/diagrams.css";
 import {
@@ -195,6 +196,7 @@ export function Editor({ path }: EditorProps) {
   const outlineCompartment = useRef(new Compartment());
   const spellCompartment = useRef(new Compartment());
   const bionicCompartment = useRef(new Compartment());
+  const indicatorCompartment = useRef(new Compartment());
   const outlineOn = useEditorPrefs((s) => s.outlineView);
   const toggleOutline = useEditorPrefs((s) => s.toggleOutlineView);
   const propsJson = useRef("{}");
@@ -418,6 +420,9 @@ export function Editor({ path }: EditorProps) {
             bionicCompartment.current.of(
               useConfig.getState().config.appearance.bionicReading ? bionicReading : [],
             ),
+            indicatorCompartment.current.of(
+              useConfig.getState().config.appearance.headingIndicator ? headingIndicator : [],
+            ),
             links({
               openLink: (inner, newTab) => void followLink(inner, path, { newTab }),
               openTag: (tag) => store().search(`tag:${tag}`),
@@ -600,6 +605,14 @@ export function Editor({ path }: EditorProps) {
       effects: bionicCompartment.current.reconfigure(bionicOn ? bionicReading : []),
     });
   }, [bionicOn]);
+
+  // The heading indicator at the note's right edge (Settings → Appearance → Theme & layout).
+  const indicatorOn = useConfig((s) => s.config.appearance.headingIndicator);
+  useEffect(() => {
+    view.current?.dispatch({
+      effects: indicatorCompartment.current.reconfigure(indicatorOn ? headingIndicator : []),
+    });
+  }, [indicatorOn]);
 
   // Re-style links when notes appear or disappear.
   const notes = useAppStore((s) => s.notes);
