@@ -440,8 +440,12 @@
   align-items: center;
   gap: 5px;
 }
-.heatmap-spacer {
-  flex: 1;
+/* Copy as block and Delete stay together at the end (and wrap together). */
+.heatmap-source-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
 }
 .heatmap-confirm {
   display: inline-flex;

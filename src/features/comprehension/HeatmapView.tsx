@@ -216,34 +216,35 @@ function TopicPanel({ topic }: { topic: Topic }) {
           >
             <FolderUp size={14} aria-hidden /> Upload folder…
           </button>
-          <span className="heatmap-spacer" />
-          <button
-            type="button"
-            onClick={copyBlock}
-            title="Copy a block that shows this heatmap in a note"
-          >
-            <ClipboardCopy size={14} aria-hidden /> Copy as block
-          </button>
-          {confirming ? (
-            <span className="heatmap-confirm" role="group" aria-label="Delete topic?">
-              Delete topic? Notes and levels stay.
-              <button type="button" className="danger" onClick={() => void remove()}>
-                Delete
-              </button>
-              <button type="button" onClick={() => setConfirming(false)}>
-                Keep
-              </button>
-            </span>
-          ) : (
+          <span className="heatmap-source-end">
             <button
               type="button"
-              aria-label="Delete topic"
-              title="Delete topic"
-              onClick={() => setConfirming(true)}
+              onClick={copyBlock}
+              title="Copy a block that shows this heatmap in a note"
             >
-              <Trash2 size={14} />
+              <ClipboardCopy size={14} aria-hidden /> Copy as block
             </button>
-          )}
+            {confirming ? (
+              <span className="heatmap-confirm" role="group" aria-label="Delete topic?">
+                Delete topic? Notes and levels stay.
+                <button type="button" className="danger" onClick={() => void remove()}>
+                  Delete
+                </button>
+                <button type="button" onClick={() => setConfirming(false)}>
+                  Keep
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                aria-label="Delete topic"
+                title="Delete topic"
+                onClick={() => setConfirming(true)}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
+          </span>
         </div>
       </div>
       <HeatmapCard
