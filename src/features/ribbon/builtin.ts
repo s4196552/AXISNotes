@@ -7,11 +7,13 @@ import {
   ListChecks,
   Network,
   Search,
+  Sparkles,
   SquareArrowOutUpRight,
 } from "lucide-react";
 import { allCommands } from "../commands/registry";
 import { useAppStore } from "../../app/store";
-import { showLeftPanel } from "../../app/layout";
+import { showLeftPanel, useLayout } from "../../app/layout";
+import { openSidebarChat, useSidebarChat } from "../ai/sidebarChatState";
 import { registerRibbonItem } from "./registry";
 
 /** Run an app command by id (the same action as its shortcut and the palette). */
@@ -47,6 +49,18 @@ for (const item of [
     run: () => {
       showLeftPanel();
       useAppStore.getState().setLeftPanel("search");
+    },
+  },
+  {
+    id: "core:ai",
+    label: "AI chat",
+    Icon: Sparkles,
+    // Opens AI chat about the open note; pressed again while it's showing, closes it.
+    run: () => {
+      const right = useLayout.getState();
+      const showing = useSidebarChat.getState().open && (right.right || right.overlay === "right");
+      if (showing) useSidebarChat.setState({ open: false });
+      else openSidebarChat();
     },
   },
   {
