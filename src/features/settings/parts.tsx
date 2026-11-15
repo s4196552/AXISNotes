@@ -57,3 +57,24 @@ export function FontSelect(p: {
     </select>
   );
 }
+
+/**
+ * "Reset to defaults" for one Settings tab: shown at the bottom, enabled only when
+ * something on the tab differs from its default.
+ */
+export function ResetDefaults(p: { what: string; changed: boolean; onReset(): void }) {
+  return (
+    <div className="settings-field settings-reset">
+      <div>
+        <div className="settings-hint muted">
+          Put every {p.what} setting on this tab back to how AXISNotes comes.
+        </div>
+      </div>
+      <div className="settings-control">
+        <button disabled={!p.changed} onClick={p.onReset}>
+          Reset to defaults
+        </button>
+      </div>
+    </div>
+  );
+}

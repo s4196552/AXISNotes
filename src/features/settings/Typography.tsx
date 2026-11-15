@@ -1,10 +1,20 @@
 import { useEffect, useState } from "react";
 import { backend, isBackendError } from "../../ipc";
-import type { AxisConfig } from "../../app/config";
+import { type AxisConfig, DEFAULT_CONFIG } from "../../app/config";
 import { useAppStore } from "../../app/store";
 import { LETTER_SPACING, LINE_HEIGHT, NOTE_FONT_SIZES } from "../../app/appearance";
 import { VAULT_FONTS_FOLDER, vaultFonts } from "../../lib/fonts";
-import { Field, FontSelect, type SectionProps } from "./parts";
+import { Field, FontSelect, ResetDefaults, type SectionProps } from "./parts";
+
+/** The settings this tab owns (imported fonts stay in the vault). */
+const TYPOGRAPHY_KEYS = [
+  "noteFont",
+  "uiFont",
+  "noteFontSize",
+  "letterSpacing",
+  "lineHeight",
+  "bionicReading",
+] as const;
 
 /** Settings → Appearance → Typography: fonts, text size, spacing and Bionic Reading. */
 export function Typography({ config, set }: SectionProps) {
@@ -145,6 +155,17 @@ export function Typography({ config, set }: SectionProps) {
       >
         The quick brown fox jumps over the lazy dog. Notes stay plain Markdown, however they look.
       </p>
+      <ResetDefaults
+        what="typography"
+        changed={TYPOGRAPHY_KEYS.some((k) => a[k] !== DEFAULT_CONFIG.appearance[k])}
+        onReset={() =>
+          setA(
+            Object.fromEntries(
+              TYPOGRAPHY_KEYS.map((k) => [k, DEFAULT_CONFIG.appearance[k]]),
+            ) as Partial<AxisConfig["appearance"]>,
+          )
+        }
+      />
     </>
   );
 }

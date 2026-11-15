@@ -429,5 +429,44 @@ describe("text cursor (T-250)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Use theme accent" }));
     expect(useConfig.getState().config.appearance.cursor.color).toBe("");
+    // Reset to defaults puts the whole cursor back, then has nothing left to reset.
+    fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    expect(useConfig.getState().config.appearance.cursor).toEqual(DEFAULT_CONFIG.appearance.cursor);
+    expect(screen.getByRole("button", { name: "Reset to defaults" })).toBeDisabled();
+  });
+});
+
+describe("reset to defaults (T-253)", () => {
+  it("puts Typography back but leaves other appearance settings alone", () => {
+    useConfig.setState({
+      config: {
+        ...DEFAULT_CONFIG,
+        appearance: {
+          ...DEFAULT_CONFIG.appearance,
+          noteFont: "Georgia",
+          uiFont: "Verdana",
+          noteFontSize: 20,
+          letterSpacing: 0.05,
+          lineHeight: 2,
+          bionicReading: true,
+          editorWidth: "wide",
+          cursor: { shape: "block", width: 1, color: "", blink: false },
+        },
+      },
+    });
+    render(<Settings section="typography" onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    const a = useConfig.getState().config.appearance;
+    expect(a).toMatchObject({
+      noteFont: "",
+      uiFont: "",
+      noteFontSize: DEFAULT_CONFIG.appearance.noteFontSize,
+      letterSpacing: 0,
+      lineHeight: 1.5,
+      bionicReading: false,
+    });
+    expect(a.editorWidth).toBe("wide");
+    expect(a.cursor.shape).toBe("block");
+    expect(screen.getByRole("button", { name: "Reset to defaults" })).toBeDisabled();
   });
 });
