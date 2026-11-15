@@ -363,7 +363,7 @@ describe("settings sections", () => {
       "Icon & image packs",
     ]);
     expect(tabsOf("Commands & shortcuts")).toEqual(["Quick commands", "Keyboard shortcuts"]);
-    expect(tabsOf("AI")).toEqual(["Providers & models", "Agent", "Claude"]);
+    expect(tabsOf("AI")).toEqual(["Providers & models", "Skills", "Agent", "Claude"]);
     // A page with one section has no tabs.
     fireEvent.click(within(nav).getByRole("button", { name: "Spelling" }));
     expect(screen.queryByRole("tablist")).toBeNull();

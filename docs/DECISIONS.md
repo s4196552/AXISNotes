@@ -992,3 +992,9 @@ The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq,
 | vite, vitest, jsdom, @testing-library/*        | latest     | MIT                      | Build and tests                         |
 | eslint, typescript-eslint, prettier            | latest     | MIT                      | Lint and format                         |
 | typescript                                     | 6.0        | Apache-2.0               | Types                                   |
+
+## 2026-11-15 — T-257: users' own skills, imported skills and Matt Pocock's skills
+
+- **Settings → AI → Skills** lists every skill and makes new ones as `Skills/<name>/SKILL.md`. **Import skill…** copies a skill folder written for another AI tool (picked by its `SKILL.md`, Agent Skills layout) into `Skills/`: only its Markdown/text files (that folder and one level down, at most 40 files of 512 KB each), never scripts. The native `import_skill` command does the copy.
+- Vault skills carry their reference files and the skills they name ("call the Skill tool with …") into a run, up to 60,000 characters, because a run can't open files or call tools.
+- **Bundled content, not a dependency:** Matt Pocock's skills (https://github.com/mattpocock/skills, **MIT**, commit `5863806dd4e15c63174bee4e7515a4256792ecfa`), the Markdown of the engineering and productivity skills except `setup-matt-pocock-skills`, in `src/features/skills/packs/mattPocock.ts`. It is loaded only when someone adds the collection, which writes them to `Skills/Matt Pocock/` with the licence (`LICENSE.md`). Each SKILL.md is adapted to run as an AI chat on the open note (`output: chat`, a short note that it can't run tools), and one whose name a built-in skill already has (`grill-me`, `handoff`, `teach`) gets a `-pocock` suffix so it adds to AXISNotes' own instead of replacing it.

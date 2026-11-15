@@ -506,6 +506,14 @@ export interface Backend {
    * name, so its notes can use it on any computer. Fonts only, up to 25 MB.
    */
   importFont(source: string): Promise<VaultEntry>;
+  /** Show a native picker for a skill's SKILL.md; null if cancelled. */
+  pickSkill(): Promise<string | null>;
+  /**
+   * Copy the skill whose SKILL.md is at `source` (its folder's Markdown reference files
+   * too, not scripts) into the vault's `Skills/` folder under a free name. Returns the new
+   * SKILL.md's vault path.
+   */
+  importSkill(source: string): Promise<string>;
   /** Icon and image packs in the vault's hidden `.axisnotes/packs/`, icon packs first. */
   listPacks(): Promise<Pack[]>;
   /** Native picker for a pack: a folder or a `.zip` file. Resolves null if cancelled. */

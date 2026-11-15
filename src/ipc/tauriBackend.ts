@@ -75,6 +75,15 @@ export function createTauriBackend(): Backend {
       return typeof picked === "string" ? picked : null;
     },
     importFont: (source) => invoke("import_font", { source }),
+    async pickSkill() {
+      const picked = await open({
+        multiple: false,
+        title: "Pick a skill's SKILL.md",
+        filters: [{ name: "Skill (SKILL.md)", extensions: ["md"] }],
+      });
+      return typeof picked === "string" ? picked : null;
+    },
+    importSkill: (source) => invoke("import_skill", { source }),
     async setWindowIcon(rgba, branded) {
       if (rgba.length !== 256 * 256 * 4) throw new Error("Invalid window icon size.");
       const image = await Image.new(rgba, 256, 256);

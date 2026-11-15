@@ -451,6 +451,32 @@ pub fn import_font(state: State<AppState>, source: String) -> AppResult<VaultEnt
     Ok(entry)
 }
 
+/// Where imported and added AI skills live (`Skills/<name>/SKILL.md`).
+pub const SKILLS_FOLDER: &str = "Skills";
+
+/// Copy a skill folder (picked by its `SKILL.md`) into `Skills/` under a free name, with
+/// its Markdown reference files; returns the new `SKILL.md`'s vault path.
+#[tauri::command]
+pub fn import_skill(state: State<AppState>, source: String) -> AppResult<String> {
+    let v = state.vault()?;
+    let skill = crate::vault::read_skill_folder(Path::new(&source))?;
+    let dir = v.free_path(SKILLS_FOLDER, &skill.name)?;
+    let mut written = Vec::new();
+    let mut main = format!("{dir}/SKILL.md");
+    for (rel, text) in &skill.files {
+        let path = format!("{dir}/{rel}");
+        state.touch(&v, &path)?;
+        v.create_file(&path, text)?;
+        if rel.eq_ignore_ascii_case("SKILL.md") {
+            main = path.clone();
+        }
+        written.push(path);
+    }
+    let refs: Vec<&str> = written.iter().map(String::as_str).collect();
+    state.reindex(&v, change(ChangeKind::Created, &refs));
+    Ok(main)
+}
+
 #[tauri::command]
 pub fn create_dir(state: State<AppState>, path: String) -> AppResult<VaultEntry> {
     let v = state.vault()?;

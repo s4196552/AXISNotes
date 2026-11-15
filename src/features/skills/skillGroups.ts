@@ -31,6 +31,15 @@ export function groupSkills(skills: readonly Skill[]): SkillGroup[] {
     }
     if (found.length) groups.push({ name: category.name, skills: found });
   }
+  // Collections (Matt Pocock's skills, or any set a vault's skills name) keep together.
+  const collections = new Map<string, Skill[]>();
+  for (const skill of remaining.values()) {
+    if (!skill.collection) continue;
+    collections.set(skill.collection, [...(collections.get(skill.collection) ?? []), skill]);
+    remaining.delete(skill.id);
+  }
+  for (const [name, list] of [...collections].sort(([a], [b]) => a.localeCompare(b)))
+    groups.push({ name, skills: list });
   if (remaining.size) groups.push({ name: "Other skills", skills: [...remaining.values()] });
   return groups;
 }

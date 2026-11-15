@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Scissors,
   Sparkles,
+  WandSparkles,
   SpellCheck,
   SquareSlash,
   TextCursor,
@@ -58,6 +59,7 @@ import { Typography } from "./Typography";
 import { CursorSettings } from "./CursorSettings";
 import { RibbonSettings } from "./RibbonSettings";
 import { EasyOnTheEyes } from "./EasyOnTheEyes";
+import { SkillsSettings } from "./SkillsSettings";
 import "./settings.css";
 
 export type Section =
@@ -74,6 +76,7 @@ export type Section =
   | "commands"
   | "hotkeys"
   | "ai"
+  | "skills"
   | "agent"
   | "claude"
   | "clipper"
@@ -95,6 +98,7 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "commands", label: "Quick commands", icon: SquareSlash },
   { id: "hotkeys", label: "Keyboard shortcuts", icon: Keyboard },
   { id: "ai", label: "AI", icon: Sparkles },
+  { id: "skills", label: "Skills", icon: WandSparkles },
   { id: "agent", label: "Agent", icon: Bot },
   { id: "claude", label: "Claude", icon: Cable },
   { id: "clipper", label: "Web clipper", icon: Scissors },
@@ -119,7 +123,7 @@ const PAGES: { label: string; icon: LucideIcon; parts: Section[] }[] = [
   { label: "Templates", icon: LayoutTemplate, parts: ["templates"] },
   { label: "Files & links", icon: Paperclip, parts: ["files"] },
   { label: "Commands & shortcuts", icon: SquareSlash, parts: ["commands", "hotkeys"] },
-  { label: "AI", icon: Sparkles, parts: ["ai", "agent", "claude"] },
+  { label: "AI", icon: Sparkles, parts: ["ai", "skills", "agent", "claude"] },
   { label: "Web clipper", icon: Scissors, parts: ["clipper"] },
   { label: "Plugins", icon: Puzzle, parts: ["plugins"] },
   { label: "Updates", icon: RefreshCw, parts: ["updates"] },
@@ -182,6 +186,8 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
         return <Commands config={config} set={set} />;
       case "ai":
         return <AiSettingsPanel />;
+      case "skills":
+        return <SkillsSettings />;
       case "agent":
         return <AgentSettingsPanel />;
       case "claude":
