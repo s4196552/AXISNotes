@@ -650,6 +650,107 @@ pub fn font_file_name(source: &Path) -> AppResult<String> {
     Ok(name)
 }
 
+/// The most files, and the largest one, copied in from a skill folder (Settings → AI →
+/// Skills → Import).
+pub const MAX_SKILL_FILES: usize = 40;
+pub const MAX_SKILL_FILE_BYTES: u64 = 512 * 1024;
+/// Text files of a skill folder that are copied in; scripts and other files are not.
+const SKILL_TEXT_EXTENSIONS: &[&str] = &["md", "markdown", "txt"];
+
+/// A skill folder in the Agent Skills layout, read from outside the vault: the folder's
+/// name and its text files (`SKILL.md` and the reference files beside it, plus those one
+/// folder down), as paths relative to the folder with their text.
+pub struct SkillFolder {
+    pub name: String,
+    pub files: Vec<(String, String)>,
+}
+
+/// Read the skill whose `SKILL.md` is `skill_md`, for copying into the vault.
+pub fn read_skill_folder(skill_md: &Path) -> AppResult<SkillFolder> {
+    let meta =
+        fs::metadata(skill_md).map_err(|_| AppError::NotFound(skill_md.display().to_string()))?;
+    let file_name = skill_md
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if !meta.is_file() || !file_name.eq_ignore_ascii_case("SKILL.md") {
+        return Err(AppError::InvalidName(format!(
+            "{file_name} is not a skill: pick the SKILL.md file in the skill's folder"
+        )));
+    }
+    let folder = skill_md.parent().unwrap_or(Path::new(""));
+    let raw = folder
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let cleaned: String = raw
+        .chars()
+        .map(|c| {
+            if "<>:\"/\\|?*".contains(c) || c.is_control() {
+                '-'
+            } else {
+                c
+            }
+        })
+        .collect();
+    let cleaned = cleaned.trim().trim_end_matches('.').to_string();
+    let name = if cleaned.is_empty() || cleaned.starts_with('.') {
+        "Imported skill".to_string()
+    } else {
+        cleaned
+    };
+    let text_file = |p: &Path, n: &str| {
+        !n.starts_with('.')
+            && p.is_file()
+            && Path::new(n)
+                .extension()
+                .map(|e| e.to_string_lossy().to_ascii_lowercase())
+                .is_some_and(|e| SKILL_TEXT_EXTENSIONS.contains(&e.as_str()))
+    };
+    let sorted = |dir: &Path| -> Vec<(String, PathBuf)> {
+        let mut out: Vec<(String, PathBuf)> = fs::read_dir(dir)
+            .map(|rd| {
+                rd.flatten()
+                    .map(|e| (e.file_name().to_string_lossy().into_owned(), e.path()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        out.sort();
+        out
+    };
+    let mut found: Vec<(String, PathBuf)> = Vec::new();
+    for (n, p) in sorted(folder) {
+        if text_file(&p, &n) && validate_name(&n).is_ok() {
+            found.push((n, p));
+        } else if p.is_dir() && !n.starts_with('.') && validate_name(&n).is_ok() {
+            for (m, q) in sorted(&p) {
+                if text_file(&q, &m) && validate_name(&m).is_ok() {
+                    found.push((format!("{n}/{m}"), q));
+                }
+            }
+        }
+    }
+    if found.len() > MAX_SKILL_FILES {
+        return Err(AppError::Io(format!(
+            "the skill folder has more than {MAX_SKILL_FILES} text files"
+        )));
+    }
+    let mut files = Vec::new();
+    for (rel, p) in found {
+        if fs::metadata(&p)?.len() > MAX_SKILL_FILE_BYTES {
+            return Err(AppError::Io(format!("{rel} is larger than 512 KB")));
+        }
+        // Text that isn't UTF-8 is left out rather than garbled.
+        if let Ok(text) = String::from_utf8(fs::read(&p)?) {
+            files.push((rel, text));
+        }
+    }
+    if !files.iter().any(|(r, _)| r.eq_ignore_ascii_case("SKILL.md")) {
+        return Err(AppError::Io("SKILL.md couldn't be read as text".into()));
+    }
+    Ok(SkillFolder { name, files })
+}
+
 /// Image types that can be copied into the vault (page covers and icons).
 pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif"];
 /// The largest image that can be copied in.
@@ -988,6 +1089,38 @@ pub(crate) mod tests {
             font_file_name(&outside.path().join("missing.ttf")),
             Err(AppError::NotFound(_))
         ));
+    }
+
+    #[test]
+    fn reads_a_skill_folder_with_its_reference_files_only() {
+        let outside = tempfile::tempdir().unwrap();
+        let dir = outside.path().join("grill-me");
+        fs::create_dir_all(dir.join("agents")).unwrap();
+        fs::create_dir_all(dir.join("scripts")).unwrap();
+        fs::create_dir_all(dir.join("refs/deeper")).unwrap();
+        fs::write(dir.join("SKILL.md"), "---\nname: grill-me\n---\nAsk.").unwrap();
+        fs::write(dir.join("TESTS.md"), "More").unwrap();
+        fs::write(dir.join("agents/openai.yaml"), "x: 1").unwrap();
+        fs::write(dir.join("scripts/run.sh"), "echo hi").unwrap();
+        fs::write(dir.join("refs/notes.md"), "Notes").unwrap();
+        fs::write(dir.join("refs/deeper/too-deep.md"), "No").unwrap();
+        fs::write(dir.join(".hidden.md"), "No").unwrap();
+        let skill = read_skill_folder(&dir.join("SKILL.md")).unwrap();
+        assert_eq!(skill.name, "grill-me");
+        let paths: Vec<&str> = skill.files.iter().map(|(p, _)| p.as_str()).collect();
+        assert_eq!(paths, ["SKILL.md", "TESTS.md", "refs/notes.md"]);
+        // Only a SKILL.md is accepted.
+        assert!(matches!(
+            read_skill_folder(&dir.join("TESTS.md")),
+            Err(AppError::InvalidName(_))
+        ));
+        assert!(matches!(
+            read_skill_folder(&dir.join("missing/SKILL.md")),
+            Err(AppError::NotFound(_))
+        ));
+        // A huge file is refused.
+        fs::write(dir.join("BIG.md"), vec![b'a'; 600 * 1024]).unwrap();
+        assert!(read_skill_folder(&dir.join("SKILL.md")).is_err());
     }
 
     #[test]

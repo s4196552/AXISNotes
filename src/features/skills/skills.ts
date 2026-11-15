@@ -6,6 +6,7 @@ import { InvalidAnswer, parseAnswer } from "../../lib/aiJson";
 import { BUILTIN_SKILL_FILES } from "./builtinSkills";
 import { COPYABLE_RULE, makeCopyable } from "./copyable";
 import { giveAiIcon } from "./aiIcon";
+import { withReferences } from "./skillReferences";
 
 // Skills: reusable instructions for the AI, run from the command menu (/mindmap,
 // /flashcards…) with any provider and model. Each skill is a `SKILL.md`: YAML
@@ -26,6 +27,8 @@ export interface Skill {
   instructions: string;
   /** "built-in", or the vault path of its SKILL.md. */
   source: string;
+  /** A set of skills it came with (`collection:` in its frontmatter), shown together. */
+  collection?: string;
 }
 
 export const SKILLS_DIR = "Skills";
@@ -63,6 +66,9 @@ export function parseSkill(text: string, source: string): Skill | null {
     reads: p.reads === "folder" ? "folder" : "note",
     instructions,
     source,
+    ...(typeof p.collection === "string" && p.collection.trim()
+      ? { collection: p.collection.trim() }
+      : {}),
   };
 }
 
@@ -123,13 +129,17 @@ export function skillList(): Skill[] {
 
 /** A skill's latest text (a vault skill is read again, so edits apply right away). */
 export async function freshSkill(id: string): Promise<Skill | null> {
-  const s = useSkills.getState().skills.find((k) => k.id === id) ?? null;
+  const all = useSkills.getState().skills;
+  const s = all.find((k) => k.id === id) ?? null;
   if (!s || s.source === "built-in") return s;
+  let fresh = s;
   try {
-    return parseSkill((await backend.readFile(s.source)).content, s.source) ?? s;
+    fresh = parseSkill((await backend.readFile(s.source)).content, s.source) ?? s;
   } catch {
-    return s;
+    // Unreadable now: use what was loaded.
   }
+  // Its reference files and the skills it names go with it (it can't open them itself).
+  return withReferences(fresh, all);
 }
 
 // ---- Copying built-ins to the vault, and making a skill from a note ----
@@ -153,6 +163,27 @@ export async function copyBuiltinsToVault(): Promise<number> {
   await giveAiIcon(made);
   await useAppStore.getState().refreshTree();
   return added;
+}
+
+/** The SKILL.md text for a new skill. */
+export function newSkillFile(o: {
+  name: string;
+  description: string;
+  output: SkillOutput;
+  folder: boolean;
+  instructions: string;
+}): string {
+  return [
+    "---",
+    `name: ${skillId(o.name)}`,
+    `title: ${JSON.stringify(o.name.trim())}`,
+    `description: ${JSON.stringify(o.description.trim())}`,
+    `output: ${o.output}`,
+    `reads: ${o.folder ? "folder" : "note"}`,
+    "---",
+    o.instructions.trim(),
+    "",
+  ].join("\n");
 }
 
 /** Turn a note into a skill: its text becomes the instructions. Returns the new path. */

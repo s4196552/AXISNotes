@@ -562,6 +562,12 @@ export function createMemoryBackend(
       return copyIn(name, folder);
     },
     pickFont: async () => null,
+    pickSkill: async () => null,
+    // The browser preview can't read files from disk: only the native app imports skills.
+    async importSkill() {
+      requireVault();
+      return fail("Io", "importing a skill from disk needs the desktop app.");
+    },
     async importFont(source) {
       requireVault();
       const name = baseName(source.replace(/\\/g, "/"));

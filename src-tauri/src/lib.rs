@@ -95,6 +95,7 @@ pub fn run() {
             commands::pick_attachments,
             commands::import_image,
             commands::import_font,
+            commands::import_skill,
             commands::rename_entry,
             commands::copy_entry,
             commands::trash_entry,
