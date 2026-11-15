@@ -52,6 +52,7 @@ import { filterSettings, hasAll, HIDDEN, wordsOf } from "./settingsSearch";
 import { FoldArrowPicker } from "./FoldArrowPicker";
 import { AppColorPicker } from "./AppColorPicker";
 import { HeadingColorPicker } from "./HeadingColorPicker";
+import { TextColorSettings } from "./TextColorSettings";
 import { About } from "./About";
 import { PacksSettings } from "../packs/PacksSettings";
 import { Field, type SectionProps } from "./parts";
@@ -550,6 +551,12 @@ function Appearance({ config, set }: SectionProps) {
           value={a.headingColors}
           onChange={(headingColors) => setA({ headingColors })}
         />
+      </Field>
+      <Field
+        label="Bold, italic and strikethrough colours"
+        hint="Give each its own colour in notes and AI answers, for light and for dark themes. Off, the text keeps the theme's colour. Your Markdown files don't change."
+      >
+        <TextColorSettings value={a.textColors} onChange={(textColors) => setA({ textColors })} />
       </Field>
       <Field
         label="Heading indicator"

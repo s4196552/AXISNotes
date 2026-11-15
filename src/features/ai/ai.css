@@ -589,6 +589,16 @@
   overflow-wrap: anywhere;
   min-width: 0;
 }
+/* Bold, italic and strikethrough colours from Settings → Appearance, as in notes. */
+.answer-text strong {
+  color: var(--text-bold, inherit);
+}
+.answer-text em {
+  color: var(--text-italic, inherit);
+}
+.answer-text s {
+  color: var(--text-strike, inherit);
+}
 .answer-text p {
   margin: 0 0 8px;
   white-space: pre-line;
