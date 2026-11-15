@@ -2,10 +2,11 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { history, undo } from "@codemirror/commands";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { fireEvent, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { formatTable, parseTable, replaceTableCell, tableCells } from "../../lib/markdownTables";
 import { tables } from "./tables";
+import * as ops from "./tableOps";
 
 // Exact Obsidian table supplied by the human (compact syntax and long cells).
 const COSTS = `|Category|Hardware/Software|Administration|Facilities cost|
@@ -54,15 +55,19 @@ describe("Obsidian Markdown tables", () => {
     const input = ui.getByRole("textbox", { name: "Row 2, column 4" });
     expect(ui.getAllByRole("textbox")).toHaveLength(1);
     expect(ui.getAllByRole("columnheader")).toHaveLength(5);
-    expect(ui.getByRole("table").style.minWidth).toBe("700px");
     expect(ui.getByText("Business Support +").tagName).toBe("STRONG");
     fireEvent.input(input, { target: { value: "$39/mo" } });
     expect(view.state.doc.toString()).toBe(PLANS.replace("$29/mo", "$39/mo"));
     expect(document.activeElement).toBe(input);
+    // Like Obsidian, Enter goes on to the cell below.
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(ui.queryByRole("textbox")).toBeNull();
+    const below = ui.getByRole("textbox", { name: "Row 3, column 4" });
+    expect(document.activeElement).toBe(below);
     expect(ui.getByText("$39/mo")).toBeInTheDocument();
-    expect(document.activeElement).toBe(cell);
+    fireEvent.keyDown(below, { key: "Escape" });
+    expect(ui.queryByRole("textbox")).toBeNull();
+    expect(document.activeElement).toBe(ui.getByRole("cell", { name: "Row 3, column 4" }));
+    expect(cell).toBeInTheDocument();
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe(PLANS);
     expect(ui.getByText("$29/mo")).toBeInTheDocument();
@@ -156,17 +161,17 @@ describe("Obsidian Markdown tables", () => {
     expect(ui.getByText("< 30 mins")).toBeInTheDocument();
     expect(ui.getByText("$50,000/mo")).toBeInTheDocument();
     expect(ui.getByText("Business Support +").tagName).toBe("STRONG");
-    expect(ui.getByRole("table").style.minWidth).toBe("700px");
     expect(ui.getByRole("region", { name: "Scrollable Markdown table" })).toHaveAttribute(
       "tabindex",
       "0",
     );
     expect(view.state.doc.toString()).toBe(PLANS);
-    fireEvent.click(ui.getByRole("button", { name: "Edit cells" }));
-    expect(ui.getAllByRole("row").every((row) => row.children.length === 6)).toBe(true);
-    fireEvent.input(ui.getByLabelText("Row 1, column 4"), { target: { value: "$1/mo" } });
+    fireEvent.click(ui.getByRole("cell", { name: "Row 1, column 4" }));
+    fireEvent.input(ui.getByRole("textbox", { name: "Row 1, column 4" }), {
+      target: { value: "$1/mo" },
+    });
     expect(parseTable(view.state.doc.toString().split("\n"))?.rows[1]?.[3]).toBe("$1/mo");
-    fireEvent.click(ui.getByRole("button", { name: "Done editing" }));
+    fireEvent.keyDown(view.dom.querySelector("textarea")!, { key: "Escape" });
     expect(ui.getAllByRole("row").every((row) => row.children.length === 5)).toBe(true);
     expect(ui.getByText("$1/mo")).toBeInTheDocument();
   });
@@ -195,46 +200,165 @@ describe("Obsidian Markdown tables", () => {
   });
   it("writes cell edits immediately to Markdown, retains focus, and supports undo", () => {
     const view = open(COSTS);
-    fireEvent.click(within(view.dom).getByRole("button", { name: "Edit cells" }));
-    const cell = within(view.dom).getByLabelText("Row 1, column 3") as HTMLTextAreaElement;
-    cell.focus();
+    const ui = within(view.dom);
+    fireEvent.click(ui.getByRole("cell", { name: "Row 1, column 3" }));
+    const cell = ui.getByRole("textbox", { name: "Row 1, column 3" }) as HTMLTextAreaElement;
     fireEvent.input(cell, { target: { value: "New | estimate" } });
     expect(view.state.doc.toString()).toContain("New \\| estimate");
     expect(document.activeElement).toBe(cell);
-    expect(within(view.dom).getByLabelText("Row 1, column 3")).toBe(cell);
     expect(undo(view)).toBe(true);
     expect(view.state.doc.toString()).toBe(COSTS);
     expect(cell.value).toBe("—");
   });
-  it("adds rows and columns and returns to rendered mode", () => {
+  it("moves between cells with Tab, Enter and the arrow keys, adding a row at the end", () => {
+    const view = open("| A | B |\n| --- | --- |\n| 1 | 2 |");
+    const ui = within(view.dom);
+    fireEvent.click(ui.getByRole("cell", { name: "Row 1, column 2" }));
+    // Tab in the last cell adds a row and goes to its first cell.
+    fireEvent.keyDown(view.dom.querySelector("textarea")!, { key: "Tab" });
+    expect(ui.getAllByRole("row")).toHaveLength(3);
+    const added = ui.getByRole("textbox", { name: "Row 2, column 1" });
+    expect(document.activeElement).toBe(added);
+    expect(parseTable(view.state.doc.toString().split("\n"))?.rows).toEqual([
+      ["A", "B"],
+      ["1", "2"],
+      ["", ""],
+    ]);
+    // Enter on the last row adds another.
+    fireEvent.keyDown(added, { key: "Enter" });
+    expect(ui.getAllByRole("row")).toHaveLength(4);
+    expect(document.activeElement).toBe(ui.getByRole("textbox", { name: "Row 3, column 1" }));
+    // Arrows leave a cell at its edges.
+    const at = view.dom.querySelector("textarea")!;
+    fireEvent.keyDown(at, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(ui.getByRole("textbox", { name: "Row 2, column 1" }));
+    fireEvent.keyDown(view.dom.querySelector("textarea")!, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(ui.getByRole("textbox", { name: "Row 2, column 2" }));
+    fireEvent.keyDown(view.dom.querySelector("textarea")!, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(ui.getByRole("textbox", { name: "Row 2, column 1" }));
+    // Shift+Enter is a line break inside the cell, not a move.
+    fireEvent.keyDown(view.dom.querySelector("textarea")!, { key: "Enter", shiftKey: true });
+    expect(document.activeElement).toBe(ui.getByRole("textbox", { name: "Row 2, column 1" }));
+  });
+  it("adds a row or column with the + bars", () => {
     const view = open(COSTS);
     const ui = within(view.dom);
-    fireEvent.click(ui.getByRole("button", { name: "Edit cells" }));
     fireEvent.click(ui.getByRole("button", { name: "Add row" }));
+    expect(ui.getAllByRole("row")).toHaveLength(6);
+    expect(document.activeElement).toBe(ui.getByRole("textbox", { name: "Row 5, column 1" }));
     fireEvent.click(ui.getByRole("button", { name: "Add column" }));
-    fireEvent.click(ui.getByRole("button", { name: "Remove row 2" }));
-    fireEvent.click(ui.getByRole("button", { name: "Remove column 2" }));
-    fireEvent.click(ui.getByRole("button", { name: "Done editing" }));
-    expect(ui.getAllByRole("columnheader")).toHaveLength(4);
-    expect(ui.getAllByRole("row")).toHaveLength(5);
+    expect(ui.getAllByRole("columnheader")).toHaveLength(5);
+    expect(document.activeElement).toBe(ui.getByRole("textbox", { name: "Header, column 5" }));
+    expect(parseTable(view.state.doc.toString().split("\n"))?.rows[5]).toEqual([
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
   });
-  it("can format explicitly or edit the Markdown source", () => {
+  it("edits rows and columns from the grips' menus, like Obsidian", () => {
+    const view = open("| A | B |\n| --- | --- |\n| 1 | x |\n| 2 | y |");
+    const ui = within(view.dom);
+    const menu = (grip: string) => {
+      const button = ui.getByRole("button", { name: grip });
+      fireEvent.pointerDown(button, { button: 0, clientX: 0, clientY: 0 });
+      fireEvent.pointerUp(window);
+      return within(screen.getByRole("menu"));
+    };
+    const rows = () => parseTable(view.state.doc.toString().split("\n"))!.rows;
+    menu("Options for row 1").getByRole("menuitem", { name: "Move row down" }).click();
+    expect(rows().slice(1)).toEqual([
+      ["2", "y"],
+      ["1", "x"],
+    ]);
+    menu("Options for row 2").getByRole("menuitem", { name: "Duplicate row" }).click();
+    expect(rows()).toHaveLength(4);
+    menu("Options for row 3").getByRole("menuitem", { name: "Delete row" }).click();
+    expect(rows()).toHaveLength(3);
+    menu("Options for column 2").getByRole("menuitem", { name: "Align right" }).click();
+    expect(parseTable(view.state.doc.toString().split("\n"))!.alignment).toEqual([null, "right"]);
+    menu("Options for column 2").getByRole("menuitem", { name: "Sort A → Z" }).click();
+    expect(rows().slice(1)).toEqual([
+      ["1", "x"],
+      ["2", "y"],
+    ]);
+    menu("Options for column 1").getByRole("menuitem", { name: "Move column right" }).click();
+    expect(rows()[0]).toEqual(["B", "A"]);
+    menu("Options for column 1").getByRole("menuitem", { name: "Insert column left" }).click();
+    expect(rows()[0]).toEqual(["", "B", "A"]);
+    menu("Options for column 1").getByRole("menuitem", { name: "Delete column" }).click();
+    expect(rows()[0]).toEqual(["B", "A"]);
+    // The header row can only have a row added below it.
+    expect(
+      menu("Options for header row")
+        .getAllByRole("menuitem")
+        .map((m) => m.textContent),
+    ).toEqual(["Insert row below"]);
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+  it("drags a row or column by its grip to a new place", () => {
+    const view = open("| A | B |\n| --- | --- |\n| 1 | x |\n| 2 | y |\n| 3 | z |");
+    const ui = within(view.dom);
+    const drag = (grip: string, onto: HTMLElement) => {
+      const button = ui.getByRole("button", { name: grip });
+      document.elementFromPoint = vi.fn(() => onto);
+      fireEvent.pointerDown(button, { button: 0, clientX: 0, clientY: 0 });
+      fireEvent.pointerMove(window, { clientX: 0, clientY: 40 });
+      fireEvent.pointerUp(window);
+    };
+    const rows = () => parseTable(view.state.doc.toString().split("\n"))!.rows;
+    drag("Options for row 1", ui.getByRole("cell", { name: "Row 3, column 1" }));
+    expect(rows().map((r) => r[0])).toEqual(["A", "2", "3", "1"]);
+    drag("Options for column 1", ui.getByRole("cell", { name: "Row 1, column 2" }));
+    expect(rows()[0]).toEqual(["B", "A"]);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+  it("offers a cell's row, column and table edits on right-click or the menu key", () => {
     const view = open(COSTS + "\n\nAfter");
     const ui = within(view.dom);
-    fireEvent.click(ui.getByRole("button", { name: "Format table" }));
+    fireEvent.contextMenu(ui.getByRole("cell", { name: "Row 1, column 1" }));
+    const items = within(screen.getByRole("menu", { name: "Table" }))
+      .getAllByRole("menuitem")
+      .map((m) => m.textContent);
+    expect(items).toEqual(
+      expect.arrayContaining([
+        "Insert row above",
+        "Delete row",
+        "Insert column right",
+        "Align center",
+        "Edit as Markdown",
+        "Tidy up the Markdown",
+      ]),
+    );
+    within(screen.getByRole("menu"))
+      .getByRole("menuitem", { name: "Tidy up the Markdown" })
+      .click();
     expect(view.state.doc.toString()).toContain("| Category");
     expect(parseTable(view.state.doc.toString().split("\n").slice(0, 6))).toEqual(
       parseTable(COSTS.split("\n")),
     );
-    fireEvent.click(ui.getByRole("button", { name: "Edit Markdown" }));
+    fireEvent.keyDown(ui.getByRole("cell", { name: "Row 2, column 2" }), { key: "ContextMenu" });
+    within(screen.getByRole("menu")).getByRole("menuitem", { name: "Edit as Markdown" }).click();
     expect(ui.queryByRole("table")).toBeNull();
     view.dispatch({ selection: { anchor: view.state.doc.length } });
     expect(ui.getByRole("table")).toBeInTheDocument();
   });
-  it("disables table mutations in a read-only editor", () => {
+  it("moves between cells with the arrow keys before editing", () => {
+    const view = open(COSTS);
+    const ui = within(view.dom);
+    const first = ui.getByRole("cell", { name: "Row 1, column 1" });
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(ui.getByRole("cell", { name: "Row 1, column 2" }));
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(ui.getByRole("cell", { name: "Row 2, column 2" }));
+  });
+  it("has no grips, + bars or editing in a read-only editor", () => {
     const view = open(COSTS, true);
-    expect(within(view.dom).getByRole("button", { name: "Edit cells" })).toBeDisabled();
-    expect(within(view.dom).getByRole("button", { name: "Format table" })).toBeDisabled();
+    expect(within(view.dom).queryByRole("button", { name: "Add row" })).toBeNull();
+    expect(view.dom.querySelector(".cm-table-grip")).toBeNull();
     expect(view.state.doc.toString()).toBe(COSTS);
     fireEvent.click(within(view.dom).getByText("Storage administration costs"));
     expect(view.dom.querySelector("textarea")).toBeNull();
@@ -242,11 +366,59 @@ describe("Obsidian Markdown tables", () => {
   it("returns from source mode even when the note contains only a table", () => {
     const view = open(COSTS);
     const ui = within(view.dom);
-    fireEvent.click(ui.getByRole("button", { name: "Edit Markdown" }));
+    fireEvent.contextMenu(ui.getByRole("cell", { name: "Row 1, column 1" }));
+    within(screen.getByRole("menu")).getByRole("menuitem", { name: "Edit as Markdown" }).click();
     expect(ui.queryByRole("table")).toBeNull();
     view.dispatch({ changes: { from: 0, insert: " " } });
     expect(ui.queryByRole("table")).toBeNull();
     fireEvent.click(ui.getByRole("button", { name: "Show table" }));
     expect(ui.getByRole("table")).toBeInTheDocument();
+  });
+});
+
+describe("table row and column edits (T-259)", () => {
+  const t = {
+    rows: [
+      ["H1", "H2"],
+      ["a", "10"],
+      ["b", "9"],
+      ["", "1"],
+    ],
+    alignment: [null, null],
+  } as const;
+  const table = () => structuredClone(t) as unknown as Parameters<typeof ops.insertRow>[0];
+  it("keeps the header first and never changes the original", () => {
+    const base = table();
+    expect(ops.insertRow(base, 0).rows[1]).toEqual(["", ""]);
+    expect(ops.moveRow(base, 1, 0).rows[0]).toEqual(["H1", "H2"]);
+    expect(ops.deleteRow(base, 0)).toBe(base);
+    expect(base).toEqual(table());
+  });
+  it("sorts numbers in order and puts empty cells last", () => {
+    expect(ops.sortByColumn(table(), 1, "asc").rows.map((r) => r[1])).toEqual([
+      "H2",
+      "1",
+      "9",
+      "10",
+    ]);
+    expect(ops.sortByColumn(table(), 0, "desc").rows.map((r) => r[0])).toEqual([
+      "H1",
+      "b",
+      "a",
+      "",
+    ]);
+  });
+  it("inserts, duplicates, moves and deletes columns with their alignment", () => {
+    let x = ops.alignColumn(table(), 1, "right");
+    x = ops.duplicateColumn(x, 1);
+    expect(x.alignment).toEqual([null, "right", "right"]);
+    x = ops.moveColumn(x, 0, 2);
+    expect(x.rows[0]).toEqual(["H2", "H2", "H1"]);
+    x = ops.insertColumn(x, 1);
+    expect(x.rows[1]).toEqual(["10", "", "10", "a"]);
+    expect(ops.deleteColumn(ops.deleteColumn(x, 0), 0).alignment).toEqual(["right", null]);
+    // The last column can't be deleted.
+    const one = { rows: [["A"], ["1"]], alignment: [null] };
+    expect(ops.deleteColumn(one, 0)).toBe(one);
   });
 });

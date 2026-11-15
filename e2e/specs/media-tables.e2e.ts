@@ -68,7 +68,8 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     await expect($(".cm-markdown-table table")).toHaveText(
       expect.stringContaining("Reviewed administration"),
     );
-    await $(".cm-markdown-table").$("button=Edit Markdown").click();
+    await $('.cm-markdown-table td[aria-label="Row 1, column 1"]').click({ button: "right" });
+    await $(".cm-table-menu").$("button=Edit as Markdown").click();
     await expect($(".cm-markdown-table table")).not.toExist();
     await $(".cm-table-tools").$("button=Show table").click();
     await expect($(".cm-markdown-table table")).toExist();
@@ -117,12 +118,11 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
         aligned: true,
         noteFits: true,
       });
-      await $(".cm-markdown-table").$("button=Edit cells").click();
-      await expect($$(".cm-markdown-table th")).toBeElementsArrayOfSize(6);
+      await $('.cm-markdown-table td[aria-label="Row 2, column 4"]').click();
       expect((await measure()).aligned).toBe(true);
       await $('textarea[aria-label="Row 2, column 4"]').setValue("$39/mo");
       await browser.waitUntil(() => fs.readFileSync(file("Plans.md"), "utf8").includes("$39/mo"));
-      await $(".cm-markdown-table").$("button=Done editing").click();
+      await browser.keys("Escape");
       const dir = path.resolve(".agents/qa/T-126");
       fs.mkdirSync(dir, { recursive: true });
       await browser.saveScreenshot(path.join(dir, "plans-narrow.png"));

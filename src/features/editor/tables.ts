@@ -8,7 +8,20 @@ import {
   replaceTableCell,
   tableCellSource,
   type MarkdownTable,
+  type TableAlignment,
 } from "../../lib/markdownTables";
+import {
+  alignColumn,
+  deleteColumn,
+  deleteRow,
+  duplicateColumn,
+  duplicateRow,
+  insertColumn,
+  insertRow,
+  moveColumn,
+  moveRow,
+  sortByColumn,
+} from "./tableOps";
 import { linkHost } from "./links";
 
 const controllers = new WeakMap<HTMLElement, TableController>();
@@ -66,21 +79,30 @@ function inline(parent: HTMLElement, source: string, view: EditorView) {
   }
 }
 
+type MenuItem = { label: string; run: () => void; danger?: boolean } | "separator";
+
+/**
+ * A rendered table, edited the way Obsidian's is: click a cell and type (Tab and Enter move
+ * on), the + bars at the right and bottom add a column or row, the grips beside a row or
+ * above a column open its menu or drag it somewhere else, and right-click offers the same
+ * edits for that cell's row and column. Every edit is written straight back as Markdown.
+ */
 class TableController {
-  editing = false;
   activeCell: HTMLTableCellElement | null = null;
+  menu: HTMLElement | null = null;
   constructor(
     public widget: TableWidget,
     readonly root: HTMLElement,
     readonly view: EditorView,
   ) {
     this.render();
+    root.addEventListener("mouseover", (e) => this.hover(e.target as HTMLElement));
+    root.addEventListener("mouseleave", () => this.hover(null));
   }
   update(widget: TableWidget) {
     const previous = this.widget;
     this.widget = widget;
     if (
-      (this.editing || this.activeCell) &&
       previous.table.rows.length === widget.table.rows.length &&
       previous.table.alignment.length === widget.table.alignment.length &&
       previous.readOnly === widget.readOnly
@@ -102,7 +124,27 @@ class TableController {
         preview.replaceChildren();
         inline(preview, value, this.view);
       });
-    } else this.render();
+    } else {
+      // Rows or columns changed: draw again, keeping the cell being edited if it's there.
+      const at = this.activeCell && {
+        row: Number(this.activeCell.dataset.row),
+        column: Number(this.activeCell.dataset.column),
+        focused: this.root.contains(document.activeElement),
+      };
+      this.render();
+      if (at?.focused) {
+        const cell = this.cellAt(at.row, at.column);
+        if (cell) this.activate(cell);
+      }
+    }
+  }
+  get table() {
+    return this.widget.table;
+  }
+  cellAt(row: number, column: number) {
+    return this.root.querySelector<HTMLTableCellElement>(
+      `[data-table-cell][data-row="${row}"][data-column="${column}"]`,
+    );
   }
   write(insert: string) {
     if (this.view.state.readOnly) return;
@@ -114,6 +156,20 @@ class TableController {
   }
   editCell(row: number, column: number, value: string) {
     this.write(replaceTableCell(this.widget.source, row, column, value));
+  }
+  /** Apply a row/column edit and write the table back. */
+  change(edit: (table: MarkdownTable) => MarkdownTable) {
+    if (this.view.state.readOnly) return;
+    const next = edit(this.widget.table);
+    if (next !== this.widget.table) this.write(formatTable(next));
+  }
+  showSource() {
+    const start = this.view.state.doc.lineAt(this.view.posAtDOM(this.root)).from;
+    this.view.dispatch({
+      effects: showSource.of({ from: start, to: start + this.widget.source.length }),
+      selection: { anchor: start },
+    });
+    this.view.focus();
   }
   finish(cell: HTMLTableCellElement) {
     if (this.activeCell !== cell) return;
@@ -129,8 +185,14 @@ class TableController {
     );
     this.view.requestMeasure();
   }
+  /** Edit the cell at row/column, adding a row first when it's just past the last one. */
+  go(row: number, column: number) {
+    if (row >= this.table.rows.length) this.change((t) => insertRow(t, t.rows.length));
+    const cell = this.cellAt(row, column);
+    if (cell) this.activate(cell);
+  }
   activate(cell: HTMLTableCellElement) {
-    if (this.view.state.readOnly || this.editing || this.activeCell === cell) return;
+    if (this.view.state.readOnly || this.activeCell === cell) return;
     if (this.activeCell) this.finish(this.activeCell);
     this.activeCell = cell;
     const row = Number(cell.dataset.row);
@@ -145,82 +207,283 @@ class TableController {
     input.addEventListener("blur", () => this.finish(cell));
     input.addEventListener("keydown", (event) => {
       if (event.isComposing) return;
-      if (event.key === "Escape" || (event.key === "Enter" && !event.shiftKey)) {
+      const width = this.table.alignment.length;
+      const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
+      const atEnd =
+        input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
+      const move = (r: number, c: number) => {
+        event.preventDefault();
+        this.go(r, c);
+      };
+      if (event.key === "Escape") {
         event.preventDefault();
         this.finish(cell);
         cell.focus();
-      } else if (event.key === "Tab") {
-        const cells = [...this.root.querySelectorAll<HTMLTableCellElement>("[data-table-cell]")];
-        const next = cells[cells.indexOf(cell) + (event.shiftKey ? -1 : 1)];
-        if (next) {
-          event.preventDefault();
-          this.activate(next);
-        }
+      } else if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.altKey) {
+        // Like Obsidian: Enter goes to the cell below, adding a row after the last one.
+        move(row + 1, column);
+      } else if (event.key === "Tab" && !event.ctrlKey && !event.altKey) {
+        const index = row * width + column + (event.shiftKey ? -1 : 1);
+        if (index < 0) return;
+        // Tab in the last cell adds a row.
+        move(Math.floor(index / width), index % width);
+      } else if (
+        event.key === "ArrowUp" &&
+        !input.value.slice(0, input.selectionStart).includes("\n")
+      ) {
+        if (row > 0) move(row - 1, column);
+      } else if (
+        event.key === "ArrowDown" &&
+        !input.value.slice(input.selectionEnd).includes("\n")
+      ) {
+        if (row + 1 < this.table.rows.length) move(row + 1, column);
+      } else if (event.key === "ArrowLeft" && atStart && column > 0) {
+        move(row, column - 1);
+      } else if (event.key === "ArrowRight" && atEnd && column + 1 < width) {
+        move(row, column + 1);
       }
     });
     cell.classList.add("cm-table-cell-active");
     cell.append(input);
     input.focus();
   }
-  change(edit: (table: MarkdownTable) => void) {
-    if (this.view.state.readOnly) return;
-    const next = structuredClone(this.widget.table);
-    edit(next);
-    this.write(formatTable(next));
+
+  // ---- Grips, menus and dragging ----
+
+  /** Show the grips of the row and column under the pointer. */
+  hover(target: HTMLElement | null) {
+    const cell = target?.closest<HTMLTableCellElement>("[data-row]");
+    const row = cell ? cell.dataset.row : null;
+    const column = cell ? cell.dataset.column : null;
+    this.root.querySelectorAll<HTMLElement>(".cm-table-grip").forEach((grip) => {
+      const show =
+        (grip.dataset.row !== undefined && grip.dataset.row === row) ||
+        (grip.dataset.column !== undefined && grip.dataset.column === column);
+      grip.classList.toggle("show", show);
+    });
   }
-  render() {
-    this.activeCell = null;
-    const { table, readOnly } = this.widget;
-    const toolbar = document.createElement("div");
-    toolbar.className = "cm-table-tools";
-    const action = (label: string, run: () => void, mutation = false) => {
+  rowItems(row: number): MenuItem[] {
+    const last = this.table.rows.length - 1;
+    if (row === 0)
+      return [{ label: "Insert row below", run: () => this.change((t) => insertRow(t, 1)) }];
+    return [
+      { label: "Insert row above", run: () => this.change((t) => insertRow(t, row)) },
+      { label: "Insert row below", run: () => this.change((t) => insertRow(t, row + 1)) },
+      ...(row > 1
+        ? [{ label: "Move row up", run: () => this.change((t) => moveRow(t, row, row - 1)) }]
+        : []),
+      ...(row < last
+        ? [{ label: "Move row down", run: () => this.change((t) => moveRow(t, row, row + 1)) }]
+        : []),
+      { label: "Duplicate row", run: () => this.change((t) => duplicateRow(t, row)) },
+      { label: "Delete row", danger: true, run: () => this.change((t) => deleteRow(t, row)) },
+    ];
+  }
+  columnItems(column: number): MenuItem[] {
+    const width = this.table.alignment.length;
+    const align = (a: TableAlignment, label: string): MenuItem => ({
+      label: (this.table.alignment[column] ?? null) === a ? `✓ ${label}` : label,
+      run: () => this.change((t) => alignColumn(t, column, a)),
+    });
+    return [
+      { label: "Insert column left", run: () => this.change((t) => insertColumn(t, column)) },
+      { label: "Insert column right", run: () => this.change((t) => insertColumn(t, column + 1)) },
+      ...(column > 0
+        ? [
+            {
+              label: "Move column left",
+              run: () => this.change((t) => moveColumn(t, column, column - 1)),
+            },
+          ]
+        : []),
+      ...(column < width - 1
+        ? [
+            {
+              label: "Move column right",
+              run: () => this.change((t) => moveColumn(t, column, column + 1)),
+            },
+          ]
+        : []),
+      { label: "Duplicate column", run: () => this.change((t) => duplicateColumn(t, column)) },
+      "separator",
+      align("left", "Align left"),
+      align("center", "Align center"),
+      align("right", "Align right"),
+      "separator",
+      { label: "Sort A → Z", run: () => this.change((t) => sortByColumn(t, column, "asc")) },
+      { label: "Sort Z → A", run: () => this.change((t) => sortByColumn(t, column, "desc")) },
+      ...(width > 1
+        ? [
+            "separator" as const,
+            {
+              label: "Delete column",
+              danger: true,
+              run: () => this.change((t) => deleteColumn(t, column)),
+            },
+          ]
+        : []),
+    ];
+  }
+  tableItems(): MenuItem[] {
+    return [
+      { label: "Edit as Markdown", run: () => this.showSource() },
+      { label: "Tidy up the Markdown", run: () => this.change((t) => ({ ...t })) },
+    ];
+  }
+  closeMenu() {
+    this.menu?.remove();
+    this.menu = null;
+  }
+  /** A menu of table edits at x, y; focus returns to `back` when it closes. */
+  openMenu(label: string, items: MenuItem[], x: number, y: number, back: HTMLElement) {
+    this.closeMenu();
+    const menu = document.createElement("div");
+    menu.className = "cm-table-menu";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", label);
+    const close = (refocus: boolean) => {
+      this.closeMenu();
+      document.removeEventListener("mousedown", away, true);
+      if (refocus && back.isConnected) back.focus();
+    };
+    const away = (e: MouseEvent) => {
+      if (!menu.contains(e.target as Node)) close(false);
+    };
+    for (const item of items) {
+      if (item === "separator") {
+        const hr = document.createElement("div");
+        hr.className = "cm-table-menu-separator";
+        hr.setAttribute("role", "separator");
+        menu.append(hr);
+        continue;
+      }
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = label;
-      button.disabled = mutation && readOnly;
+      button.setAttribute("role", "menuitem");
+      button.textContent = item.label;
+      if (item.danger) button.classList.add("danger");
       button.addEventListener("click", () => {
-        run();
-        if (
-          !button.isConnected &&
-          this.root.isConnected &&
-          !this.root.contains(document.activeElement)
-        )
-          this.root.querySelector("button")?.focus();
+        close(true);
+        item.run();
       });
-      toolbar.append(button);
-    };
-    action(
-      this.editing ? "Done editing" : "Edit cells",
-      () => {
-        this.editing = !this.editing;
-        this.render();
-        if (this.editing) this.root.querySelector("textarea")?.focus();
-        else this.root.querySelector("button")?.focus();
-        this.view.requestMeasure();
-      },
-      true,
-    );
-    action("Format table", () => this.change(() => {}), true);
-    action("Edit Markdown", () => {
-      const start = this.view.state.doc.lineAt(this.view.posAtDOM(this.root)).from;
-      this.view.dispatch({
-        effects: showSource.of({ from: start, to: start + this.widget.source.length }),
-        selection: { anchor: start },
-      });
-      this.view.focus();
-    });
-    if (this.editing) {
-      action("Add row", () => this.change((t) => t.rows.push(t.alignment.map(() => ""))), true);
-      action(
-        "Add column",
-        () =>
-          this.change((t) => {
-            t.alignment.push(null);
-            t.rows.forEach((row) => row.push(""));
-          }),
-        true,
-      );
+      menu.append(button);
     }
+    menu.addEventListener("keydown", (e) => {
+      const buttons = [...menu.querySelectorAll<HTMLElement>("button")];
+      const at = buttons.indexOf(document.activeElement as HTMLElement);
+      if (e.key === "Escape" || e.key === "Tab") {
+        e.preventDefault();
+        close(true);
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const step = e.key === "ArrowDown" ? 1 : -1;
+        buttons[(at + step + buttons.length) % buttons.length]?.focus();
+      }
+    });
+    menu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - 240))}px`;
+    menu.style.top = `${Math.max(4, y)}px`;
+    document.body.append(menu);
+    // Keep it on screen.
+    const box = menu.getBoundingClientRect();
+    if (box.bottom > window.innerHeight && box.height < window.innerHeight)
+      menu.style.top = `${Math.max(4, window.innerHeight - box.height - 4)}px`;
+    this.menu = menu;
+    document.addEventListener("mousedown", away, true);
+    menu.querySelector<HTMLElement>("button")?.focus();
+  }
+  cellMenu(cell: HTMLTableCellElement, x: number, y: number) {
+    const row = Number(cell.dataset.row);
+    const column = Number(cell.dataset.column);
+    this.openMenu(
+      "Table",
+      [
+        ...this.rowItems(row),
+        "separator",
+        ...this.columnItems(column),
+        "separator",
+        ...this.tableItems(),
+      ],
+      x,
+      y,
+      cell,
+    );
+  }
+  /**
+   * A grip: a click opens its row's or column's menu; dragging it moves the row or column
+   * to where it's dropped (pointer events, since the desktop webview swallows HTML drag
+   * and drop).
+   */
+  grip(kind: "row" | "column", index: number) {
+    const grip = document.createElement("button");
+    grip.type = "button";
+    grip.className = `cm-table-grip cm-table-grip-${kind}`;
+    grip.dataset[kind] = String(index);
+    grip.tabIndex = -1;
+    const name =
+      kind === "row" ? (index === 0 ? "header row" : `row ${index}`) : `column ${index + 1}`;
+    grip.setAttribute("aria-label", `Options for ${name}`);
+    grip.title = `Click for options · drag to move the ${kind}`;
+    const open = () => {
+      const box = grip.getBoundingClientRect();
+      const items = kind === "row" ? this.rowItems(index) : this.columnItems(index);
+      this.openMenu(`Options for ${name}`, items, box.left, box.bottom + 2, grip);
+    };
+    grip.addEventListener("pointerdown", (down) => {
+      if (down.button !== 0 || this.widget.readOnly) return;
+      down.preventDefault();
+      const movable = kind === "column" || index > 0;
+      let dragging = false;
+      let target: number | null = null;
+      const mark = (cells: HTMLElement[], value: string | null) =>
+        cells.forEach((c) => (value ? (c.dataset.drop = value) : delete c.dataset.drop));
+      const clear = () => mark([...this.root.querySelectorAll<HTMLElement>("[data-drop]")], null);
+      const move = (e: PointerEvent) => {
+        if (!movable) return;
+        if (!dragging && Math.hypot(e.clientX - down.clientX, e.clientY - down.clientY) < 5) return;
+        dragging = true;
+        this.root.classList.add("cm-table-dragging");
+        const over = document
+          .elementFromPoint(e.clientX, e.clientY)
+          ?.closest<HTMLElement>("[data-row]");
+        clear();
+        target = null;
+        if (!over || !this.root.contains(over)) return;
+        const at = Number(over.dataset[kind]);
+        if (kind === "row" && at === 0) return;
+        target = at;
+        const cells = [
+          ...this.root.querySelectorAll<HTMLElement>(`[data-row][data-${kind}="${at}"]`),
+        ];
+        const [lo, hi] = kind === "row" ? ["before", "after"] : ["left", "right"];
+        mark(cells, at < index ? lo! : at > index ? hi! : null);
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        this.root.classList.remove("cm-table-dragging");
+        clear();
+        if (!dragging) open();
+        else if (target !== null && target !== index)
+          this.change((t) =>
+            kind === "row" ? moveRow(t, index, target!) : moveColumn(t, index, target!),
+          );
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    });
+    grip.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        open();
+      }
+    });
+    return grip;
+  }
+
+  render() {
+    this.activeCell = null;
+    this.closeMenu();
+    const { table, readOnly } = this.widget;
     const scroll = document.createElement("div");
     scroll.className = "cm-table-scroll";
     scroll.tabIndex = 0;
@@ -228,94 +491,87 @@ class TableController {
     scroll.setAttribute("aria-label", "Scrollable Markdown table");
     const element = document.createElement("table");
     element.setAttribute("aria-label", "Markdown table");
-    // Fixed tracks keep a long cell from taking all the space from adjacent
-    // columns. On small screens the table scrolls instead of crushing its text.
-    element.style.minWidth = `${table.alignment.length * 140 + (this.editing ? 100 : 0)}px`;
-    const tracks = document.createElement("colgroup");
-    table.alignment.forEach(() => tracks.append(document.createElement("col")));
-    if (this.editing) {
-      const actions = document.createElement("col");
-      actions.style.width = "100px";
-      tracks.append(actions);
-    }
-    element.append(tracks);
     const head = element.createTHead();
     const body = element.createTBody();
+    const width = table.alignment.length;
     table.rows.forEach((row, r) => {
       const tr = (r === 0 ? head : body).insertRow();
-      row.forEach((value, c) => {
+      for (let c = 0; c < width; c++) {
+        const value = row[c] ?? "";
         const cell = document.createElement(r === 0 ? "th" : "td");
         if (r === 0) cell.scope = "col";
         cell.style.textAlign = table.alignment[c] ?? "left";
-        if (this.editing) {
-          const input = document.createElement("textarea");
-          input.value = value;
-          input.rows = 2;
-          input.dataset.row = String(r);
-          input.dataset.column = String(c);
-          input.setAttribute("aria-label", `${r === 0 ? "Header" : `Row ${r}`}, column ${c + 1}`);
-          input.addEventListener("input", () => this.editCell(r, c, input.value));
-          cell.append(input);
-          if (r === 0 && table.alignment.length > 1) {
-            const remove = document.createElement("button");
-            remove.type = "button";
-            remove.textContent = "Remove column";
-            remove.setAttribute("aria-label", `Remove column ${c + 1}`);
-            remove.addEventListener("click", () =>
-              this.change((t) => {
-                t.alignment.splice(c, 1);
-                t.rows.forEach((cells) => cells.splice(c, 1));
-              }),
-            );
-            cell.append(remove);
-          }
-        } else {
-          const preview = document.createElement("span");
-          preview.className = "cm-table-cell-preview";
-          inline(preview, value, this.view);
-          cell.append(preview);
-          cell.dataset.row = String(r);
-          cell.dataset.column = String(c);
-          if (!readOnly) {
-            cell.dataset.tableCell = "";
-            cell.tabIndex = 0;
-            cell.setAttribute("aria-label", `${r === 0 ? "Header" : `Row ${r}`}, column ${c + 1}`);
-            cell.title = "Click to edit · Tab: next cell · Enter: finish · Shift+Enter: new line";
-            cell.addEventListener("click", (event) => {
-              if ((event.target as HTMLElement).closest("a, button, textarea")) return;
+        const preview = document.createElement("span");
+        preview.className = "cm-table-cell-preview";
+        inline(preview, value, this.view);
+        cell.append(preview);
+        cell.dataset.row = String(r);
+        cell.dataset.column = String(c);
+        if (!readOnly) {
+          if (c === 0) cell.append(this.grip("row", r));
+          if (r === 0) cell.append(this.grip("column", c));
+          cell.dataset.tableCell = "";
+          cell.tabIndex = 0;
+          cell.setAttribute("aria-label", `${r === 0 ? "Header" : `Row ${r}`}, column ${c + 1}`);
+          cell.addEventListener("click", (event) => {
+            if ((event.target as HTMLElement).closest("a, button, textarea")) return;
+            this.activate(cell);
+          });
+          cell.addEventListener("contextmenu", (event) => {
+            if ((event.target as HTMLElement).closest("a")) return;
+            event.preventDefault();
+            this.cellMenu(cell, event.clientX, event.clientY);
+          });
+          cell.addEventListener("keydown", (event) => {
+            if (event.target !== cell) return;
+            const step: Record<string, [number, number]> = {
+              ArrowUp: [-1, 0],
+              ArrowDown: [1, 0],
+              ArrowLeft: [0, -1],
+              ArrowRight: [0, 1],
+            };
+            if (event.key === "Enter" || event.key === "F2") {
+              event.preventDefault();
               this.activate(cell);
-            });
-            cell.addEventListener("keydown", (event) => {
-              if (event.target === cell && (event.key === "Enter" || event.key === "F2")) {
-                event.preventDefault();
-                this.activate(cell);
-              }
-            });
-          }
+            } else if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+              event.preventDefault();
+              const box = cell.getBoundingClientRect();
+              this.cellMenu(cell, box.left, box.bottom);
+            } else if (step[event.key]) {
+              event.preventDefault();
+              const [dr, dc] = step[event.key]!;
+              this.cellAt(r + dr, c + dc)?.focus();
+            }
+          });
         }
         tr.append(cell);
-      });
-      if (this.editing && r === 0) {
-        const cell = document.createElement("th");
-        cell.scope = "col";
-        cell.textContent = "Row actions";
-        tr.append(cell);
-      } else if (this.editing) {
-        const cell = tr.insertCell();
-        const remove = document.createElement("button");
-        remove.type = "button";
-        remove.textContent = "Remove row";
-        remove.setAttribute("aria-label", `Remove row ${r}`);
-        remove.addEventListener("click", () =>
-          this.change((t) => {
-            t.rows.splice(r, 1);
-          }),
-        );
-        cell.append(remove);
       }
     });
     scroll.append(element);
-    this.root.replaceChildren(toolbar, scroll);
+    if (readOnly) {
+      this.root.replaceChildren(scroll);
+      return;
+    }
+    const add = (kind: "row" | "column") => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `cm-table-add cm-table-add-${kind}`;
+      button.textContent = "+";
+      button.tabIndex = -1;
+      button.setAttribute("aria-label", kind === "row" ? "Add row" : "Add column");
+      button.title = kind === "row" ? "Add a row" : "Add a column";
+      button.addEventListener("click", () => {
+        if (kind === "row") {
+          this.change((t) => insertRow(t, t.rows.length));
+          this.cellAt(this.table.rows.length - 1, 0)?.click();
+        } else {
+          this.change((t) => insertColumn(t, t.alignment.length));
+          this.cellAt(0, this.table.alignment.length - 1)?.click();
+        }
+      });
+      return button;
+    };
+    this.root.replaceChildren(scroll, add("column"), add("row"));
   }
 }
 
