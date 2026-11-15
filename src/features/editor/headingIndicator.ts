@@ -17,11 +17,24 @@ export interface IndicatorHeading {
 }
 
 /** Line lengths in px by depth; anything deeper uses the last. */
-export const LINE_WIDTHS = [20, 15, 11, 8, 6] as const;
+export const LINE_WIDTHS = [16, 12, 9, 6, 4] as const;
 /** A note needs at least this many headings for the indicator to show. */
 export const MIN_HEADINGS = 2;
-/** Room the indicator needs beside the text, in px; with less it hides. */
-const MARGIN = 56;
+/** The column's width (longest line plus padding), in px. */
+const RAIL = LINE_WIDTHS[0] + 8;
+/** Room the indicator needs between the text and the scrollbar, in px; with less it hides. */
+export const MIN_ROOM = LINE_WIDTHS[0] + 4;
+
+/**
+ * Where the indicator goes, from the room between the text column and the scrollbar:
+ * hidden when there's too little, otherwise centred in that margin (its `right` offset).
+ * The text column is narrower than CodeMirror's content box (Settings → editor width), so
+ * the room is measured from the text lines, not the content element.
+ */
+export function placement(room: number, scrollbar: number): number | null {
+  if (room < MIN_ROOM) return null;
+  return Math.round(scrollbar + Math.max(0, (room - RAIL) / 2));
+}
 
 /** The note's Markdown headings, with depth counted from its biggest one. */
 export function indicatorHeadings(state: EditorState): IndicatorHeading[] {
@@ -140,12 +153,17 @@ class Indicator {
   measure() {
     const { view } = this;
     const outer = view.dom.getBoundingClientRect();
-    const text = view.contentDOM.getBoundingClientRect();
-    const room = outer.right - text.right;
-    const shown = this.headings.length >= MIN_HEADINGS && (room >= MARGIN || outer.width === 0);
+    const scroller = view.scrollDOM.getBoundingClientRect();
+    const scrollbar = view.scrollDOM.offsetWidth - view.scrollDOM.clientWidth;
+    const line = view.contentDOM.querySelector(".cm-line") ?? view.contentDOM;
+    const room = scroller.right - scrollbar - line.getBoundingClientRect().right;
+    // No layout (hidden, or a test without one): keep it in the default place.
+    const right =
+      outer.width === 0 ? 10 : placement(room, outer.right - scroller.right + scrollbar);
+    const shown = this.headings.length >= MIN_HEADINGS && right !== null;
     this.dom.hidden = !shown;
     if (!shown) return;
-    const scroller = view.scrollDOM.getBoundingClientRect();
+    this.dom.style.right = `${right}px`;
     // The section being read: the one holding the line a little below the top edge.
     const block = view.lineBlockAtHeight(scroller.top + 48 - view.documentTop);
     const active = activeHeading(this.headings, block.from);
