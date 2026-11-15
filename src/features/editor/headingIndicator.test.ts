@@ -8,6 +8,8 @@ import {
   indicatorHeadings,
   lineWidth,
   LINE_WIDTHS,
+  MIN_ROOM,
+  placement,
 } from "./headingIndicator";
 
 const stateOf = (doc: string) => EditorState.create({ doc, extensions: [markdown()] });
@@ -32,6 +34,15 @@ describe("heading indicator (T-254)", () => {
   it("leaves out headings in code blocks and frontmatter-like text", () => {
     const hs = indicatorHeadings(stateOf("# One\n\n```\n# not a heading\n```\n\n## Two\n"));
     expect(hs.map((h) => h.title)).toEqual(["One", "Two"]);
+  });
+
+  it("fits the margin between the text and the scrollbar (T-258)", () => {
+    // Both side panels open: 24 px between the text and a 10 px scrollbar.
+    expect(placement(24, 10)).toBe(10);
+    // More room: centred in it.
+    expect(placement(64, 10)).toBe(30);
+    // Too little room: hidden.
+    expect(placement(MIN_ROOM - 1, 10)).toBeNull();
   });
 
   it("finds the section holding a position", () => {
@@ -64,7 +75,7 @@ describe("heading indicator (T-254)", () => {
       const nav = v.dom.querySelector<HTMLElement>("nav.cm-heading-indicator")!;
       expect(nav).toHaveAttribute("aria-label", "Headings in this note");
       const lines = [...nav.querySelectorAll<HTMLElement>(".cm-heading-line")];
-      expect(lines.map((l) => l.style.width)).toEqual(["20px", "15px", "11px"]);
+      expect(lines.map((l) => l.style.width)).toEqual(["16px", "12px", "9px"]);
       const items = [...nav.querySelectorAll("button")];
       expect(items.map((b) => b.textContent)).toEqual(["Title", "Part", "Small"]);
       items[1]!.click();
