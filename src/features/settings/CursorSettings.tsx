@@ -1,6 +1,6 @@
-import type { CursorStyle } from "../../app/config";
+import { type CursorStyle, DEFAULT_CONFIG } from "../../app/config";
 import { CURSOR_WIDTH } from "../../app/appearance";
-import { Field, type SectionProps } from "./parts";
+import { Field, ResetDefaults, type SectionProps } from "./parts";
 
 const SHAPES: { id: CursorStyle["shape"]; label: string }[] = [
   { id: "bar", label: "Bar" },
@@ -75,6 +75,13 @@ export function CursorSettings({ config, set }: SectionProps) {
           defaultValue="Click here to see your cursor"
         />
       </Field>
+      <ResetDefaults
+        what="cursor"
+        changed={(Object.keys(c) as (keyof CursorStyle)[]).some(
+          (k) => c[k] !== DEFAULT_CONFIG.appearance.cursor[k],
+        )}
+        onReset={() => setC(DEFAULT_CONFIG.appearance.cursor)}
+      />
     </>
   );
 }
