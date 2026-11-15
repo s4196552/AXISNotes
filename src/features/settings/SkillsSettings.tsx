@@ -54,7 +54,9 @@ function NewSkill({ onDone }: { onDone(text: string): void }) {
       await giveAiIcon([`${SKILLS_DIR}/${id}`]);
       await useAppStore.getState().refreshTree();
       await loadVaultSkills();
-      onDone(`Added /${id}. Type / in a note to run it; edit it any time in ${path}.`);
+      onDone(
+        `Added /${id}. Run it from a note's command menu (Ctrl+/); edit it any time in ${path}.`,
+      );
     } catch (e) {
       setError(message(e));
     }
@@ -218,7 +220,7 @@ export function SkillsSettings() {
       await giveAiIcon([path.slice(0, path.lastIndexOf("/"))]);
       await useAppStore.getState().refreshTree();
       await loadVaultSkills();
-      setStatus(`Imported ${path}. Type / in a note to run it.`);
+      setStatus(`Imported ${path}. Run it from a note's command menu (Ctrl+/).`);
     } catch (e) {
       setStatus(message(e));
     } finally {
@@ -243,10 +245,10 @@ export function SkillsSettings() {
   return (
     <div className="skills-settings">
       <p className="settings-hint muted">
-        A skill is a set of instructions for the AI that you run from a note: type <kbd>/</kbd> and
-        its name. Each one is a <code>SKILL.md</code> note in the vault's <code>{SKILLS_DIR}</code>{" "}
-        folder, the same layout Claude Code and other AI tools use, so you can edit it like any
-        note.
+        A skill is a set of instructions for the AI that you run from a note: open the command menu
+        (<kbd>Ctrl</kbd>+<kbd>/</kbd>) and pick it, or type its name to find it. Each one is a{" "}
+        <code>SKILL.md</code> note in the vault's <code>{SKILLS_DIR}</code> folder, the same layout
+        Claude Code and other AI tools use, so you can edit it like any note.
       </p>
       <div className="skills-actions">
         <button onClick={() => setCreating((c) => !c)} aria-expanded={creating}>

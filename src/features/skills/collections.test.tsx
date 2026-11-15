@@ -49,7 +49,7 @@ describe("skill collections (T-257)", () => {
       "Skills/Matt Pocock/tdd/SKILL.md",
     )!;
     expect(tdd.id).toBe("tdd");
-    expect(tdd.title).toBe("Tdd");
+    expect(tdd.title).toBe("TDD");
   });
 
   it("finds the skills a skill names and the files beside it", () => {

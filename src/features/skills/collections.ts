@@ -45,6 +45,8 @@ const RUNS_HERE =
   "> In AXISNotes this skill runs as an AI chat about the note it's started from. It can't run commands, open other files or use an issue tracker: it asks you, or tells you what to do.";
 
 const quote = (s: string) => JSON.stringify(s);
+/** Words in skill names that are written in capitals ("tdd" → "TDD"). */
+const ACRONYMS = new Set(["tdd", "pr", "adr", "ai", "html", "ui"]);
 
 /**
  * A collection's SKILL.md as added to a vault: it runs as a chat on the note, is listed
@@ -70,7 +72,7 @@ export function prepareSkill(
   const title = name
     .split("-")
     .filter(Boolean)
-    .map((w) => w[0]!.toUpperCase() + w.slice(1))
+    .map((w) => (ACRONYMS.has(w) ? w.toUpperCase() : w[0]!.toUpperCase() + w.slice(1)))
     .join(" ");
   const head = [
     "---",
