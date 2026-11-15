@@ -93,6 +93,7 @@ pub fn run() {
             commands::save_attachment,
             commands::import_dropped,
             commands::pick_attachments,
+            commands::import_study_notes,
             commands::import_image,
             commands::import_font,
             commands::import_skill,

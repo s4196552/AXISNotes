@@ -21,6 +21,11 @@ const STUDY_RULES = `Test the subject itself, the way a teacher sets a school ex
 - Wrong options in multiple choice are plausible mistakes a student might make, not obviously silly ones.
 - Leave out course admin in the notes (due dates, assessment details, reading lists, to-dos) unless the user asks for it.`;
 
+// How a study page tells AXISNotes what the learner got right, for the comprehension
+// heatmap (features/comprehension). Each note you're given has a path attribute.
+const reportRule = (kind: "test" | "flashcards", when: string, correct: string) =>
+  `- ${when}, report the results to AXISNotes with this exact call, wrapped in try/catch: \`parent.postMessage({axisnotesStudy: {kind: "${kind}", items: [...]}}, "*")\`. Each item is \`{source: "<note path>#<heading>", correct: true or false}\`: the path attribute of the note it comes from and the heading of the section it covers (just the path if it isn't under a heading). ${correct} Keep the sources in the script only; never show them on the page.`;
+
 export const BUILTIN_SKILL_FILES: Record<string, string> = {
   mindmap: `---
 name: mindmap
@@ -78,6 +83,7 @@ Make the test one self-contained HTML page.
 - Answering shows right or wrong, the correct answer and the explanation. Short answers are compared case-insensitively against a list of accepted answers.
 - At the end, show the score and the questions missed, with a "Try again" button that resets the test and shuffles the order.
 - Works with the keyboard (Enter submits).
+${reportRule("test", "Each time the learner finishes the test (again after Try again)", "One item per question; correct is whether they got it right.")}
 ${PAGE_RULES}
 `,
 
@@ -107,6 +113,7 @@ Make the deck one self-contained HTML page.
 - Show one card at a time. Click, tap or press Space to flip it with a short flip animation.
 - Buttons and keys: Previous (←), Next (→), Shuffle, and "Again" / "Got it" to sort the card.
 - Show progress, for example "7 of 20 · 5 known". Remember known cards with localStorage, wrapped in try/catch so the page still works without it, and offer "Start over".
+${reportRule("flashcards", "Once every card has been sorted with Again or Got it (and again after the learner sorts them all after Start over)", "One item per card; correct is true for Got it and false for Again, from the card's latest sort.")}
 ${PAGE_RULES}
 `,
 
@@ -339,7 +346,9 @@ ${STUDY_RULES}
 3. Write or update the files below. "Progress.md" is always written: the topic, the curriculum as a checklist (- [x] for done lessons), the learner's current level, mistakes to revisit, and what the next session should start with. Rewrite the whole file each time.
 
 Reply with one JSON object and nothing else:
-{"message": "<2 or 3 sentences to the learner: what this session covers and what to do next>", "files": [{"path": "Progress.md", "content": "..."}, ...]}
+{"message": "<2 or 3 sentences to the learner: what this session covers and what to do next>", "files": [{"path": "Progress.md", "content": "..."}, ...], "comprehension": [{"source": "<note path>#<heading>", "level": 3}, ...]}
+
+"comprehension" is optional: how well the learner understands the parts of their own course notes (not your lesson files) that the lessons so far have practised, judged from their answers and the mistakes in Progress.md. "source" is the note's path attribute and the heading of the section (just the path for a whole note); "level" is 1 (bad), 2 (weak), 3 (fair), 4 (good) or 5 (mastered). Leave out anything not practised yet. Leave it out entirely in the first session.
 
 Paths are relative to the workspace folder: plain file names, no folders, ending in .md or .html.
 

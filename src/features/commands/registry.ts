@@ -278,6 +278,17 @@ registerCommands([
     run: () => useUi.getState().open({ kind: "import" }),
   },
   { id: "time", label: "Time report", run: () => useAppStore.getState().setMainView("time") },
+  {
+    id: "comprehension-heatmap",
+    label: "Open comprehension heatmap",
+    run: () => useAppStore.getState().openHeatmap(null),
+  },
+  {
+    id: "insert-comprehension-heatmap",
+    label: "Insert comprehension heatmap in this note",
+    run: () =>
+      useAppStore.getState().activePath && useUi.getState().open({ kind: "heatmap-insert" }),
+  },
   { id: "stop-timer", label: "Stop timer", run: () => void useTimer.getState().stop() },
   { id: "new-grid", label: "New grid (spreadsheet)", run: () => void newGrid() },
   { id: "new-canvas", label: "New canvas (whiteboard)", run: () => void newCanvas() },

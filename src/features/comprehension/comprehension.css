@@ -1,0 +1,464 @@
+/* Comprehension heatmap (T-261): a rounded card with a title, big numbers, the grid of
+   rounded squares, a Less → More legend and a row of counts per level. Level colours are
+   the --heat-0…5 tokens in themes.css. */
+
+.heatmap-card {
+  --sq: 18px;
+  --sq-gap: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  line-height: 1.35;
+  box-sizing: border-box;
+}
+.heatmap-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.heatmap-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-fg);
+  flex: none;
+}
+.heatmap-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.heatmap-heading h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.heatmap-sub,
+.heatmap-label,
+.heatmap-col-label,
+.heatmap-legend,
+.heatmap-counts span {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.heatmap-segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-hover);
+}
+.heatmap-segmented label {
+  position: relative;
+  padding: 3px 12px;
+  border-radius: var(--radius, 8px);
+  font-size: 12px;
+  cursor: pointer;
+}
+.heatmap-segmented input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.heatmap-segmented label:has(input:checked) {
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.18);
+}
+.heatmap-segmented label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+}
+
+.heatmap-stats {
+  display: flex;
+  gap: 28px;
+}
+.heatmap-stats > div {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  column-gap: 4px;
+}
+.heatmap-stats strong {
+  font-size: 1.9rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.heatmap-unit {
+  font-size: 0.95rem;
+  color: var(--fg-muted);
+}
+.heatmap-label {
+  grid-column: 1 / -1;
+}
+
+.heatmap-grid {
+  display: flex;
+  gap: var(--sq-gap);
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  align-items: flex-start;
+}
+.heatmap-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sq-gap);
+  align-items: center;
+  min-width: var(--sq);
+}
+/* A column per note: room for its label, like the months of a year-in-pixels chart. */
+.heatmap-grid[data-unit="sections"] {
+  gap: 6px;
+}
+.heatmap-grid[data-unit="sections"] .heatmap-col {
+  min-width: 30px;
+}
+.heatmap-col-label {
+  height: 14px;
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: visible;
+}
+.heatmap-square,
+.heatmap-swatch,
+.heatmap-counts i {
+  display: block;
+  width: var(--sq);
+  height: var(--sq);
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: var(--heat-0);
+  flex: none;
+}
+.heatmap-square {
+  cursor: pointer;
+  transition:
+    transform 80ms ease,
+    box-shadow 80ms ease;
+}
+.heatmap-square:hover,
+.heatmap-square:focus-visible {
+  transform: scale(1.18);
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-elevated),
+    0 0 0 3.5px var(--fg);
+}
+/* A section showing its note's level is drawn a little lighter. */
+.heatmap-square[data-inherited] {
+  opacity: 0.6;
+}
+/* A level set by hand has a small dot. */
+.heatmap-square[data-manual] {
+  background-image: radial-gradient(circle, rgb(255 255 255 / 0.85) 0 2px, transparent 2.5px);
+}
+.heatmap-grid[data-painting] .heatmap-square {
+  cursor: crosshair;
+}
+[data-level="1"] {
+  --lvl: var(--heat-1);
+}
+[data-level="2"] {
+  --lvl: var(--heat-2);
+}
+[data-level="3"] {
+  --lvl: var(--heat-3);
+}
+[data-level="4"] {
+  --lvl: var(--heat-4);
+}
+[data-level="5"] {
+  --lvl: var(--heat-5);
+}
+.heatmap-square[data-level]:not([data-level="0"]),
+.heatmap-swatch[data-level]:not([data-level="0"]),
+.heatmap-counts i[data-level] {
+  background-color: var(--lvl);
+}
+.heatmap-tip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 320px;
+  padding: 5px 9px;
+  border-radius: var(--radius, 8px);
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 12px;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 8px));
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.heatmap-legend-item,
+.heatmap-legend-scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.heatmap-legend .heatmap-swatch {
+  --sq: 11px;
+  border-radius: 3px;
+}
+
+/* Counts per level, like a row of totals over coloured bars. */
+.heatmap-counts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.heatmap-counts button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.heatmap-counts li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.heatmap-counts button {
+  width: 100%;
+  padding: 4px 2px;
+  border: 1px solid transparent;
+  border-radius: var(--radius, 8px);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.heatmap-counts button[aria-pressed="true"] {
+  border-color: var(--fg);
+  background: var(--bg-hover);
+}
+.heatmap-counts strong {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--lvl);
+  font-variant-numeric: tabular-nums;
+}
+.heatmap-counts i {
+  width: 100%;
+  height: 8px;
+  border-radius: 3px;
+}
+
+.heatmap-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+.heatmap-foot button,
+.heatmap-head button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.heatmap-empty {
+  margin: 0;
+  color: var(--fg-muted);
+}
+
+/* E-ink: greys only, so squares get an outline to stay visible. */
+:root[data-theme="eink"] .heatmap-square,
+:root[data-theme="eink"] .heatmap-swatch {
+  outline: 1px solid #000;
+}
+
+/* ---- The view ---- */
+.heatmap-view {
+  height: 100%;
+  overflow: auto;
+  padding: 28px 32px 48px;
+  box-sizing: border-box;
+}
+.heatmap-view > * {
+  max-width: 980px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.heatmap-view-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.heatmap-view-head h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+.heatmap-view-head p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+.heatmap-view-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  color: var(--heat-5);
+}
+.heatmap-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.heatmap-topics button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+.heatmap-topics button[aria-current] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.heatmap-start {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 24px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg, 14px);
+}
+.heatmap-topic {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.heatmap-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg, 14px);
+}
+.heatmap-sources[data-over] {
+  border-color: var(--accent);
+  background: var(--bg-active);
+}
+.heatmap-title-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.heatmap-title-field input {
+  flex: 1;
+  max-width: 360px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.heatmap-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.heatmap-source-list li:not(.heatmap-drop-hint) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 280px;
+  padding: 3px 4px 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  font-size: 12.5px;
+}
+.heatmap-source-list li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.heatmap-source-list li button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+}
+.heatmap-source-list li button:hover {
+  background: var(--bg-active);
+}
+.heatmap-drop-hint {
+  font-size: 13px;
+}
+.heatmap-source-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.heatmap-source-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.heatmap-spacer {
+  flex: 1;
+}
+.heatmap-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+/* ---- In a note (heatmapBlock.ts) ---- */
+.cm-heatmap {
+  padding: 6px 0;
+  white-space: normal;
+}
+.cm-heatmap-error {
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius, 8px);
+  color: var(--fg-muted);
+  font-size: 13px;
+}

@@ -32,6 +32,7 @@ const GraphView = lazyNamed(() => import("../graph/GraphView"), "GraphView");
 const TasksView = lazyNamed(() => import("../tasks/TasksView"), "TasksView");
 const TimeReport = lazyNamed(() => import("../time/TimeReport"), "TimeReport");
 const Dashboard = lazyNamed(() => import("../dashboard/Dashboard"), "Dashboard");
+const HeatmapView = lazyNamed(() => import("../comprehension/HeatmapView"), "HeatmapView");
 
 const pct = (x: number) => `${x * 100}%`;
 
@@ -73,7 +74,11 @@ function Pane({ box, single }: { box: PaneBox; single: boolean }) {
   if (!tabs) return null;
   const tab = activeTab(tabs);
   const view = focused ? focusedView : tab.view;
-  const path = focused ? focusedPath : tab.view === "dashboard" ? null : tab.path;
+  const path = focused
+    ? focusedPath
+    : tab.view === "dashboard" || tab.view === "heatmap"
+      ? null
+      : tab.path;
   const focus = () => {
     if (!focused) useAppStore.getState().focusPane(id);
   };
@@ -121,6 +126,7 @@ function View({
   if (view === "tasks") return <TasksView />;
   if (view === "time") return <TimeReport />;
   if (view === "dashboard") return <Dashboard key={tabPath ?? ""} folder={tabPath ?? ""} />;
+  if (view === "heatmap") return <HeatmapView topic={tabPath} />;
   if (!path) return <NewTab />;
   const kind = docKind(path);
   if (kind === "grid") return <Grid key={path} path={path} />;

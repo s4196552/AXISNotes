@@ -4,7 +4,7 @@
 // functions over `TabsState`; the app store (store.ts) holds the state and mirrors the active
 // tab into `activePath`/`mainView`.
 
-export type View = "note" | "graph" | "tasks" | "time" | "dashboard";
+export type View = "note" | "graph" | "tasks" | "time" | "dashboard" | "heatmap";
 
 /** What a tab shows. */
 export interface Loc {
@@ -506,7 +506,7 @@ interface Saved {
   groups?: { name: string; color: GroupColor; collapsed?: boolean }[];
 }
 
-const VIEWS: readonly View[] = ["note", "graph", "tasks", "time", "dashboard"];
+const VIEWS: readonly View[] = ["note", "graph", "tasks", "time", "dashboard", "heatmap"];
 
 export function serialize(s: TabsState): string {
   const saved: Saved = {

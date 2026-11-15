@@ -18,6 +18,9 @@ export type Modal =
   | { kind: "handwriting"; path: string }
   | { kind: "import" }
   | { kind: "move"; path: string }
+  | { kind: "heatmap-add"; topic: string }
+  | { kind: "heatmap-topic"; paths: string[] }
+  | { kind: "heatmap-insert" }
   | { kind: "themes" }
   | { kind: "vaults" }
   | { kind: "diagram"; path: string; selection?: string }

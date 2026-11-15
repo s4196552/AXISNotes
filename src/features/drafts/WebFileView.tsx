@@ -7,6 +7,7 @@ import { isDraft } from "./drafts";
 import { LINK_GAP_MS, pageLink } from "./pageLinks";
 import { findEntry } from "../filetree/treeModel";
 import { copyPageText } from "../skills/copyable";
+import { useStudyResults } from "../comprehension/studyResults";
 import "./drafts.css";
 
 // A web page in the vault (an AI-made quiz, flash cards, a lesson, or any .html file),
@@ -24,6 +25,8 @@ export function WebFileView({ path }: { path: string }) {
   const url = backend.pageUrl(path);
   const [reloads, setReloads] = useState(0);
   const frame = useRef<HTMLIFrameElement>(null);
+  // Practice test and flash-card pages report results to the comprehension heatmap.
+  useStudyResults(frame, url ? path : null);
 
   // Edited outside the app (or rewritten by a skill): show the new version.
   useEffect(() => {

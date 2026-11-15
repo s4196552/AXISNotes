@@ -27,6 +27,7 @@ import {
 import { skillAttach, skillRequest, transcriptHtml } from "./skillRun";
 import { clearTreeUndo, undoTree, redoTree, useTreeUndo } from "../filetree/undo";
 import { makeCopyable } from "./copyable";
+import { withStudySources } from "../comprehension/studyResults";
 import { commonFolder, pickedNotes, runSkillOnPicked, skillsForPicked } from "./skillOnFiles";
 import { aiBlockField, discardParkedBlocks } from "../ai/aiBlock";
 
@@ -241,8 +242,11 @@ describe("running skills from an AI block", () => {
       await within(block).findByText(/saved it as “Cells - Flash cards.html”/),
     ).toBeInTheDocument();
     expect(lastRequest.req!.attach).toEqual(["Bio/Cells.md"]);
+    // A study page keeps the notes it was made from, for the comprehension heatmap.
     expect(h.b.files()["Bio/Cells - Flash cards.html"]).toBe(
-      makeCopyable("<!doctype html><html><body>Cards</body></html>\n"),
+      withStudySources(makeCopyable("<!doctype html><html><body>Cards</body></html>\n"), [
+        "Bio/Cells.md",
+      ]),
     );
     expect(useConfig.getState().config.folderIcons["Bio/Cells - Flash cards.html"]).toEqual({
       icon: "🇦🇮",
@@ -722,7 +726,10 @@ describe("skills on files picked in the tree", () => {
     expect(lastRequest.req!.attach).toEqual(["Bio/Cells.md", "Bio/Genes.md"]);
     // The page is saved next to it, named after the run.
     expect(h.b.files()["Bio/Practice test - 2 notes.html"]).toBe(
-      makeCopyable("<!doctype html><html><body>Test</body></html>\n"),
+      withStudySources(makeCopyable("<!doctype html><html><body>Test</body></html>\n"), [
+        "Bio/Cells.md",
+        "Bio/Genes.md",
+      ]),
     );
   });
 });

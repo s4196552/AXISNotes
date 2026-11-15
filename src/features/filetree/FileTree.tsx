@@ -20,6 +20,7 @@ import {
   Cpu,
   File,
   FolderInput,
+  Grid3x3,
   FilePlus,
   FileText,
   Folder,
@@ -1046,6 +1047,12 @@ export function FileTree() {
               />
               <SkillItems paths={many} close={setMenu} />
               <MenuItem
+                label="Add to comprehension heatmap…"
+                icon={Grid3x3}
+                onClick={() => useUi.getState().open({ kind: "heatmap-topic", paths: many })}
+                close={setMenu}
+              />
+              <MenuItem
                 label={`Copy ${many.length} items`}
                 icon={Copy}
                 onClick={() => copyOrCut(many, "copy")}
@@ -1135,6 +1142,16 @@ export function FileTree() {
                   )}
                   {menu.entry.kind === "dir" && (
                     <SkillItems paths={[menu.entry.path]} close={setMenu} />
+                  )}
+                  {(menu.entry.kind === "dir" || isNotePath(menu.entry.path)) && (
+                    <MenuItem
+                      label="Add to comprehension heatmap…"
+                      icon={Grid3x3}
+                      onClick={() =>
+                        useUi.getState().open({ kind: "heatmap-topic", paths: [menu.entry!.path] })
+                      }
+                      close={setMenu}
+                    />
                   )}
                   <AiRuleItems path={menu.entry.path} close={setMenu} />
                   <MenuItem

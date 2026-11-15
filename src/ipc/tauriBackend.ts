@@ -187,6 +187,8 @@ export function createTauriBackend(): Backend {
       }),
     importDropped: (dir, vaultRoot) => invoke("import_dropped", { dir, vaultRoot }),
     pickAttachments: (dir, vaultRoot) => invoke("pick_attachments", { dir, vaultRoot }),
+    importStudyNotes: (dir, from, vaultRoot) =>
+      invoke("import_study_notes", { dir, from, vaultRoot }),
     async onFilesDropped(cb) {
       return listen<FilesDropped>(FILES_DROPPED_EVENT, (e) => cb(e.payload));
     },

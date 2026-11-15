@@ -458,3 +458,25 @@
   mix-blend-mode: multiply;
   opacity: var(--night-light, 0.35);
 }
+
+/* ---------------------------------------------------------------- Comprehension heatmap */
+/* The heatmap's levels (features/comprehension, T-261): gray for no data, then red, pink,
+   yellow, light green and green from Bad to Best. `light-dark()` follows the theme's mode;
+   a theme or snippet can set its own. */
+:root,
+[data-theme-preview] {
+  --heat-0: light-dark(#e4e6ea, #2c2e34);
+  --heat-1: light-dark(#d93a3f, #f0545a);
+  --heat-2: light-dark(#e2689a, #f28bb7);
+  --heat-3: light-dark(#e0b100, #f2cd3a);
+  --heat-4: light-dark(#8cc95a, #a8e07a);
+  --heat-5: light-dark(#2e9a47, #3fc35f);
+}
+:root[data-theme="eink"] {
+  --heat-0: #ffffff;
+  --heat-1: #000000;
+  --heat-2: #404040;
+  --heat-3: #808080;
+  --heat-4: #b0b0b0;
+  --heat-5: #d8d8d8;
+}

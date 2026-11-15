@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { useAiBlocks, type AiBlockState } from "../ai/aiBlockStore";
+import { useStudyResults } from "../comprehension/studyResults";
 import { AnswerText } from "../ai/AnswerText";
 import { PAGE_SANDBOX } from "../drafts/WebFileView";
 import { backend } from "../../ipc";
@@ -18,6 +20,9 @@ export function SkillOutput({
   onDone?(): void;
 }) {
   const state = useAiBlocks((s) => s.blocks[id]);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const shownPage = state?.saved?.[0];
+  useStudyResults(frame, shownPage && backend.pageUrl(shownPage) ? shownPage : null);
   if (!state) return null;
   const skill = withFormat(base, state.format);
   const running = state.phase.kind === "running";
@@ -62,6 +67,7 @@ export function SkillOutput({
           {url && (
             <div className="skill-page-preview">
               <iframe
+                ref={frame}
                 title={page!.slice(page!.lastIndexOf("/") + 1)}
                 src={url}
                 sandbox={PAGE_SANDBOX}

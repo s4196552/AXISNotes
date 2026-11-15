@@ -36,6 +36,15 @@ import "./commands.css";
 // Dialogs used now and then are loaded on first use, to keep startup small.
 const Settings = lazyNamed(() => import("../settings/Settings"), "Settings");
 const AskAi = lazyNamed(() => import("../ai/AskAi"), "AskAi");
+const AddSourcePicker = lazyNamed(
+  () => import("../comprehension/HeatmapPickers"),
+  "AddSourcePicker",
+);
+const TopicPicker = lazyNamed(() => import("../comprehension/HeatmapPickers"), "TopicPicker");
+const InsertHeatmapPicker = lazyNamed(
+  () => import("../comprehension/HeatmapPickers"),
+  "InsertHeatmapPicker",
+);
 const FixText = lazyNamed(() => import("../ai/FixText"), "FixText");
 const NoteHandwriting = lazyNamed(
   () => import("../handwriting/NoteHandwriting"),
@@ -415,6 +424,12 @@ function renderModal(modal: NonNullable<ReturnType<typeof useUi.getState>["modal
       return <ImportDialog onClose={() => useUi.getState().close()} />;
     case "move":
       return <MovePicker path={modal.path} />;
+    case "heatmap-add":
+      return <AddSourcePicker topic={modal.topic} />;
+    case "heatmap-topic":
+      return <TopicPicker paths={modal.paths} />;
+    case "heatmap-insert":
+      return <InsertHeatmapPicker />;
     case "themes":
       return <ThemeChooser />;
     case "vaults":
