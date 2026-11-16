@@ -4,6 +4,7 @@ import { useConfig } from "../../app/config";
 import { stricter } from "../../lib/aiAccess";
 import { ruleForPath } from "../ai/folderScope";
 import type { Skill } from "./skills";
+import { isBundledSource } from "./collectionSkills";
 
 // What a vault skill brings along when it runs. Skills in the Agent Skills layout (like
 // those made for Claude Code) keep reference files beside their SKILL.md and name other
@@ -48,29 +49,46 @@ const NO_TOOLS =
   "You can't run commands, open files, browse or call tools in this conversation. Where the skill says to call another skill, follow that skill: it is included below. Where it says to run commands, read or write files, or use an issue tracker, ask the user for what you need or tell them exactly what to do.";
 
 /**
- * A vault skill's instructions with its reference files and the skills it names added
- * (within `MAX_REFERENCE_CHARS`). Built-in skills, and skills that need neither, are
+ * A vault or bundled skill's instructions with its reference files and the skills it names
+ * added (within `MAX_REFERENCE_CHARS`). A bundled skill's files come from its collection's
+ * pack (`<folder>/<file>` → text). Built-in skills, and skills that need neither, are
  * returned unchanged.
  */
-export async function withReferences(skill: Skill, all: readonly Skill[]): Promise<Skill> {
+export async function withReferences(
+  skill: Skill,
+  all: readonly Skill[],
+  pack?: Readonly<Record<string, string>>,
+): Promise<Skill> {
   if (skill.source === "built-in") return skill;
+  const bundled = isBundledSource(skill.source);
   const notes = useAppStore.getState().notes;
   // Only text any AI may read goes along: a file or skill kept from AI (or to local models)
   // by its folder's rule or its own mark is left out, since these travel as instructions.
+  // Text bundled with the app isn't in any folder, so any AI may read it.
   const folders = useConfig.getState().config.ai.folders;
   const marks = new Map(notes.map((n) => [n.path, n.aiAccess ?? "any"] as const));
   const open = (path: string) =>
+    path === "built-in" ||
+    isBundledSource(path) ||
     stricter(ruleForPath(folders, path), marks.get(path) ?? "any") === "any";
-  const files = referencePaths(
-    skill.source,
-    notes.map((n) => n.path),
-  ).filter(open);
+  // A bundled skill's files, under the same names the vault would give them.
+  const packFiles = new Map<string, string>();
+  if (bundled && pack) {
+    const folder = dirOf(skill.source).split("/").pop()!;
+    for (const [rel, text] of Object.entries(pack))
+      if (rel.startsWith(`${folder}/`))
+        packFiles.set(`${dirOf(skill.source)}/${rel.slice(folder.length + 1)}`, text);
+  }
+  const files = bundled
+    ? referencePaths(skill.source, [...packFiles.keys()])
+    : referencePaths(
+        skill.source,
+        notes.map((n) => n.path),
+      ).filter(open);
   const named = namedSkills(skill.instructions)
     .filter((id) => id !== skill.id)
     .map((id) => all.find((s) => s.id === id))
-    .filter(
-      (s): s is Skill => !!s && s.id !== skill.id && (s.source === "built-in" || open(s.source)),
-    );
+    .filter((s): s is Skill => !!s && s.id !== skill.id && !!s.instructions && open(s.source));
   if (!files.length && !named.length) return skill;
   const parts: string[] = [];
   let budget = MAX_REFERENCE_CHARS;
@@ -84,7 +102,10 @@ export async function withReferences(skill: Skill, all: readonly Skill[]): Promi
   const dir = dirOf(skill.source);
   for (const p of files) {
     try {
-      add(`File ${p.slice(dir.length + 1)}`, (await backend.readFile(p)).content);
+      add(
+        `File ${p.slice(dir.length + 1)}`,
+        packFiles.get(p) ?? (await backend.readFile(p)).content,
+      );
     } catch {
       // Removed meanwhile: leave it out.
     }

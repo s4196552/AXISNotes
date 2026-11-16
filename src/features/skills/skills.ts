@@ -7,6 +7,18 @@ import { BUILTIN_SKILL_FILES } from "./builtinSkills";
 import { COPYABLE_RULE, makeCopyable } from "./copyable";
 import { giveAiIcon } from "./aiIcon";
 import { withReferences } from "./skillReferences";
+import { SKILLS_DIR, skillId } from "./skillId";
+import {
+  COLLECTIONS,
+  type SkillCollection,
+  bundledSource,
+  collectionAdded,
+  collectionSkillName,
+  isBundledSource,
+  parseBundledSource,
+  prepareSkill,
+} from "./collectionSkills";
+import { useConfig } from "../../app/config";
 
 // Skills: reusable instructions for the AI, run from the command menu (/mindmap,
 // /flashcards…) with any provider and model. Each skill is a `SKILL.md`: YAML
@@ -31,16 +43,9 @@ export interface Skill {
   collection?: string;
 }
 
-export const SKILLS_DIR = "Skills";
+export { SKILLS_DIR, skillId };
 const SKILL_FILE = /(^|\/)SKILL\.md$/i;
 const OUTPUTS: SkillOutput[] = ["markdown", "html", "chat", "files"];
-
-export const skillId = (name: string) =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
 
 const titleCase = (id: string) =>
   id
@@ -76,14 +81,52 @@ export const BUILTIN_SKILLS: Skill[] = Object.values(BUILTIN_SKILL_FILES)
   .map((t) => parseSkill(t, "built-in"))
   .filter((s): s is Skill => s !== null);
 
-/** Built-ins, with vault skills added (a vault skill replaces a built-in of its name). */
-export function mergeSkills(vault: Skill[]): Skill[] {
+/** Built-in or bundled with the app (not a SKILL.md in the vault). */
+export const isAppSkill = (s: Skill) => s.source === "built-in" || isBundledSource(s.source);
+
+const builtinIds = () => new Set(BUILTIN_SKILLS.map((s) => s.id));
+
+/**
+ * A bundled collection's skills as the menu lists them, from its index (the instructions
+ * load when one runs, `freshSkill`).
+ */
+export function bundledSkills(collection: SkillCollection): Skill[] {
+  const taken = builtinIds();
+  return collection.index.map((e) => ({
+    ...collectionSkillName(e.name || e.folder, collection, taken),
+    description: e.description,
+    output: "chat",
+    reads: "note",
+    instructions: "",
+    source: bundledSource(collection, e.folder),
+    collection: collection.author,
+  }));
+}
+
+/**
+ * Built-ins, then the bundled collections that are shown in the menu and not added to the
+ * vault (once added, the vault's copies are the ones used, even if some were removed), then
+ * vault skills (a vault skill replaces a built-in or bundled skill of its name).
+ */
+export function mergeSkills(
+  vault: Skill[],
+  hidden: readonly string[] = [],
+  paths: readonly string[] = vault.map((s) => s.source),
+): Skill[] {
   const byId = new Map(BUILTIN_SKILLS.map((s) => [s.id, s]));
+  for (const c of COLLECTIONS) {
+    if (hidden.includes(c.id) || collectionAdded(c, paths)) continue;
+    for (const s of bundledSkills(c)) if (!byId.has(s.id)) byId.set(s.id, s);
+  }
   for (const s of vault) byId.set(s.id, s);
   return [...byId.values()];
 }
 
-export const useSkills = create<{ skills: Skill[] }>(() => ({ skills: BUILTIN_SKILLS }));
+const hiddenCollections = () => useConfig.getState().config.ai.hiddenCollections ?? [];
+
+export const useSkills = create<{ skills: Skill[] }>(() => ({
+  skills: mergeSkills([], hiddenCollections()),
+}));
 
 /** SKILL.md notes in the vault, by path. */
 const skillPaths = () =>
@@ -108,8 +151,12 @@ export async function loadVaultSkills() {
       // Unreadable or removed meanwhile: skip it.
     }
   }
-  useSkills.setState({ skills: mergeSkills(vault) });
+  vaultSkills = vault;
+  useSkills.setState({ skills: mergeSkills(vault, hiddenCollections(), paths) });
 }
+
+/** The vault's skills as last read, so a settings change can re-list without reading. */
+let vaultSkills: Skill[] = [];
 
 /** The skills to offer, keeping them up to date with the vault from first use. */
 export function skillList(): Skill[] {
@@ -123,6 +170,13 @@ export function skillList(): Skill[] {
     };
     sync();
     useAppStore.subscribe((a, b) => a.notes !== b.notes && sync());
+    // Showing or hiding a collection in the menu (Settings → AI → Skills).
+    useConfig.subscribe((a, b) => {
+      if (a.config.ai.hiddenCollections === b.config.ai.hiddenCollections) return;
+      useSkills.setState({
+        skills: mergeSkills(vaultSkills, hiddenCollections(), skillPaths()),
+      });
+    });
   }
   return useSkills.getState().skills;
 }
@@ -132,6 +186,7 @@ export async function freshSkill(id: string): Promise<Skill | null> {
   const all = useSkills.getState().skills;
   const s = all.find((k) => k.id === id) ?? null;
   if (!s || s.source === "built-in") return s;
+  if (isBundledSource(s.source)) return loadBundled(s, all);
   let fresh = s;
   try {
     fresh = parseSkill((await backend.readFile(s.source)).content, s.source) ?? s;
@@ -140,6 +195,33 @@ export async function freshSkill(id: string): Promise<Skill | null> {
   }
   // Its reference files and the skills it names go with it (it can't open them itself).
   return withReferences(fresh, all);
+}
+
+/**
+ * A bundled skill in full, from its collection's pack (loaded now if it isn't yet), with
+ * its reference files and the skills it names, as for a vault skill.
+ */
+async function loadBundled(s: Skill, all: readonly Skill[]): Promise<Skill> {
+  const where = parseBundledSource(s.source);
+  if (!where) return s;
+  const { collection } = where;
+  const { files } = await collection.load();
+  const taken = builtinIds();
+  const full = new Map<string, Skill>();
+  for (const [rel, text] of Object.entries(files)) {
+    const [folder, file] = rel.split("/") as [string, string];
+    if (!SKILL_FILE.test(file)) continue;
+    const parsed = parseSkill(
+      prepareSkill(text, folder, collection, taken),
+      bundledSource(collection, folder),
+    );
+    if (parsed) full.set(parsed.source, parsed);
+  }
+  const mine = full.get(s.source);
+  if (!mine) return s;
+  // The skills it names come from the pack too (the menu's copies have no instructions).
+  const everyone = all.map((k) => full.get(k.source) ?? k);
+  return withReferences(mine, everyone, files);
 }
 
 // ---- Copying built-ins to the vault, and making a skill from a note ----

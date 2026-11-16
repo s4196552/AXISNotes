@@ -7,7 +7,14 @@ import { Settings } from "../settings/Settings";
 import { COLLECTIONS, addCollection, collectionAdded, prepareSkill } from "./collections";
 import { groupSkills } from "./skillGroups";
 import { MAX_REFERENCE_CHARS, namedSkills, referencePaths } from "./skillReferences";
-import { freshSkill, loadVaultSkills, parseSkill, useSkills } from "./skills";
+import {
+  BUILTIN_SKILLS,
+  bundledSkills,
+  freshSkill,
+  loadVaultSkills,
+  parseSkill,
+  useSkills,
+} from "./skills";
 import { MATT_POCOCK_FILES } from "./packs/mattPocock";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
@@ -121,6 +128,62 @@ describe("skill collections (T-257)", () => {
     expect((await freshSkill("tdd"))!.instructions).not.toContain("## File tests.md");
     // Built-in skills are unchanged.
     expect((await freshSkill("mindmap"))!.instructions).not.toContain("Included with this skill");
+  });
+});
+
+describe("bundled collection skills in the command menu (T-262)", () => {
+  const ids = () => useSkills.getState().skills.map((s) => s.id);
+
+  it("keeps the menu index in step with the pack", () => {
+    const taken = new Set(BUILTIN_SKILLS.map((s) => s.id));
+    const fromPack = Object.entries(MATT_POCOCK_FILES)
+      .filter(([k]) => k.endsWith("/SKILL.md"))
+      .map(([k, text]) => {
+        const folder = k.split("/")[0]!;
+        const s = parseSkill(prepareSkill(text, folder, matt, taken), `x/${folder}/SKILL.md`)!;
+        return { id: s.id, title: s.title, description: s.description };
+      });
+    expect(
+      bundledSkills(matt).map(({ id, title, description }) => ({ id, title, description })),
+    ).toEqual(fromPack);
+  });
+
+  it("lists them before they're added and runs one with its files and named skills", async () => {
+    const tdd = useSkills.getState().skills.find((s) => s.id === "tdd")!;
+    expect(tdd).toMatchObject({ collection: "Matt Pocock", output: "chat", instructions: "" });
+    expect(tdd.source).toMatch(/^bundled:matt-pocock\/tdd\//);
+    expect(ids()).toContain("grill-me-pocock");
+    // AXISNotes' own Grill me stays.
+    expect(useSkills.getState().skills.find((s) => s.id === "grill-me")?.source).toBe("built-in");
+    const full = (await freshSkill("tdd"))!;
+    expect(full.instructions).toMatch(/^> In AXISNotes this skill runs as an AI chat/);
+    expect(full.instructions).toContain("## File tests.md");
+    const grill = (await freshSkill("grill-me-pocock"))!;
+    expect(grill.instructions).toContain("## Skill “grilling”");
+    // Nothing was written to the vault.
+    expect(useAppStore.getState().notes.some((n) => n.path.startsWith("Skills/"))).toBe(false);
+  });
+
+  it("hides them when the setting says so, and uses the vault's copies once added", async () => {
+    useConfig.setState({
+      config: {
+        ...DEFAULT_CONFIG,
+        ai: { ...DEFAULT_CONFIG.ai, hiddenCollections: ["matt-pocock"] },
+      },
+    });
+    await loadVaultSkills();
+    expect(ids()).not.toContain("tdd");
+    useConfig.setState({ config: structuredClone(DEFAULT_CONFIG) });
+    await addCollection(matt);
+    await h.b.trashEntry("Skills/Matt Pocock/tdd");
+    await useAppStore.getState().refreshTree();
+    await loadVaultSkills();
+    const skills = useSkills.getState().skills;
+    expect(skills.find((s) => s.id === "grilling")?.source).toBe(
+      "Skills/Matt Pocock/grilling/SKILL.md",
+    );
+    // One removed from the vault doesn't come back from the bundle.
+    expect(ids()).not.toContain("tdd");
   });
 });
 

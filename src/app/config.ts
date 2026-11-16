@@ -75,6 +75,8 @@ export interface AxisConfig {
     models: Record<string, string[]>;
     /** The AI access button beside each note's title (Settings → AI). */
     titleButton?: boolean;
+    /** Bundled skill collections left out of the command menu, by id (Settings → AI → Skills). */
+    hiddenCollections?: string[];
   };
   /**
    * Claude Desktop / Claude Code access through the MCP connector (Settings → Claude),

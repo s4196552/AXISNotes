@@ -10,6 +10,7 @@ import {
   type Skill,
   type SkillOutput,
   copyBuiltinsToVault,
+  isAppSkill,
   newSkillFile,
   loadVaultSkills,
   skillId,
@@ -17,6 +18,8 @@ import {
   useSkills,
 } from "../skills/skills";
 import { BUILTIN_SKILL_FILES } from "../skills/builtinSkills";
+import { isBundledSource } from "../skills/collectionSkills";
+import { useConfig } from "../../app/config";
 
 // Settings → AI → Skills: every skill the command menu offers, making new ones, importing
 // skills written for other AI tools (a folder with a SKILL.md, as Claude Code uses), and
@@ -28,6 +31,9 @@ const OUTPUT_LABELS: Record<Exclude<SkillOutput, "files">, string> = {
   html: "A web page",
   chat: "A chat",
 };
+
+/** One empty list, so the config selector returns the same value each render. */
+const NONE_HIDDEN: string[] = [];
 
 const message = (e: unknown) => (isBackendError(e) || e instanceof Error ? e.message : String(e));
 
@@ -41,7 +47,7 @@ function NewSkill({ onDone }: { onDone(text: string): void }) {
   const id = skillId(name);
   const create = async () => {
     setError("");
-    if (useSkills.getState().skills.some((s) => s.id === id && s.source !== "built-in")) {
+    if (useSkills.getState().skills.some((s) => s.id === id && !isAppSkill(s))) {
       setError(`There's already a skill called /${id}.`);
       return;
     }
@@ -141,6 +147,7 @@ function NewSkill({ onDone }: { onDone(text: string): void }) {
 
 function SkillRow({ skill, onStatus }: { skill: Skill; onStatus(text: string): void }) {
   const builtIn = skill.source === "built-in";
+  const bundled = isBundledSource(skill.source);
   const folder = skill.source.slice(0, skill.source.lastIndexOf("/"));
   const customise = async () => {
     try {
@@ -173,9 +180,15 @@ function SkillRow({ skill, onStatus }: { skill: Skill; onStatus(text: string): v
         <span className="skill-row-title">{skill.title}</span>{" "}
         <code className="skill-row-id">/{skill.id}</code>
         {skill.description && <div className="muted skill-row-desc">{skill.description}</div>}
-        <div className="muted skill-row-source">{builtIn ? "Built in" : skill.source}</div>
+        <div className="muted skill-row-source">
+          {builtIn
+            ? "Built in"
+            : bundled
+              ? `Bundled with the app · add ${skill.collection ?? "the collection"}'s skills to this vault to edit it`
+              : skill.source}
+        </div>
       </div>
-      {builtIn ? (
+      {bundled ? null : builtIn ? (
         BUILTIN_SKILL_FILES[skill.id] && (
           <button
             aria-label={`Customise ${skill.title}`}
@@ -201,6 +214,8 @@ function SkillRow({ skill, onStatus }: { skill: Skill; onStatus(text: string): v
 
 export function SkillsSettings() {
   const skills = useSkills((s) => s.skills);
+  const hidden = useConfig((s) => s.config.ai.hiddenCollections ?? NONE_HIDDEN);
+  const updateConfig = useConfig((s) => s.update);
   const paths = useAppStore((s) => s.notes.map((n) => n.path).join("\n"));
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState("");
@@ -290,8 +305,30 @@ export function SkillsSettings() {
                   <a href={c.url} target="_blank" rel="noreferrer">
                     {c.url.replace("https://", "")}
                   </a>{" "}
-                  · added to {SKILLS_DIR}/{c.folder}
+                  ·{" "}
+                  {added
+                    ? `in this vault: ${SKILLS_DIR}/${c.folder}`
+                    : `bundled; adding them to this vault (${SKILLS_DIR}/${c.folder}) lets you edit them`}
                 </div>
+                {!added && (
+                  <label className="skill-collection-menu">
+                    <input
+                      type="checkbox"
+                      checked={!hidden.includes(c.id)}
+                      onChange={(e) => {
+                        const show = e.target.checked;
+                        void updateConfig((cfg) => {
+                          const rest = (cfg.ai.hiddenCollections ?? []).filter((id) => id !== c.id);
+                          return {
+                            ...cfg,
+                            ai: { ...cfg.ai, hiddenCollections: show ? rest : [...rest, c.id] },
+                          };
+                        });
+                      }}
+                    />{" "}
+                    Show in the command menu (Ctrl+/)
+                  </label>
+                )}
               </div>
               <button
                 disabled={busy === c.id}

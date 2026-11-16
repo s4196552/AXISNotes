@@ -775,7 +775,12 @@ describe("command menu sections", () => {
       "Skills · Practice & remember",
       "Skills · Visualize & present",
       "Skills · Plan & collaborate",
+      // Matt Pocock's skills, bundled and listed before they're added to the vault (T-262).
+      "Skills · Matt Pocock",
     ]);
+    expect(
+      shown.filter((c) => sectionOf(c) === "Skills · Matt Pocock").map((c) => c.detail),
+    ).toEqual(expect.arrayContaining(["/tdd", "/grill-me-pocock", "/diagnosing-bugs"]));
 
     type(view, "list");
     await vi.waitFor(() => {
