@@ -580,6 +580,13 @@
 .skill-collection button {
   flex: none;
 }
+.skill-collection-menu {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}
 .skill-group h4 {
   margin: 12px 0 4px;
   font-size: 12px;

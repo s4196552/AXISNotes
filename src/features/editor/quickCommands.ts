@@ -59,6 +59,7 @@ import {
   TextQuote,
   Type,
   Workflow,
+  Library,
   Zap,
 } from "lucide-react";
 import type { CustomQuickCommand } from "../../app/config";
@@ -688,10 +689,11 @@ export const SECTION_ICONS: Record<string, LucideIcon> = {
 function sectionHeader(section: CompletionSection): HTMLElement {
   const el = document.createElement("completion-section");
   el.className = "cm-commandSection";
-  const icon = SECTION_ICONS[section.name];
+  const category = skillSectionCategory(section.name);
+  // A skill collection's section (Matt Pocock's skills…) shows a library.
+  const icon = SECTION_ICONS[section.name] ?? (category ? Library : undefined);
   if (icon) el.append(lucideSvg(icon, 13));
   const label = document.createElement("span");
-  const category = skillSectionCategory(section.name);
   label.textContent = category ?? section.name;
   if (category) el.dataset.skillCategory = category;
   el.append(label);
