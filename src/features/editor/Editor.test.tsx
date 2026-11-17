@@ -288,4 +288,23 @@ describe("Editor", () => {
     const { from, to } = view.state.selection.main;
     expect(view.state.sliceDoc(from, to)).toBe("# Start\n## Subheading\nBody");
   });
+
+  it("keeps presses in the line controls' strip from moving the caret", async () => {
+    h.b = createMemoryBackend({ "Note.md": "# Start\nBody" });
+    const { view } = await open();
+    const body = [...view.contentDOM.querySelectorAll(".cm-line")].find((line) =>
+      line.textContent?.includes("Body"),
+    )!;
+    const strip = body.querySelector<HTMLElement>(".cm-line-tools")!;
+    const add = strip.querySelector(".cm-line-add")!;
+    // The visible control is inside a button that fills the strip (the larger hit area).
+    expect(add.querySelector(".cm-line-tool-row > .cm-line-tool-face > svg")).not.toBeNull();
+    const head = view.state.selection.main.head;
+    for (const target of [strip, add, add.querySelector(".cm-line-tool-row")!]) {
+      expect(fireEvent.mouseDown(target)).toBe(false); // default prevented
+    }
+    expect(view.state.selection.main.head).toBe(head);
+    fireEvent.click(add.querySelector(".cm-line-tool-row")!);
+    expect(view.state.doc.toString()).toBe("# Start\nBody\n");
+  });
 });
