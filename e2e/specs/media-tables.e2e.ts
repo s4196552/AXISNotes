@@ -136,6 +136,40 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     fs.mkdirSync(dir, { recursive: true });
     await browser.saveScreenshot(path.join(dir, "plans-wide.png"));
   });
+  it("styles cell text, opens Ctrl+/ and : in a cell, and shows images in list items (T-263)", async () => {
+    const source = "| Item | Note |\n| --- | --- |\n| Tent | Pack |";
+    fs.writeFileSync(file("CellTools.md"), `${source}\n\n- [ ] Pack ![[dot.png|40]] today\n`);
+    await open("CellTools");
+    const saved = () => fs.readFileSync(file("CellTools.md"), "utf8");
+    await $('.cm-markdown-table td[aria-label="Row 1, column 2"]').click();
+    await expect($('textarea[aria-label="Row 1, column 2"]')).toBeFocused();
+    await browser.keys([Key.Ctrl, "a"]);
+    await browser.keys(Key.Ctrl);
+    await browser.keys([Key.Ctrl, "b"]);
+    await browser.keys(Key.Ctrl);
+    await browser.waitUntil(() => saved().includes("| Tent | **Pack** |"));
+    // Ctrl+/ then a filter; Enter inserts in the cell, never in the note around it.
+    await browser.keys(Key.End);
+    await browser.keys([Key.Ctrl, "/"]);
+    await browser.keys(Key.Ctrl);
+    await $(".cm-table-cell-menu").waitForExist();
+    await browser.keys("priority high");
+    await browser.keys("Enter");
+    await browser.waitUntil(() => saved().includes("| Tent | **Pack**⏫ |"));
+    await browser.keys(" :rocket");
+    await $(".cm-table-cell-menu li[role=option]").waitForExist();
+    await browser.keys("Enter");
+    await browser.waitUntil(() => saved().includes("🚀 |"));
+    await browser.keys("Escape");
+    await expect($(".cm-markdown-table td strong.cm-lp-strong")).toHaveText("Pack");
+    // The task keeps its checkbox, with the image after it at its |width.
+    await expect($(".cm-list-media img")).toHaveAttribute("width", "40");
+    await expect($(".cm-line input[type=checkbox]")).toExist();
+    expect(saved()).toContain("- [ ] Pack ![[dot.png|40]] today");
+    const dir = path.resolve(".agents/qa/T-263");
+    fs.mkdirSync(dir, { recursive: true });
+    await browser.saveScreenshot(path.join(dir, "cell-tools-and-list-image.png"));
+  });
   it("saves image size/crop, preserves original bytes and restores on reopen", async () => {
     const original = fs.readFileSync(file("dot.png"));
     await open("Media");

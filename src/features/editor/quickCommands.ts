@@ -152,7 +152,7 @@ export function openCommandMenu(view: EditorView) {
   startCompletion(view);
 }
 
-type CommandIcon = LucideIcon | readonly [LucideIcon, LucideIcon];
+export type CommandIcon = LucideIcon | readonly [LucideIcon, LucideIcon];
 
 /** Text before and after the cursor in a block: `[before, after]`. */
 type BlockText = readonly [head: string, tail: string];
@@ -699,6 +699,9 @@ function sectionHeader(section: CompletionSection): HTMLElement {
   el.append(label);
   return el;
 }
+
+/** A section heading drawn the same way, for the menu in a table cell (tableCellMenu.ts). */
+export const commandSectionHeader = (name: string) => sectionHeader({ name });
 
 /** A command-menu section: its name, place and icon heading. */
 const section = (name: string, rank: number): CompletionSection => ({

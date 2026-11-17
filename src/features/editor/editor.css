@@ -890,6 +890,64 @@ input.editor-title::placeholder {
   color: var(--fg-muted);
   font-size: 13px;
 }
+/* Media in a list or task item, among its text (T-263): after the bullet or checkbox. */
+.cm-list-media {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 2px 0;
+  vertical-align: top;
+  cursor: text;
+}
+.cm-list-media img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+}
+.cm-list-media :is(video, iframe) {
+  display: block;
+  max-width: 100%;
+  border: none;
+  border-radius: var(--radius);
+  background: #000;
+}
+.cm-list-media video {
+  width: 480px;
+  max-height: 60vh;
+}
+.cm-list-media iframe {
+  width: 480px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+.cm-list-media audio {
+  display: block;
+  width: 320px;
+  max-width: 100%;
+}
+.cm-list-media[data-kind="audio"] .cm-media-edit {
+  top: auto;
+  bottom: 100%;
+}
+.cm-list-media:hover .cm-media-edit {
+  opacity: 1;
+}
+.cm-list-media.missing {
+  padding: 0 6px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--fg-muted);
+  font-size: 0.9em;
+}
+/* The menu under a table cell being typed in (tableCellMenu.ts). */
+.cm-table-cell-menu {
+  z-index: 600;
+}
+.cm-table-cell-menu-empty {
+  color: var(--fg-muted);
+  cursor: default;
+}
 
 /* Markdown tables stay ordinary Markdown on disk; wide tables scroll inside the note. */
 /* Tables, drawn and edited like Obsidian's (T-259): sized to their content with quiet

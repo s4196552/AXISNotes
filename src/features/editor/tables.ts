@@ -23,6 +23,10 @@ import {
   sortByColumn,
 } from "./tableOps";
 import { linkHost } from "./links";
+import { inlineIconElement, inlineIconTarget } from "./inlineIcons";
+import { toggleMarkInText } from "./inlineMarks";
+import { TableCellMenu } from "./tableCellMenu";
+import { parseMarkdownEmbed } from "../../lib/attachments";
 
 const controllers = new WeakMap<HTMLElement, TableController>();
 const showSource = StateEffect.define<{ from: number; to: number } | null>();
@@ -38,8 +42,33 @@ const sourceTable = StateField.define<{ from: number; to: number } | null>({
   },
 });
 
+/** A cell's Markdown as it reads: icons, links and the same styles as the rest of the note. */
 function inline(parent: HTMLElement, source: string, view: EditorView) {
-  for (const token of tokenizeInline(source.replace(/\\\|/g, "|"))) {
+  const text = source.replace(/\\\|/g, "|");
+  let last = 0;
+  // Inline icons (`![label](<lucide:Rocket>)`, from the `:` menu) draw as icons.
+  for (const m of text.matchAll(INLINE_IMAGE)) {
+    const image = parseMarkdownEmbed(m[0]);
+    const target = image && inlineIconTarget(image.src);
+    if (!target) continue;
+    inlineText(parent, text.slice(last, m.index), view);
+    parent.append(inlineIconElement(target, image.alt || "Icon"));
+    last = m.index + m[0].length;
+  }
+  inlineText(parent, text.slice(last), view);
+}
+
+const INLINE_IMAGE = /!\[[^\]\n]*\]\(\s*(?:<[^>\n]+>|[^\s()]+)\s*\)/g;
+
+/** Bold, italic and strikethrough look as they do in the note, with their colours (T-260). */
+const STYLE_CLASS: Partial<Record<string, string>> = {
+  bold: "cm-lp-strong",
+  italic: "cm-lp-em",
+  strike: "cm-lp-strike",
+};
+
+function inlineText(parent: HTMLElement, text: string, view: EditorView) {
+  for (const token of tokenizeInline(text)) {
     if (token.kind === "text") {
       // Tables commonly use <br> for multiline cells; never interpret arbitrary HTML.
       token.text.split(/<br\s*\/?\s*>/i).forEach((part, i) => {
@@ -74,6 +103,8 @@ function inline(parent: HTMLElement, source: string, view: EditorView) {
                 : "span";
       const element = document.createElement(tag);
       element.textContent = token.text;
+      const style = STYLE_CLASS[token.kind];
+      if (style) element.className = style;
       parent.append(element);
     }
   }
@@ -90,6 +121,8 @@ type MenuItem = { label: string; run: () => void; danger?: boolean } | "separato
 class TableController {
   activeCell: HTMLTableCellElement | null = null;
   menu: HTMLElement | null = null;
+  /** The command and emoji menu of the cell being edited. */
+  picker: TableCellMenu | null = null;
   constructor(
     public widget: TableWidget,
     readonly root: HTMLElement,
@@ -174,6 +207,8 @@ class TableController {
   finish(cell: HTMLTableCellElement) {
     if (this.activeCell !== cell) return;
     this.activeCell = null;
+    this.picker?.close();
+    this.picker = null;
     cell.querySelector("textarea")?.remove();
     cell.classList.remove("cm-table-cell-active");
     const preview = cell.querySelector<HTMLElement>(".cm-table-cell-preview")!;
@@ -203,10 +238,17 @@ class TableController {
     input.dataset.row = String(row);
     input.dataset.column = String(column);
     input.setAttribute("aria-label", cell.getAttribute("aria-label")!);
-    input.addEventListener("input", () => this.editCell(row, column, input.value));
+    const picker = new TableCellMenu(input, this.view, cell, (value) =>
+      this.editCell(row, column, value),
+    );
+    this.picker = picker;
+    input.addEventListener("input", () => {
+      this.editCell(row, column, input.value);
+      picker.update();
+    });
     input.addEventListener("blur", () => this.finish(cell));
     input.addEventListener("keydown", (event) => {
-      if (event.isComposing) return;
+      if (event.isComposing || picker.keydown(event)) return;
       const width = this.table.alignment.length;
       const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
       const atEnd =
@@ -246,6 +288,31 @@ class TableController {
     cell.classList.add("cm-table-cell-active");
     cell.append(input);
     input.focus();
+  }
+
+  /** The text field of the cell being edited, if any. */
+  get input() {
+    return this.activeCell?.querySelector<HTMLTextAreaElement>("textarea") ?? null;
+  }
+  /**
+   * Bold, italic or strikethrough on the edited cell's selection (Ctrl+B, Ctrl+I,
+   * Ctrl+Shift+S): wrap it, or unwrap it, like `toggleMark` in the note.
+   */
+  format(mark: string, selection?: { from: number; to: number }) {
+    const input = this.input;
+    if (!input || !this.activeCell) return false;
+    const from = selection?.from ?? input.selectionStart;
+    const to = selection?.to ?? input.selectionEnd;
+    const next = toggleMarkInText(input.value, from, to, mark);
+    input.value = next.text;
+    input.setSelectionRange(next.from, next.to);
+    this.editCell(
+      Number(this.activeCell.dataset.row),
+      Number(this.activeCell.dataset.column),
+      input.value,
+    );
+    this.picker?.close();
+    return true;
   }
 
   // ---- Grips, menus and dragging ----
@@ -394,9 +461,30 @@ class TableController {
   cellMenu(cell: HTMLTableCellElement, x: number, y: number) {
     const row = Number(cell.dataset.row);
     const column = Number(cell.dataset.column);
+    // Right-click while typing in the cell: its text styles first. The menu takes focus
+    // (and the cell's text field closes), so the cell opens again with the same selection.
+    const input = this.activeCell === cell ? this.input : null;
+    const selection = input && { from: input.selectionStart, to: input.selectionEnd };
+    const style = (label: string, mark: string): MenuItem => ({
+      label,
+      run: () => {
+        const target = this.cellAt(row, column);
+        if (!target || !selection) return;
+        this.activate(target);
+        this.format(mark, selection);
+      },
+    });
     this.openMenu(
       "Table",
       [
+        ...(selection
+          ? [
+              style("Bold", "**"),
+              style("Italic", "*"),
+              style("Strikethrough", "~~"),
+              "separator" as const,
+            ]
+          : []),
         ...this.rowItems(row),
         "separator",
         ...this.columnItems(column),
@@ -679,6 +767,24 @@ const tableField = StateField.define<DecorationSet>({
     EditorView.atomicRanges.of((view) => view.state.field(field)),
   ],
 });
+/**
+ * Run a note command in the table cell being typed in at `target`, if that's where the
+ * key was pressed: `menu` opens the command menu (Ctrl+/), a mark toggles that style
+ * (Ctrl+B and the like). False when `target` isn't a cell being edited.
+ */
+export function tableCellCommand(
+  target: Element | null | undefined,
+  command: "menu" | string,
+): boolean {
+  const input = target?.closest<HTMLTextAreaElement>(".cm-table-cell-input");
+  const root = input?.closest<HTMLElement>(".cm-markdown-table");
+  const controller = root && controllers.get(root);
+  if (!input || !controller || controller.input !== input) return false;
+  if (command !== "menu") return controller.format(command);
+  controller.picker?.openCommands();
+  return true;
+}
+
 export const tables = [
   sourceTable,
   tableField,

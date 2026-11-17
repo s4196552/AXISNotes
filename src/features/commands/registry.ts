@@ -23,6 +23,7 @@ import { insertCode } from "../editor/code";
 import { toggleMark } from "../editor/inlineMarks";
 import { EditorView } from "@codemirror/view";
 import { openCommandMenu } from "../editor/quickCommands";
+import { tableCellCommand } from "../editor/tables";
 import { openAiBlock } from "../ai/aiBlock";
 import { useAgentSettings } from "../agent/agentSettings";
 import { copyBuiltinsToVault, skillFromNote } from "../skills/skills";
@@ -109,7 +110,12 @@ registerCommands([
     shortcut: block ? undefined : { key: "e", mod: true },
     onlyIn: ".cm-editor",
     available: editorAvailable,
-    run: () => {
+    run: (target) => {
+      // In a table cell: inline code wraps its selection; a code block can't go there.
+      if (target?.closest(".cm-table-cell-input")) {
+        if (!block) tableCellCommand(target, "`");
+        return;
+      }
       const view = targetEditor();
       if (view) insertCode(view, block);
     },
@@ -127,7 +133,9 @@ registerCommands([
     // Only in a note, so a grid keeps its own Ctrl+B.
     onlyIn: ".cm-editor",
     available: editorAvailable,
-    run: () => {
+    run: (target) => {
+      // Typing in a table cell: the style goes on the cell's text (T-263).
+      if (tableCellCommand(target, mark)) return;
       const view = targetEditor();
       if (view) toggleMark(view, mark);
     },
@@ -142,10 +150,11 @@ registerCommands([
     id: "command-menu",
     label: "Command menu (at the cursor)",
     shortcut: { key: "/", mod: true },
-    // Not while typing in a text field (search, settings, dialogs).
-    ignoreIn: "input, textarea, select",
+    // Not while typing in a text field (search, settings, dialogs), except a table cell.
+    ignoreIn: ":is(input, textarea, select):not(.cm-table-cell-input)",
     // In a note: the menu of things to insert. Elsewhere: the command palette.
-    run: () => {
+    run: (target) => {
+      if (tableCellCommand(target, "menu")) return;
       const active = getActiveEditor();
       if (active) openCommandMenu(active.view);
       else useUi.getState().open({ kind: "palette" });

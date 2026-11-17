@@ -134,6 +134,65 @@ function fakeLayout(view: EditorView) {
   });
 }
 
+describe("media in list and task items (T-263)", () => {
+  const LISTS = [
+    "Intro",
+    "",
+    "- [ ] Pack ![[tent.png|200]] today",
+    "- ![Map|150](pics/map.png)",
+    "1. Watch ![[clip.mp4]]",
+    "- `![[tent.png]]` stays code",
+    "",
+    "Not a list ![[tent.png]] here",
+  ].join("\n");
+  beforeEach(() =>
+    setup({
+      "School/Lists.md": LISTS,
+      "School/tent.png": "",
+      "School/clip.mp4": "",
+      "School/pics/map.png": "",
+    }),
+  );
+
+  it("shows images and video in task, bullet and numbered items at their |width", async () => {
+    await open("School/Lists.md");
+    const tent = (await screen.findByAltText("tent.png")) as HTMLImageElement;
+    expect(tent.closest(".cm-list-media")).not.toBeNull();
+    expect(tent.getAttribute("src")).toBe("asset://vault/School/tent.png");
+    expect(tent.width).toBe(200);
+    // The task keeps its checkbox, and the text around the image stays.
+    const task = tent.closest(".cm-line")!;
+    expect(task.querySelector("input[type=checkbox]")).not.toBeNull();
+    expect(task.textContent).toContain("Pack");
+    expect(task.textContent).toContain("today");
+    expect((screen.getByAltText("Map") as HTMLImageElement).width).toBe(150);
+    expect(screen.getByTitle("clip.mp4").tagName).toBe("VIDEO");
+    // Code and ordinary paragraphs keep their text: three items show media, nothing else.
+    expect(document.querySelectorAll(".cm-list-media")).toHaveLength(3);
+    const lines = [...document.querySelectorAll(".cm-line")];
+    expect(lines.find((l) => l.textContent?.includes("stays code"))?.textContent).toContain(
+      "![[tent.png]]",
+    );
+    expect(
+      lines.find((l) => l.textContent?.includes("Not a list"))?.querySelector(".cm-list-media"),
+    ).toBeNull();
+  });
+
+  it("shows the embed's Markdown when the image is clicked, to edit its size", async () => {
+    const view = await open("School/Lists.md");
+    const tent = await screen.findByAltText("tent.png");
+    fireEvent.mouseDown(tent, { button: 0 });
+    expect(screen.queryByAltText("tent.png")).toBeNull();
+    expect(document.querySelectorAll(".cm-list-media")).toHaveLength(2);
+    // The cursor lands after the name and width, ready to change the size.
+    const head = view.state.selection.main.head;
+    expect(view.state.sliceDoc(head - 4, head + 2)).toBe("|200]]");
+    // Away from it again, it shows as an image.
+    act(() => view.dispatch({ selection: { anchor: 0 } }));
+    expect(screen.getByAltText("tent.png")).toBeInTheDocument();
+  });
+});
+
 const selected = () => document.querySelector(".cm-image-selected");
 
 describe("editing embedded images", () => {
