@@ -1,4 +1,11 @@
-import { EditorSelection, Prec, StateEffect, StateField } from "@codemirror/state";
+import {
+  EditorSelection,
+  EditorState,
+  Prec,
+  StateEffect,
+  StateField,
+  type TransactionSpec,
+} from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { verbatim } from "./listAutoformat";
 
@@ -228,7 +235,29 @@ const pairKeys = Prec.highest(
  * gets an empty pair to type into, or leaves one it's inside.
  */
 export function toggleMark(view: EditorView, mark: string): boolean {
-  const { state } = view;
+  const { spec, pair } = toggledMark(view.state, mark);
+  view.dispatch(spec);
+  if (pair) view.dispatch({ effects: setPair.of(pair) });
+  view.focus();
+  return true;
+}
+
+/**
+ * `toggleMark` for plain text with a selection from..to, such as a table cell being
+ * edited: the text and selection afterwards.
+ */
+export function toggleMarkInText(text: string, from: number, to: number, mark: string) {
+  const state = EditorState.create({ doc: text, selection: EditorSelection.range(from, to) });
+  const next = state.update(toggledMark(state, mark).spec).state;
+  const { main } = next.selection;
+  return { text: next.doc.toString(), from: main.from, to: main.to };
+}
+
+/** The change `toggleMark` makes to `state`, and the empty pair it leaves to type into. */
+function toggledMark(
+  state: EditorState,
+  mark: string,
+): { spec: TransactionSpec; pair: Pair | null } {
   const char = mark[0]!;
   const n = mark.length;
   /** How many `char`s run back from `pos` (or forward, with dir 1). */
@@ -245,56 +274,51 @@ export function toggleMark(view: EditorView, mark: string): boolean {
   const has = (k: number) => (char === "*" && n === 1 ? k % 2 === 1 : k >= n);
   const single = state.selection.ranges.length === 1;
   let pair: Pair | null = null;
-  view.dispatch(
-    state.changeByRange((range) => {
-      let { from, to } = range;
-      if (from === to) {
-        if (has(Math.min(run(from, -1), run(from, 1))) && run(from, -1) === run(from, 1))
-          return {
-            changes: { from: from - n, to: to + n },
-            range: EditorSelection.cursor(from - n),
-          };
-        if (single) pair = { from, to: from + 2 * n, mark };
+  const changes = state.changeByRange((range) => {
+    let { from, to } = range;
+    if (from === to) {
+      if (has(Math.min(run(from, -1), run(from, 1))) && run(from, -1) === run(from, 1))
         return {
-          changes: { from, insert: mark + mark },
-          range: EditorSelection.cursor(from + n),
+          changes: { from: from - n, to: to + n },
+          range: EditorSelection.cursor(from - n),
         };
-      }
-      // Leave the spaces a double-click can take with a word outside the marks.
-      const text = state.sliceDoc(from, to);
-      from += text.length - text.trimStart().length;
-      to -= text.length - text.trimEnd().length;
-      if (from >= to) return { range };
-      const inner = state.sliceDoc(from, to);
-      if (inner.length > 2 * n && inner.startsWith(mark) && inner.endsWith(mark))
-        return {
-          changes: [
-            { from, to: from + n },
-            { from: to - n, to },
-          ],
-          range: EditorSelection.range(from, to - 2 * n),
-        };
-      if (has(Math.min(run(from, -1), run(to, 1))))
-        return {
-          changes: [
-            { from: from - n, to: from },
-            { from: to, to: to + n },
-          ],
-          range: EditorSelection.range(from - n, to - n),
-        };
+      if (single) pair = { from, to: from + 2 * n, mark };
+      return {
+        changes: { from, insert: mark + mark },
+        range: EditorSelection.cursor(from + n),
+      };
+    }
+    // Leave the spaces a double-click can take with a word outside the marks.
+    const text = state.sliceDoc(from, to);
+    from += text.length - text.trimStart().length;
+    to -= text.length - text.trimEnd().length;
+    if (from >= to) return { range };
+    const inner = state.sliceDoc(from, to);
+    if (inner.length > 2 * n && inner.startsWith(mark) && inner.endsWith(mark))
       return {
         changes: [
-          { from, insert: mark },
-          { from: to, insert: mark },
+          { from, to: from + n },
+          { from: to - n, to },
         ],
-        range: EditorSelection.range(from + n, to + n),
+        range: EditorSelection.range(from, to - 2 * n),
       };
-    }),
-    { userEvent: "input.format" },
-  );
-  if (pair) view.dispatch({ effects: setPair.of(pair) });
-  view.focus();
-  return true;
+    if (has(Math.min(run(from, -1), run(to, 1))))
+      return {
+        changes: [
+          { from: from - n, to: from },
+          { from: to, to: to + n },
+        ],
+        range: EditorSelection.range(from - n, to - n),
+      };
+    return {
+      changes: [
+        { from, insert: mark },
+        { from: to, insert: mark },
+      ],
+      range: EditorSelection.range(from + n, to + n),
+    };
+  });
+  return { spec: { ...changes, userEvent: "input.format" }, pair };
 }
 
 export const inlineMarks = [pairField, absorbField, typing, pairKeys];

@@ -40,6 +40,28 @@ export function iconGraphic(target: string, label: string) {
   return image;
 }
 
+/** An inline icon as it shows in text (`cm-inline-note-icon`), loading rarer icons first. */
+export function inlineIconElement(target: string, label: string): HTMLElement {
+  const icon = document.createElement("span");
+  icon.className = "cm-inline-note-icon";
+  icon.setAttribute("role", "img");
+  icon.setAttribute("aria-label", label);
+  icon.title = label;
+  const show = () => {
+    const graphic = iconGraphic(target, label);
+    icon.replaceChildren(graphic ?? document.createTextNode(label));
+    return Boolean(graphic);
+  };
+  if (!show() && target.startsWith("lucide:"))
+    void loadAllIcons().then(
+      () => {
+        if (icon.isConnected) show();
+      },
+      () => {},
+    );
+  return icon;
+}
+
 class InlineIcon extends WidgetType {
   constructor(
     readonly target: string,
@@ -53,23 +75,7 @@ class InlineIcon extends WidgetType {
   }
 
   toDOM(view: EditorView) {
-    const icon = document.createElement("span");
-    icon.className = "cm-inline-note-icon";
-    icon.setAttribute("role", "img");
-    icon.setAttribute("aria-label", this.label);
-    icon.title = this.label;
-    const show = () => {
-      const graphic = iconGraphic(this.target, this.label);
-      icon.replaceChildren(graphic ?? document.createTextNode(this.label));
-      return Boolean(graphic);
-    };
-    if (!show() && this.target.startsWith("lucide:"))
-      void loadAllIcons().then(
-        () => {
-          if (icon.isConnected) show();
-        },
-        () => {},
-      );
+    const icon = inlineIconElement(this.target, this.label);
     icon.addEventListener("mousedown", (event) => {
       if (event.button !== 0) return;
       event.preventDefault();

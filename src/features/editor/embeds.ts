@@ -1,6 +1,10 @@
 import type { Completion, CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
+
+type Tree = ReturnType<typeof syntaxTree>;
+type SyntaxNode = Tree["topNode"];
 import { Annotation, EditorState, Facet, type Range, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
 import { backend, isBackendError, type VaultChange } from "../../ipc";
@@ -559,6 +563,156 @@ class MediaWidget extends WidgetType {
   }
 }
 
+/**
+ * An image, video, audio file or web video in a list or task item, among its text:
+ * `- [ ] Pack ![[tent.png|200]]`. It shows in the line, after the bullet or checkbox, at its
+ * `|width`; a click on an image (or "Edit link" on a player) shows its Markdown to edit.
+ */
+class ListMediaWidget extends WidgetType {
+  readonly shown: MediaShown;
+  constructor(
+    readonly target: string,
+    readonly width: number | null,
+    readonly label: string,
+    readonly from: string,
+    /** Where a click puts the cursor in the embed's text: after its name and |width. */
+    readonly caret: number,
+  ) {
+    super();
+    this.shown = shownAs(target);
+  }
+  eq(other: ListMediaWidget) {
+    return (
+      other.target === this.target &&
+      other.width === this.width &&
+      other.label === this.label &&
+      other.from === this.from &&
+      other.caret === this.caret
+    );
+  }
+  toDOM(view: EditorView) {
+    const wrap = document.createElement("span");
+    wrap.className = "cm-list-media";
+    wrap.dataset.kind = this.shown;
+    const web = isWebUrl(this.target);
+    const path = web ? null : resolveMedia(this.target, this.from, useAppStore.getState().tree);
+    const url = web ? this.target.trim() : path ? backend.fileUrl(path) : null;
+    const name = this.label || this.target;
+    // Into the embed's text, which then shows as Markdown, ready to change its |width.
+    const editLink = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      view.dispatch({ selection: { anchor: view.posAtDOM(wrap) + this.caret } });
+      view.focus();
+    };
+    const missing = (text: string) => {
+      wrap.classList.add("missing");
+      wrap.textContent = text;
+    };
+    if (!url) {
+      missing(`${MEDIA_ICON[this.shown]} ${this.target}${path ? "" : " (not found)"}`);
+      wrap.addEventListener("mousedown", editLink);
+      return wrap;
+    }
+    if (this.shown === "image") {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = name;
+      img.title = `${path ?? url}\nClick to edit`;
+      img.draggable = false;
+      if (this.width) img.width = this.width;
+      img.addEventListener("load", () => view.requestMeasure());
+      img.addEventListener("error", () => missing(`Couldn't load ${this.target}`));
+      wrap.append(img);
+      wrap.addEventListener("mousedown", editLink);
+      return wrap;
+    }
+    let media: HTMLElement;
+    if (this.shown === "player") {
+      const frame = document.createElement("iframe");
+      frame.src = videoPlayerUrl(url)!;
+      frame.title = this.label || "Video";
+      frame.loading = "lazy";
+      frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = "strict-origin-when-cross-origin";
+      frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation");
+      media = frame;
+    } else {
+      const el = document.createElement(this.shown); // <video> or <audio>
+      el.controls = true;
+      el.preload = "metadata";
+      el.src = url;
+      el.title = name;
+      if (el instanceof HTMLVideoElement) el.playsInline = true;
+      el.addEventListener("loadedmetadata", () => view.requestMeasure());
+      media = el;
+    }
+    if (this.width) media.style.width = `${this.width}px`;
+    const edit = document.createElement("button");
+    edit.className = "cm-media-edit";
+    edit.textContent = "Edit link";
+    edit.title = path ?? url;
+    edit.addEventListener("mousedown", editLink);
+    wrap.append(media, edit);
+    return wrap;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
+const LIST_WIKI_EMBED = /!\[\[([^[\]\n]+?)\]\]/g;
+const LIST_MD_EMBED = /!\[[^\]\n]*\]\(\s*(?:<[^>\n]+>|[^\s()]+)(?:\s+"[^"\n]*")?\s*\)/g;
+
+/** Whether `pos` is in a list item's text (not in code, frontmatter or HTML). */
+function inListItem(tree: Tree, pos: number) {
+  let list = false;
+  for (let node: SyntaxNode | null = tree.resolveInner(pos, 1); node; node = node.parent) {
+    if (/^(InlineCode|CodeText|FencedCode|CodeBlock|Frontmatter|HTMLBlock|Comment)/.test(node.name))
+      return false;
+    if (node.name === "ListItem") list = true;
+  }
+  return list;
+}
+
+/** The media embeds in list item `line`, unless the selection is in one (it shows as text). */
+export function listMediaDecorations(
+  state: EditorState,
+  tree: Tree,
+  line: { from: number; text: string },
+  from: string,
+): Range<Decoration>[] {
+  const found: { at: number; end: number; widget: ListMediaWidget }[] = [];
+  for (const m of line.text.matchAll(LIST_WIKI_EMBED)) {
+    const { target, width } = parseImageEmbed(m[1]!);
+    if (!mediaKind(target)) continue; // a note embed is a block of its own
+    const at = line.from + m.index;
+    found.push({
+      at,
+      end: at + m[0].length,
+      widget: new ListMediaWidget(target, width, "", from, 3 + m[1]!.length),
+    });
+  }
+  for (const m of line.text.matchAll(LIST_MD_EMBED)) {
+    const md = parseMarkdownEmbed(m[0]);
+    if (!md || inlineIconTarget(md.src) || !(isWebUrl(md.src) || mediaKind(md.src))) continue;
+    const at = line.from + m.index;
+    found.push({
+      at,
+      end: at + m[0].length,
+      widget: new ListMediaWidget(md.src, md.width, md.alt, from, m[0].indexOf("](")),
+    });
+  }
+  return found
+    .sort((a, b) => a.at - b.at)
+    .filter(
+      ({ at, end }) =>
+        inListItem(tree, at) && !state.selection.ranges.some((r) => r.from < end && r.to > at),
+    )
+    .map(({ at, end, widget }) => Decoration.replace({ widget }).range(at, end));
+}
+
 /** The widget for a line that is only an embed (`![[…]]` or `![…](…)`), if it is one. */
 function embedWidgetFor(text: string, from: string, readOnly: boolean): WidgetType | null {
   const { embed } = readImageLayout(text);
@@ -586,14 +740,22 @@ function embedDecorations(state: EditorState): DecorationSet {
   }
   const out: Range<Decoration>[] = [];
   let inFence = false;
+  let tree: Tree | null = null;
   for (let n = 1; n <= doc.lines; n++) {
     const line = doc.line(n);
     if (/^[ \t]*(```|~~~)/.test(line.text)) inFence = !inFence;
-    if (inFence || active.has(n)) continue;
+    if (inFence) continue;
     const widget = embedWidgetFor(line.text, from, state.readOnly);
-    if (widget) out.push(Decoration.replace({ widget, block: true }).range(line.from, line.to));
+    if (widget) {
+      if (!active.has(n))
+        out.push(Decoration.replace({ widget, block: true }).range(line.from, line.to));
+    } else if (line.text.includes("![")) {
+      // In a list or task item, among its text (T-263).
+      tree ??= ensureSyntaxTree(state, doc.length, 100) ?? syntaxTree(state);
+      out.push(...listMediaDecorations(state, tree, line, from));
+    }
   }
-  return Decoration.set(out);
+  return Decoration.set(out, true);
 }
 
 const embedField = StateField.define<DecorationSet>({
