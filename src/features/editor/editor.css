@@ -358,6 +358,13 @@ input.editor-title::placeholder {
   background: transparent;
   cursor: pointer;
 }
+/* An invisible margin around the box that also ticks it, so a near miss doesn't put the
+   caret on the line and reveal its `- [ ]`. */
+.cm-lp-task::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
 .cm-lp-task:hover {
   border-color: var(--fg);
 }
@@ -431,6 +438,7 @@ input.editor-title::placeholder {
   user-select: none;
 }
 .cm-lp-code-copy {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 24px;
@@ -441,6 +449,12 @@ input.editor-title::placeholder {
   color: inherit;
   background: transparent;
   cursor: pointer;
+}
+/* A near miss copies instead of putting the caret on the fence and revealing it. */
+.cm-lp-code-copy::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
 }
 .cm-lp-code-copy:hover {
   background: var(--bg-hover);
@@ -681,24 +695,26 @@ input.editor-title::placeholder {
 .cm-has-line-tools {
   position: relative;
 }
+/* The margin beside the whole line keeps it hovered, so the pointer can reach the controls
+   from any row of a wrapped line, callout body or list item. */
 .cm-has-line-tools::before {
   content: "";
   position: absolute;
   inset-inline-start: calc(-1 * var(--note-inline-padding));
-  inset-block-start: var(--line-tools-top, 0px);
+  inset-block: 0;
   width: var(--note-inline-padding);
-  height: 1lh;
-  min-height: 18px;
 }
+/* The strip is as tall as the line and reaches the text, with no gaps between the controls,
+   so a click near + or the grip lands on that control rather than the editor or the line
+   above or below (blockTools.ts). The visible control stays in the first row. */
 .cm-line-tools {
   position: absolute;
   inset-inline-start: -35px;
-  inset-block-start: var(--line-tools-top, 0px);
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  height: 1lh;
-  min-height: 18px;
+  inset-block: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  padding-inline-end: 1px;
   text-indent: 0;
   visibility: hidden;
   user-select: none;
@@ -717,21 +733,47 @@ input.editor-title::placeholder {
 .cm-has-line-tools:focus-within > .cm-line-tools {
   visibility: visible;
 }
+/* A column from the top (a button would centre its content in the strip). */
 .cm-line-tools button {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  width: 17px;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  padding: var(--line-tools-top, 0px) 0 0;
+  line-height: inherit;
+}
+.cm-line-tools button:hover,
+.cm-line-tools button:focus-visible {
+  background: transparent;
+  color: var(--fg);
+  outline: none;
+}
+.cm-line-tool-row {
+  display: grid;
+  place-items: center start;
+  height: 1lh;
+  min-height: 18px;
+}
+.cm-line-tool-face {
   display: grid;
   place-items: center;
   width: 16px;
   height: 18px;
-  border: 0;
   border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--fg-muted);
-  padding: 0;
 }
-.cm-line-tools button:hover,
-.cm-line-tools button:focus-visible {
+.cm-line-tools button:hover .cm-line-tool-face,
+.cm-line-tools button:focus-visible .cm-line-tool-face {
   background: var(--bg-hover);
-  color: var(--fg);
+}
+.cm-line-tools button:focus-visible .cm-line-tool-face {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
 }
 .cm-line-tools .cm-line-grip {
   cursor: grab;
@@ -1182,6 +1224,14 @@ input.editor-title::placeholder {
   transition: opacity 0.12s;
   touch-action: none;
 }
+/* A larger, invisible hit area (18px for a corner), so a press just beside the small square
+   still resizes images and Mermaid diagrams. It reaches at most 8px past the edge: a
+   diagram's padding, beyond which it would make the diagram scroll. */
+.cm-image-handle::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
 .cm-image-embed:hover .cm-image-handle,
 .cm-image-selected .cm-image-handle,
 .cm-image-resizing .cm-image-handle {
@@ -1399,8 +1449,10 @@ body.cm-image-drag-copy * {
 .cm-callout-icon {
   margin-right: 4px;
 }
+/* The gap before the chevron is part of it, so a near miss doesn't put the caret in the
+   title and reveal its Markdown. */
 .cm-callout-fold {
-  margin-left: 4px;
+  padding-left: 4px;
   padding-right: 8px;
   cursor: pointer;
 }

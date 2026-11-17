@@ -69,6 +69,9 @@ class LineToolsWidget extends WidgetType {
     const controls = doc.createElement("span");
     controls.className = "cm-line-tools";
     controls.contentEditable = "false";
+    // The strip spans the whole line (editor.css), so a click a little above or below a
+    // control reaches that line's control; stray clicks in it never move the caret.
+    controls.addEventListener("mousedown", (e) => e.preventDefault());
     const line = () => view.state.doc.lineAt(view.posAtDOM(controls)).number;
     const button = (label: string, icon: typeof Plus, className: string) => {
       const el = doc.createElement("button");
@@ -76,8 +79,14 @@ class LineToolsWidget extends WidgetType {
       el.className = className;
       el.title = label;
       el.setAttribute("aria-label", label);
-      el.append(lucideSvg(icon, 13));
-      el.addEventListener("mousedown", (e) => e.preventDefault());
+      // The button fills the strip; the visible control sits in the line's first row.
+      const row = doc.createElement("span");
+      row.className = "cm-line-tool-row";
+      const face = doc.createElement("span");
+      face.className = "cm-line-tool-face";
+      face.append(lucideSvg(icon, 13));
+      row.append(face);
+      el.append(row);
       controls.append(el);
       return el;
     };
