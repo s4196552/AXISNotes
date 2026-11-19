@@ -175,13 +175,18 @@ class Indicator {
     // No layout (hidden, or a test without one): keep it in the default place.
     if (outer.width === 0) return 10;
     const scroller = view.scrollDOM.getBoundingClientRect();
-    const line = (
-      view.contentDOM.querySelector(".cm-line") ?? view.contentDOM
-    ).getBoundingClientRect();
+    // The text column: the content box, not the first line, which a Cornell page narrows
+    // to its cue column or shifts past the margin (paperLayout.ts).
+    const content = view.contentDOM.getBoundingClientRect();
+    const css = getComputedStyle(view.contentDOM);
+    const pad = parseFloat(css.paddingInlineStart) || 0;
+    const line = {
+      left: content.left + (parseFloat(css.paddingLeft) || 0),
+      right: content.right - (parseFloat(css.paddingRight) || 0),
+    };
     if (this.side === "left") {
       // The content's start padding holds the line controls (+ and the grip) and the fold
       // arrows, plus the LEFT_ROOM strip editor.css adds for the rail; only that strip is free.
-      const pad = parseFloat(getComputedStyle(view.contentDOM).paddingInlineStart) || 0;
       const room = line.left - (pad - LEFT_ROOM) - scroller.left;
       return placement(room, scroller.left - outer.left);
     }
