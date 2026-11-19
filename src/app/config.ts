@@ -110,8 +110,10 @@ export interface AxisConfig {
     headingColors: HeadingColors;
     /** Own colours for bold, italic and strikethrough text, each off by default. */
     textColors: TextColors;
-    /** Lines at the note's right edge for its headings; pointing at them lists them. */
+    /** Lines at the note's edge for its headings; pointing at them lists them. */
     headingIndicator: boolean;
+    /** Which edge of the note the heading indicator sits at. */
+    headingIndicatorSide: "right" | "left";
     /** Translucent theme: how opaque the window is (percent), and what shows behind it. */
     windowOpacity: number;
     windowEffect: WindowEffect;
@@ -212,6 +214,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     headingColors: "theme",
     textColors: { bold: NO_TEXT_COLOR, italic: NO_TEXT_COLOR, strike: NO_TEXT_COLOR },
     headingIndicator: true,
+    headingIndicatorSide: "right",
     windowOpacity: 80,
     windowEffect: "frosted",
     appColors: NO_APP_COLORS,

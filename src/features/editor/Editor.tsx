@@ -424,7 +424,9 @@ export function Editor({ path }: EditorProps) {
               useConfig.getState().config.appearance.bionicReading ? bionicReading : [],
             ),
             indicatorCompartment.current.of(
-              useConfig.getState().config.appearance.headingIndicator ? headingIndicator : [],
+              useConfig.getState().config.appearance.headingIndicator
+                ? headingIndicator(useConfig.getState().config.appearance.headingIndicatorSide)
+                : [],
             ),
             links({
               openLink: (inner, newTab) => void followLink(inner, path, { newTab }),
@@ -609,13 +611,17 @@ export function Editor({ path }: EditorProps) {
     });
   }, [bionicOn]);
 
-  // The heading indicator at the note's right edge (Settings → Appearance → Theme & layout).
+  // The heading indicator at the note's right or left edge (Settings → Appearance → Theme &
+  // layout).
   const indicatorOn = useConfig((s) => s.config.appearance.headingIndicator);
+  const indicatorSide = useConfig((s) => s.config.appearance.headingIndicatorSide);
   useEffect(() => {
     view.current?.dispatch({
-      effects: indicatorCompartment.current.reconfigure(indicatorOn ? headingIndicator : []),
+      effects: indicatorCompartment.current.reconfigure(
+        indicatorOn ? headingIndicator(indicatorSide) : [],
+      ),
     });
-  }, [indicatorOn]);
+  }, [indicatorOn, indicatorSide]);
 
   // Re-style links when notes appear or disappear.
   const notes = useAppStore((s) => s.notes);

@@ -3,10 +3,11 @@ import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { headingSections } from "./headingSections";
 
 // The heading indicator (Settings → Appearance → Theme & layout): a column of short lines
-// at the note's right edge, one per heading. The note's biggest heading (fewest #, whether
-// that is # or ####) gets the longest line and each smaller level a shorter one. The line
-// of the section being read is highlighted. Pointing at it (or tabbing into it) shows the
-// headings as a list; picking one scrolls there. Only a view: the note never changes.
+// at the note's right or left edge (Settings → "Heading indicator side"), one per heading.
+// The note's biggest heading (fewest #, whether that is # or ####) gets the longest line and
+// each smaller level a shorter one. The line of the section being read is highlighted.
+// Pointing at it (or tabbing into it) shows the headings as a compact list that opens at the
+// current section; picking one scrolls there. Only a view: the note never changes.
 
 export interface IndicatorHeading {
   /** Where the heading starts in the document. */
@@ -22,18 +23,23 @@ export const LINE_WIDTHS = [16, 12, 9, 6, 4] as const;
 export const MIN_HEADINGS = 2;
 /** The column's width (longest line plus padding), in px. */
 const RAIL = LINE_WIDTHS[0] + 8;
-/** Room the indicator needs between the text and the scrollbar, in px; with less it hides. */
+/** Room the indicator needs between the text and the note's edge, in px; with less it hides. */
 export const MIN_ROOM = LINE_WIDTHS[0] + 4;
 
+/** Which edge of the note the indicator sits at. */
+export type IndicatorSide = "right" | "left";
+
 /**
- * Where the indicator goes, from the room between the text column and the scrollbar:
- * hidden when there's too little, otherwise centred in that margin (its `right` offset).
+ * Where the indicator goes, from the free room between the text column and the note's edge
+ * on its side: hidden when there's too little, otherwise centred in that margin. Returns
+ * its offset from the edge (`right`, or `left` on the left side); `edge` is what lies
+ * between the editor's edge and that margin (the scrollbar on the right).
  * The text column is narrower than CodeMirror's content box (Settings → editor width), so
  * the room is measured from the text lines, not the content element.
  */
-export function placement(room: number, scrollbar: number): number | null {
+export function placement(room: number, edge: number): number | null {
   if (room < MIN_ROOM) return null;
-  return Math.round(scrollbar + Math.max(0, (room - RAIL) / 2));
+  return Math.round(edge + Math.max(0, (room - RAIL) / 2));
 }
 
 /** The note's Markdown headings, with depth counted from its biggest one. */
@@ -70,9 +76,12 @@ class Indicator {
   frame = 0;
   onScroll = () => this.schedule();
 
-  constructor(readonly view: EditorView) {
+  constructor(
+    readonly view: EditorView,
+    readonly side: IndicatorSide,
+  ) {
     this.dom = document.createElement("nav");
-    this.dom.className = "cm-heading-indicator";
+    this.dom.className = `cm-heading-indicator cm-heading-indicator-${side}`;
     this.dom.setAttribute("aria-label", "Headings in this note");
     this.rail = document.createElement("div");
     this.rail.className = "cm-heading-rail";
@@ -84,6 +93,8 @@ class Indicator {
     this.dom.addEventListener("mousedown", (e) => {
       if ((e.target as HTMLElement).closest("button")) e.preventDefault();
     });
+    // The list is short and scrolls: open it at the section being read.
+    this.dom.addEventListener("pointerenter", () => this.revealActive());
     view.dom.appendChild(this.dom);
     view.scrollDOM.addEventListener("scroll", this.onScroll, { passive: true });
     this.rebuild();
@@ -120,7 +131,7 @@ class Indicator {
         b.className = "cm-heading-item";
         b.textContent = h.title;
         b.title = h.title;
-        b.style.paddingInlineStart = `${8 + h.depth * 12}px`;
+        b.style.paddingInlineStart = `${8 + h.depth * 10}px`;
         b.dataset.depth = String(h.depth);
         b.addEventListener("click", () => this.jump(i));
         li.appendChild(b);
@@ -141,6 +152,14 @@ class Indicator {
     this.view.focus();
   }
 
+  /** Scroll the list so the current section's heading is in the middle of it. */
+  revealActive() {
+    const item = this.list.querySelectorAll("button")[this.active];
+    if (!item) return;
+    const top = item.offsetTop - (this.list.clientHeight - item.offsetHeight) / 2;
+    this.list.scrollTop = Math.max(0, top);
+  }
+
   schedule() {
     if (this.frame) return;
     this.frame = requestAnimationFrame(() => {
@@ -149,21 +168,37 @@ class Indicator {
     });
   }
 
+  /** Where the indicator goes on its side (null: no room), from the editor's layout. */
+  offset(): number | null {
+    const { view } = this;
+    const outer = view.dom.getBoundingClientRect();
+    // No layout (hidden, or a test without one): keep it in the default place.
+    if (outer.width === 0) return 10;
+    const scroller = view.scrollDOM.getBoundingClientRect();
+    const line = (
+      view.contentDOM.querySelector(".cm-line") ?? view.contentDOM
+    ).getBoundingClientRect();
+    if (this.side === "left") {
+      // The content's start padding holds the line controls (+ and the grip) and the fold
+      // arrows, plus the LEFT_ROOM strip editor.css adds for the rail; only that strip is free.
+      const pad = parseFloat(getComputedStyle(view.contentDOM).paddingInlineStart) || 0;
+      const room = line.left - (pad - LEFT_ROOM) - scroller.left;
+      return placement(room, scroller.left - outer.left);
+    }
+    const scrollbar = view.scrollDOM.offsetWidth - view.scrollDOM.clientWidth;
+    const room = scroller.right - scrollbar - line.right;
+    return placement(room, outer.right - scroller.right + scrollbar);
+  }
+
   /** Show or hide (by count and room) and highlight the section at the top of the view. */
   measure() {
     const { view } = this;
-    const outer = view.dom.getBoundingClientRect();
     const scroller = view.scrollDOM.getBoundingClientRect();
-    const scrollbar = view.scrollDOM.offsetWidth - view.scrollDOM.clientWidth;
-    const line = view.contentDOM.querySelector(".cm-line") ?? view.contentDOM;
-    const room = scroller.right - scrollbar - line.getBoundingClientRect().right;
-    // No layout (hidden, or a test without one): keep it in the default place.
-    const right =
-      outer.width === 0 ? 10 : placement(room, outer.right - scroller.right + scrollbar);
-    const shown = this.headings.length >= MIN_HEADINGS && right !== null;
+    const offset = this.offset();
+    const shown = this.headings.length >= MIN_HEADINGS && offset !== null;
     this.dom.hidden = !shown;
     if (!shown) return;
-    this.dom.style.right = `${right}px`;
+    this.dom.style[this.side] = `${offset}px`;
     // The section being read: the one holding the line a little below the top edge.
     const block = view.lineBlockAtHeight(scroller.top + 48 - view.documentTop);
     const active = activeHeading(this.headings, block.from);
@@ -188,4 +223,19 @@ class Indicator {
   }
 }
 
-export const headingIndicator = ViewPlugin.fromClass(Indicator);
+/** Extra start margin for the note on the left side: room for the rail beside the + / grip. */
+export const LEFT_ROOM = RAIL + 4;
+
+const plugins = {
+  right: ViewPlugin.define((view) => new Indicator(view, "right")),
+  // The note's start padding already holds the line controls, so on the left the editor
+  // gets a wider margin (editor.css, `cm-heading-side-left`) for the rail to sit in.
+  left: [
+    ViewPlugin.define((view) => new Indicator(view, "left")),
+    EditorView.editorAttributes.of({ class: "cm-heading-side-left" }),
+  ],
+};
+
+/** The heading indicator on the given side of the note (anything but "left" is the right). */
+export const headingIndicator = (side: IndicatorSide = "right") =>
+  side === "left" ? plugins.left : plugins.right;

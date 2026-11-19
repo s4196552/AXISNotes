@@ -560,7 +560,7 @@ function Appearance({ config, set }: SectionProps) {
       </Field>
       <Field
         label="Heading indicator"
-        hint="Short lines at the right edge of a note, one per heading: the longest for its biggest headings. Point at them to see the headings and jump to one."
+        hint="Short lines at the edge of a note, one per heading: the longest for its biggest headings. Point at them to see the headings and jump to one."
       >
         <input
           type="checkbox"
@@ -568,6 +568,22 @@ function Appearance({ config, set }: SectionProps) {
           checked={a.headingIndicator}
           onChange={(e) => setA({ headingIndicator: e.target.checked })}
         />
+      </Field>
+      <Field
+        label="Heading indicator side"
+        hint="Which edge of the note the heading lines sit at. On the left they stay clear of the + and grip controls."
+      >
+        <select
+          aria-label="Heading indicator side"
+          value={a.headingIndicatorSide === "left" ? "left" : "right"}
+          disabled={!a.headingIndicator}
+          onChange={(e) =>
+            setA({ headingIndicatorSide: e.target.value === "left" ? "left" : "right" })
+          }
+        >
+          <option value="right">Right</option>
+          <option value="left">Left</option>
+        </select>
       </Field>
       <Field label="Fold arrows" hint="The arrows that fold headings and toggle lists.">
         <FoldArrowPicker value={a.foldArrow} onChange={(foldArrow) => setA({ foldArrow })} />
