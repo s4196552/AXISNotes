@@ -7,6 +7,7 @@ import {
   headingIndicator,
   indicatorHeadings,
   lineWidth,
+  LEFT_ROOM,
   LINE_WIDTHS,
   MIN_ROOM,
   placement,
@@ -62,9 +63,9 @@ describe("heading indicator (T-254)", () => {
       view?.destroy();
       view = null;
     });
-    const mount = (doc: string) => {
+    const mount = (doc: string, side?: "left" | "right") => {
       view = new EditorView({
-        state: EditorState.create({ doc, extensions: [markdown(), headingIndicator] }),
+        state: EditorState.create({ doc, extensions: [markdown(), headingIndicator(side)] }),
         parent: document.body,
       });
       return view;
@@ -80,6 +81,25 @@ describe("heading indicator (T-254)", () => {
       expect(items.map((b) => b.textContent)).toEqual(["Title", "Part", "Small"]);
       items[1]!.click();
       expect(v.state.selection.main.head).toBe(v.state.doc.toString().indexOf("## Part"));
+    });
+
+    it("sits on the right by default and on the left when chosen (T-265)", () => {
+      const right = mount("# One\n\n## Two\n");
+      const r = right.dom.querySelector<HTMLElement>("nav.cm-heading-indicator")!;
+      expect(r).toHaveClass("cm-heading-indicator-right");
+      expect(r.style.left).toBe("");
+      right.destroy();
+      const left = mount("# One\n\n## Two\n", "left");
+      const l = left.dom.querySelector<HTMLElement>("nav.cm-heading-indicator")!;
+      expect(l).toHaveClass("cm-heading-indicator-left");
+      expect(l).not.toHaveClass("cm-heading-indicator-right");
+      // The left side widens the note's start margin for the rail; the right side doesn't.
+      expect(left.dom).toHaveClass("cm-heading-side-left");
+      expect(right.dom).not.toHaveClass("cm-heading-side-left");
+      expect(LEFT_ROOM).toBeGreaterThanOrEqual(MIN_ROOM);
+      // Same plugin for the same side, so reconfiguring doesn't rebuild it needlessly.
+      expect(headingIndicator("left")).toBe(headingIndicator("left"));
+      expect(headingIndicator()).not.toBe(headingIndicator("left"));
     });
 
     it("follows edits and goes away when the plugin is turned off", () => {
