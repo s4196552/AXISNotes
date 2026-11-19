@@ -640,55 +640,114 @@ input.editor-title::placeholder {
   background: var(--bg-hover);
 }
 
-/* Page styles (frontmatter `axis-style`). Lines are 26px so paper lines up with text. */
-.page-lined .cm-scroller,
-.page-dotted .cm-scroller,
-.page-math-grid .cm-scroller,
-.page-cornell .cm-scroller {
-  line-height: 26px;
+/* Page styles (frontmatter `axis-style`; paperLayout.ts). The writing sits on the paper:
+   every text line is a whole number of rows, with no gaps above headings or inside
+   callouts and code, and paperLayout.ts pads images, tables, math and embeds to the next
+   row. The paper is drawn from the content box, so the first row starts at the text. */
+.page-paper {
+  --paper-row: 26px;
+  --paper-rule: var(--border);
+  --paper-major: color-mix(in srgb, var(--border) 70%, var(--fg-muted));
+}
+.page-paper .cm-scroller {
+  line-height: var(--paper-row);
   /* No gap between list items, which would push text off the paper's lines. */
   --list-spacing: 0px;
 }
-.page-lined .cm-content,
-.page-cornell .cm-content {
-  background-image: repeating-linear-gradient(
+.page-paper .cm-content > .cm-line.cm-line {
+  line-height: var(--paper-row);
+  padding-top: 0;
+  padding-bottom: 0;
+  min-height: 0;
+}
+/* CodeMirror's cursor helpers next to widgets hang from the text top, which a heading's
+   large font puts above the row, so they would make the line taller than its rows. */
+.page-paper .cm-line img.cm-widgetBuffer {
+  vertical-align: top;
+}
+/* A hidden closing fence takes no row; the code box ends with its last line. */
+.page-paper .cm-content > .cm-line.cm-lp-fence-hidden.cm-lp-code-last {
+  height: 0;
+  overflow: hidden;
+}
+/* Images, tables, math and embeds: CodeMirror leaves margins out of its height map, so
+   paperLayout.ts pads them to the next row with padding-bottom instead. */
+.page-paper .cm-content > :not(.cm-line, .cm-gap) {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.page-paper .cm-content > .cm-lp-props-chip {
+  /* A block, so no line box around it moves it off the row. */
+  display: block;
+  width: fit-content;
+  box-sizing: border-box;
+  height: var(--paper-row);
+  padding-block: 0;
+  line-height: calc(var(--paper-row) - 2px);
+}
+.page-paper .cm-content {
+  background-origin: content-box;
+}
+/* Lined: a rule under each row. */
+.page-lined .cm-content {
+  background-image: linear-gradient(
     to bottom,
-    transparent 0,
-    transparent 25px,
-    var(--border) 25px,
-    var(--border) 26px
+    transparent calc(var(--paper-row) - 1px),
+    var(--paper-rule) 0
   );
-  background-position: 0 8px;
+  background-size: 100% var(--paper-row);
 }
-.page-cornell .cm-content {
-  background-image:
-    linear-gradient(
-      to right,
-      transparent 150px,
-      var(--danger) 150px,
-      var(--danger) 151px,
-      transparent 151px
-    ),
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent 25px,
-      var(--border) 25px,
-      var(--border) 26px
-    );
-}
+/* Graph paper: a square per row, with a stronger line every five squares. Text starts on
+   a vertical line and sits between two horizontal ones. */
 .page-math-grid .cm-content {
   background-image:
-    linear-gradient(to right, var(--border) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
-  background-size: 26px 26px;
-  background-position: 0 8px;
+    linear-gradient(to right, var(--paper-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--paper-major) 1px, transparent 1px),
+    linear-gradient(to right, var(--paper-rule) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--paper-rule) 1px, transparent 1px);
+  background-size:
+    calc(var(--paper-row) * 5) calc(var(--paper-row) * 5),
+    calc(var(--paper-row) * 5) calc(var(--paper-row) * 5),
+    var(--paper-row) var(--paper-row),
+    var(--paper-row) var(--paper-row);
 }
+/* Dotted: a dot where the grid lines would cross, between rows rather than behind text. */
 .page-dotted .cm-content {
   background-image: radial-gradient(circle, var(--fg-muted) 1px, transparent 1.2px);
-  background-size: 26px 26px;
-  background-position: 0 8px;
-  background-color: transparent;
+  background-size: var(--paper-row) var(--paper-row);
+  background-position: calc(var(--paper-row) / -2) calc(var(--paper-row) / -2);
+}
+/* Cornell: lined, with a cue column left of a red margin and the Summary below a rule
+   across the page (--cornell-end, set by paperLayout.ts at the Summary heading). */
+.page-cornell .cm-content {
+  --cornell-cue: calc(var(--note-font-size) * 10);
+  --cornell-gap: 14px;
+  background-image:
+    linear-gradient(var(--danger), var(--danger)), linear-gradient(var(--danger), var(--danger)),
+    linear-gradient(to bottom, transparent calc(var(--paper-row) - 1px), var(--paper-rule) 0);
+  background-size:
+    1px var(--cornell-end, 100%),
+    100% 1px,
+    100% var(--paper-row);
+  background-position:
+    var(--cornell-cue) 0,
+    0 calc(var(--cornell-end, -100px) - 1px),
+    0 0;
+  background-repeat: no-repeat, no-repeat, repeat;
+}
+/* The properties chip sits across the margin, so keep the red line out of its text. */
+.page-cornell .cm-content > .cm-lp-props-chip {
+  background: var(--bg);
+}
+.page-cornell .cm-content > .cm-cornell-cue {
+  margin-right: calc(100% - var(--cornell-cue) + var(--cornell-gap));
+}
+.page-cornell .cm-content > .cm-cornell-notes,
+.page-cornell .cm-content > .cm-cornell-notes + :not(.cm-line, .cm-gap) {
+  margin-left: calc(var(--cornell-cue) + var(--cornell-gap));
+}
+.page-cornell .cm-content > .cm-cornell-notes + .cm-markdown-table {
+  margin-left: calc(var(--cornell-cue) + var(--cornell-gap) - 14px);
 }
 
 /* Line controls sit in the margin, so showing them never shifts the text. */

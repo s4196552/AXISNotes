@@ -140,7 +140,7 @@ describe("slash commands", () => {
     // The cursor waits after the opening fence, where the language goes.
     expect(code.text).toBe("```\n```");
     expect(code.head).toBe(3);
-    expect(run("x\n/gr", "Page style: Math grid").text).toBe(
+    expect(run("x\n/gr", "Page style: Graph paper").text).toBe(
       "---\naxis-style: math-grid\n---\n\nx\n",
     );
     const custom = run(";s", "Sig", {

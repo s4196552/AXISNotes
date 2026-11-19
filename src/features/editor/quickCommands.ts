@@ -595,9 +595,9 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   },
   {
     id: "style-grid",
-    label: "Page style: Math grid",
+    label: "Page style: Graph paper",
     icon: Grid3x3,
-    description: "Graph paper behind the note",
+    description: "Graph paper (math grid) behind the note",
     run: setPageStyle("math-grid"),
   },
   {

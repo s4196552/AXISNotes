@@ -25,7 +25,7 @@ export const BUILTIN_TEMPLATES: Template[] = [
   },
   {
     id: "builtin:math-grid",
-    name: "Math grid",
+    name: "Graph paper",
     body: `---\n${PAGE_STYLE_PROP}: math-grid\n---\n# {{title}}\n\n{{cursor}}`,
   },
   {

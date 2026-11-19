@@ -38,6 +38,7 @@ import { anchorCompletions, embeds } from "./embeds";
 import { mediaInput } from "./media";
 import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
+import { paperLayout } from "./paperLayout";
 import { tables } from "./tables";
 import { obsidianSyntax } from "./obsidianSyntax";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -159,6 +160,9 @@ function pageStyle(props: Props): string {
   const s = props[PAGE_STYLE_PROP];
   return typeof s === "string" && (PAGE_STYLES as readonly string[]).includes(s) ? s : "plain";
 }
+
+/** The page style class, plus `page-paper` for the ruled, dotted, graph and Cornell pages. */
+const paperClass = (style: string) => `page-${style}${style === "plain" ? "" : " page-paper"}`;
 
 export function Editor({ path }: EditorProps) {
   const [noteMenu, setNoteMenu] = useState<{ x: number; y: number; context: ChatContext } | null>(
@@ -419,6 +423,7 @@ export function Editor({ path }: EditorProps) {
             mermaidBlocks,
             heatmapBlocks,
             math,
+            paperLayout,
             spellCompartment.current.of(configuredSpellcheck()),
             bionicCompartment.current.of(
               useConfig.getState().config.appearance.bionicReading ? bionicReading : [],
@@ -767,7 +772,7 @@ export function Editor({ path }: EditorProps) {
       )}
 
       {isDraft(path) && <DraftBanner path={path} flush={() => save(true)} />}
-      <div ref={host} className={`editor-host page-${pageStyle(props)}`} />
+      <div ref={host} className={`editor-host ${paperClass(pageStyle(props))}`} />
     </div>
   );
 }
