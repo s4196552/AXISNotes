@@ -1,13 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Copy, ExternalLink, FolderOpen, Globe, RotateCw } from "lucide-react";
 import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { DraftBanner } from "./DraftBanner";
 import { isDraft } from "./drafts";
-import { LINK_GAP_MS, pageLink } from "./pageLinks";
-import { findEntry } from "../filetree/treeModel";
 import { copyPageText } from "../skills/copyable";
-import { useStudyResults } from "../comprehension/studyResults";
+import { PageFrame } from "./PageFrame";
 import "./drafts.css";
 
 // A web page in the vault (an AI-made quiz, flash cards, a lesson, or any .html file),
@@ -16,64 +14,14 @@ import "./drafts.css";
 // the page protocol's own policy keeps it off the network. Where pages can't be shown
 // (the browser preview) it falls back to opening them in the default browser.
 
-/** What a page may do in its frame. Never add allow-same-origin or allow-popups. */
-export const PAGE_SANDBOX = "allow-scripts allow-forms allow-modals";
+/** What a page may do in its frame (kept here for existing imports). */
+export { PAGE_SANDBOX } from "./PageFrame";
 
 export function WebFileView({ path }: { path: string }) {
   const name = path.slice(path.lastIndexOf("/") + 1);
   const draft = isDraft(path);
   const url = backend.pageUrl(path);
   const [reloads, setReloads] = useState(0);
-  const frame = useRef<HTMLIFrameElement>(null);
-  // Practice test and flash-card pages report results to the comprehension heatmap.
-  useStudyResults(frame, url ? path : null);
-
-  // Edited outside the app (or rewritten by a skill): show the new version.
-  useEffect(() => {
-    if (!url) return;
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    backend
-      .onVaultChanged((changes) => {
-        if (changes.some((c) => c.paths.includes(path))) setReloads((n) => n + 1);
-      })
-      .then((u) => {
-        if (disposed) u();
-        else unlisten = u;
-      });
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [path, url]);
-
-  // Links clicked in the page (its link handler posts them, see pages.rs). Only taken from
-  // this frame, while it has focus, which it gets when the user clicks in it: a page can't
-  // open links on its own as it loads.
-  useEffect(() => {
-    if (!url) return;
-    let last = 0;
-    const onMessage = (e: MessageEvent) => {
-      const f = frame.current;
-      if (!f || e.source !== f.contentWindow || document.activeElement !== f) return;
-      const data: unknown = e.data;
-      if (!data || typeof data !== "object" || !("axisnotesLink" in data)) return;
-      const link = pageLink(data.axisnotesLink, url);
-      if (!link || Date.now() - last < LINK_GAP_MS) return;
-      last = Date.now();
-      const notify = useAppStore.getState().notify;
-      if ("web" in link) {
-        backend
-          .openWebLink(link.web)
-          .catch((err: unknown) => notify(isBackendError(err) ? err.message : String(err)));
-      } else if (findEntry(useAppStore.getState().tree, link.vault)) {
-        useAppStore.getState().openFile(link.vault);
-      } else notify(`${link.vault} isn't in the vault.`);
-    };
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [url]);
-
   const report = (e: unknown) =>
     useAppStore.getState().notify(isBackendError(e) ? e.message : String(e));
   const openInBrowser = () => void backend.openInBrowser(path).catch(report);
@@ -125,15 +73,7 @@ export function WebFileView({ path }: { path: string }) {
           </button>
         )}
       </div>
-      <iframe
-        ref={frame}
-        className="web-view-frame"
-        title={name}
-        // A new query string reloads the frame; the page protocol ignores it.
-        src={`${url}?r=${reloads}`}
-        sandbox={PAGE_SANDBOX}
-        referrerPolicy="no-referrer"
-      />
+      <PageFrame path={path} url={url} title={name} className="web-view-frame" reloads={reloads} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ type Tree = ReturnType<typeof syntaxTree>;
 type SyntaxNode = Tree["topNode"];
 import { Annotation, EditorState, Facet, type Range, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
+import type { Root } from "react-dom/client";
 import { backend, isBackendError, type VaultChange } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { embedRange, ensureBlockId, listBlocks, listHeadings } from "../../lib/blocks";
@@ -418,6 +419,66 @@ class EmbedWidget extends WidgetType {
   }
 }
 
+/** A vault web page (`.html`), shown inline with ![[Page.html]]. */
+export const isPageTarget = (target: string) => /\.html?$/i.test(target.split("#")[0]!.trim());
+
+const pageRoots = new WeakMap<HTMLElement, { root?: Root; gone?: boolean }>();
+
+// ![[Page.html]] (T-269): the page in the same sandboxed frame as a page tab
+// (features/drafts/PageFrame.tsx), loaded the first time a note has one.
+class PageWidget extends WidgetType {
+  constructor(
+    readonly target: string,
+    readonly height: number | null,
+    readonly from: string,
+  ) {
+    super();
+  }
+  eq(other: PageWidget) {
+    return other.target === this.target && other.height === this.height && other.from === this.from;
+  }
+  toDOM(view: EditorView) {
+    const wrap = document.createElement("div");
+    wrap.className = "cm-page-embed";
+    wrap.textContent = "Loading page…";
+    const entry: { root?: Root; gone?: boolean } = {};
+    pageRoots.set(wrap, entry);
+    const onEditLink = () => {
+      const pos = view.posAtDOM(wrap);
+      view.dispatch({ selection: { anchor: view.state.doc.lineAt(pos).from } });
+      view.focus();
+    };
+    void import("../drafts/PageEmbed").then(({ mountPageEmbed }) => {
+      if (entry.gone) return;
+      wrap.textContent = "";
+      entry.root = mountPageEmbed(wrap, {
+        target: this.target,
+        from: this.from,
+        height: this.height,
+        onEditLink,
+      });
+      view.requestMeasure();
+    });
+    return wrap;
+  }
+  // The frame and its bar handle their own clicks and keys.
+  ignoreEvent() {
+    return true;
+  }
+  get estimatedHeight() {
+    return (this.height ?? 480) + 40;
+  }
+  destroy(dom: HTMLElement) {
+    const entry = pageRoots.get(dom);
+    pageRoots.delete(dom);
+    if (!entry) return;
+    entry.gone = true;
+    // Unmount after CodeMirror's update (React can't unmount while rendering).
+    const root = entry.root;
+    if (root) queueMicrotask(() => root.unmount());
+  }
+}
+
 type MediaShown = MediaKind | "player";
 
 /** A web address in the browser (as links in tables open). */
@@ -719,6 +780,7 @@ function embedWidgetFor(text: string, from: string, readOnly: boolean): WidgetTy
   const wiki = EMBED_LINE_RE.exec(embed);
   if (wiki) {
     const { target, width } = parseImageEmbed(wiki[1]!);
+    if (isPageTarget(target)) return new PageWidget(target, width, from);
     return mediaKind(target)
       ? new MediaWidget(target, width, "", from, text, readOnly)
       : new EmbedWidget(wiki[1]!, from);
