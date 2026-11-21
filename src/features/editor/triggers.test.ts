@@ -769,6 +769,7 @@ describe("command menu sections", () => {
       "Media",
       "Insert",
       "Diagrams and pen",
+      "Study",
       "Page style",
       "Custom",
       "Skills · Learn & understand",

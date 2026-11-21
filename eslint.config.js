@@ -36,4 +36,27 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
+  {
+    // Study blocks render note text; it must never become markup or code (T-267).
+    files: ["src/features/studyBlocks/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "MemberExpression[property.name=/^(innerHTML|outerHTML)$/]",
+          message: "Study blocks build DOM from text only.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='insertAdjacentHTML']",
+          message: "Study blocks build DOM from text only.",
+        },
+        {
+          selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+          message: "Study blocks build DOM from text only.",
+        },
+      ],
+      "no-eval": "error",
+      "no-new-func": "error",
+    },
+  },
 );

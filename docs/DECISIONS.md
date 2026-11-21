@@ -1057,3 +1057,39 @@ The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq,
   Explorer on the view) go through a native command `import_study_notes` that copies only
   Markdown notes, keeps folder layout, skips hidden items and links, and never overwrites
   (free names). No new dependencies.
+
+## T-267: study blocks in notes (```flashcards, ```quiz, ```mindmap)
+
+- **Approach (human-approved 2026-11-22, `docs/proposals/html-in-notes.md`):** interactive
+  study material lives in notes as typed fenced blocks rendered by built-in widgets, not as
+  raw HTML. Raw HTML in a note still shows as source; a note never puts markup or script
+  into the app window, which holds every app command. Arbitrary HTML stays in `.html`
+  pages in the sandboxed `axispage:` frame (T-190), which notes can embed (T-269).
+- **Storage format.** Plain text inside a fence, so the note stays Markdown and other apps
+  show the block as code:
+  - ` ```flashcards `: optional header lines (`title:`, `shuffle:`, `reverse:`) ended by a
+    blank line, then cards: `Q:` line, `A:` line, indented or following lines continue the
+    side, a blank line ends the card. `::` is not used, because `key:: value` is AXIS's
+    inline property syntax.
+  - ` ```quiz `: header, then `Q:` questions with `- [ ]` / `- [x]` options (more than one
+    `[x]` = select all that apply) **or** `=` accepted short answers (case and spacing
+    ignored), and `>` explanation lines.
+  - ` ```mindmap `: header (`title:` is the root), then a nested Markdown list. Without a
+    title, a single top-level item is the root.
+  - `~~~` fences work the same. Unknown header keys are kept and ignored. A body that
+    doesn't parse shows an error card naming the line; the text is never rewritten.
+- **No scheduling.** Flash-card sorting (Again / Got it), quiz answers and mind-map folding
+  last for the sitting only (in memory, kept while the note is open). Nothing is written to
+  the note or `.axis/`. Spaced repetition and review history stay AXIS Deck's. A finished
+  round goes to the comprehension heatmap through `recordStudy`, as the note itself and the
+  top-level section the block is under (the heatmap's units), with the same "AI: never"
+  filter as study pages.
+- **Rendering.** Card text goes through the tasks' `InlineText` (bold, italic, code,
+  strikethrough, links, `[[wikilinks]]`): React text only. An ESLint rule forbids
+  `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `dangerouslySetInnerHTML`, `eval` and
+  `new Function` under `src/features/studyBlocks/`. Finding a block is one string compare
+  per fence; each card kind is a separate chunk loaded the first time a note shows one. The
+  mind map reuses the graph view's `layoutTree`. No new dependencies.
+- **Known limits.** `[[links]]` inside a block aren't indexed (the indexer skips fenced code).
+  Math isn't rendered in cards. Blocks show as source inside `![[Note]]` embeds. There is no
+  per-feature switch yet; that waits for the module system (T-062).

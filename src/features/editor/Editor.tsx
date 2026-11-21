@@ -66,6 +66,7 @@ import { bionicReading } from "./bionic";
 import { headingIndicator } from "./headingIndicator";
 import { mermaidBlocks } from "../diagrams/mermaidBlocks";
 import { heatmapBlocks } from "../comprehension/heatmapBlock";
+import { studyBlocks } from "../studyBlocks/studyBlocks";
 import "../diagrams/diagrams.css";
 import {
   commandMenuAnchor,
@@ -422,6 +423,7 @@ export function Editor({ path }: EditorProps) {
             toggles,
             mermaidBlocks,
             heatmapBlocks,
+            studyBlocks,
             math,
             paperLayout,
             spellCompartment.current.of(configuredSpellcheck()),
