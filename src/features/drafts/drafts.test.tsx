@@ -7,6 +7,10 @@ import { DraftBanner } from "./DraftBanner";
 import { PAGE_SANDBOX, WebFileView } from "./WebFileView";
 import { pageLink } from "./pageLinks";
 import { createDraft, draftName, isDraft, saveDraft, vaultFolders } from "./drafts";
+import { mountPageEmbed, pageHeight } from "./PageEmbed";
+import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { embeds, isPageTarget } from "../editor/embeds";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -184,5 +188,83 @@ describe("links in web pages", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("pages embedded in notes (T-269)", () => {
+  const embed = (target: string, height: number | null = null) => {
+    const el = document.createElement("div");
+    document.body.append(el);
+    const onEditLink = vi.fn();
+    let root: ReturnType<typeof mountPageEmbed>;
+    act(() => {
+      root = mountPageEmbed(el, { target, from: "School/Bio.md", height, onEditLink });
+    });
+    return { el, onEditLink, unmount: () => act(() => root.unmount()) };
+  };
+
+  it("knows page targets and keeps heights sensible", () => {
+    expect(isPageTarget("Quiz.html")).toBe(true);
+    expect(isPageTarget("Lessons/Lesson 1.HTM")).toBe(true);
+    expect(isPageTarget("Quiz.html#part")).toBe(true);
+    expect(isPageTarget("Notes.md")).toBe(false);
+    expect(isPageTarget("image.png")).toBe(false);
+    expect(pageHeight(null)).toBe(480);
+    expect(pageHeight(10)).toBe(120);
+    expect(pageHeight(99999)).toBe(2000);
+    expect(pageHeight(600)).toBe(600);
+  });
+
+  it("renders a line that is only ![[Page.html]] as a page, not a note embed", () => {
+    const doc = "Intro\n\n![[Quiz.html|600]]\n\n```\n![[Quiz.html]]\n```\n";
+    const view = new EditorView({
+      state: EditorState.create({ doc, extensions: [embeds("School/Bio.md")] }),
+      parent: document.body,
+    });
+    expect(view.dom.querySelectorAll(".cm-page-embed")).toHaveLength(1);
+    expect(view.dom.querySelector(".cm-embed")).toBeNull();
+    view.destroy();
+  });
+
+  it("shows the page in the same sandboxed, lazy frame as a page tab", async () => {
+    await h.b.createFile("School/Quiz.html", "<h1>Quiz</h1>", "/v");
+    await act(() => useAppStore.getState().refreshTree());
+    vi.spyOn(h.b, "pageUrl").mockImplementation((p) => `http://axispage.localhost/${p}`);
+    const open = vi.spyOn(useAppStore.getState(), "openFile");
+    const { el, onEditLink, unmount } = embed("Quiz.html", 600);
+    await waitFor(() => expect(el.querySelector("iframe")).not.toBeNull());
+    const frame = el.querySelector("iframe")!;
+    expect(frame.getAttribute("src")).toBe("http://axispage.localhost/School/Quiz.html?r=0");
+    expect(frame.getAttribute("sandbox")).toBe(PAGE_SANDBOX);
+    expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
+    expect(frame).toHaveAttribute("loading", "lazy");
+    expect(frame.style.height).toBe("600px");
+    expect(frame.hasAttribute("srcdoc")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reload page" }));
+    expect(frame.getAttribute("src")).toMatch(/\?r=1$/);
+    fireEvent.click(screen.getByRole("button", { name: /Open/ }));
+    expect(open).toHaveBeenCalledWith("School/Quiz.html");
+    fireEvent.click(screen.getByRole("button", { name: "Edit link" }));
+    expect(onEditLink).toHaveBeenCalled();
+    unmount();
+  });
+
+  it("says so when the page is missing, and offers the browser where frames can't show", async () => {
+    const missing = embed("Nope.html");
+    await waitFor(() =>
+      expect(missing.el).toHaveTextContent("Nope.html isn't a web page in the vault."),
+    );
+    missing.unmount();
+
+    await h.b.createFile("School/Quiz.html", "<h1>Quiz</h1>", "/v");
+    await act(() => useAppStore.getState().refreshTree());
+    const browser = vi.spyOn(h.b, "openInBrowser").mockResolvedValue();
+    const shown = embed("Quiz.html");
+    await waitFor(() => expect(shown.el).toHaveTextContent("show here in the desktop app"));
+    expect(shown.el.querySelector("iframe")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Open in browser/ }));
+    expect(browser).toHaveBeenCalledWith("School/Quiz.html");
+    shown.unmount();
   });
 });
