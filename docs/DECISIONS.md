@@ -1058,7 +1058,7 @@ The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq,
   Markdown notes, keeps folder layout, skips hidden items and links, and never overwrites
   (free names). No new dependencies.
 
-## T-267: study blocks in notes (```flashcards, ```quiz, ```mindmap)
+## T-267: study blocks in notes (`flashcards, `quiz, ```mindmap)
 
 - **Approach (human-approved 2026-11-22, `docs/proposals/html-in-notes.md`):** interactive
   study material lives in notes as typed fenced blocks rendered by built-in widgets, not as
