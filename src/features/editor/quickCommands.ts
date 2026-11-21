@@ -10,6 +10,9 @@ import { type EditorState, Facet, StateEffect, StateField } from "@codemirror/st
 import type { EditorView } from "@codemirror/view";
 import {
   AlignJustify,
+  BookOpenCheck,
+  ClipboardCheck,
+  Layers,
   Blocks,
   Bold,
   CalendarClock,
@@ -512,6 +515,37 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     run: (v, f, t) => insert(v, f, t, "```mermaid\nflowchart TD\n  A[Start] --> B|\n```"),
   },
   {
+    id: "flashcards",
+    label: "Flash card block",
+    icon: Layers,
+    description: "Cards to flip, as Q: and A: lines",
+    markdown: "```flashcards",
+    run: (v, f, t) => insert(v, f, t, "```flashcards\ntitle: |\n\nQ: Question\nA: Answer\n```"),
+  },
+  {
+    id: "quiz",
+    label: "Quiz block",
+    icon: ClipboardCheck,
+    description: "Questions checked as you go",
+    markdown: "```quiz",
+    run: (v, f, t) =>
+      insert(
+        v,
+        f,
+        t,
+        "```quiz\ntitle: |\n\nQ: Question\n- [ ] Wrong option\n- [x] Right option\n> Why it's right\n```",
+      ),
+  },
+  {
+    id: "mindmap",
+    label: "Mind map block",
+    icon: Network,
+    description: "A nested list drawn as a mind map",
+    markdown: "```mindmap",
+    run: (v, f, t) =>
+      insert(v, f, t, "```mindmap\ntitle: |\n\n- Idea\n  - Detail\n- Another idea\n```"),
+  },
+  {
     id: "ai",
     label: "AI",
     icon: Sparkles,
@@ -658,6 +692,7 @@ export const COMMAND_GROUPS: { name: string; ids: string[] }[] = [
     ids: ["date", "time", "due", "priority-high", "priority-medium", "priority-low", "template"],
   },
   { name: "Diagrams and pen", ids: ["diagram", "mermaid", "handwriting"] },
+  { name: "Study", ids: ["flashcards", "quiz", "mindmap"] },
   {
     name: "Page style",
     ids: ["style-plain", "style-lined", "style-dotted", "style-grid", "style-cornell"],
@@ -674,6 +709,7 @@ export const SECTION_ICONS: Record<string, LucideIcon> = {
   Media: Image,
   Insert: SquarePlus,
   "Diagrams and pen": PenTool,
+  Study: BookOpenCheck,
   "Page style": Notebook,
   [CUSTOM_GROUP]: Zap,
   [SKILLS_GROUP]: Sparkles,

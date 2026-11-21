@@ -1,0 +1,333 @@
+/* Study blocks in notes (T-267): flash cards, practice tests and mind maps. Colours come
+   from the theme tokens in themes.css, so they follow light, dark and custom themes. */
+
+.cm-study {
+  padding: 6px 0;
+  white-space: normal;
+  color: var(--fg-muted);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+.study-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.45;
+  box-sizing: border-box;
+}
+.study-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.study-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-fg);
+  flex: none;
+}
+.study-heading {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.study-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.study-sub {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.study-actions,
+.study-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.study-card button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.study-card button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.study-card button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.study-card button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.study-card button.study-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.study-card :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.study-actions button {
+  padding: 3px 7px;
+}
+.study-error {
+  padding: 10px 12px;
+  border: 1px dashed var(--danger);
+  border-radius: var(--radius, 8px);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  white-space: normal;
+}
+.study-done p {
+  margin: 0 0 8px;
+}
+
+/* ---- Flash cards ---- */
+.flashcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-height: 150px;
+  padding: 26px 20px 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg);
+  text-align: center;
+  cursor: pointer;
+  user-select: text;
+  transition:
+    transform 0.25s ease,
+    border-color 0.15s;
+}
+.flashcard.flipped {
+  border-color: var(--accent);
+  animation: flashcard-flip 0.25s ease;
+}
+.flashcard.known {
+  border-left: 4px solid var(--callout-green);
+}
+.flashcard.again {
+  border-left: 4px solid var(--callout-orange);
+}
+@keyframes flashcard-flip {
+  from {
+    transform: rotateX(70deg);
+  }
+  to {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flashcard.flipped {
+    animation: none;
+  }
+}
+.flashcard-side {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.flashcard-text {
+  font-size: 1.1rem;
+}
+.flashcard-hint {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.study-card button.study-known {
+  border-color: var(--callout-green);
+}
+.study-card button.study-again {
+  border-color: var(--callout-orange);
+}
+
+/* ---- Practice test ---- */
+.quiz-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.quiz-q {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg);
+}
+.quiz-q.right {
+  border-left: 4px solid var(--callout-green);
+}
+.quiz-q.wrong {
+  border-left: 4px solid var(--danger);
+}
+.quiz-num {
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.quiz-options legend {
+  margin-bottom: 2px;
+  padding: 0;
+}
+.quiz-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+}
+.quiz-option:hover {
+  background: var(--bg-hover);
+}
+.quiz-option input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+.quiz-option.correct {
+  border-color: var(--callout-green);
+}
+.quiz-option.incorrect {
+  border-color: var(--danger);
+}
+.quiz-input {
+  width: min(100%, 360px);
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-elevated);
+  color: var(--fg);
+  font: inherit;
+}
+.quiz-feedback {
+  font-size: 13px;
+}
+.quiz-feedback strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.quiz-q.right .quiz-feedback strong {
+  color: var(--callout-green);
+}
+.quiz-q.wrong .quiz-feedback strong {
+  color: var(--danger);
+}
+.quiz-why {
+  margin: 4px 0 0;
+  color: var(--fg-muted);
+}
+
+/* ---- Mind map ---- */
+.mindmap-scroll {
+  max-height: 520px;
+  overflow: auto;
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg);
+}
+.mindmap-canvas {
+  position: relative;
+}
+.mindmap-edges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.mindmap-edges path {
+  fill: none;
+  stroke-width: 1.6;
+  opacity: 0.75;
+}
+.mindmap-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--branch);
+  border-radius: var(--radius-sm, 6px);
+  background: color-mix(in srgb, var(--branch) 14%, var(--bg-elevated));
+  box-sizing: border-box;
+  font-size: 13px;
+}
+.mindmap-node.root {
+  border-width: 2px;
+  font-weight: 600;
+}
+/* Up to two lines inside the layout's 30px box. */
+.mindmap-label {
+  display: -webkit-box;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: 12px;
+  line-height: 14px;
+  overflow-wrap: anywhere;
+}
+.study-card button.mindmap-fold {
+  flex: none;
+  min-height: 20px;
+  padding: 0 5px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12px;
+}
