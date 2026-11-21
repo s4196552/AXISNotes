@@ -24,9 +24,45 @@ import {
   type SkillFiles,
   skillSystem,
 } from "./skills";
+import { parseStudyBlock, type StudyKind } from "../studyBlocks/model";
 
 // Running a skill from an AI block: what the request reads and asks for, and checking
-// what comes back (an HTML page, or the files a Teach session writes).
+// what comes back (an HTML page, the files a Teach session writes, or a study block).
+
+/** The study block (T-267) a built-in skill's Markdown format writes, by skill id. */
+const STUDY_BLOCK_OF: Record<string, StudyKind> = {
+  flashcards: "flashcards",
+  test: "quiz",
+  mindmap: "mindmap",
+};
+
+/**
+ * The study block a Markdown run must contain: only when the skill's instructions ask for
+ * one, so a skill copied into the vault before T-268 (callouts, Mermaid) isn't held to it.
+ */
+export function studyBlockOf(skill: Skill): StudyKind | null {
+  const kind = STUDY_BLOCK_OF[skill.id];
+  return kind && skill.output === "markdown" && skill.instructions.includes("```" + kind)
+    ? kind
+    : null;
+}
+
+/** What's wrong with the study blocks in an answer (none at all is a problem too). */
+export function studyBlockProblems(kind: StudyKind, answer: string): string[] {
+  const fence = new RegExp(
+    String.raw`^[ \t]*(\x60{3,}|~{3,})[ \t]*${kind}\b[^\n]*\n([\s\S]*?)^[ \t]*\1[ \t]*$`,
+    "gim",
+  );
+  const problems: string[] = [];
+  let found = 0;
+  for (const m of answer.matchAll(fence)) {
+    found++;
+    const r = parseStudyBlock(kind, m[2]!.replace(/\n$/, ""));
+    if (!r.ok) problems.push(`line ${r.line} of the \x60\x60\x60${kind} block: ${r.error}`);
+  }
+  if (!found) problems.push(`it has no closed \x60\x60\x60${kind} block`);
+  return problems;
+}
 
 export type { Turn } from "../ai/conversation";
 
@@ -124,6 +160,25 @@ export async function runSkill(
     return backend.aiRun(runId, req, onDelta);
   };
   const first = await attempt(request);
+  const block = studyBlockOf(skill);
+  if (block) {
+    // A study block that doesn't parse would show as an error card: ask once more. If the
+    // second answer is still off, keep it; the note shows which line to fix.
+    const problems = studyBlockProblems(block, first.text);
+    if (!problems.length) return { kind: "text", result: first };
+    const again = await attempt({
+      ...request,
+      messages: [
+        ...request.messages,
+        text("assistant", first.text),
+        text(
+          "user",
+          `That reply can't be used: ${problems.join("; ")}. Reply again with the whole note, following the block format exactly.`,
+        ),
+      ],
+    });
+    return { kind: "text", result: again };
+  }
   if (skill.output !== "html" && skill.output !== "files") return { kind: "text", result: first };
   const parse = (answer: string): { html?: string; files?: SkillFiles } =>
     skill.output === "html" ? { html: extractHtml(answer) } : { files: parseSkillFiles(answer) };

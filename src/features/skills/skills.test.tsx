@@ -24,7 +24,13 @@ import {
   useSkills,
   withFormat,
 } from "./skills";
-import { skillAttach, skillRequest, transcriptHtml } from "./skillRun";
+import {
+  skillAttach,
+  skillRequest,
+  studyBlockOf,
+  studyBlockProblems,
+  transcriptHtml,
+} from "./skillRun";
 import { clearTreeUndo, undoTree, redoTree, useTreeUndo } from "../filetree/undo";
 import { makeCopyable } from "./copyable";
 import { withStudySources } from "../comprehension/studyResults";
@@ -542,7 +548,7 @@ describe("Markdown or HTML for every skill", () => {
   it("keeps the shared instructions and only the chosen format's section", () => {
     const md = withFormat(byId("mindmap"), "markdown");
     expect(md.output).toBe("markdown");
-    expect(md.instructions).toMatch(/Mermaid `mindmap` code block/);
+    expect(md.instructions).toMatch(/one ```mindmap block/);
     expect(md.instructions).not.toMatch(/HTML page|## Format/);
     const page = withFormat(byId("mindmap"), "html");
     expect(page.output).toBe("html");
@@ -552,7 +558,7 @@ describe("Markdown or HTML for every skill", () => {
 
     const cards = withFormat(byId("flashcards"), "markdown");
     expect(cards.output).toBe("markdown");
-    expect(cards.instructions).toMatch(/\[!question\]-/);
+    expect(cards.instructions).toMatch(/one ```flashcards block/);
     expect(cards.instructions).not.toMatch(/<!doctype html>/);
     expect(withFormat(byId("flashcards"), null).output).toBe("html");
 
@@ -599,9 +605,13 @@ describe("Markdown or HTML for every skill", () => {
   });
 
   it("makes flash cards as a Markdown note when Markdown is picked", async () => {
+    let calls = 0;
     setAiResponder((req) => {
       lastRequest.req = req;
-      return ["# Cells", "", "> [!question]- What makes ATP?", "> Mitochondria."].join("\n");
+      calls++;
+      return ["# Cells", "", "```flashcards", "Q: What makes ATP?", "A: Mitochondria.", "```"].join(
+        "\n",
+      );
     });
     const v = mount("# Cells\n\n", "Bio/Cells.md", 9);
     act(() => void openAiBlock(v, undefined, { skill: "flashcards" }));
@@ -620,8 +630,9 @@ describe("Markdown or HTML for every skill", () => {
     await within(block).findByRole("button", { name: /Insert/ });
     expect(within(block).queryByText(/Made a web page/)).not.toBeInTheDocument();
     const system = lastRequest.req!.messages[0]!.content[0]!;
-    expect(system.type === "text" && system.text).toMatch(/folded callout/);
+    expect(system.type === "text" && system.text).toMatch(/one ```flashcards block/);
     expect(lastRequest.req!.maxOutputTokens).toBeUndefined();
+    expect(calls).toBe(1); // the block parsed, so no second request
   });
 
   it("keeps a Grill me conversation as a web page when HTML is picked", async () => {
@@ -749,5 +760,59 @@ describe("study skills test the subject, not the notes' layout", () => {
     // Not for skills about plans and work.
     expect(byId("grill-me").instructions).not.toMatch(/Test the subject itself/);
     expect(byId("handoff").instructions).not.toMatch(/Test the subject itself/);
+  });
+});
+
+describe("study skills write study blocks in Markdown (T-268)", () => {
+  const md = (id: string) => withFormat(byId(id), "markdown");
+
+  it("ask for the block in Markdown, and their own examples parse", () => {
+    expect(studyBlockOf(md("flashcards"))).toBe("flashcards");
+    expect(studyBlockOf(md("test"))).toBe("quiz");
+    expect(studyBlockOf(md("mindmap"))).toBe("mindmap");
+    for (const id of ["flashcards", "test", "mindmap"]) {
+      const s = md(id);
+      expect(studyBlockProblems(studyBlockOf(s)!, s.instructions), id).toEqual([]);
+    }
+    // Pages aren't held to a block, nor is a skill whose instructions don't ask for one
+    // (a copy saved in the vault before T-268).
+    expect(studyBlockOf(withFormat(byId("flashcards"), "html"))).toBeNull();
+    expect(studyBlockOf({ ...md("flashcards"), instructions: "Use folded callouts." })).toBeNull();
+    expect(studyBlockOf(md("mnemonic"))).toBeNull();
+  });
+
+  it("find blocks that are missing, unclosed or don't parse", () => {
+    expect(studyBlockProblems("quiz", "# Test\n\n1. What?\n")).toEqual([
+      "it has no closed ```quiz block",
+    ]);
+    expect(studyBlockProblems("flashcards", "```flashcards\nQ: a\nA: b\n")).toEqual([
+      "it has no closed ```flashcards block",
+    ]);
+    expect(studyBlockProblems("quiz", "```quiz\nQ: x\n- [ ] a\n- [ ] b\n```")).toEqual([
+      "line 1 of the ```quiz block: Mark the correct option with - [x].",
+    ]);
+    expect(studyBlockProblems("mindmap", "~~~mindmap\n- a\n  - b\n~~~")).toEqual([]);
+  });
+
+  it("ask the model once more when the block doesn't parse", async () => {
+    const asked: AiRunRequest[] = [];
+    setAiResponder((req) => {
+      asked.push(req);
+      return asked.length === 1
+        ? "# Cells\n\n```flashcards\nQ: What makes ATP?\n```"
+        : "# Cells\n\n```flashcards\nQ: What makes ATP?\nA: Mitochondria.\n```";
+    });
+    const v = mount("# Cells\n\n", "Bio/Cells.md", 9);
+    act(() => void openAiBlock(v, undefined, { skill: "flashcards" }));
+    const block = await screen.findByRole("group", { name: "AI block" });
+    fireEvent.click(within(block).getByRole("button", { name: "Markdown" }));
+    fireEvent.click(within(block).getByRole("button", { name: /Run/ }));
+    await within(block).findByRole("button", { name: /Insert/ });
+    expect(asked).toHaveLength(2);
+    const retry = asked[1]!.messages.at(-1)!.content[0]!;
+    expect(retry.type === "text" && retry.text).toMatch(
+      /line 1 of the ```flashcards block: This card has a question but no answer/,
+    );
+    expect(within(block).getByText(/A: Mitochondria\./)).toBeInTheDocument();
   });
 });

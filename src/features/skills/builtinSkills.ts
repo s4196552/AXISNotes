@@ -30,7 +30,7 @@ export const BUILTIN_SKILL_FILES: Record<string, string> = {
   mindmap: `---
 name: mindmap
 title: Mind map
-description: Turn a note into a mind map, as a Mermaid diagram in the note or an interactive page.
+description: Turn a note into a mind map, drawn in the note or as an interactive page.
 output: markdown
 reads: note
 ---
@@ -43,8 +43,18 @@ Turn the note you were given into a mind map.
 - If the user adds instructions (a focus, a depth), follow them.
 
 ## Format: Markdown
-- Reply with one Mermaid \`mindmap\` code block and nothing else: no introduction and no closing remarks.
-- Labels are plain words. Don't use brackets, parentheses, quotes, colons or Markdown in a label, because they break Mermaid.
+- Reply with one \`\`\`mindmap block and nothing else: no introduction and no closing remarks. AXISNotes draws it as an interactive mind map.
+- Inside it: a \`title:\` line with the root, a blank line, then the branches as a nested Markdown list, two spaces of indent per level:
+  \`\`\`mindmap
+  title: Photosynthesis
+
+  - Light-dependent stage
+    - Thylakoid membranes
+    - Makes ATP and NADPH
+  - Calvin cycle
+    - Fixes carbon dioxide
+  \`\`\`
+- Every line after the title is a list item. Labels are short plain text; **bold** and [[Note]] links are allowed.
 
 ## Format: HTML
 Make the mind map one self-contained HTML page.
@@ -70,11 +80,32 @@ ${STUDY_RULES}
 - Each question has a one- or two-sentence explanation of why the answer is right.
 
 ## Format: Markdown
-Write the test as a Markdown note.
-- A title, then the questions as a numbered list. Multiple-choice options are a lettered list (A to D) under each question.
-- Hide each answer in a folded callout right under its question, so the learner can check one at a time:
-  > [!success]- Answer
-  > B. The correct answer, then the explanation.
+Write the test as a Markdown note: a \`# \` title, then one \`\`\`quiz block that AXISNotes shows as an interactive test (it hides the answers, checks them and keeps the score).
+- Inside the block: a \`title:\` line, a blank line, then each question. A question starts with \`Q: \` and its text on one line.
+- Multiple choice and true/false: one option per line, \`- [ ] \` for wrong and \`- [x] \` for right. Exactly one \`[x]\` unless the question says "select all that apply".
+- Short answer: no options; one \`= \` line per accepted answer (the main answer first, then other acceptable wordings).
+- Then one \`> \` line with the explanation, and a blank line before the next question.
+  \`\`\`quiz
+  title: Photosynthesis check
+
+  Q: Where does the light-dependent stage happen?
+  - [ ] The stroma
+  - [x] The thylakoid membranes
+  - [ ] The nucleus
+  - [ ] The cell wall
+  > Chlorophyll in the thylakoid membranes absorbs the light.
+
+  Q: Oxygen is a by-product of photosynthesis.
+  - [x] True
+  - [ ] False
+  > Water is split in the light-dependent stage, releasing oxygen.
+
+  Q: Name the green pigment that absorbs light.
+  = chlorophyll
+  = chlorophyll a
+  > It absorbs mostly red and blue light.
+  \`\`\`
+- Plain text in the block; **bold**, \`code\` and [[Note]] links are allowed. No HTML.
 - Reply with only the note.
 
 ## Format: HTML
@@ -102,10 +133,18 @@ ${STUDY_RULES}
 - Only use what the notes say. Never invent facts.
 
 ## Format: Markdown
-Write the deck as a Markdown note.
-- A title, then one folded callout per card: the front is the callout's title, the back is inside, so clicking the card flips it:
-  > [!question]- What does the mitochondrion make?
-  > ATP, the cell's energy currency.
+Write the deck as a Markdown note: a \`# \` title, then one \`\`\`flashcards block that AXISNotes shows as cards to flip and sort.
+- Inside the block: a \`title:\` line, a blank line, then one card per pair of lines, \`Q: \` with the front and \`A: \` with the back, and a blank line between cards:
+  \`\`\`flashcards
+  title: Cell biology
+
+  Q: What does the mitochondrion make?
+  A: ATP, the cell's energy currency.
+
+  Q: Which organelle holds the cell's DNA?
+  A: The nucleus.
+  \`\`\`
+- Plain text in the block; **bold**, \`code\` and [[Note]] links are allowed. No HTML.
 - Reply with only the note.
 
 ## Format: HTML
