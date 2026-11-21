@@ -57,6 +57,10 @@ export function MindmapView({ block, host }: { block: MindmapBlock; host: StudyC
   const [collapsed, setCollapsed] = useSession<string[]>(host, () => []);
   const folded = useMemo(() => new Set(collapsed), [collapsed]);
   const layout = useMemo(() => layoutTree(tree, folded), [tree, folded]);
+  const colorOf = useMemo(
+    () => new Map(layout.nodes.map((p) => [p.node.id, p.node.color] as const)),
+    [layout],
+  );
   const { boxWidth: W, boxHeight: H, header } = TREE_DIMS;
   const top = header; // the layout leaves room for column titles; mind maps have none
 
@@ -126,9 +130,8 @@ export function MindmapView({ block, host }: { block: MindmapBlock; host: StudyC
           >
             <g transform={`translate(0,${-top})`}>
               {layout.edges.map((e) => {
-                const child = layout.nodes.find((p) => p.node.id === e.to);
                 return (
-                  <path key={e.to} d={e.d} style={{ stroke: child?.node.color } as CSSProperties} />
+                  <path key={e.to} d={e.d} style={{ stroke: colorOf.get(e.to) } as CSSProperties} />
                 );
               })}
             </g>

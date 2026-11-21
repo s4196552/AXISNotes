@@ -2,6 +2,7 @@ import { Fragment, useCallback, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Code } from "lucide-react";
 import { InlineText } from "../tasks/InlineText";
+import { useAppStore } from "../../app/store";
 import { sectionsOf } from "../comprehension/model";
 import { recordStudy } from "../comprehension/studyResults";
 import type { StudyCardHost } from "./studyBlocks";
@@ -130,5 +131,9 @@ export function report(host: StudyCardHost, kind: "test" | "flashcards", correct
   const source = sourceOf(host);
   void recordStudy({ kind, items: correct.map((c) => ({ source, correct: c })) }, [
     host.path,
-  ]).catch(() => undefined);
+  ]).catch((err: unknown) =>
+    useAppStore
+      .getState()
+      .notify(`Couldn't save study results: ${err instanceof Error ? err.message : String(err)}`),
+  );
 }
