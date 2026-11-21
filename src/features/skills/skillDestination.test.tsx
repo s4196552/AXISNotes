@@ -104,7 +104,8 @@ describe("AI skill result destinations", () => {
   });
 
   it("streams into the sidebar, retains results across note navigation and returns to the source", async () => {
-    setAiResponder(() => "# Energy\n\nATP");
+    // A valid mind map (T-268 asks again when the ```mindmap block is missing).
+    setAiResponder(() => "# Energy\n\nATP\n\n```mindmap\n- Energy\n```");
     const { block } = await start();
     render(<SkillResultsSidebar />);
     fireEvent.click(block.getByRole("button", { name: /^Run/ }));
