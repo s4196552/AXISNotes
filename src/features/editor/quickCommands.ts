@@ -518,7 +518,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "flashcards",
     label: "Flash card block",
     icon: Layers,
-    description: "Cards to flip and sort, written as Q: and A: lines",
+    description: "Cards to flip, as Q: and A: lines",
     markdown: "```flashcards",
     run: (v, f, t) => insert(v, f, t, "```flashcards\ntitle: |\n\nQ: Question\nA: Answer\n```"),
   },
@@ -526,7 +526,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     id: "quiz",
     label: "Quiz block",
     icon: ClipboardCheck,
-    description: "Questions with options or typed answers, checked as you go",
+    description: "Questions checked as you go",
     markdown: "```quiz",
     run: (v, f, t) =>
       insert(
