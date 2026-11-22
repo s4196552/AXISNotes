@@ -1,4 +1,5 @@
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { bionicDecorations, bionicPrefix, bionicRanges } from "./bionic";
@@ -6,6 +7,11 @@ import { bionicDecorations, bionicPrefix, bionicRanges } from "./bionic";
 /** The bold parts Bionic Reading draws, with the cursor on `cursorLine` (1-based). */
 function bold(doc: string, cursorLine = 1): string[] {
   let state = EditorState.create({ doc, extensions: [markdown({ base: markdownLanguage })] });
+  // Parse the whole note first, as the editor has by the time it redraws (bionic.ts
+  // rebuilds when the tree changes). A state only parses for a few milliseconds when it is
+  // made, so on a busy machine code could still look like prose (T-270). The finished tree
+  // reaches the next state, made by the selection update below.
+  ensureSyntaxTree(state, state.doc.length, 5000);
   state = state.update({
     selection: EditorSelection.cursor(state.doc.line(cursorLine).from),
   }).state;
