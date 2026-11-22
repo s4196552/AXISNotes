@@ -493,6 +493,17 @@ body.pointer-dragging * {
   color: var(--accent);
   text-decoration: underline dotted;
 }
+/* Bold, italic and strikethrough colours from Settings → Appearance, as in notes (T-271).
+   Unset, the text keeps its colour. */
+.inline-bold {
+  color: var(--text-bold, inherit);
+}
+.inline-italic {
+  color: var(--text-italic, inherit);
+}
+.inline-strike {
+  color: var(--text-strike, inherit);
+}
 
 /* Compact windows (narrower than 1100 px, see COMPACT_QUERY in app/layout.ts): the side
    panels open over the note, one at a time, and slide back out. */

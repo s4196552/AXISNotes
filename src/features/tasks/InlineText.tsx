@@ -26,12 +26,26 @@ export function InlineText({
             return t.text;
           case "code":
             return <code key={i}>{t.text}</code>;
+          // Coloured like the note's own bold, italic and strikethrough, when those colours
+          // are on in Settings → Appearance (app.css).
           case "bold":
-            return <strong key={i}>{t.text}</strong>;
+            return (
+              <strong key={i} className="inline-bold">
+                {t.text}
+              </strong>
+            );
           case "italic":
-            return <em key={i}>{t.text}</em>;
+            return (
+              <em key={i} className="inline-italic">
+                {t.text}
+              </em>
+            );
           case "strike":
-            return <s key={i}>{t.text}</s>;
+            return (
+              <s key={i} className="inline-strike">
+                {t.text}
+              </s>
+            );
           case "link":
             return (
               <span key={i} className="inline-weblink" title={t.url}>
