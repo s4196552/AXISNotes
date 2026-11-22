@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   Bot,
   Cable,
@@ -200,6 +207,46 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
     }
   };
 
+  /**
+   * Arrow keys in the section list (T-273): Down from the search box reaches the open page;
+   * Up and Down (Home and End) move through the pages and open each one, Up from the first
+   * returns to the search box, and Right moves into the page's tabs.
+   */
+  const navKeys = (e: ReactKeyboardEvent<HTMLElement>) => {
+    const nav = e.currentTarget;
+    const buttons = [...nav.querySelectorAll<HTMLButtonElement>("[data-settings-page]")];
+    const target = e.target as HTMLElement;
+    const go = (i: number) => {
+      e.preventDefault();
+      const p = PAGES[i]!;
+      if (p !== page || searching) open(p.parts[0]!);
+      buttons[i]?.focus();
+    };
+    if (target instanceof HTMLInputElement) {
+      if (e.key !== "ArrowDown") return;
+      e.preventDefault();
+      buttons[searching ? 0 : PAGES.indexOf(page)]?.focus();
+      return;
+    }
+    const at = buttons.indexOf(target as HTMLButtonElement);
+    if (at < 0 || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === "ArrowDown") go(Math.min(at + 1, buttons.length - 1));
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(buttons.length - 1);
+    else if (e.key === "ArrowUp") {
+      if (at > 0) go(at - 1);
+      else {
+        e.preventDefault();
+        nav.querySelector<HTMLInputElement>(".settings-search")?.focus();
+      }
+    } else if (e.key === "ArrowRight") {
+      const tab = document.getElementById(`settings-tab-${section}`);
+      if (!tab) return;
+      e.preventDefault();
+      tab.focus();
+    }
+  };
+
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div
@@ -209,7 +256,7 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === "Escape" && onClose()}
       >
-        <nav className="settings-nav" aria-label="Settings sections">
+        <nav className="settings-nav" aria-label="Settings sections" onKeyDown={navKeys}>
           <input
             type="search"
             className="settings-search"
@@ -226,9 +273,10 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
               }
             }}
           />
-          {PAGES.map((p) => (
+          {PAGES.map((p, i) => (
             <button
               key={p.label}
+              data-settings-page={i}
               aria-current={!searching && page === p ? "page" : undefined}
               onClick={() => open(p.parts[0]!)}
             >
@@ -254,12 +302,16 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
                   role="tablist"
                   aria-label={page.label}
                   onKeyDown={(e) => {
-                    // Arrow keys move between the tabs, as in any tab list.
-                    const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
-                    if (!step) return;
-                    e.preventDefault();
+                    // Arrow keys move between the tabs, as in any tab list; Home and End
+                    // reach the first and last.
+                    const n = page.parts.length;
                     const at = page.parts.indexOf(section);
-                    const next = page.parts[(at + step + page.parts.length) % page.parts.length]!;
+                    const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: n - 1 }[
+                      e.key
+                    ];
+                    if (to === undefined) return;
+                    e.preventDefault();
+                    const next = page.parts[(to + n) % n]!;
                     setSection(next);
                     document.getElementById(`settings-tab-${next}`)?.focus();
                   }}
