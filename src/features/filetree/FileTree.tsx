@@ -1197,7 +1197,7 @@ export function FileTree() {
                     close={setMenu}
                   />
                   <MenuItem
-                    label="Change colours…"
+                    label="Change colors…"
                     icon={Palette}
                     onClick={() =>
                       useUi.getState().open({ kind: "colors", path: menu.entry!.path })

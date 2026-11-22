@@ -171,8 +171,8 @@ export function IconPacks({
       )}
       {loaded && iconPacks.length === 0 && (
         <p className="icon-note">
-          No icon packs yet. Add a folder or .zip of SVG or PNG icons; one-colour SVGs can take any
-          colour.
+          No icon packs yet. Add a folder or .zip of SVG or PNG icons; one-color SVGs can take any
+          color.
         </p>
       )}
       {shown.map(

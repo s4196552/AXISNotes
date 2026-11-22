@@ -8,7 +8,6 @@ import {
   Keyboard,
   LayoutTemplate,
   type LucideIcon,
-  Paintbrush,
   PanelLeftDashed,
   Palette,
   Paperclip,
@@ -25,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { backend } from "../../ipc";
-import { type AxisConfig, type EditorWidth, useConfig } from "../../app/config";
+import { type AxisConfig, type EditorWidth, NO_APP_COLORS, useConfig } from "../../app/config";
 import {
   EDITOR_WIDTHS,
   onTransparencyEffectsChange,
@@ -52,7 +51,6 @@ import { filterSettings, hasAll, HIDDEN, wordsOf } from "./settingsSearch";
 import { FoldArrowPicker } from "./FoldArrowPicker";
 import { AppColorPicker } from "./AppColorPicker";
 import { HeadingColorPicker } from "./HeadingColorPicker";
-import { TextColorSettings } from "./TextColorSettings";
 import { About } from "./About";
 import { PacksSettings } from "../packs/PacksSettings";
 import { Field, type SectionProps } from "./parts";
@@ -68,7 +66,6 @@ export type Section =
   | "typography"
   | "cursor"
   | "ribbon"
-  | "colours"
   | "packs"
   | "spelling"
   | "daily"
@@ -90,7 +87,6 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "typography", label: "Typography", icon: Type },
   { id: "cursor", label: "Cursor", icon: TextCursor },
   { id: "ribbon", label: "Ribbon", icon: PanelLeftDashed },
-  { id: "colours", label: "Colours", icon: Paintbrush },
   { id: "packs", label: "Icon & image packs", icon: Images },
   { id: "spelling", label: "Spelling", icon: SpellCheck },
   { id: "daily", label: "Home & daily notes", icon: CalendarDays },
@@ -110,14 +106,14 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
 
 /**
  * What the sidebar lists: one page per topic. Related sections share a page and switch
- * with tabs (Appearance, Colours and packs; commands and shortcuts; AI, Agent and Claude).
+ * with tabs (Appearance, Typography and packs; commands and shortcuts; AI, Agent and Claude).
  * Sections keep their own ids, so links to a section (`section="claude"`) still land on it.
  */
 const PAGES: { label: string; icon: LucideIcon; parts: Section[] }[] = [
   {
     label: "Appearance",
     icon: Palette,
-    parts: ["appearance", "typography", "cursor", "ribbon", "colours", "packs"],
+    parts: ["appearance", "typography", "cursor", "ribbon", "packs"],
   },
   { label: "Spelling", icon: SpellCheck, parts: ["spelling"] },
   { label: "Home & daily notes", icon: CalendarDays, parts: ["daily"] },
@@ -163,8 +159,6 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
         return <CursorSettings config={config} set={set} />;
       case "ribbon":
         return <RibbonSettings config={config} set={set} />;
-      case "colours":
-        return <Colours config={config} set={set} />;
       case "packs":
         return <PacksSettings />;
       case "spelling":
@@ -454,17 +448,20 @@ function Translucency(p: {
   );
 }
 
-/** Settings → Colours: the user's own sidebar and note-area colours over the theme. */
-function Colours({ config, set }: SectionProps) {
+/**
+ * Settings → Appearance → Theme & layout → Colors: the user's own sidebar and note-area
+ * colors over the theme (Settings shows them too). Picking a theme clears them (T-272).
+ */
+function Colors({ config, set }: SectionProps) {
   const setAppColors = (appColors: AxisConfig["appearance"]["appColors"]) =>
     set((c) => ({ ...c, appearance: { ...c.appearance, appColors } }));
   return (
     <Field
-      label="App colours"
+      label="Colors"
       hint={
         config.theme === "axis:translucent"
           ? "Translucent shows your desktop, so these apply with the other themes."
-          : "Your own colours for the sidebars and the note area, over the theme. Text left on Auto is dark on light colours and light on dark ones."
+          : "Your own colors for the sidebars, the note area and Settings, over the theme. Picking a theme above goes back to its own colors. Text left on Auto is dark on light colors and light on dark ones."
       }
     >
       <AppColorPicker value={config.appearance.appColors} onChange={setAppColors} />
@@ -490,9 +487,13 @@ function Appearance({ config, set }: SectionProps) {
       <ThemePicker
         value={config.theme}
         custom={themes}
-        onChange={(theme) => set((c) => ({ ...c, theme }))}
+        // A theme click shows that theme as it is: custom colors are cleared (T-272).
+        onChange={(theme) =>
+          set((c) => ({ ...c, theme, appearance: { ...c.appearance, appColors: NO_APP_COLORS } }))
+        }
       />
       {config.theme === "axis:translucent" && <Translucency a={a} setA={setA} />}
+      <Colors config={config} set={set} />
       <EasyOnTheEyes config={config} set={set} />
       <Field
         label="Zoom"
@@ -546,17 +547,11 @@ function Appearance({ config, set }: SectionProps) {
           ))}
         </select>
       </Field>
-      <Field label="Heading colours" hint="A colour for each heading level, or the theme's own.">
+      <Field label="Heading colors" hint="A color for each heading level, or the theme's own.">
         <HeadingColorPicker
           value={a.headingColors}
           onChange={(headingColors) => setA({ headingColors })}
         />
-      </Field>
-      <Field
-        label="Bold, italic and strikethrough colours"
-        hint="Give each its own colour in notes and AI answers, for light and for dark themes. Off, the text keeps the theme's colour. Your Markdown files don't change."
-      >
-        <TextColorSettings value={a.textColors} onChange={(textColors) => setA({ textColors })} />
       </Field>
       <Field
         label="Heading indicator"

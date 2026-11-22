@@ -323,14 +323,14 @@ function CoverPicker({
               />
             ))}
           </div>
-          <div className="icon-section">Colours</div>
-          <div className="cover-tiles" role="listbox" aria-label="Colours">
+          <div className="icon-section">Colors</div>
+          <div className="cover-tiles" role="listbox" aria-label="Colors">
             {COVER_COLORS.map((c) => (
               <button
                 key={c}
                 role="option"
                 aria-selected={false}
-                aria-label={`Colour ${c}`}
+                aria-label={`Color ${c}`}
                 title={c}
                 style={{ background: c }}
                 onClick={() => onPick(c)}

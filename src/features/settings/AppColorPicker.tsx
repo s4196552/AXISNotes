@@ -76,7 +76,7 @@ export function AppColorPicker(p: { value: AppColors; onChange(colors: AppColors
   const textFor = (chosenBg: string) => (chosenBg ? autoText(chosenBg) : themeColor("--fg"));
   return (
     <div className="app-colors">
-      <div className="app-color-grid" role="radiogroup" aria-label="App colour presets">
+      <div className="app-color-grid" role="radiogroup" aria-label="App color presets">
         {APP_COLOR_PRESETS.map((preset) => (
           <label key={preset.id} className="app-color-tile">
             <input
@@ -131,7 +131,7 @@ export function AppColorPicker(p: { value: AppColors; onChange(colors: AppColors
       <ContrastWarning surface="Sidebar" bg={sideBg} fg={c.sidebarFg} />
       <ContrastWarning surface="Main" bg={mainBg} fg={c.mainFg} />
       <button type="button" disabled={!any} onClick={() => p.onChange({ ...NO_APP_COLORS })}>
-        Use theme colours
+        Use theme colors
       </button>
     </div>
   );

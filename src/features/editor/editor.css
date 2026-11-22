@@ -1714,6 +1714,8 @@ body.cm-image-drag-copy * {
 .cm-math {
   cursor: pointer;
   border-radius: 4px;
+  /* Its own color when turned on in Settings → Appearance → Typography (T-272). */
+  color: var(--text-math, inherit);
 }
 .cm-math:hover {
   background: var(--bg-hover);

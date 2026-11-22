@@ -185,9 +185,19 @@ export function appColorsCss(
   const backdrop = normalHex(c.sidebarBg) || normalHex(c.mainBg);
   if (backdrop) css.push(rule(":root:root:root", { "--app-backdrop": backdrop }));
   // `color` is inherited as a resolved value, so each surface sets it from its own --fg.
+  // Settings shows them too (T-272): its pages like the note area, its list like a sidebar.
   if (main)
-    css.push(rule(":root:root .content", { ...main, background: "var(--bg)", color: "var(--fg)" }));
-  if (side) css.push(rule(":root:root :is(.sidebar, .statusbar)", { ...side, color: "var(--fg)" }));
+    css.push(
+      rule(":root:root :is(.content, .modal.settings)", {
+        ...main,
+        background: "var(--bg)",
+        color: "var(--fg)",
+      }),
+    );
+  if (side)
+    css.push(
+      rule(":root:root :is(.sidebar, .statusbar, .settings-nav)", { ...side, color: "var(--fg)" }),
+    );
   return css.join("\n");
 }
 

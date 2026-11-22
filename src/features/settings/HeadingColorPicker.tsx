@@ -16,7 +16,7 @@ export function HeadingColorPicker(p: {
   onChange(preset: HeadingColors): void;
 }) {
   return (
-    <div className="heading-color-grid" role="radiogroup" aria-label="Heading colours">
+    <div className="heading-color-grid" role="radiogroup" aria-label="Heading colors">
       {(Object.keys(HEADING_COLORS) as HeadingColors[]).map((id) => (
         <label
           key={id}

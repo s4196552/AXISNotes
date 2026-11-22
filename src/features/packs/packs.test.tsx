@@ -111,7 +111,7 @@ describe("pack helpers", () => {
 });
 
 describe("icon packs in the icon picker", () => {
-  it("adds a pack and picks one of its icons, in a colour", async () => {
+  it("adds a pack and picks one of its icons, in a color", async () => {
     render(<IconPicker path="Trip.md" onClose={() => {}} />);
     const dialog = screen.getByRole("dialog", { name: "Icon for Trip.md" });
     fireEvent.click(within(dialog).getByRole("tab", { name: "Packs" }));
@@ -143,7 +143,7 @@ describe("icon packs in the icon picker", () => {
     });
   });
 
-  it("draws a one-colour pack icon in the text colour unless a colour is chosen", async () => {
+  it("draws a one-color pack icon in the text color unless a color is chosen", async () => {
     await h.b.importPack("icons", SAMPLE_SOURCE);
     const { unmount } = render(<IconPicker path="Trip.md" onClose={() => {}} />);
     let dialog = screen.getByRole("dialog", { name: "Icon for Trip.md" });

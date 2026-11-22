@@ -45,7 +45,7 @@ export interface TextColor {
   light: string;
   dark: string;
 }
-export type TextColorKind = "bold" | "italic" | "strike";
+export type TextColorKind = "bold" | "italic" | "strike" | "math";
 export type TextColors = Record<TextColorKind, TextColor>;
 const NO_TEXT_COLOR: TextColor = { on: false, light: "", dark: "" };
 
@@ -212,7 +212,12 @@ export const DEFAULT_CONFIG: AxisConfig = {
     editorWidth: "medium",
     foldArrow: "triangle",
     headingColors: "theme",
-    textColors: { bold: NO_TEXT_COLOR, italic: NO_TEXT_COLOR, strike: NO_TEXT_COLOR },
+    textColors: {
+      bold: NO_TEXT_COLOR,
+      italic: NO_TEXT_COLOR,
+      strike: NO_TEXT_COLOR,
+      math: NO_TEXT_COLOR,
+    },
     headingIndicator: true,
     headingIndicatorSide: "right",
     windowOpacity: 80,

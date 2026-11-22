@@ -605,7 +605,7 @@ function GroupEditor(props: { id: string; x: number; y: number; close(): void })
         aria-label="Group name"
         onChange={(e) => store().updateTabGroup(group.id, { name: e.target.value })}
       />
-      <div className="tab-group-colors" role="radiogroup" aria-label="Group colour">
+      <div className="tab-group-colors" role="radiogroup" aria-label="Group color">
         {GROUP_COLORS.map((c) => (
           <button
             key={c}

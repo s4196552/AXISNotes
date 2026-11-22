@@ -474,7 +474,7 @@ describe("the block in a note", () => {
     expect(count(make(doc.indexOf("title")))).toBe(0);
   });
 
-  it("uses theme tokens for its colours", () => {
+  it("uses theme tokens for its colors", () => {
     const css = readFileSync("src/styles/themes.css", "utf8");
     for (let n = 0; n <= 5; n++) expect(css).toMatch(new RegExp(`--heat-${n}: light-dark\\(`));
   });

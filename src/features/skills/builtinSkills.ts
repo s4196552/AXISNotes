@@ -58,7 +58,7 @@ Turn the note you were given into a mind map.
 
 ## Format: HTML
 Make the mind map one self-contained HTML page.
-- Draw it with inline SVG or HTML and CSS: the root in the middle or on the left, branches as connected nodes, each branch in its own colour.
+- Draw it with inline SVG or HTML and CSS: the root in the middle or on the left, branches as connected nodes, each branch in its own color.
 - Clicking a node folds or unfolds its children. Add "Expand all" and "Collapse all" buttons.
 ${PAGE_RULES}
 `,
@@ -276,7 +276,7 @@ Turn the notes you were given into an infographic that makes the main ideas easy
 - Choose a layout that fits the subject: a sequence for a process, a timeline only for dated events, a comparison for alternatives, or grouped panels for related concepts. Follow the user's focus and intended audience.
 - Use a clear title, one central takeaway, short labels and a strong reading order. Preserve important caveats rather than removing them to fit the design.
 - Every factual claim, quantity, date and relationship must be supported by the notes. Don't invent percentages, statistics, citations or causal links. Use a chart only when the notes contain appropriate data, with labelled values and units; otherwise use a qualitative diagram.
-- Organise by subject, not by source file or week. Colour reinforces labels and shapes; it must not be the only way to distinguish categories.
+- Organise by subject, not by source file or week. Color reinforces labels and shapes; it must not be the only way to distinguish categories.
 
 ## Format: Markdown
 Write a Markdown infographic brief with the title, central takeaway, sections in reading order, their exact labels and text, and a short description of the intended layout. Use tables for comparisons and a simple Mermaid code block for a process when helpful. Reply with only the brief.

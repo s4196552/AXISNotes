@@ -34,7 +34,7 @@ function Swatches(props: {
         ))}
         <label
           className={`icon-swatch icon-custom-color${custom ? " chosen" : ""}`}
-          title="Any colour"
+          title="Any color"
           style={custom ? { background: custom } : undefined}
         >
           <input
@@ -60,7 +60,7 @@ export function RowColorsDialog({ path, onClose }: { path: string; onClose(): vo
     () => () => {
       if (JSON.stringify(settingOf("entryColors", path)) !== JSON.stringify(before))
         record(
-          settingChanged(`Colours for “${path.split("/").pop()}”`, "entryColors", path, before),
+          settingChanged(`Colors for “${path.split("/").pop()}”`, "entryColors", path, before),
         );
     },
     [path, before],
@@ -84,11 +84,11 @@ export function RowColorsDialog({ path, onClose }: { path: string; onClose(): vo
       <div
         className="modal row-colors"
         role="dialog"
-        aria-label={`Colours for ${name}`}
+        aria-label={`Colors for ${name}`}
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.key === "Escape" && onClose()}
       >
-        <div className="row-colors-title">Colours for “{name}”</div>
+        <div className="row-colors-title">Colors for “{name}”</div>
         <div
           className={`filetree-row row-colors-preview ${preview.className}`}
           style={preview.style}

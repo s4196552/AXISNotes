@@ -76,7 +76,7 @@ describe("Undo in the file tree", () => {
     await waitFor(() => expect(useAppStore.getState().notice).toBe("Nothing to redo."));
   });
 
-  it("puts a deleted folder back from the trash, with its colours and place", async () => {
+  it("puts a deleted folder back from the trash, with its colors and place", async () => {
     await setup({ "B/x.md": "keep", "A.md": "", "C.md": "" });
     useConfig.setState((s) => ({
       config: {
@@ -146,7 +146,7 @@ describe("Undo in the file tree", () => {
     await waitFor(() => expect(names()).toEqual(["A", "B", "C"]));
   });
 
-  it("undoes AI access and row colours (one step per colours dialog)", async () => {
+  it("undoes AI access and row colors (one step per colors dialog)", async () => {
     await setup({ "School/x.md": "" });
     fireEvent.contextMenu(row("School"));
     fireEvent.click(screen.getByRole("menuitem", { name: "AI access: never" }));
@@ -157,7 +157,7 @@ describe("Undo in the file tree", () => {
     await waitFor(() => expect(useConfig.getState().config.ai.folders).toEqual({}));
 
     const { unmount } = render(<RowColorsDialog path="School" onClose={() => {}} />);
-    const dialog = screen.getByRole("dialog", { name: "Colours for School" });
+    const dialog = screen.getByRole("dialog", { name: "Colors for School" });
     fireEvent.click(within(dialog).getByRole("radio", { name: "Background #0090ff40" }));
     fireEvent.click(within(dialog).getByRole("radio", { name: "Text #ffc53d" }));
     unmount();

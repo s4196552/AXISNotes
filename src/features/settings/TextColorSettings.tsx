@@ -3,22 +3,24 @@ import { RotateCcw } from "lucide-react";
 import { TEXT_COLOR_KINDS } from "../../app/appearance";
 import { type TextColor, type TextColorKind, type TextColors, isHexColor } from "../../app/config";
 
-// Settings → Appearance → Theme & layout: optional colours for bold, italic and
-// strikethrough text, in notes and in AI answers. Each is off by default; on, it uses the
-// user's colour for light and for dark themes, or the theme's suggestion. The Markdown in
-// the file never changes.
+// Settings → Appearance → Typography: optional colors for bold, italic, strikethrough and
+// math text, in notes and in AI answers. Each is off by default; on, it uses the user's
+// color for light and for dark themes, or the theme's suggestion. The Markdown in the file
+// never changes.
 
-/** What a colour box starts at before a colour is picked (the default theme's suggestion). */
+/** What a color box starts at before a color is picked (the default theme's suggestion). */
 const SUGGESTED: Record<TextColorKind, { light: string; dark: string }> = {
   bold: { light: "#4f5bd5", dark: "#8a93ff" },
   italic: { light: "#0f766e", dark: "#5eead4" },
   strike: { light: "#6a6f77", dark: "#8d9199" },
+  math: { light: "#9333ea", dark: "#d8b4fe" },
 };
 
 const SAMPLE_STYLE: Record<TextColorKind, CSSProperties> = {
   bold: { fontWeight: 700 },
   italic: { fontStyle: "italic" },
   strike: { textDecoration: "line-through" },
+  math: { fontFamily: "KaTeX_Main, 'Times New Roman', serif", fontStyle: "italic" },
 };
 
 const MODES = [
@@ -39,7 +41,7 @@ export function TextColorSettings(p: { value: TextColors; onChange(next: TextCol
             <label className="text-color-toggle">
               <input
                 type="checkbox"
-                aria-label={`Colour ${k.label.toLowerCase()} text`}
+                aria-label={`Color ${k.label.toLowerCase()} text`}
                 checked={c.on}
                 onChange={(e) => setKind(k.id, { on: e.target.checked })}
               />
@@ -56,7 +58,7 @@ export function TextColorSettings(p: { value: TextColors; onChange(next: TextCol
                   title={
                     isHexColor(own)
                       ? `${k.label} in ${m.id} themes: ${own}`
-                      : `${k.label} in ${m.id} themes: the theme's colour`
+                      : `${k.label} in ${m.id} themes: the theme's color`
                   }
                 >
                   <span
@@ -70,7 +72,7 @@ export function TextColorSettings(p: { value: TextColors; onChange(next: TextCol
                   </span>
                   <input
                     type="color"
-                    aria-label={`${k.label} colour in ${m.id} themes`}
+                    aria-label={`${k.label} color in ${m.id} themes`}
                     value={shown}
                     disabled={!c.on}
                     onChange={(e) => setKind(k.id, { [m.id]: e.target.value })}
@@ -80,8 +82,8 @@ export function TextColorSettings(p: { value: TextColors; onChange(next: TextCol
             })}
             <button
               type="button"
-              aria-label={`Reset ${k.label.toLowerCase()} colour`}
-              title="Back to the theme's colours"
+              aria-label={`Reset ${k.label.toLowerCase()} color`}
+              title="Back to the theme's colors"
               className="text-color-reset"
               disabled={!custom}
               onClick={() => setKind(k.id, { light: "", dark: "" })}

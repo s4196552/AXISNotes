@@ -456,15 +456,15 @@ describe("FileTree", () => {
     await waitFor(() => expect(row("Medical")).toBeInTheDocument());
   });
 
-  it("gives a row its own background and text colour from Change colours…", async () => {
+  it("gives a row its own background and text color from Change colors…", async () => {
     await setup({ "Ideas.md": "", "School/Bio.md": "" });
     fireEvent.contextMenu(row("Ideas"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Change colours…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Change colors…" }));
     expect(useUi.getState().modal).toEqual({ kind: "colors", path: "Ideas.md" });
 
     const onClose = vi.fn();
     render(<RowColorsDialog path="Ideas.md" onClose={onClose} />);
-    const dialog = screen.getByRole("dialog", { name: "Colours for Ideas" });
+    const dialog = screen.getByRole("dialog", { name: "Colors for Ideas" });
     fireEvent.click(within(dialog).getByRole("radio", { name: "Background #0090ff40" }));
     fireEvent.click(within(dialog).getByRole("radio", { name: "Text #ffc53d" }));
     await waitFor(() =>
@@ -488,7 +488,7 @@ describe("FileTree", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("keeps a folder's colours (and its children's) when it is renamed", async () => {
+  it("keeps a folder's colors (and its children's) when it is renamed", async () => {
     useConfig.setState({
       config: {
         ...DEFAULT_CONFIG,
@@ -510,7 +510,7 @@ describe("FileTree", () => {
     expect(row("Uni")).toHaveClass("has-bg");
   });
 
-  it("ignores saved colours that are not hex, so the config can't inject CSS", () => {
+  it("ignores saved colors that are not hex, so the config can't inject CSS", () => {
     expect(rowColors({ background: "url(https://x.test/a.png)", text: "#abc" })).toEqual({
       text: "#abc",
     });

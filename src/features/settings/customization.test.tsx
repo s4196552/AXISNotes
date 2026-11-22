@@ -122,7 +122,7 @@ describe("folder icons", () => {
     await waitFor(() => expect(useConfig.getState().config.folderIcons.University).toBeUndefined());
   });
 
-  it("offers every Lucide icon, searched by word, in any colour", async () => {
+  it("offers every Lucide icon, searched by word, in any color", async () => {
     render(
       <>
         <FileTree />

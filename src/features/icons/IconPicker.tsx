@@ -173,7 +173,7 @@ export function IconPicker({ path, onClose }: { path: string; onClose(): void })
           ))}
           <label
             className={`icon-swatch icon-custom-color${customColor ? " chosen" : ""}`}
-            title="Any colour"
+            title="Any color"
             style={customColor ? { background: customColor } : undefined}
           >
             <input

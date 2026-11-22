@@ -13,7 +13,7 @@ describe("parseCover", () => {
     expect(parseCover(imageCover("x/y.png"))).toEqual({ kind: "image", target: "x/y.png" });
   });
 
-  it("reads gradients, colours and web addresses", () => {
+  it("reads gradients, colors and web addresses", () => {
     expect(parseCover("gradient:Dusk")).toEqual({
       kind: "gradient",
       name: "dusk",

@@ -148,7 +148,7 @@ describe("live preview decorations", () => {
     ]);
   });
 
-  it("colours a ```green block's code lines, with no language label", () => {
+  it("colors a ```green block's code lines, with no language label", () => {
     const doc = "x\n```green\nDog dog2 = new Dog();\ndog2.sit();\n```";
     const away = decorate(doc, 1);
     expect(away.filter((d) => d.kind === "line").map((d) => d.cls)).toEqual([

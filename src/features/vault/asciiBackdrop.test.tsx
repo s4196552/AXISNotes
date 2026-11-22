@@ -67,7 +67,7 @@ describe("asciiField", () => {
     expect(wide.y).toBe(-540);
   });
 
-  it("reads light and dark colours", () => {
+  it("reads light and dark colors", () => {
     expect(isLightColour("#ececf1")).toBe(true);
     expect(isLightColour("#191919")).toBe(false);
     expect(isLightColour("#fff")).toBe(true);
