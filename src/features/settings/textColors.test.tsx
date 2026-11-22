@@ -5,6 +5,7 @@ import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend
 import { DEFAULT_CONFIG, mergeConfig, useConfig } from "../../app/config";
 import { applyTextColors, textColorVars } from "../../app/appearance";
 import { AnswerText } from "../ai/AnswerText";
+import { InlineText } from "../tasks/InlineText";
 import { Settings } from "./Settings";
 
 // T-260: optional colours for bold, italic and strikethrough text.
@@ -89,6 +90,25 @@ describe("bold, italic and strikethrough colours (T-260)", () => {
     expect(container.querySelector(".answer-text strong")).toHaveTextContent("b");
     expect(container.querySelector(".answer-text em")).toHaveTextContent("i");
     expect(container.querySelector(".answer-text s")).toHaveTextContent("s");
+  });
+
+  it("colour note text outside the editor too: tasks, dashboard and study cards (T-271)", () => {
+    const strip = (f: string) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const app = strip("src/styles/app.css");
+    expect(app).toMatch(/\.inline-bold \{[^}]*color: var\(--text-bold, inherit\)/);
+    expect(app).toMatch(/\.inline-italic \{[^}]*color: var\(--text-italic, inherit\)/);
+    expect(app).toMatch(/\.inline-strike \{[^}]*color: var\(--text-strike, inherit\)/);
+    // The task view, dashboard and study cards all draw note text with InlineText.
+    for (const f of [
+      "src/features/tasks/TasksView.tsx",
+      "src/features/dashboard/Dashboard.tsx",
+      "src/features/studyBlocks/shared.tsx",
+    ])
+      expect(readFileSync(f, "utf8"), f).toMatch(/<InlineText\b/);
+    const { container } = render(<InlineText text="**b** *i* ~~s~~ plain" from="n.md" />);
+    expect(container.querySelector("strong.inline-bold")).toHaveTextContent("b");
+    expect(container.querySelector("em.inline-italic")).toHaveTextContent("i");
+    expect(container.querySelector("s.inline-strike")).toHaveTextContent("s");
   });
 
   it("are set in Settings → Appearance with a picker per mode and a reset", async () => {
