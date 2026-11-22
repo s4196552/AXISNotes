@@ -15,6 +15,7 @@
   --text-bold-theme: var(--accent);
   --text-italic-theme: light-dark(#0f766e, #5eead4);
   --text-strike-theme: var(--fg-muted);
+  --text-math-theme: light-dark(#9333ea, #d8b4fe);
 }
 
 /* ---------------------------------------------------------------- Darker */
@@ -429,6 +430,7 @@
   --callout-purple: #000000;
   --callout-gray: #000000;
   --text-italic-theme: #000000;
+  --text-math-theme: #000000;
 }
 :root[data-theme="eink"] *,
 :root[data-theme="eink"] *::before,

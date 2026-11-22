@@ -641,9 +641,11 @@
 }
 .text-color-toggle {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 6px;
-  min-width: 112px;
+  min-width: 124px;
+  white-space: nowrap;
 }
 .text-color-chip {
   display: inline-flex;

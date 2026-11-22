@@ -324,6 +324,7 @@ export const TEXT_COLOR_KINDS: readonly { id: TextColorKind; label: string; css:
   { id: "bold", label: "Bold", css: "--text-bold" },
   { id: "italic", label: "Italic", css: "--text-italic" },
   { id: "strike", label: "Strikethrough", css: "--text-strike" },
+  { id: "math", label: "Math", css: "--text-math" },
 ];
 
 /**

@@ -3,7 +3,7 @@ import { svgIsMonochrome } from "./svgMonochrome";
 
 // The same cases as `tells_one_colour_svgs_from_coloured_ones` in src-tauri/src/packs.rs.
 describe("svgIsMonochrome", () => {
-  it("tells one-colour SVGs from coloured ones", () => {
+  it("tells one-color SVGs from colored ones", () => {
     expect(
       svgIsMonochrome('<svg fill="none" stroke="currentColor" stroke-width="2"><path/></svg>'),
     ).toBe(true);

@@ -61,6 +61,8 @@ export function ThemePicker(p: {
         value={value}
         checked={p.value === value}
         onChange={() => p.onChange(value)}
+        // Clicking the theme already chosen still applies it (clearing custom colors).
+        onClick={() => p.value === value && p.onChange(value)}
         aria-label={label}
         aria-describedby={`theme-note-${kind}-${value}`}
       />

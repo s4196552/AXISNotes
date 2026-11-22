@@ -436,7 +436,7 @@ describe("planning ahead", () => {
   it("keeps a tasks widget's range through a save, dropping unknown options", () => {
     const d = normalizeDashboard({
       widgets: [
-        { id: "t", type: "tasks", options: { range: "week", colour: "red" } },
+        { id: "t", type: "tasks", options: { range: "week", color: "red" } },
         { id: "u", type: "tasks", options: { range: "year" } },
       ],
     })!;

@@ -42,7 +42,7 @@ describe("node icons", () => {
       expect(c.drawImage).not.toHaveBeenCalled();
     });
 
-    it("draws a coloured image icon (a one-colour pack) as a tinted silhouette", () => {
+    it("draws a colored image icon (a one-color pack) as a tinted silhouette", () => {
       const made: { src: string; onload?: () => void }[] = [];
       vi.stubGlobal(
         "Image",

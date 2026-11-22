@@ -29,7 +29,7 @@ export function codeLanguageCompletions(context: CompletionContext): CompletionR
       // ```green colours the whole block (codeColors.ts).
       ...CODE_COLORS.map((c) => ({
         label: c,
-        detail: "code colour",
+        detail: "code color",
         type: "constant",
       })),
     ],

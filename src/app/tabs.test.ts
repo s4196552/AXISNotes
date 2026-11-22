@@ -266,7 +266,7 @@ describe("selecting", () => {
 });
 
 describe("groups", () => {
-  it("gathers grouped tabs where the first one is, with the next free colour", () => {
+  it("gathers grouped tabs where the first one is, with the next free color", () => {
     let s = five();
     s = groupTabs(s, ids(s, "b.md", "d.md"));
     expect(layout(s)).toEqual(["a.md", "b.md:grey", "d.md:grey", "c.md", "e.md"]);
@@ -293,7 +293,7 @@ describe("groups", () => {
     expect(s.groups).toEqual([]); // empty groups go
   });
 
-  it("renames, recolours, ungroups and closes groups", () => {
+  it("renames, recolors, ungroups and closes groups", () => {
     let s = five();
     s = groupTabs(s, ids(s, "c.md", "d.md"));
     const g = s.groups[0]!.id;

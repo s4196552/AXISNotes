@@ -135,7 +135,7 @@ describe("graph model", () => {
     expect(again.getNodeAttribute("A.md", "x")).toBe(g.getNodeAttribute("A.md", "x"));
   });
 
-  it("colours notes by the first colour group they match", () => {
+  it("colors notes by the first color group they match", () => {
     const g = buildGraph(DATA, opts);
     const colors = groupColors(g, [
       { query: "", color: "#000000" },

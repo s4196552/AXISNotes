@@ -75,7 +75,7 @@ describe("page cover", () => {
 
     // Change it to a colour, then remove it.
     fireEvent.click(screen.getByRole("button", { name: "Change cover" }));
-    fireEvent.click(screen.getByRole("option", { name: "Colour #0090ff" }));
+    fireEvent.click(screen.getByRole("option", { name: "Color #0090ff" }));
     expect(props()).toEqual({ banner: "#0090ff" });
     fireEvent.click(screen.getByRole("button", { name: "Remove cover" }));
     expect(props()).toEqual({});

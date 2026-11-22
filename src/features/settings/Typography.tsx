@@ -5,6 +5,7 @@ import { useAppStore } from "../../app/store";
 import { LETTER_SPACING, LINE_HEIGHT, NOTE_FONT_SIZES } from "../../app/appearance";
 import { VAULT_FONTS_FOLDER, vaultFonts } from "../../lib/fonts";
 import { Field, FontSelect, ResetDefaults, type SectionProps } from "./parts";
+import { TextColorSettings } from "./TextColorSettings";
 
 /** The settings this tab owns (imported fonts stay in the vault). */
 const TYPOGRAPHY_KEYS = [
@@ -16,7 +17,10 @@ const TYPOGRAPHY_KEYS = [
   "bionicReading",
 ] as const;
 
-/** Settings → Appearance → Typography: fonts, text size, spacing and Bionic Reading. */
+/**
+ * Settings → Appearance → Typography: fonts, text size, spacing, Bionic Reading, and the
+ * colors of bold, italic, strikethrough and math text (T-272).
+ */
 export function Typography({ config, set }: SectionProps) {
   const [fonts, setFonts] = useState<string[]>([]);
   useEffect(() => {
@@ -142,6 +146,12 @@ export function Typography({ config, set }: SectionProps) {
           checked={a.bionicReading}
           onChange={(e) => setA({ bionicReading: e.target.checked })}
         />
+      </Field>
+      <Field
+        label="Bold, italic, strikethrough and math colors"
+        hint="Give each its own color in notes, AI answers, tasks and study cards, for light and for dark themes. Off, the text keeps the theme's color. Your Markdown files don't change."
+      >
+        <TextColorSettings value={a.textColors} onChange={(textColors) => setA({ textColors })} />
       </Field>
       <p
         className="settings-hint muted typography-sample"

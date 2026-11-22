@@ -48,11 +48,11 @@ export function CursorSettings({ config, set }: SectionProps) {
           <span className="muted">{c.width === 1 ? "Thin" : `${c.width} px`}</span>
         </span>
       </Field>
-      <Field label="Colour" hint="The cursor in notes and in every text box.">
+      <Field label="Color" hint="The cursor in notes and in every text box.">
         <span className="range-control">
           <input
             type="color"
-            aria-label="Cursor colour"
+            aria-label="Cursor color"
             value={c.color || "#4f5bd5"}
             onChange={(e) => setC({ color: e.target.value })}
           />

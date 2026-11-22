@@ -107,7 +107,7 @@ describe("language-tagged inline code", () => {
     expect(openCode("plain text")).toBeNull();
   });
 
-  it("colours the code like a code block and hides the backticks off the cursor's line", () => {
+  it("colors the code like a code block and hides the backticks off the cursor's line", () => {
     const v = view(JAVA);
     expect(v.contentDOM.textContent).toBe('String greeting = "Hello, World!";');
     expect(v.dom.querySelector(".cm-lp-code")).not.toBeNull();
@@ -116,7 +116,7 @@ describe("language-tagged inline code", () => {
     expect(v.state.doc.toString()).toBe(JAVA);
   });
 
-  it("loads a language on first use, then colours it", async () => {
+  it("loads a language on first use, then colors it", async () => {
     const lang = findLanguage("ruby")!;
     expect(lang.support).toBeUndefined();
     const v = view('`ruby`puts "hi"``');
@@ -149,8 +149,8 @@ describe("language-tagged inline code", () => {
   });
 });
 
-describe("coloured inline code", () => {
-  it("takes a colour name in place of a language", () => {
+describe("colored inline code", () => {
+  it("takes a color name in place of a language", () => {
     expect(spans("Sit: `green`dog2.sit();`` then `Red`x = 1;`` and `purple`y``")).toEqual([
       ["green", "dog2.sit();"],
       ["red", "x = 1;"],
@@ -160,7 +160,7 @@ describe("coloured inline code", () => {
     expect(spans("`pink`x``")).toEqual([]);
   });
 
-  it("colours the code and hides the tag and closing backticks off the cursor's line", () => {
+  it("colors the code and hides the tag and closing backticks off the cursor's line", () => {
     const v = view("`green`dog2.sit();``\n\nnext");
     v.dispatch({ selection: { anchor: v.state.doc.length } });
     const tinted = v.dom.querySelector(".cm-tint-green");

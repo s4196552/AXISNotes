@@ -102,7 +102,7 @@ export function GraphSettingsPanel(props: {
             />
             <input
               type="color"
-              aria-label={`Group ${i + 1} colour`}
+              aria-label={`Group ${i + 1} color`}
               value={g.color}
               onChange={(e) =>
                 setGroups((gs) => gs.map((x, j) => (j === i ? { ...x, color: e.target.value } : x)))

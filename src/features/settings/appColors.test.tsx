@@ -29,6 +29,55 @@ beforeEach(async () => {
   document.getElementById("axis-app-colors")?.remove();
 });
 
+describe("Colors in Theme & layout (T-272)", () => {
+  const cream = APP_COLOR_PRESETS[2]!.colors;
+  const saved = async () => JSON.parse((await h.b.readFile(".axisnotes/config.json")).content);
+
+  it("sit on the Theme & layout tab, and color Settings like the app", () => {
+    render(<Settings section="appearance" onClose={vi.fn()} />);
+    expect(screen.getByRole("tab", { name: "Theme & layout" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("radiogroup", { name: "App color presets" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Colors" })).toBeNull();
+    const css = appColorsCss("light", cream);
+    expect(block(css, ":root:root :is(.content, .modal.settings)")["--bg"]).toBe(cream.mainBg);
+    expect(block(css, ":root:root :is(.sidebar, .statusbar, .settings-nav)")["--bg-sidebar"]).toBe(
+      cream.sidebarBg,
+    );
+  });
+
+  it("are cleared by picking a theme, even the one already chosen", async () => {
+    useConfig.setState({
+      config: {
+        ...structuredClone(DEFAULT_CONFIG),
+        appearance: { ...DEFAULT_CONFIG.appearance, appColors: cream },
+      },
+    });
+    render(<Settings section="appearance" onClose={vi.fn()} />);
+    const current = useConfig.getState().config.theme;
+    fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+    await waitFor(async () => expect((await saved()).appearance.appColors).toEqual(NO_APP_COLORS));
+    expect(useConfig.getState().config.theme).not.toBe(current);
+
+    // Colors picked again, then a click on the theme already chosen clears them too.
+    fireEvent.click(
+      within(screen.getByRole("radiogroup", { name: "App color presets" })).getByRole("radio", {
+        name: "Cream",
+      }),
+    );
+    await waitFor(async () => expect((await saved()).appearance.appColors).toEqual(cream));
+    const chosen = screen
+      .getAllByRole("radio")
+      .find(
+        (r) => (r as HTMLInputElement).name === "axis-theme" && (r as HTMLInputElement).checked,
+      )!;
+    fireEvent.click(chosen);
+    await waitFor(async () => expect((await saved()).appearance.appColors).toEqual(NO_APP_COLORS));
+  });
+});
+
 /** The declarations of the rule for `selector` in `css`. */
 function block(css: string, selector: string): Record<string, string> {
   const start = css.indexOf(`${selector} {`);
@@ -42,11 +91,11 @@ function block(css: string, selector: string): Record<string, string> {
       .map((d) => [d.slice(0, d.indexOf(":")).trim(), d.slice(d.indexOf(":") + 1).trim()]),
   );
 }
-const MAIN = ":root:root .content";
-const SIDE = ":root:root :is(.sidebar, .statusbar)";
+const MAIN = ":root:root :is(.content, .modal.settings)";
+const SIDE = ":root:root :is(.sidebar, .statusbar, .settings-nav)";
 
-describe("app colour presets", () => {
-  it("are twelve, with their own names and four valid colours each", () => {
+describe("app color presets", () => {
+  it("are twelve, with their own names and four valid colors each", () => {
     expect(APP_COLOR_PRESETS).toHaveLength(12);
     expect(new Set(APP_COLOR_PRESETS.map((p) => p.label)).size).toBe(12);
     for (const p of APP_COLOR_PRESETS)
@@ -71,14 +120,14 @@ describe("app colour presets", () => {
   });
 });
 
-describe("app colour styles", () => {
-  it("change nothing while no colour is set", () => {
+describe("app color styles", () => {
+  it("change nothing while no color is set", () => {
     expect(appColorsCss("light", NO_APP_COLORS)).toBe("");
     applyAppColors("light", NO_APP_COLORS);
     expect(document.getElementById("axis-app-colors")).toBeNull();
   });
 
-  it("colour each surface, with its text, borders and hovers from its own two colours", () => {
+  it("color each surface, with its text, borders and hovers from its own two colors", () => {
     const css = appColorsCss("light", APP_COLOR_PRESETS[1]!.colors); // Paper: light
     const main = block(css, MAIN);
     expect(main).toMatchObject({
@@ -121,7 +170,7 @@ describe("app colour styles", () => {
     expect(block(css, SIDE)).toEqual({});
   });
 
-  it("headings follow each surface's text, unless a heading colour preset is chosen", () => {
+  it("headings follow each surface's text, unless a heading color preset is chosen", () => {
     const colors = APP_COLOR_PRESETS[2]!.colors;
     const css = appColorsCss("dark", colors);
     for (const sel of [MAIN, SIDE])
@@ -136,12 +185,12 @@ describe("app colour styles", () => {
     expect(css).not.toContain(":root:root:root");
   });
 
-  it("ignore anything that isn't a colour, and stay off for Translucent", () => {
+  it("ignore anything that isn't a color, and stay off for Translucent", () => {
     expect(appColorsCss("light", { ...NO_APP_COLORS, mainBg: "red; } body { x" })).toBe("");
     expect(appColorsCss("axis:translucent", APP_COLOR_PRESETS[0]!.colors)).toBe("");
   });
 
-  it("go last in <head>, so they follow the theme, and come off with the colours", () => {
+  it("go last in <head>, so they follow the theme, and come off with the colors", () => {
     const later = document.createElement("style");
     applyAppColors("light", APP_COLOR_PRESETS[0]!.colors);
     document.head.appendChild(later);
@@ -155,15 +204,15 @@ describe("app colour styles", () => {
   });
 });
 
-describe("Settings → Colours → App colours", () => {
+describe("Settings → Colors → App colors", () => {
   const saved = async () =>
     JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).appearance.appColors;
 
-  it("a preset sets all four colours; each can be edited; the reset clears them", async () => {
-    render(<Settings section="colours" onClose={vi.fn()} />);
-    const presets = screen.getByRole("radiogroup", { name: "App colour presets" });
+  it("a preset sets all four colors; each can be edited; the reset clears them", async () => {
+    render(<Settings section="appearance" onClose={vi.fn()} />);
+    const presets = screen.getByRole("radiogroup", { name: "App color presets" });
     expect(within(presets).getAllByRole("radio")).toHaveLength(12);
-    expect(screen.getByRole("button", { name: "Use theme colours" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Use theme colors" })).toBeDisabled();
 
     fireEvent.click(within(presets).getByRole("radio", { name: "Cream" }));
     await waitFor(async () => expect(await saved()).toEqual(APP_COLOR_PRESETS[2]!.colors));
@@ -184,7 +233,7 @@ describe("Settings → Colours → App colours", () => {
       "Auto",
     ]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Use theme colours" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use theme colors" }));
     await waitFor(async () => expect(await saved()).toEqual(NO_APP_COLORS));
     const values = [...document.querySelectorAll(".app-color-value")].map((e) => e.textContent);
     expect(values).toEqual(["Theme", "Theme", "Theme", "Theme"]);
@@ -200,13 +249,13 @@ describe("Settings → Colours → App colours", () => {
         },
       },
     });
-    render(<Settings section="colours" onClose={vi.fn()} />);
+    render(<Settings section="appearance" onClose={vi.fn()} />);
     expect(screen.getByRole("status")).toHaveTextContent(/Main text is low contrast \(1\.9:1\)/);
     fireEvent.input(screen.getByLabelText("Main text"), { target: { value: "#333333" } });
     await waitFor(() => expect(screen.queryByText(/low contrast/)).toBeNull());
   });
 
-  it("a vault without the setting loads with no colours, and bad values are ignored", async () => {
+  it("a vault without the setting loads with no colors, and bad values are ignored", async () => {
     await h.b.writeFile(
       ".axisnotes/config.json",
       JSON.stringify({ appearance: { appColors: { mainBg: 5, sidebarBg: "#123456" } } }),

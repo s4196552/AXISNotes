@@ -271,9 +271,9 @@ describe("text size, fonts and editor width", () => {
     expect(foldArrowVars("nope" as never)["--fold-closed"]).toBe(FOLD_ARROWS.triangle.closed);
   });
 
-  it("picks a heading colour preset, previewed with its colours, and saves it", async () => {
+  it("picks a heading color preset, previewed with its colors, and saves it", async () => {
     render(<Settings section="appearance" onClose={vi.fn()} />);
-    const group = screen.getByRole("radiogroup", { name: "Heading colours" });
+    const group = screen.getByRole("radiogroup", { name: "Heading colors" });
     expect(
       within(group)
         .getAllByRole("radio")
@@ -359,7 +359,6 @@ describe("settings sections", () => {
       "Typography",
       "Cursor",
       "Ribbon",
-      "Colours",
       "Icon & image packs",
     ]);
     expect(tabsOf("Commands & shortcuts")).toEqual(["Quick commands", "Keyboard shortcuts"]);
@@ -367,7 +366,7 @@ describe("settings sections", () => {
     // A page with one section has no tabs.
     fireEvent.click(within(nav).getByRole("button", { name: "Spelling" }));
     expect(screen.queryByRole("tablist")).toBeNull();
-    for (const gone of ["Colours", "Icon & image packs", "Keyboard shortcuts", "Agent", "Claude"])
+    for (const gone of ["Colors", "Icon & image packs", "Keyboard shortcuts", "Agent", "Claude"])
       expect(within(nav).queryByRole("button", { name: gone })).toBeNull();
   });
 
@@ -393,7 +392,7 @@ describe("settings sections", () => {
 });
 
 describe("text cursor (T-250)", () => {
-  it("applies shape, thickness, colour and blinking to the document", () => {
+  it("applies shape, thickness, color and blinking to the document", () => {
     const root = document.documentElement;
     applyCursor({ shape: "underline", width: 4, color: "#ff8800", blink: false });
     expect(root.style.getPropertyValue("--caret-width")).toBe("4px");
@@ -420,7 +419,7 @@ describe("text cursor (T-250)", () => {
       target: { value: "3" },
     });
     expect(screen.getByText("3 px")).toBeInTheDocument();
-    fireEvent.input(screen.getByLabelText("Cursor colour"), { target: { value: "#00aa55" } });
+    fireEvent.input(screen.getByLabelText("Cursor color"), { target: { value: "#00aa55" } });
     fireEvent.click(screen.getByRole("checkbox", { name: "Cursor blinks" }));
     await waitFor(async () =>
       expect(

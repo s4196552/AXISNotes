@@ -26,15 +26,36 @@ beforeEach(async () => {
 
 const off = { on: false, light: "", dark: "" };
 
-describe("bold, italic and strikethrough colours (T-260)", () => {
-  it("are off by default, so text keeps the theme's colour", () => {
-    expect(DEFAULT_CONFIG.appearance.textColors).toEqual({ bold: off, italic: off, strike: off });
+describe("bold, italic and strikethrough colors (T-260)", () => {
+  it("are off by default, so text keeps the theme's color", () => {
+    expect(DEFAULT_CONFIG.appearance.textColors).toEqual({
+      bold: off,
+      italic: off,
+      strike: off,
+      math: off,
+    });
     expect(textColorVars(DEFAULT_CONFIG.appearance.textColors)).toEqual({});
     // Older configs without the setting get the defaults.
     expect(mergeConfig({ appearance: {} }).appearance.textColors.bold).toEqual(off);
+    // Configs saved before math had a color (T-272) get it switched off.
+    expect(
+      mergeConfig({ appearance: { textColors: { bold: { on: true, light: "", dark: "" } } } })
+        .appearance.textColors.math,
+    ).toEqual(off);
   });
 
-  it("use the picked colours per mode, or the theme's token for a mode left unset", () => {
+  it("color math too, through its own theme token (T-272)", () => {
+    expect(textColorVars({ math: { on: true, light: "#7700aa", dark: "" } })).toEqual({
+      "--text-math": "light-dark(#7700aa, var(--text-math-theme))",
+    });
+    const strip = (f: string) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(strip("src/styles/themes.css")).toMatch(/--text-math-theme:/);
+    expect(strip("src/features/editor/editor.css")).toMatch(
+      /\.cm-math \{[^}]*color: var\(--text-math, inherit\)/,
+    );
+  });
+
+  it("use the picked colors per mode, or the theme's token for a mode left unset", () => {
     expect(
       textColorVars({
         bold: { on: true, light: "#aa0000", dark: "#ff8888" },
@@ -52,7 +73,7 @@ describe("bold, italic and strikethrough colours (T-260)", () => {
     });
   });
 
-  it("only lets plain hex colours reach CSS", () => {
+  it("only lets plain hex colors reach CSS", () => {
     expect(textColorVars({ bold: { on: true, light: "red; x: url(evil)", dark: "#zzz" } })).toEqual(
       { "--text-bold": "var(--text-bold-theme)" },
     );
@@ -72,7 +93,7 @@ describe("bold, italic and strikethrough colours (T-260)", () => {
     expect(style.getPropertyValue("--text-italic")).toBe("");
   });
 
-  it("colour notes and AI answers through theme tokens, without touching the Markdown", () => {
+  it("color notes and AI answers through theme tokens, without touching the Markdown", () => {
     const strip = (f: string) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const themes = strip("src/styles/themes.css");
     for (const k of ["bold", "italic", "strike"])
@@ -92,7 +113,7 @@ describe("bold, italic and strikethrough colours (T-260)", () => {
     expect(container.querySelector(".answer-text s")).toHaveTextContent("s");
   });
 
-  it("colour note text outside the editor too: tasks, dashboard and study cards (T-271)", () => {
+  it("color note text outside the editor too: tasks, dashboard and study cards (T-271)", () => {
     const strip = (f: string) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
     const app = strip("src/styles/app.css");
     expect(app).toMatch(/\.inline-bold \{[^}]*color: var\(--text-bold, inherit\)/);
@@ -111,18 +132,18 @@ describe("bold, italic and strikethrough colours (T-260)", () => {
     expect(container.querySelector("s.inline-strike")).toHaveTextContent("s");
   });
 
-  it("are set in Settings → Appearance with a picker per mode and a reset", async () => {
-    render(<Settings section="appearance" onClose={vi.fn()} />);
-    const light = screen.getByLabelText("Bold colour in light themes");
+  it("are set in Settings → Appearance → Typography with a picker per mode and a reset", async () => {
+    render(<Settings section="typography" onClose={vi.fn()} />);
+    const light = screen.getByLabelText("Bold color in light themes");
     expect(light).toBeDisabled();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Colour bold text" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Color bold text" }));
     expect(light).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Reset bold colour" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reset bold color" })).toBeDisabled();
     fireEvent.input(light, { target: { value: "#cc0000" } });
-    fireEvent.input(screen.getByLabelText("Bold colour in dark themes"), {
+    fireEvent.input(screen.getByLabelText("Bold color in dark themes"), {
       target: { value: "#ff9999" },
     });
-    fireEvent.click(screen.getByRole("checkbox", { name: "Colour strikethrough text" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Color strikethrough text" }));
     await waitFor(async () =>
       expect(
         JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).appearance.textColors,
@@ -130,9 +151,12 @@ describe("bold, italic and strikethrough colours (T-260)", () => {
         bold: { on: true, light: "#cc0000", dark: "#ff9999" },
         italic: off,
         strike: { on: true, light: "", dark: "" },
+        math: off,
       }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Reset bold colour" }));
+    // Math has its own row; Theme & layout no longer has these.
+    expect(screen.getByRole("checkbox", { name: "Color math text" })).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Reset bold color" }));
     expect(useConfig.getState().config.appearance.textColors.bold).toEqual({
       on: true,
       light: "",

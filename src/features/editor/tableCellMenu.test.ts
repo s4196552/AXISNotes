@@ -116,7 +116,7 @@ describe("commands and styles while typing in a table cell (T-263)", () => {
     expect(document.activeElement).toBe(input);
   });
 
-  it("shows bold, italic and strikethrough in cells with the note's styles and colours", () => {
+  it("shows bold, italic and strikethrough in cells with the note's styles and colors", () => {
     const view = open("| A |\n| --- |\n| **b** *i* ~~s~~ ![Rocket](<lucide:Rocket>) |");
     const cell = within(view.dom).getByRole("cell", { name: "Row 1, column 1" });
     expect(cell.querySelector("strong")).toHaveClass("cm-lp-strong");
