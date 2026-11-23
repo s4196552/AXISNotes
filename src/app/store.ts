@@ -3,7 +3,7 @@ import { backend, isBackendError, type NoteRef, type VaultEntry, type VaultInfo 
 import { parseWikilinkInner } from "../lib/markdown";
 import { useConfig } from "./config";
 import { markNewVault, rememberVault } from "./recentVaults";
-import { showLeftPanel } from "./layout";
+import { showPanel } from "./sidebarLayout";
 import * as T from "./tabs";
 import type { GroupColor, TabsState, View } from "./tabs";
 import * as P from "./panes";
@@ -428,15 +428,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // Both bring the left panel back if it was hidden, so the result is visible.
+  // Both bring the panel's sidebar back if it was hidden, so the result is visible. The
+  // panel may have been moved to the right sidebar, or removed (it comes back; T-275).
   search(query) {
     set({ leftPanel: "search", searchQuery: query });
-    showLeftPanel();
+    showPanel("search");
   },
 
   setLeftPanel(panel) {
     set({ leftPanel: panel });
-    showLeftPanel();
+    showPanel(panel);
   },
 
   // Views live in tabs too: the graph replaces the note in the active tab, and showing
