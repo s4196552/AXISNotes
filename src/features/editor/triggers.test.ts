@@ -710,7 +710,8 @@ describe("command menu sections", () => {
         groups.set(section, [...(groups.get(section) ?? []), c.label]);
       }
       expect([...groups]).toEqual([
-        ["Skills · Learn & understand", ["Teach me", "My student", "Example"]],
+        ["Skills · Notes & summaries", ["AI notes", "Summary"]],
+        ["Skills · Learn & understand", ["Tutor", "Teach me", "My student", "Example"]],
         [
           "Skills · Practice & remember",
           ["Practice test", "Flash cards", "Mnemonic", "Make it stick"],
@@ -723,13 +724,14 @@ describe("command menu sections", () => {
       const skillsTab = view.dom.querySelector<HTMLElement>('[data-section="Skills"]')!;
       skillsTab.click();
       expect(currentCompletions(view.state)[selectedCompletionIndex(view.state)!]?.label).toBe(
-        "Teach me",
+        "AI notes",
       );
       expect(
         [...view.dom.querySelectorAll<HTMLElement>("[data-skill-category]")].map(
           (el) => el.textContent,
         ),
       ).toEqual([
+        "Notes & summaries",
         "Learn & understand",
         "Practice & remember",
         "Visualize & present",
@@ -772,6 +774,7 @@ describe("command menu sections", () => {
       "Study",
       "Page style",
       "Custom",
+      "Skills · Notes & summaries",
       "Skills · Learn & understand",
       "Skills · Practice & remember",
       "Skills · Visualize & present",

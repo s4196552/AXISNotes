@@ -83,7 +83,7 @@ describe("Categorized built-in AI skills (T-222)", () => {
 
   after(() => server?.close());
 
-  it("keeps one Skills tab with all twelve skills in the human's category order", async () => {
+  it("keeps one Skills tab with all fifteen skills in the human's category order", async () => {
     await openMenu();
     await $('.cm-commandTab[data-section="Skills"]').click();
     await expect($('.cm-commandTab[data-section="Skills"]')).toHaveAttribute(
@@ -92,7 +92,8 @@ describe("Categorized built-in AI skills (T-222)", () => {
     );
     expect(await $$('.cm-commandTab[data-section="Skills"]').length).toBe(1);
     const groups = [
-      ["Learn & understand", ["Teach me", "Teach the AI", "Example"]],
+      ["Notes & summaries", ["AI notes", "Summary"]],
+      ["Learn & understand", ["Tutor", "Teach me", "Teach the AI", "Example"]],
       ["Practice & remember", ["Practice test", "Flash cards", "Mnemonic", "Make it stick"]],
       ["Visualize & present", ["Mind map", "Infographic", "Slide Deck"]],
       ["Plan & collaborate", ["Grill me", "Handoff"]],

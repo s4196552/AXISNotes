@@ -107,6 +107,8 @@ const byId = (id: string) => BUILTIN_SKILLS.find((s) => s.id === id)!;
 describe("skill files", () => {
   it("ships the built-in skills with what they make", () => {
     expect(BUILTIN_SKILLS.map((s) => [s.id, s.output, s.reads])).toEqual([
+      ["ai-notes", "markdown", "note"],
+      ["summary", "markdown", "note"],
       ["mindmap", "markdown", "note"],
       ["test", "html", "note"],
       ["flashcards", "html", "note"],
@@ -115,12 +117,33 @@ describe("skill files", () => {
       ["example", "markdown", "note"],
       ["slide-deck", "html", "note"],
       ["infographic", "html", "note"],
+      ["tutor", "chat", "note"],
       ["teach-the-ai", "chat", "note"],
       ["grill-me", "chat", "note"],
       ["handoff", "markdown", "note"],
       ["teach", "files", "folder"],
     ]);
     expect(byId("grill-me").description).toMatch(/every branch of the design tree/);
+  });
+
+  it("writes AI notes and summaries from the notes only, and tutors without solving for you", () => {
+    const notes = byId("ai-notes");
+    expect(notes.instructions).toMatch(/Never add facts/);
+    expect(notes.instructions).toMatch(/never about which note, week, lecture or file/);
+    expect(withFormat(notes, "markdown").instructions).toMatch(/> \[!success\]- Answer/);
+    expect(withFormat(notes, "html").instructions).toMatch(/table of contents[\s\S]*<details>/);
+    const summary = byId("summary");
+    expect(summary.instructions).toMatch(/Start with the gist/);
+    expect(summary.instructions).toMatch(/Use only what the notes say/);
+    expect(withFormat(summary, "markdown").instructions).toMatch(/\[!abstract\]/);
+    expect(withFormat(summary, "html").instructions).toMatch(/self-contained HTML page/);
+    const tutor = byId("tutor");
+    expect(tutor.instructions).toMatch(/guide rather than solve/);
+    expect(tutor.instructions).toMatch(/at most one question per reply/);
+    // A conversation is kept as a note or a page; the replies themselves stay Markdown.
+    expect(withFormat(tutor, "html")).toMatchObject({ output: "chat" });
+    expect(withFormat(tutor, "html").instructions).toMatch(/every reply in Markdown/);
+    expect(withFormat(tutor, "html").instructions).not.toMatch(/<!doctype html>/);
   });
 
   it("reads a vault SKILL.md, which replaces a built-in of the same name", () => {
@@ -191,9 +214,15 @@ describe("skill files", () => {
 
 describe("running skills from an AI block", () => {
   it.each(
-    ["mnemonic", "make-it-stick", "example", "slide-deck", "infographic"].flatMap((id) =>
-      (["markdown", "html"] as const).map((format) => ({ id, format })),
-    ),
+    [
+      "ai-notes",
+      "summary",
+      "mnemonic",
+      "make-it-stick",
+      "example",
+      "slide-deck",
+      "infographic",
+    ].flatMap((id) => (["markdown", "html"] as const).map((format) => ({ id, format }))),
   )("runs $id in $format through the existing source and result paths", async ({ id, format }) => {
     const skill = byId(id);
     const markdown = "# Worked result\n\nMitochondria make ATP.";
@@ -383,7 +412,7 @@ describe("running skills from an AI block", () => {
     expect(h.b.files()["Bio/Lesson.md"]).toBe("lesson\n");
   });
 
-  it.each(["grill-me", "teach-the-ai"])(
+  it.each(["grill-me", "teach-the-ai", "tutor"])(
     "%s carries transcript privacy into follow-ups and keeps each format in its own file",
     async (id) => {
       await h.b.writeFile("Bio/Cells.md", "---\nai-access: local\n---\nCells");
@@ -530,6 +559,8 @@ describe("running skills from an AI block", () => {
 describe("Markdown or HTML for every skill", () => {
   it("offers both formats for every skill, and Both for Teach", () => {
     expect(BUILTIN_SKILLS.map((k) => [k.id, formatsOf(k), defaultFormat(k)])).toEqual([
+      ["ai-notes", ["markdown", "html"], "markdown"],
+      ["summary", ["markdown", "html"], "markdown"],
       ["mindmap", ["markdown", "html"], "markdown"],
       ["test", ["markdown", "html"], "html"],
       ["flashcards", ["markdown", "html"], "html"],
@@ -538,6 +569,7 @@ describe("Markdown or HTML for every skill", () => {
       ["example", ["markdown", "html"], "markdown"],
       ["slide-deck", ["markdown", "html"], "html"],
       ["infographic", ["markdown", "html"], "html"],
+      ["tutor", ["markdown", "html"], "markdown"],
       ["teach-the-ai", ["markdown", "html"], "markdown"],
       ["grill-me", ["markdown", "html"], "markdown"],
       ["handoff", ["markdown", "html"], "markdown"],
