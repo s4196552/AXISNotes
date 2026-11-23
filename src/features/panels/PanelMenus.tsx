@@ -22,6 +22,7 @@ import {
 } from "../../app/sidebarLayout";
 import {
   closeMenu,
+  focusAfterRemoving,
   movePanelTo,
   nudgePanel,
   openAddMenu,
@@ -150,7 +151,10 @@ export function SidebarMenu({ side }: { side: SidebarSide }) {
         <Item
           label="Remove panel"
           icon={X}
-          onClick={() => void updatePlacement((p) => removePanel(p, id))}
+          onClick={() => {
+            focusAfterRemoving(id, group, side);
+            void updatePlacement((p) => removePanel(p, id));
+          }}
         />
       </PopMenu>
     );
@@ -196,6 +200,7 @@ export function AddPanelButton({ side, className }: { side: SidebarSide; classNa
       type="button"
       className={className}
       aria-label={`Add panel to ${SIDE_NAME[side]}`}
+      data-add-panel={side}
       title="Add, move or reset panels"
       aria-haspopup="menu"
       aria-expanded={open}

@@ -10,7 +10,9 @@ export function PluginsSettings() {
 
   function setEnabled(enabled: boolean) {
     if (!enabled && useAppStore.getState().leftPanel === "hub") {
-      useAppStore.getState().setLeftPanel("files");
+      // Only move the selection off Hub: setLeftPanel would bring back a Files panel the
+      // user removed (T-276).
+      useAppStore.setState({ leftPanel: "files" });
     }
     if (!enabled) setManaging(false);
     void update((config) => ({ ...config, hubEnabled: enabled }));

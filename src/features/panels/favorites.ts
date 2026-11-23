@@ -40,6 +40,7 @@ export function remapFavorites(list: readonly string[], from: string, to: string
   if (to === null) return null;
   let changed = false;
   const out = list.map((p) => {
+    if (typeof p !== "string") return p;
     if (p !== from && !p.startsWith(from + "/")) return p;
     changed = true;
     return to + p.slice(from.length);

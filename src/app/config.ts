@@ -324,7 +324,10 @@ export function mergeConfig(raw: unknown): AxisConfig & Record<string, unknown> 
     if (Array.isArray(def)) return Array.isArray(val) ? val : def;
     return typeof val === typeof def ? val : def;
   };
-  return merge(DEFAULT_CONFIG, raw) as AxisConfig & Record<string, unknown>;
+  const out = merge(DEFAULT_CONFIG, raw) as AxisConfig & Record<string, unknown>;
+  // Favorites are vault paths; anything else (a hand edit) is dropped (T-276).
+  out.favorites = out.favorites.filter((p): p is string => typeof p === "string" && p !== "");
+  return out;
 }
 
 interface ConfigState {
