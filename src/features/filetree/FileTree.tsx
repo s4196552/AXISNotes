@@ -41,6 +41,8 @@ import {
   Sheet,
   Smile,
   Sparkles,
+  Star,
+  StarOff,
   Trash2,
 } from "lucide-react";
 import { type AiRule, backend, isBackendError, type VaultEntry } from "../../ipc";
@@ -77,6 +79,7 @@ import {
 import { rowColorProps, rowColors } from "./rowColorsModel";
 import { useExpanded } from "./useExpanded";
 import { ancestorsOf, useRevealRequest } from "./reveal";
+import { addFavorites, removeFavorite } from "../panels/favorites";
 import { useSkills } from "../skills/skills";
 import { skillIcon } from "../skills/skillIcons";
 import { runSkillOnPicked, skillsForPicked } from "../skills/skillOnFiles";
@@ -815,15 +818,19 @@ export function FileTree() {
       }),
     [reveal],
   );
-  // …and show it on request ("Reveal open file in the file tree").
-  useEffect(
-    () =>
-      useRevealRequest.subscribe(() => {
-        const p = useAppStore.getState().activePath;
-        if (p) reveal(p);
-      }),
-    [reveal],
-  );
+  // …and show a path on request ("Reveal open file in the file tree", a favorite folder),
+  // also one asked for just before this tree was shown.
+  useEffect(() => {
+    const show = () => {
+      const p = useRevealRequest.getState().pending;
+      if (p === null) return;
+      useRevealRequest.setState({ pending: null });
+      reveal(p);
+      if (findEntry(latest.current.tree, p)?.kind === "dir") toggle(p, true);
+    };
+    show();
+    return useRevealRequest.subscribe(show);
+  }, [reveal, toggle]);
 
   // Ctrl+Z / Ctrl+Y also work when nothing that has its own undo has focus (after a
   // delete's confirmation, say). The editor, text boxes and open dialogs keep theirs.
@@ -1053,6 +1060,12 @@ export function FileTree() {
                 close={setMenu}
               />
               <MenuItem
+                label={`Add ${many.length} items to favorites`}
+                icon={Star}
+                onClick={() => void addFavorites(many)}
+                close={setMenu}
+              />
+              <MenuItem
                 label={`Copy ${many.length} items`}
                 icon={Copy}
                 onClick={() => copyOrCut(many, "copy")}
@@ -1153,6 +1166,7 @@ export function FileTree() {
                       close={setMenu}
                     />
                   )}
+                  <FavoriteItem path={menu.entry.path} close={setMenu} />
                   <AiRuleItems path={menu.entry.path} close={setMenu} />
                   <MenuItem
                     label="Copy"
@@ -1218,6 +1232,26 @@ export function FileTree() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Add a file or folder to the sidebar's Favorites, or take it out (T-275). */
+function FavoriteItem({ path, close }: { path: string; close(m: null): void }) {
+  const has = useConfig((s) => s.config.favorites.includes(path));
+  return has ? (
+    <MenuItem
+      label="Remove from favorites"
+      icon={StarOff}
+      onClick={() => void removeFavorite(path)}
+      close={close}
+    />
+  ) : (
+    <MenuItem
+      label="Add to favorites"
+      icon={Star}
+      onClick={() => void addFavorites([path])}
+      close={close}
+    />
   );
 }
 

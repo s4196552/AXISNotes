@@ -387,3 +387,209 @@ mark {
   padding-top: 2px;
   border-bottom: none;
 }
+
+/* ---- Customizable sidebars (T-275) ---- */
+
+/* A sidebar's folding sections. Under the left sidebar's tabs they take what they need,
+   up to about half of it; elsewhere they fill the sidebar and scroll. */
+.side-stack {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.side-stack-top {
+  flex: 0 1 auto;
+  max-height: 45%;
+  border-bottom: 1px solid var(--border);
+}
+.side-stack-top > .side-section:last-child {
+  border-bottom: none;
+}
+/* Sections keep their own height; the stack scrolls when they don't fit. */
+.side-stack > * {
+  flex-shrink: 0;
+}
+/* A tall panel (files, search, tags, links) placed in a stack takes the room left over,
+   and scrolls inside itself. */
+.side-stack > .side-section.grow {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 160px;
+}
+.side-section.grow > :not(.side-section-head) {
+  flex: 1;
+  min-height: 0;
+}
+.side-section-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.side-section-headline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+/* The ⋯ panel menu shows on hover and keyboard focus. */
+.side-section-menu {
+  display: inline-grid;
+  place-items: center;
+  margin-left: auto;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  opacity: 0;
+}
+.side-section-headline .side-section-menu {
+  margin-left: 2px;
+}
+:is(.side-section, .side-panel):hover .side-section-menu,
+.side-section-menu:focus-visible,
+.side-section-menu[aria-expanded="true"] {
+  opacity: 1;
+}
+.side-section-menu:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+/* Where a dragged panel would land. */
+.sidebar-seg [data-drop="before"] {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.sidebar-seg [data-drop="after"] {
+  box-shadow: inset -2px 0 0 var(--accent);
+}
+:is(.side-section, .side-panel)[data-drop="before"] {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+:is(.side-section, .side-panel)[data-drop="after"] {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+[data-panel-id][data-dragging] {
+  opacity: 0.5;
+}
+.sidebar.panel-drop-end {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+/* The right sidebar's tabs, then its Add panel button. */
+.sidebar-right-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.sidebar-right .sidebar-tabs .sidebar-add-panel {
+  flex: none;
+  margin-left: auto;
+  padding: 4px 6px;
+}
+.panel-menu button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.panel-menu button:disabled:hover {
+  background: transparent;
+}
+.panel-menu-note {
+  margin: 2px 10px 4px;
+  font-size: 12px;
+}
+.panel-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+
+/* Favorites. */
+.fav-list {
+  margin: 0;
+  padding: 0 6px 6px;
+  list-style: none;
+}
+.fav-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+.fav-row:hover {
+  background: var(--bg-hover);
+}
+.fav-item {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 3px 6px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  text-align: left;
+}
+.fav-item > svg,
+.fav-item > .filetree-icon {
+  flex: none;
+  color: var(--fg-muted);
+}
+.fav-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fav-item.active {
+  color: var(--accent);
+}
+.fav-item.missing .fav-name {
+  color: var(--fg-muted);
+  text-decoration: line-through;
+}
+.fav-missing {
+  margin-left: auto;
+  font-size: 11px;
+}
+.fav-remove {
+  display: inline-grid;
+  place-items: center;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  opacity: 0;
+}
+.fav-row:hover .fav-remove,
+.fav-remove:focus-visible,
+.fav-row:focus-within .fav-remove {
+  opacity: 1;
+}
+.fav-remove:hover {
+  color: var(--fg);
+}
+.fav-row[data-drop="before"] {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.fav-row[data-drop="after"] {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.fav-row[data-dragging] {
+  opacity: 0.5;
+}
+.fav-empty {
+  margin: 2px 12px 8px;
+}
+.sidebar-right > .sidebar-tabs:has(.sidebar-right-tabs) {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.sidebar-right-tabs {
+  flex: 1 1 0;
+}

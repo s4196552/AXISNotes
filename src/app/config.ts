@@ -133,6 +133,13 @@ export interface AxisConfig {
   /** AXIS Hub plugin availability for this vault. */
   hubEnabled: boolean;
   /**
+   * Where the sidebar panels sit (T-275): panel ids in order in each sidebar, and the ones
+   * the user removed (see app/sidebarLayout). Unknown ids are ignored.
+   */
+  sidebars: { left: string[]; right: string[]; hidden: string[] };
+  /** Favorite notes, files and folders by vault path, in the user's order (T-275). */
+  favorites: string[];
+  /**
    * The ribbon beside the left panel (Settings → Appearance → Ribbon): on/off, the user's
    * button order and hidden buttons, by button id (see features/ribbon).
    */
@@ -230,6 +237,12 @@ export const DEFAULT_CONFIG: AxisConfig = {
   fileOrder: {},
   dashboards: {},
   hubEnabled: true,
+  sidebars: {
+    left: ["favorites", "files", "search", "tags", "hub"],
+    right: ["calendar", "outline", "graph", "backlinks"],
+    hidden: [],
+  },
+  favorites: [],
   ribbon: { enabled: true, order: [], hidden: [] },
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   home: { openOnStartup: false, onLastTabClose: false },

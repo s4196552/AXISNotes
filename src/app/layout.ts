@@ -184,5 +184,11 @@ export function showLeftPanel() {
   else if (s.compact) s.setOverlay("left");
   else s.setPanels({ left: true });
 }
+export function showRightPanel() {
+  const s = useLayout.getState();
+  if (s.zen) s.setZenReveal("right");
+  else if (s.compact) s.setOverlay("right");
+  else s.setPanels({ right: true });
+}
 /** Close the panel open over the note (compact windows). */
 export const closeOverlay = () => useLayout.getState().setOverlay(null);
