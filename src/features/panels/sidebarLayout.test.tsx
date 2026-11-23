@@ -14,6 +14,7 @@ import { renameEntry } from "../files/renameEntry";
 import { allCommands } from "../commands/registry";
 import { remapFavorites } from "./favorites";
 import { LeftSidebar, RightSidebar } from "./Sidebars";
+import { PluginsSettings } from "../settings/PluginsSettings";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {
@@ -309,5 +310,107 @@ describe("favorites", () => {
     expect(gone).toHaveClass("missing");
     fireEvent.click(gone);
     expect(useAppStore.getState().activePath).toBeNull();
+  });
+});
+
+describe("review fixes (T-276)", () => {
+  it("doesn't bring back a removed Files panel when AXIS Hub is switched off", async () => {
+    await act(() =>
+      useConfig.getState().update((c) => ({
+        ...c,
+        sidebars: {
+          ...c.sidebars,
+          left: ["favorites", "search", "tags", "hub"],
+          hidden: ["files"],
+        },
+      })),
+    );
+    useAppStore.setState({ leftPanel: "hub" });
+    render(<PluginsSettings />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Enable AXIS Hub" }));
+    await waitFor(() => expect(useConfig.getState().config.hubEnabled).toBe(false));
+    expect(useAppStore.getState().leftPanel).toBe("files");
+    expect((await saved()).sidebars.hidden).toEqual(["files"]);
+  });
+
+  it("drops favorites that aren't vault paths when the config loads", async () => {
+    await h.b.writeFile(
+      CONFIG_PATH,
+      JSON.stringify({ favorites: ["Plan.md", null, 3, { p: 1 }, "", "School"] }),
+    );
+    await act(() => useConfig.getState().load());
+    expect(useConfig.getState().config.favorites).toEqual(["Plan.md", "School"]);
+    render(<LeftSidebar />);
+    expect(screen.getByRole("list", { name: "Favorites" })).toBeTruthy();
+    await act(() => renameEntry("School", "Classes"));
+    expect(useConfig.getState().config.favorites).toEqual(["Plan.md", "Classes"]);
+  });
+
+  it("moves focus to the next panel after Remove panel", async () => {
+    act(() => useAppStore.getState().openFile("Plan.md"));
+    render(<RightSidebar />);
+    const calendar = within(screen.getByRole("region", { name: "Calendar section" })).getByRole(
+      "button",
+      { name: "Calendar" },
+    );
+    calendar.focus();
+    fireEvent.keyDown(calendar, { key: "F10", shiftKey: true });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove panel" }));
+    await waitFor(() => expect(document.activeElement?.textContent).toBe("Outline"));
+  });
+
+  it("keeps focus for a heading that mounts late, like the lazy Local graph", async () => {
+    const { keepFocus, handleRef } = await import("./panelCustomize");
+    const Late = ({ show }: { show: boolean }) =>
+      show ? (
+        <button data-panel-handle="graph" ref={handleRef("graph")}>
+          Local graph
+        </button>
+      ) : null;
+    const { rerender } = render(<Late show={false} />);
+    (document.activeElement as HTMLElement | null)?.blur();
+    keepFocus("graph");
+    // Several frames pass before the heading appears.
+    await new Promise((r) => setTimeout(r, 120));
+    rerender(<Late show />);
+    expect(document.activeElement?.textContent).toBe("Local graph");
+  });
+
+  it("lets other menus close when a panel's ⋯ button is pressed, and toggles its own", () => {
+    act(() => useAppStore.getState().openFile("Plan.md"));
+    render(<RightSidebar />);
+    const seen = vi.fn();
+    window.addEventListener("mousedown", seen);
+    const options = screen.getByRole("button", { name: "Calendar panel options" });
+    fireEvent.mouseDown(options);
+    expect(seen).toHaveBeenCalledTimes(1);
+    fireEvent.click(options);
+    expect(screen.getByRole("menu", { name: "Calendar panel" })).toBeTruthy();
+    expect(options).toHaveAttribute("aria-expanded", "true");
+    fireEvent.mouseDown(options);
+    fireEvent.click(options);
+    expect(screen.queryByRole("menu")).toBeNull();
+    window.removeEventListener("mousedown", seen);
+  });
+
+  it("says so when no panel on the right has anything for the open view", async () => {
+    await act(() =>
+      useConfig.getState().update((c) => ({
+        ...c,
+        sidebars: {
+          left: [...c.sidebars.left, "calendar", "backlinks"],
+          right: ["outline", "graph"],
+          hidden: [],
+        },
+      })),
+    );
+    await h.b.writeFile(
+      "Budget.axgrid",
+      JSON.stringify({ version: 1, rows: 1, cols: 1, cells: {} }),
+    );
+    await act(() => useAppStore.getState().refreshTree());
+    act(() => useAppStore.getState().openFile("Budget.axgrid"));
+    render(<RightSidebar />);
+    expect(screen.getByText(/Nothing to show here for this view/)).toBeTruthy();
   });
 });

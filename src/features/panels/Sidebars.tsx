@@ -58,12 +58,14 @@ const SkillResultsSidebar = lazyNamed(
 import { FavoritesList } from "./FavoritesPanel";
 import { AddPanelButton, SidebarMenu } from "./PanelMenus";
 import {
+  closeMenu,
   keepFocus,
   openPanelMenu,
   panelHandle,
   useDropMark,
   usePanelDrag,
   usePanelDragView,
+  usePanelMenu,
 } from "./panelCustomize";
 import "./panels.css";
 
@@ -192,6 +194,7 @@ function PanelMenuButton({
   side: SidebarSide;
   group: PanelId[];
 }) {
+  const open = usePanelMenu((s) => s.menu?.kind === "panel" && s.menu.id === id);
   return (
     <button
       type="button"
@@ -199,8 +202,11 @@ function PanelMenuButton({
       aria-label={`${PANEL_LABELS[id]} panel options`}
       title="Move or remove this panel"
       aria-haspopup="menu"
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => openPanelMenu(e, id, side, group)}
+      aria-expanded={open}
+      // Only while its own menu is open, so the click below can close it; other menus
+      // (the file tree's, a tab's) still close on this press.
+      onMouseDown={(e) => open && e.stopPropagation()}
+      onClick={(e) => (open ? closeMenu() : openPanelMenu(e, id, side, group))}
     >
       <Ellipsis size={14} aria-hidden="true" />
     </button>
@@ -559,6 +565,11 @@ export function RightSidebar() {
         <SectionStack ids={sections} side="right" ctx={ctx} className="side-stack">
           {!ctx.file && needsNote && (
             <p className="panel-note muted side-hint">Open a note to see its outline and links.</p>
+          )}
+          {sections.length === 0 && placement.right.length > 0 && !(!ctx.file && needsNote) && (
+            <p className="panel-note muted side-hint">
+              Nothing to show here for this view. Open a note, or add a panel with the button above.
+            </p>
           )}
           {placement.right.length === 0 && (
             <p className="panel-note muted side-hint">

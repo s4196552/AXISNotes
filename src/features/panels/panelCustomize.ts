@@ -36,14 +36,41 @@ export function handleRef(id: PanelId) {
   };
 }
 
-/** Keep focus on `id`'s handle through the re-render a change causes. */
+/** How long a handle that isn't on screen yet (the lazy Local graph) may still take focus. */
+const REFOCUS_WAIT = 3000;
+
+/**
+ * Keep focus on `id`'s handle through the re-render a change causes. A handle that mounts
+ * later (the Local graph loads on demand) takes focus from `handleRef` when it appears.
+ */
 export function keepFocus(id: PanelId) {
   refocus = id;
   requestAnimationFrame(() => {
     if (refocus !== id) return;
+    const el = document.querySelector<HTMLElement>(`[data-panel-handle="${id}"]`);
+    if (!el) {
+      setTimeout(() => {
+        if (refocus === id) refocus = null;
+      }, REFOCUS_WAIT);
+      return;
+    }
     refocus = null;
     const lost = document.activeElement === document.body || document.activeElement === null;
-    if (lost) document.querySelector<HTMLElement>(`[data-panel-handle="${id}"]`)?.focus();
+    if (lost) el.focus();
+  });
+}
+
+/** After `id` leaves its sidebar, focus the panel next to it, or the sidebar's Add panel. */
+export function focusAfterRemoving(id: PanelId, group: readonly PanelId[], side: SidebarSide) {
+  const at = group.indexOf(id);
+  const next = group[at + 1] ?? group[at - 1];
+  if (next) {
+    keepFocus(next);
+    return;
+  }
+  requestAnimationFrame(() => {
+    const lost = document.activeElement === document.body || document.activeElement === null;
+    if (lost) document.querySelector<HTMLElement>(`[data-add-panel="${side}"]`)?.focus();
   });
 }
 
