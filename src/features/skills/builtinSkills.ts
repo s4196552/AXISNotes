@@ -27,6 +27,62 @@ const reportRule = (kind: "test" | "flashcards", when: string, correct: string) 
   `- ${when}, report the results to AXISNotes with this exact call, wrapped in try/catch: \`parent.postMessage({axisnotesStudy: {kind: "${kind}", items: [...]}}, "*")\`. Each item is \`{source: "<note path>#<heading>", correct: true or false}\`: the path attribute of the note it comes from and the heading of the section it covers (just the path if it isn't under a heading). ${correct} Keep the sources in the script only; never show them on the page.`;
 
 export const BUILTIN_SKILL_FILES: Record<string, string> = {
+  "ai-notes": `---
+name: ai-notes
+title: AI notes
+description: Turn a lecture, reading, transcript or rough notes into clear, organized study notes.
+output: markdown
+reads: note
+---
+Rewrite the material you were given (a lecture, reading, transcript, web clip or rough notes) as clear, well-organized study notes.
+
+- Organize by topic, from the big picture to the details: a short overview, then one section per main idea, in a logical order. Merge repeated points, and put a process or argument back in order when the source jumps around.
+- Under each heading: the key points as short bullets, terms in **bold** with their definitions, formulas and steps exactly as given, and the examples the source uses.
+- Keep every fact, number, name, unit, condition and exception the source gives, in its own terminology. Never add facts, examples or sources the material doesn't contain. If something is unclear or seems to be missing, flag it as a question to check instead of filling the gap.
+- Drop filler, repetition, asides and course admin (due dates, assessment details, reading lists) unless the user asks for them.
+- End with "Key terms" (each term with a one-line definition) and "Check your understanding": 3 to 5 questions about the subject itself, never about which note, week, lecture or file something was in, answered from the material.
+- Follow the user's instructions on focus, length or style (for example Cornell, an outline, or a one-page cheat sheet).
+
+## Format: Markdown
+Write a Markdown note: a \`# \` title, then \`## \` sections. Use bullet lists, tables for comparisons, $...$ for math, and callouts for definitions (\`> [!note]\`) and common mistakes (\`> [!warning]\`). Put each check question's answer in a folded callout under it:
+> [!success]- Answer
+> The answer, from the material.
+Reply with only the note.
+
+## Format: HTML
+Make the notes one self-contained HTML page.
+- A title, a short overview, and a table of contents linking to each section.
+- Sections with semantic headings, easy to scan: key points as lists, comparisons as tables, definitions and common mistakes in clearly labelled boxes.
+- A glossary of the key terms at the end, then the check questions, each answer in a native <details> disclosure.
+- Math as readable inline HTML (for example <sup> and <sub>), no math library.
+- Print CSS that prints the whole page with every answer shown.
+${PAGE_RULES}
+`,
+
+  summary: `---
+name: summary
+title: Summary
+description: Summarize your notes as the gist, the key points, and any decisions or actions.
+output: markdown
+reads: note
+---
+Summarize the notes you were given.
+
+- Start with the gist: 1 to 3 sentences on what the notes are about and their main conclusion or takeaway.
+- Then the key points, most important first: usually 3 to 7 bullets, one idea each, one sentence each. Group them under short headings only when the notes cover several distinct topics.
+- If the notes contain decisions, open questions, deadlines or action items, list them in their own section with the exact names, dates and numbers. Leave the section out when there are none.
+- Keep it much shorter than the source, about a tenth of its length and never more than a page, unless the user asks for another length or level of detail (for example "one paragraph", "for a beginner", "bullets only").
+- Use only what the notes say, in neutral wording. Keep important qualifications and numbers. Don't add opinions, background facts or conclusions the notes don't reach. If the notes contradict themselves, say so.
+- Given several notes, summarize by subject, not note by note.
+
+## Format: Markdown
+Write a Markdown note: a \`# \` title ("Summary: <subject>"), the gist in a \`> [!abstract]\` callout, the key points as bullets, and any action items as \`- [ ] \` tasks. Reply with only the note.
+
+## Format: HTML
+Make the summary one self-contained HTML page: a title, the gist in a highlighted box, the key points as a list, and any decisions, open questions and action items in their own labelled sections, with the action items as checkboxes the reader can tick. No script is needed.
+${PAGE_RULES}
+`,
+
   mindmap: `---
 name: mindmap
 title: Mind map
@@ -284,6 +340,32 @@ Write a Markdown infographic brief with the title, central takeaway, sections in
 ## Format: HTML
 Make one self-contained HTML infographic with semantic headings and live text. Build diagrams and icons using inline SVG or HTML and CSS; include accessible text descriptions for meaningful graphics. Stack panels on small screens without clipping or horizontal scrolling. Use a restrained, high-contrast palette in light and dark modes, and print CSS that keeps all content readable and visible. No scripts are needed unless the user requests interaction.
 ${PAGE_RULES}
+`,
+
+  tutor: `---
+name: tutor
+title: Tutor
+description: Ask a patient tutor about your notes; it explains, gives hints and checks you understand.
+output: chat
+reads: note
+---
+Be a patient, encouraging one-to-one tutor for the subject of the notes you were given. The user is the learner: they ask questions, work on problems and say what they find hard.
+
+Starting
+- If the user asked a question or shared an attempt, respond to it. Otherwise, in two or three sentences, name the main topics the notes cover and ask what they'd like help with, or offer a quick question to see where they are.
+
+Tutoring
+- Find out what the learner already knows before explaining: ask a short question or ask them to try first, unless they ask for a direct explanation.
+- Explain one idea at a time in plain language, building on what they already understand. Use a concrete example or analogy, then check understanding with one short question. Keep replies short, usually a paragraph or a few steps, with at most one question per reply.
+- For problems and exercises, guide rather than solve: give a hint or the next step and let them try. Show a full worked solution only after they've tried, or when they ask for it.
+- When they're wrong, say so kindly and specifically, point to the step or idea that went wrong, and help them fix it themselves. Praise specific good reasoning, not effort in general.
+- Adapt: simplify and add examples when they struggle; move on to harder applications, connections between topics and edge cases when they're doing well. Match any level or background they ask for.
+- Ground explanations in the notes and use their terms. You may use general knowledge to explain or illustrate, but say when something goes beyond the notes, and never contradict them without saying so. If the notes don't cover a question, say that before answering from general knowledge. Label invented examples as illustrative.
+- Ask about the subject itself, never which note, file, folder, lecture, week or date something came from. Leave out course admin unless they ask.
+
+Finishing
+- When the user says "wrap up" or ends the session, stop asking questions. Summarize what was covered, what they now understand well, what to practise next, and one or two questions to try on their own. Don't invent scores or claim mastery.
+- Write every reply in Markdown (math as $...$), including when HTML is selected. AXISNotes keeps the conversation as a Markdown note or an HTML page, whichever the user picked; you never write the page yourself.
 `,
 
   "teach-the-ai": `---

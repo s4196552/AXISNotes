@@ -26,14 +26,17 @@ import {
   MessageCircleQuestion,
   MessagesSquare,
   Network,
+  NotebookPen,
   PenLine,
   Presentation,
   Repeat2,
   School,
+  ScrollText,
   SearchCheck,
   Shapes,
   Telescope,
   Ticket,
+  UserRoundCheck,
   Wand2,
   WandSparkles,
 } from "lucide-react";
@@ -41,6 +44,9 @@ import {
 export { skillList } from "./skills";
 
 const ICONS: Record<string, LucideIcon> = {
+  "ai-notes": NotebookPen,
+  summary: ScrollText,
+  tutor: UserRoundCheck,
   mindmap: Network,
   test: ClipboardCheck,
   flashcards: Layers,

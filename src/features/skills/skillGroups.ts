@@ -2,9 +2,10 @@ import type { Skill } from "./skills";
 
 /** Human-chosen menu order. Categorization never changes a skill's ID or instructions. */
 const CATEGORIES = [
+  { name: "Notes & summaries", ids: ["ai-notes", "summary"] },
   {
     name: "Learn & understand",
-    ids: ["teach", "teach-the-ai", "example"],
+    ids: ["tutor", "teach", "teach-the-ai", "example"],
   },
   { name: "Practice & remember", ids: ["test", "flashcards", "mnemonic", "make-it-stick"] },
   { name: "Visualize & present", ids: ["mindmap", "infographic", "slide-deck"] },
