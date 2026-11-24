@@ -32,6 +32,8 @@ const UPDATE: AvailableUpdate = {
   notes: "",
   pubDate: null,
   file: "AXISNotes_0.4.0_x64-setup.exe",
+  verified: true,
+  unverifiedReason: null,
 };
 
 beforeAll(() => {
@@ -98,7 +100,7 @@ describe("installing an update", () => {
     // Clicked inside the autosave delay: nothing is on disk yet.
     expect(h.b.files()["School/Biology.md"]).toBe("# Biology");
     fireEvent.click(installButton());
-    await waitFor(() => expect(install).toHaveBeenCalledWith("0.4.0"));
+    await waitFor(() => expect(install).toHaveBeenCalledWith("0.4.0", false));
     expect(onDiskAtInstall?.["School/Biology.md"]).toBe("# Biology\n\nmitosis");
   });
 

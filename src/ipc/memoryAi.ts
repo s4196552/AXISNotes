@@ -15,6 +15,7 @@ import type {
   ErrorCode,
 } from "./types";
 import { noteMark, stricter } from "../lib/aiAccess";
+import { isLocalUrl, isPlaintextRemote, PLAIN_HTTP_REMOTE } from "../lib/aiEndpoint";
 
 // In-memory stand-in for the Rust AI layer (unit tests and browser dev). It mirrors the
 // real rules — privacy, keys, task defaults, fallback — and "answers" by streaming an
@@ -108,18 +109,7 @@ const requiresKey = (k: AiProviderKind) =>
   k === "openai" || k === "anthropic" || k === "gemini" || k === "openrouter";
 
 function isLocal(p: AiProviderConfig): boolean {
-  const url = (p.baseUrl.trim() || DEFAULT_URL[p.kind]).toLowerCase();
-  const host = url
-    .replace(/^\w+:\/\//, "")
-    .split(/[/?]/)[0]!
-    .replace(/:\d+$/, "");
-  return (
-    p.kind !== "chatgpt" &&
-    (host === "localhost" ||
-      host.endsWith(".localhost") ||
-      host.startsWith("127.") ||
-      host === "[::1]")
-  );
+  return p.kind !== "chatgpt" && isLocalUrl(p.baseUrl.trim() || DEFAULT_URL[p.kind]);
 }
 
 function ruleFor(rules: Record<string, AiRule>, path: string): AiRule {
@@ -279,6 +269,7 @@ export function createMemoryAi(readFile: (path: string) => string | null): AiBac
       for (const p of next.providers) {
         if (!p.id.trim() || p.id.toLowerCase().startsWith("chatgpt-session:") || ids.has(p.id))
           fail("InvalidName", `invalid name: provider id ${p.id}`);
+        if (isPlaintextRemote(p.baseUrl)) fail("Blocked", `${p.name}: ${PLAIN_HTTP_REMOTE}`);
         if (p.kind === "chatgpt" && p.baseUrl.trim())
           fail("Blocked", "ChatGPT plan connections use only the official OpenAI endpoint");
         if (settings.providers.some((old) => old.id === p.id && old.kind !== p.kind))

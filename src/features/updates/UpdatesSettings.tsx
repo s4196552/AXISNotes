@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { FolderOpen } from "lucide-react";
 import { backend, isBackendError, type UpdateSettings } from "../../ipc";
+import { Unverified } from "./UpdateBanner";
 import { useUpdates } from "./updates";
 import "./updates.css";
 
@@ -94,9 +95,11 @@ export function UpdatesSettings() {
             disabled={installing}
             // Keep focus where it is until install() has started protecting edits (T-073).
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => void install()}
+            onClick={() => void install(true)}
           >
-            Install {available.version} and restart
+            {available.verified
+              ? `Install ${available.version} and restart`
+              : `Install ${available.version} anyway`}
           </button>
         )}
       </div>
@@ -109,6 +112,12 @@ export function UpdatesSettings() {
           <span>
             AXISNotes {available.version} is available.
             {available.notes && <span className="muted"> {available.notes}</span>}
+            {!available.verified && (
+              <>
+                {" "}
+                <Unverified reason={available.unverifiedReason} />
+              </>
+            )}
           </span>
         ) : checked ? (
           <span className="muted">You have the latest version.</span>

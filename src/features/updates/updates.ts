@@ -17,7 +17,9 @@ interface UpdatesState {
   error: string | null;
   /** Look in the updates folder; returns what it found. */
   check(): Promise<AvailableUpdate | null>;
-  install(): Promise<void>;
+  /** `chosen`: the user asked for this install (a button), so an update shown as not
+   *  verified may install. The launch check never passes it. */
+  install(chosen?: boolean): Promise<void>;
   dismiss(): void;
 }
 
@@ -41,9 +43,10 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
       set({ checking: false });
     }
   },
-  async install() {
+  async install(chosen = false) {
     const update = get().available;
     if (!update || get().installing) return;
+    if (!update.verified && !chosen) return;
     set({ installing: true, error: null });
     try {
       // Installing closes the app (T-073): freeze the window and save every open document
@@ -59,7 +62,9 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
         return;
       }
       // On success the app closes while the installer runs, then reopens updated.
-      await backend.updatesInstall(update.version);
+      // Only an update the user saw marked as not verified may install unverified; if a
+      // verified one turned unverified since the check, the backend refuses it.
+      await backend.updatesInstall(update.version, chosen && !update.verified);
     } catch (e) {
       freezeEditing(false);
       set({ installing: false, error: message(e) });
@@ -69,7 +74,9 @@ export const useUpdates = create<UpdatesState>((set, get) => ({
 }));
 
 /** Once per app start: check the updates folder unless that is turned off, and install
- *  what it finds when automatic install is on (the default) and this build can install.
+ *  what it finds when automatic install is on (the default), this build can install and
+ *  the update is verified (signed by the release key, T-282). An unverified one is only
+ *  offered in the banner.
  *  Problems (e.g. an unreachable network folder) stay quiet here; Settings → Updates shows
  *  them. Installing still saves every open document first and refuses over unsaved edits,
  *  showing why in the banner. */
@@ -83,5 +90,6 @@ export async function checkOnLaunch() {
   }
   const found = await useUpdates.getState().check();
   if (!found) useUpdates.setState({ error: null });
-  else if (settings.autoInstall && settings.canInstall) await useUpdates.getState().install();
+  else if (found.verified && settings.autoInstall && settings.canInstall)
+    await useUpdates.getState().install();
 }

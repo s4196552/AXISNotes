@@ -2,6 +2,32 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-25 — What counts as a local AI endpoint (T-281)
+
+- **Parsed, not matched.** `is_local_url` parses the endpoint with the `url` crate (WHATWG
+  rules, the parser reqwest itself uses), so the host checked is the host the client
+  connects to. Local means http/https, no user name or password, and a host that is a
+  loopback IP (127.0.0.0/8, `::1`), exactly `localhost`, or a name ending in `.localhost`.
+  `localhost.` (trailing dot), `0.0.0.0`, `::ffff:127.0.0.1` and anything unparsable are
+  not local. Before, `http://127.0.0.1.evil.com`, `http://evil.com#.localhost`,
+  `http://evil.com\.localhost` and `http://localhost@evil.com` counted as local.
+- **Plain http only on this computer.** Saving an `http://` endpoint for another computer
+  (including a LAN server such as `http://192.168.1.10:11434`) is refused, so API keys and
+  notes never cross a network unencrypted. Such a server needs https, or a local
+  forwarder (which then counts as local only in the "requests go to this computer" sense).
+  An endpoint saved by an older version is kept, so the user sees it, and the transport
+  refuses to send to it.
+- **Two HTTP clients.** Requests to local endpoints use a client that follows no
+  redirects, ignores system proxies and resolves names only to loopback. Remote requests
+  follow up to 5 redirects, only to the same host and port over https: never to this
+  computer, and never to another host, because some providers' keys travel in their own
+  headers (`x-api-key`, `x-goog-api-key`), which reqwest only strips from standard auth
+  headers.
+- Localhost still doesn't prove on-device inference; the folder-privacy hint says a local
+  server could pass requests on.
+- **Dependency:** `url` 2.5.8 (MIT OR Apache-2.0) as a direct dependency. It was already in
+  the lockfile through reqwest and Tauri; no new crate is downloaded.
+
 ## 2026-11-12 — AXIS Hub as a bundled Notes plugin (T-230)
 
 - The Windows launcher is available as a dashboard widget and sidebar panel.
@@ -1093,3 +1119,39 @@ The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq,
 - **Known limits.** `[[links]]` inside a block aren't indexed (the indexer skips fenced code).
   Math isn't rendered in cards. Blocks show as source inside `![[Note]]` embeds. There is no
   per-feature switch yet; that waits for the module system (T-062).
+
+## 2026-11-25 — T-282: signed update manifests and publish guards
+
+- **Why:** the 2026-11-25 audit rated the folder updater the top risk. The SHA-256 sat in the
+  same folder as the installer, and automatic install was on by default, so anything that can
+  write to the updates folder (or a NAS share) could run code on the next launch. This
+  supersedes T-066's "signed updates come with hosted releases".
+- **Signature:** `publish-update.ps1` writes `latest.json.sig` next to `latest.json`: the
+  base64 Ed25519 signature of the manifest's exact bytes (so version, file name and SHA-256
+  are covered together; no JSON canonicalisation). The app embeds the raw public key
+  (`UPDATE_PUBLIC_KEY` in `src-tauri/src/updates.rs`) and checks the signature over the bytes
+  it parses, both when checking and again when preparing the install.
+- **Unverified manifests** (no signature, bad base64, wrong key, any edit after signing) are
+  still offered, marked "Not verified" with the reason, and the button reads "Install anyway".
+  They are never installed automatically: the launch check skips them, and Rust's `prepare`
+  refuses unless the call says `allowUnverified`, which the UI sends only for an update it
+  showed as unverified. A verified offer that turns unverified before the click is refused.
+- **Defaults unchanged:** check on launch and automatic install stay on; automatic install
+  now applies to verified updates only.
+- **Key:** generated once by `publish-update.ps1 -NewKey` (Node's `crypto`, through
+  `scripts/update-signing.mjs`), stored as PKCS#8 PEM at
+  `%APPDATA%\AXISNotes\update-signing.key` with inheritance removed and only the user granted.
+  Never in the repository. The script refuses to publish if that key's public half doesn't
+  match the embedded one. Losing the key means installed apps can only take a manual,
+  unverified install of a build that embeds a new key; it must be backed up offline.
+- **Publish guards:** refuse on a dirty tree (untracked files ignored), a branch other than
+  `main`, an existing tag, a version not newer than `package.json`, or failing `pnpm lint`,
+  `typecheck` or `test` (`-SkipChecks` for emergencies, recorded in the tag and
+  `publish-log.txt`). The script commits `Release X.Y.Z: version bump`, creates the annotated
+  tag `vX.Y.Z` (never pushes), and keeps the `-Keep` newest installers (10). `-DryRun` runs
+  the guards and prints the plan.
+- **Authenticode:** optional `-CertThumbprint` signs the installer with signtool (timestamped)
+  before hashing; without it the script warns. No certificate exists yet.
+- **No new dependencies.** Verification uses `ring` 0.17 (`ring::signature::ED25519`), already
+  a dependency for TLS and SHA-256 (license `Apache-2.0 AND ISC`); signing uses Node's built-in
+  `crypto`. `ed25519-dalek` was not needed.

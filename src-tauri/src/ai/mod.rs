@@ -82,25 +82,38 @@ impl ProviderKind {
     }
 }
 
-/// True if `base_url` points at this machine (so data never leaves it).
+/// True if `base_url` points at this machine, so requests to it stay on this computer.
+///
+/// Parsed as a URL (WHATWG rules, the same parser the HTTP client uses), not matched as a
+/// string. Local means: scheme `http` or `https`, no user name or password, and a host
+/// that is a loopback IP (127.0.0.0/8 or `::1`), exactly `localhost`, or a name ending in
+/// `.localhost`. Anything that doesn't parse is not local (fail closed).
+///
+/// This says where requests go, not where inference runs: a local server can still
+/// forward them elsewhere.
 pub fn is_local_url(base_url: &str) -> bool {
-    let rest = base_url
-        .split_once("://")
-        .map_or(base_url, |(_, r)| r)
-        .to_ascii_lowercase();
-    let host = rest.split(['/', '?']).next().unwrap_or("");
-    let host = if let Some(h) = host.strip_prefix('[') {
-        h.split(']').next().unwrap_or("")
-    } else {
-        host.rsplit_once(':').map_or(host, |(h, port)| {
-            if port.chars().all(|c| c.is_ascii_digit()) {
-                h
-            } else {
-                host
-            }
-        })
+    url::Url::parse(base_url.trim()).is_ok_and(|u| is_local(&u))
+}
+
+/// [`is_local_url`] for an already parsed URL.
+pub fn is_local(url: &url::Url) -> bool {
+    let host_is_local = match url.host() {
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        // The parser has already lowercased the name and converted it to ASCII.
+        Some(url::Host::Domain(name)) => is_localhost_name(name),
+        None => false,
     };
-    host == "localhost" || host.ends_with(".localhost") || host == "::1" || host.starts_with("127.")
+    matches!(url.scheme(), "http" | "https")
+        && url.username().is_empty()
+        && url.password().is_none()
+        && host_is_local
+}
+
+/// `localhost` or a name under it (RFC 6761), in lowercase. A trailing dot is not
+/// accepted: `localhost.` is a fully qualified name a resolver may send to DNS.
+pub fn is_localhost_name(name: &str) -> bool {
+    name == "localhost" || (name.len() > ".localhost".len() && name.ends_with(".localhost"))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -324,16 +337,68 @@ mod tests {
     fn recognizes_local_endpoints() {
         for url in [
             "http://localhost:11434/v1",
+            "http://localhost:11434",
             "http://127.0.0.1:1234/v1",
+            "http://127.1.2.3/v1",
+            "https://localhost/v1",
             "http://[::1]:8080",
+            "http://[::1]",
+            "http://[0:0:0:0:0:0:0:1]:8080/v1",
             "http://ollama.localhost/v1",
+            "http://foo.localhost",
+            "http://a.b.localhost:9000/v1",
+            // Hosts are case-insensitive; the parser lowercases them.
+            "http://LOCALHOST:11434/v1",
+            "HTTP://LocalHost/v1",
+            "http://Foo.LOCALHOST/v1",
+            "  http://localhost:11434/v1  ",
         ] {
             assert!(is_local_url(url), "{url}");
         }
+    }
+
+    #[test]
+    fn rejects_lookalike_and_crafted_endpoints() {
         for url in [
             "https://api.openai.com/v1",
             "http://localhost.evil.com/v1",
             "http://192.168.1.10:11434/v1",
+            // A name that starts with a loopback address is still a name.
+            "http://127.0.0.1.evil.com/v1",
+            "http://127.0.0.1.nip.io:11434/v1",
+            // The fragment and the backslash end the host: these go to evil.com.
+            "http://evil.com#.localhost",
+            "http://evil.com/#.localhost",
+            "http://evil.com\\.localhost",
+            "http://evil.com?.localhost",
+            // User info: the host is after the @.
+            "http://localhost@evil.com",
+            "http://localhost:11434@evil.com/v1",
+            "http://127.0.0.1@evil.com/v1",
+            "http://user:pass@localhost:11434/v1",
+            "http://user@localhost/v1",
+            // Trailing dot: a fully qualified name that may go to DNS.
+            "http://localhost./v1",
+            "http://foo.localhost./v1",
+            "http://.localhost/v1",
+            // Not loopback.
+            "http://0.0.0.0:11434/v1",
+            "http://[::]:11434/v1",
+            "http://[::ffff:127.0.0.1]/v1",
+            "http://[fe80::1]/v1",
+            "http://localhostx/v1",
+            "http://evillocalhost/v1",
+            // Not a web address, or not http(s).
+            "",
+            "localhost:11434",
+            "127.0.0.1",
+            "//localhost/v1",
+            "file://localhost/etc/passwd",
+            "ws://localhost:11434",
+            "ftp://127.0.0.1/",
+            "http://",
+            "http://[::1",
+            "not a url",
         ] {
             assert!(!is_local_url(url), "{url}");
         }

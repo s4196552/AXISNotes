@@ -17,6 +17,7 @@ import {
 } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
+import { isPlaintextRemote, PLAIN_HTTP_REMOTE } from "../../lib/aiEndpoint";
 import { KIND_LABELS, RULE_LABELS, TASK_LABELS } from "./labels";
 import "./ai.css";
 import { SubscriptionConnection } from "./SubscriptionConnection";
@@ -241,6 +242,13 @@ function ProviderCard(p: {
                     ok: false,
                     text: "That's an API key, so it was moved to the key box. Press Save key.",
                   });
+                  return;
+                }
+                if (isPlaintextRemote(value)) {
+                  // Refused by the backend too; say why here, next to the box, and keep
+                  // the saved endpoint.
+                  e.target.value = provider.baseUrl;
+                  setTest({ ok: false, text: PLAIN_HTTP_REMOTE });
                   return;
                 }
                 if (value !== provider.baseUrl) p.onChange({ baseUrl: value });
@@ -564,7 +572,9 @@ function FolderRules() {
       <p className="settings-hint muted">
         Notes in a folder marked <strong>Never</strong> are never sent to any AI provider;{" "}
         <strong>Local models only</strong> allows only providers on this device. Subfolders inherit
-        the rule unless they have their own. Also available from the file tree's menu.
+        the rule unless they have their own. Also available from the file tree's menu. A provider on
+        this device (localhost) keeps requests on this computer, but a local server could still pass
+        them on elsewhere.
       </p>
       {entries.length > 0 && (
         <ul className="ai-rules">

@@ -161,7 +161,8 @@ export function createTauriBackend(): Backend {
     updatesSaveSettings: (checkOnLaunch, autoInstall, folder) =>
       invoke("updates_save_settings", { checkOnLaunch, autoInstall, folder }),
     updatesCheck: () => invoke("updates_check"),
-    updatesInstall: (version) => invoke("updates_install", { version }),
+    updatesInstall: (version, allowUnverified = false) =>
+      invoke("updates_install", { version, allowUnverified }),
     async onClipped(cb) {
       return listen<Clipped>(CLIPPED_EVENT, (e) => cb(e.payload));
     },
