@@ -6,6 +6,8 @@ import { Key } from "webdriverio";
 
 // Updates from a folder (T-066) on the real app. With AXIS_CONFIG_DIR set, the default
 // updates folder is `<config>/updates`, so this never sees a real published update.
+// These manifests aren't signed by the release key (T-282), so they are offered as not
+// verified, for a manual install only; signatures are covered by the Rust tests.
 
 const updates = path.join(process.env.AXIS_CONFIG_DIR!, "updates");
 const QA_DIR = path.resolve(process.cwd(), ".agents", "qa", "updates");
@@ -49,7 +51,8 @@ describe("Updates from a folder", () => {
     await expect($(".updates-status")).toHaveText(
       expect.stringContaining("AXISNotes 0.99.0 is available."),
     );
-    await expect($("button=Install 0.99.0 and restart")).toBeDisplayed();
+    await expect($(".updates-status")).toHaveText(expect.stringContaining("Not verified"));
+    await expect($("button=Install 0.99.0 anyway")).toBeDisplayed();
 
     // A fresh start of the UI checks by itself and shows the banner.
     await browser.refresh();
@@ -60,7 +63,7 @@ describe("Updates from a folder", () => {
     await browser.saveScreenshot(path.join(QA_DIR, "banner.png"));
 
     // This E2E build is a development build, which refuses to install over the real app.
-    await banner.$("button=Install and restart").click();
+    await banner.$("button=Install anyway").click();
     await expect(banner.$('[role="alert"]')).toHaveText(
       expect.stringContaining("not a development build"),
     );
@@ -85,7 +88,7 @@ describe("Updates from a folder", () => {
     await expect($(".editor-banner")).toHaveText(expect.stringContaining("changed on disk"));
 
     // Installing is refused, naming the note, and neither version is lost.
-    await banner.$("button=Install and restart").click();
+    await banner.$("button=Install anyway").click();
     await expect(banner.$('[role="alert"]')).toHaveText(
       expect.stringContaining("Unsaved changes in “Welcome” (changed on disk)"),
     );
@@ -99,7 +102,7 @@ describe("Updates from a folder", () => {
     await browser.waitUntil(() => onDisk().includes("mine"));
     await $(".cm-content").click();
     await browser.keys(" more");
-    await banner.$("button=Install and restart").click();
+    await banner.$("button=Install anyway").click();
     // This development build refuses at the installer step, after the guard has passed.
     await expect(banner.$('[role="alert"]')).toHaveText(
       expect.stringContaining("not a development build"),

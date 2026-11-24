@@ -34,6 +34,10 @@
 .update-banner button {
   flex: none;
 }
+/* T-282: an update whose manifest isn't signed by the release key. */
+.update-unverified {
+  color: var(--danger);
+}
 .updates-settings {
   display: flex;
   flex-direction: column;

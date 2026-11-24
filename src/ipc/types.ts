@@ -399,6 +399,11 @@ export interface AvailableUpdate {
   pubDate: string | null;
   /** The installer's file name in the updates folder. */
   file: string;
+  /** Its manifest is signed by the AXISNotes release key (T-282). Only a verified update
+   *  installs automatically; others need the user to choose them. */
+  verified: boolean;
+  /** Why it isn't verified; null when verified. */
+  unverifiedReason: string | null;
 }
 
 // ---- Import from other apps (Phase 6, T-103); see src-tauri/src/import ----
@@ -694,8 +699,9 @@ export interface Backend {
   ): Promise<UpdateSettings>;
   /** A newer version in the updates folder, or null. */
   updatesCheck(): Promise<AvailableUpdate | null>;
-  /** Verifies and starts the installer, which closes the app, updates it and reopens it. */
-  updatesInstall(version: string): Promise<void>;
+  /** Verifies and starts the installer, which closes the app, updates it and reopens it.
+   *  An update that isn't verified installs only with `allowUnverified`. */
+  updatesInstall(version: string, allowUnverified?: boolean): Promise<void>;
 
   inspectImport(kind: ImportKind, source: string): Promise<ImportPreview>;
   /**

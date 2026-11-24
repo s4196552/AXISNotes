@@ -108,13 +108,19 @@ pub fn updates_check(app: AppHandle) -> AppResult<Option<Available>> {
         &folder(&app)?,
         &app.package_info().version.to_string(),
         &updates::platform(),
+        &updates::release_key(),
     )
 }
 
 /// Verifies the installer for `version`, starts it (it closes this app, installs over it
-/// and reopens it) and quits.
+/// and reopens it) and quits. An update whose manifest isn't signed by the release key is
+/// installed only with `allow_unverified` (the user chose one shown as not verified).
 #[tauri::command]
-pub fn updates_install(app: AppHandle, version: String) -> AppResult<()> {
+pub fn updates_install(
+    app: AppHandle,
+    version: String,
+    allow_unverified: Option<bool>,
+) -> AppResult<()> {
     if cfg!(debug_assertions) {
         return Err(AppError::Io(
             "Updates install into the installed app, not a development build.".into(),
@@ -134,6 +140,8 @@ pub fn updates_install(app: AppHandle, version: String) -> AppResult<()> {
         &updates::platform(),
         &version,
         &staging,
+        &updates::release_key(),
+        allow_unverified.unwrap_or(false),
     )?;
     // The installer runs itself, in its own (AXISNotes-branded) window: passive (progress
     // only), update mode (keeps the user's shortcut choices) and relaunch when done.
