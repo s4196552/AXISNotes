@@ -360,37 +360,149 @@ export function mergeConfig(raw: unknown): AxisConfig & Record<string, unknown> 
   return out;
 }
 
+/**
+ * Why the vault's settings file can't be saved right now (T-278): it couldn't be read or
+ * isn't valid JSON (`broken`; nothing is written so the user's file, with its AI privacy
+ * rules, is never replaced by defaults), or the last save failed (`write`).
+ */
+export interface ConfigProblem {
+  kind: "broken" | "write";
+  message: string;
+}
+
 interface ConfigState {
   config: AxisConfig;
   loaded: boolean;
+  problem: ConfigProblem | null;
   load(): Promise<void>;
-  /** Apply `fn` to the config and persist it. */
+  /**
+   * Apply `fn` to the config at once and save it shortly after (changes in quick
+   * succession, like a slider drag, are saved once). Resolves when it's on disk. Nothing
+   * is saved while the file is broken. A failed save sets `problem` instead of rejecting.
+   */
   update(fn: (c: AxisConfig) => AxisConfig): Promise<void>;
+  /** Save a change still waiting (before switching vaults or closing). */
+  flush(): Promise<void>;
+  /** Replace a broken settings file with the settings shown now (a copy was kept). */
+  resetBroken(): Promise<void>;
 }
 
-export const useConfig = create<ConfigState>((set, get) => ({
-  config: DEFAULT_CONFIG,
-  loaded: false,
+/** Backup of a settings file that couldn't be read, kept beside it. */
+export const CONFIG_BACKUP_PATH = `${CONFIG_PATH}.bak`;
 
-  async load() {
-    try {
-      const file = await backend.readFile(CONFIG_PATH);
-      const raw = migrateRemovedThemes(
-        migrateWindowEffect(migrateTriggers(JSON.parse(file.content || "{}"))),
-      );
-      set({ config: mergeConfig(raw), loaded: true });
-    } catch (e) {
-      // Missing or invalid: fall back to defaults (written on first change).
-      if (!(isBackendError(e) && e.code === "NotFound") && !(e instanceof SyntaxError)) {
-        console.warn("config load failed", e);
+// Tests save right after each change, so they can read the file back at once.
+let writeDelayMs = import.meta.env.MODE === "test" ? 0 : 300;
+/** For tests: how long a change waits before it's saved (0 = right after the change). */
+export function setConfigWriteDelay(ms: number) {
+  writeDelayMs = ms;
+}
+
+let timer: ReturnType<typeof setTimeout> | null = null;
+/** Callers waiting for the next save. */
+let waiting: (() => void)[] = [];
+/** The save in progress: saves never overlap, so an older one can't land last. */
+let saving: Promise<void> = Promise.resolve();
+
+const describeError = (e: unknown) =>
+  isBackendError(e) || e instanceof Error ? e.message : String(e);
+
+export const useConfig = create<ConfigState>((set, get) => {
+  /** Save the config as it is now, after any save in progress. */
+  const save = () => {
+    timer = null;
+    const done = waiting;
+    waiting = [];
+    const run = saving.then(async () => {
+      if (get().problem?.kind === "broken") return;
+      const text = JSON.stringify(get().config, null, 2) + "\n";
+      try {
+        await backend.writeFile(CONFIG_PATH, text);
+        if (get().problem) set({ problem: null });
+      } catch (e) {
+        set({
+          problem: { kind: "write", message: `Settings couldn't be saved: ${describeError(e)}` },
+        });
+        throw e;
       }
-      set({ config: DEFAULT_CONFIG, loaded: true });
-    }
-  },
+    });
+    saving = run.catch(() => {});
+    // A failed save is shown through `problem`, so callers aren't left with a rejection.
+    void saving.then(() => done.forEach((resolve) => resolve()));
+    return run;
+  };
 
-  async update(fn) {
-    const next = fn(get().config);
-    set({ config: next });
-    await backend.writeFile(CONFIG_PATH, JSON.stringify(next, null, 2) + "\n");
-  },
-}));
+  return {
+    config: DEFAULT_CONFIG,
+    loaded: false,
+    problem: null,
+
+    async load() {
+      // Switching vaults saves a waiting change first (store.openVault). One still waiting
+      // here would be written over the file about to be read, so it's dropped instead.
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+        const dropped = waiting;
+        waiting = [];
+        dropped.forEach((resolve) => resolve());
+      }
+      await saving;
+      let file: { content: string } | null = null;
+      try {
+        file = await backend.readFile(CONFIG_PATH);
+        const raw = migrateRemovedThemes(
+          migrateWindowEffect(migrateTriggers(JSON.parse(file.content || "{}"))),
+        );
+        set({ config: mergeConfig(raw), loaded: true, problem: null });
+      } catch (e) {
+        if (isBackendError(e) && e.code === "NotFound") {
+          // No settings yet: the defaults, written on the first change.
+          set({ config: DEFAULT_CONFIG, loaded: true, problem: null });
+          return;
+        }
+        // Unreadable or not valid JSON: keep a copy, show the defaults, and save nothing,
+        // so the file (and the AI privacy rules in it) is never replaced (T-278).
+        console.warn("config load failed", e);
+        let kept = false;
+        if (file)
+          kept = await backend.writeFile(CONFIG_BACKUP_PATH, file.content).then(
+            () => true,
+            () => false,
+          );
+        set({
+          config: DEFAULT_CONFIG,
+          loaded: true,
+          problem: {
+            kind: "broken",
+            message:
+              `This vault's settings file (${CONFIG_PATH}) couldn't be read: ${describeError(e)}. ` +
+              "AXISNotes is using its default settings and won't save changes until it's fixed." +
+              (kept ? ` A copy was kept as ${CONFIG_BACKUP_PATH}.` : ""),
+          },
+        });
+      }
+    },
+
+    update(fn) {
+      set({ config: fn(get().config) });
+      if (get().problem?.kind === "broken") return Promise.resolve();
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void save().catch(() => {}), writeDelayMs);
+      return new Promise<void>((resolve) => waiting.push(resolve));
+    },
+
+    async flush() {
+      if (timer) {
+        clearTimeout(timer);
+        await save().catch(() => {});
+      }
+      await saving;
+    },
+
+    async resetBroken() {
+      if (get().problem?.kind !== "broken") return;
+      set({ problem: null });
+      await save();
+    },
+  };
+});
