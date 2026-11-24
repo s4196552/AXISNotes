@@ -17,7 +17,7 @@ import { openOnClick } from "../../lib/openClick";
 const noteName = (path: string) => path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
 
 export function TasksView() {
-  const indexVersion = useAppStore((s) => s.indexVersion);
+  const structureVersion = useAppStore((s) => s.structureVersion);
   const [tasks, setTasks] = useState<TaskRef[] | null>(null);
   const [query, setQuery] = useState("");
   const [showDone, setShowDone] = useState(false);
@@ -34,7 +34,7 @@ export function TasksView() {
     return () => {
       cancelled = true;
     };
-  }, [indexVersion]);
+  }, [structureVersion]);
 
   const groups = useMemo(() => {
     const out = new Map<Bucket, TaskRef[]>(BUCKETS.map((b) => [b.id, []]));

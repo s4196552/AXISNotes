@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { backend } from "../../ipc";
-import { useAppStore } from "../../app/store";
+import { useAppStore, useContentVersion } from "../../app/store";
 import { splitFrontmatter } from "../../lib/markdown";
 import { openOnClick } from "../../lib/openClick";
 
 // A live preview of a note, shown inside a canvas card. Re-reads the note whenever it
-// changes on disk (including the app's own saves, which bump the index version).
+// changes on disk, including the app's own saves of it (`useContentVersion`).
 
 const PREVIEW_LINES = 60;
 
@@ -20,7 +20,7 @@ type State = { status: "loading" } | { status: "missing" } | { status: "ok"; bod
 export function NoteCard({ path }: { path: string }) {
   const [state, setState] = useState<State>({ status: "loading" });
   const [reloads, setReloads] = useState(0);
-  const indexVersion = useAppStore((s) => s.indexVersion);
+  const version = useContentVersion(path);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +35,7 @@ export function NoteCard({ path }: { path: string }) {
     return () => {
       cancelled = true;
     };
-  }, [path, reloads, indexVersion]);
+  }, [path, reloads, version]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;

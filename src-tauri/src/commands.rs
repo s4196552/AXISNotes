@@ -114,10 +114,12 @@ fn apply_to_index(index: &SharedIndex, vault: &Vault, changes: &[VaultChange]) {
                 let (from, to) = (&c.paths[0], c.paths.last().unwrap());
                 idx.remove_path(from)
                     .and_then(|_| idx.update_path(vault, to))
+                    .map(|_| ())
             }
-            ChangeKind::Created | ChangeKind::Modified => {
-                c.paths.iter().try_for_each(|p| idx.update_path(vault, p))
-            }
+            ChangeKind::Created | ChangeKind::Modified => c
+                .paths
+                .iter()
+                .try_for_each(|p| idx.update_path(vault, p).map(|_| ())),
         };
         if let Err(e) = result {
             eprintln!("index update failed: {e}");
@@ -157,6 +159,25 @@ impl AppState {
     /// Keep the index in step with a change the app itself made (the watcher ignores those).
     fn reindex(&self, vault: &Vault, change: VaultChange) {
         apply_to_index(&self.index, vault, &[change]);
+    }
+
+    /// Re-index a file the app just wrote. Returns whether its structure changed (links,
+    /// tags, headings, ...; see `Index::update_path`); `true` when that isn't known.
+    fn reindex_written(&self, vault: &Vault, rel: &str) -> bool {
+        let mut guard = match lock_index(&self.index) {
+            Ok(guard) => guard,
+            Err(error) => {
+                eprintln!("index update skipped: {error}");
+                return true;
+            }
+        };
+        let Some(idx) = guard.as_mut() else {
+            return true;
+        };
+        idx.update_path(vault, rel).unwrap_or_else(|e| {
+            eprintln!("index update failed: {e}");
+            true
+        })
     }
 
     /// Bring files the user dropped or picked into the vault's `dir` (vault files are
@@ -407,35 +428,48 @@ pub fn current_vault(state: State<AppState>) -> Option<VaultInfo> {
     state.vault.lock().unwrap().as_ref().map(Vault::info)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_tree(state: State<AppState>) -> AppResult<VaultEntry> {
     state.vault()?.list_tree()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn read_file(state: State<AppState>, path: String) -> AppResult<FileContent> {
     state.vault()?.read_file(&path)
 }
 
-#[tauri::command]
+/// What `write_file` reports: the new mtime, and whether the note's structure (title,
+/// headings, links, tags, aliases, tasks, properties) changed, so the UI reloads panels
+/// only then (T-279).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WriteOutcome {
+    pub modified_ms: u64,
+    pub structure_changed: bool,
+}
+
+#[tauri::command(async)]
 pub fn write_file(
     state: State<AppState>,
     path: String,
     content: String,
     expected_modified_ms: Option<u64>,
     vault_root: Option<String>,
-) -> AppResult<WriteResult> {
+) -> AppResult<WriteOutcome> {
     let v = state.vault_at(vault_root.as_deref())?;
     state.touch(&v, &path)?;
-    let res = v.write_file(&path, &content, expected_modified_ms)?;
+    let WriteResult { modified_ms } = v.write_file(&path, &content, expected_modified_ms)?;
     state
         .self_writes
-        .record_write(&v.resolve(&path)?, res.modified_ms);
-    state.reindex(&v, change(ChangeKind::Modified, &[&path]));
-    Ok(res)
+        .record_write(&v.resolve(&path)?, modified_ms);
+    let structure_changed = state.reindex_written(&v, &path);
+    Ok(WriteOutcome {
+        modified_ms,
+        structure_changed,
+    })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn create_file(
     state: State<AppState>,
     path: String,
@@ -452,7 +486,7 @@ pub fn create_file(
 /// Save pasted media, sent as the request's raw bytes, as `dir/name` (or `name 1`, … if
 /// taken). Headers, percent-encoded: `x-dir`, `x-name` and optionally `x-vault` (the vault
 /// it's for, as in `write_file`). Returns the vault path.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn save_attachment(
     state: State<AppState>,
     request: tauri::ipc::Request<'_>,
@@ -564,7 +598,7 @@ pub async fn pick_attachments(
 
 /// Copy an image file chosen by the user into `folder` (created if needed) under a free
 /// name, for page covers and icons.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn import_image(
     state: State<AppState>,
     source: String,
@@ -584,7 +618,7 @@ pub fn import_image(
 pub const FONTS_FOLDER: &str = "Attachments/Fonts";
 
 /// Copy a font file (TTF, OTF, WOFF, WOFF2) into the vault's fonts folder under a free name.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn import_font(state: State<AppState>, source: String) -> AppResult<VaultEntry> {
     let v = state.vault()?;
     let source = PathBuf::from(source);
@@ -601,7 +635,7 @@ pub const SKILLS_FOLDER: &str = "Skills";
 
 /// Copy a skill folder (picked by its `SKILL.md`) into `Skills/` under a free name, with
 /// its Markdown reference files; returns the new `SKILL.md`'s vault path.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn import_skill(state: State<AppState>, source: String) -> AppResult<String> {
     let v = state.vault()?;
     let skill = crate::vault::read_skill_folder(Path::new(&source))?;
@@ -622,7 +656,7 @@ pub fn import_skill(state: State<AppState>, source: String) -> AppResult<String>
     Ok(main)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn create_dir(state: State<AppState>, path: String) -> AppResult<VaultEntry> {
     let v = state.vault()?;
     state.touch(&v, &path)?;
@@ -698,7 +732,7 @@ pub async fn copy_entry(
     Ok(entry)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn trash_entry(state: State<AppState>, path: String) -> AppResult<()> {
     let v = state.vault()?;
     state.touch(&v, &path)?;
@@ -855,32 +889,32 @@ pub async fn vault_passages(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_tags(state: State<AppState>) -> AppResult<Vec<TagCount>> {
     state.with_index(|idx| idx.tags())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_property_keys(state: State<AppState>) -> AppResult<Vec<crate::index::PropertyKey>> {
     state.with_index(|idx| idx.property_keys())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_tasks(state: State<AppState>) -> AppResult<Vec<TaskRef>> {
     state.with_index(|idx| idx.tasks())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn time_entries(state: State<AppState>) -> AppResult<Vec<TimeEntry>> {
     state.with_index(|idx| idx.time_entries())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_notes(state: State<AppState>) -> AppResult<Vec<NoteRef>> {
     state.with_index(|idx| idx.list_notes())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn resolve_link(
     state: State<AppState>,
     target: String,
@@ -909,7 +943,7 @@ pub async fn graph(state: State<'_, AppState>) -> AppResult<GraphData> {
 }
 
 /// CSS files in `.axisnotes/themes` or `.axisnotes/snippets` (names without `.css`).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_axis_files(state: State<AppState>, subdir: String) -> AppResult<Vec<String>> {
     if subdir != "themes" && subdir != "snippets" {
         return Err(AppError::InvalidName(subdir));
@@ -949,7 +983,7 @@ struct ImportProgress {
 }
 
 /// Icon and image packs in the open vault (`.axisnotes/packs/`).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn list_packs(state: State<AppState>) -> AppResult<Vec<crate::packs::Pack>> {
     crate::packs::list_packs(&state.vault()?)
 }

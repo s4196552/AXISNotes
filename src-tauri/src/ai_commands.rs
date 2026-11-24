@@ -88,19 +88,19 @@ struct DeltaPayload<'a> {
     delta: &'a str,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ai_settings(ai: State<AiState>) -> AiSettingsView {
     view(&ai)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ai_save_settings(ai: State<AiState>, settings: AiSettings) -> AppResult<AiSettingsView> {
     ai.service.save_settings(settings)?;
     Ok(view(&ai))
 }
 
 /// Store a provider's key in the OS keychain (an empty key deletes it).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ai_set_key(ai: State<AiState>, provider_id: String, key: String) -> AppResult<()> {
     ai.service.set_key(&provider_id, &key)
 }
@@ -132,7 +132,7 @@ pub fn ai_subscription_usage() -> AppResult<()> {
     crate::ai::subscription::open_usage()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn ai_delete_key(ai: State<AiState>, provider_id: String) -> AppResult<()> {
     ai.service.delete_key(&provider_id)
 }

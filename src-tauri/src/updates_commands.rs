@@ -102,7 +102,7 @@ pub fn updates_save_settings(
 }
 
 /// A newer version in the updates folder, or `None`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn updates_check(app: AppHandle) -> AppResult<Option<Available>> {
     updates::check(
         &folder(&app)?,

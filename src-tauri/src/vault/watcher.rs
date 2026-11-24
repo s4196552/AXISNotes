@@ -1,7 +1,7 @@
 //! Watches the vault for changes made outside the app and reports them as
 //! vault-relative `VaultChange`s. Changes the app made itself are suppressed.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -17,7 +17,7 @@ use crate::error::{AppError, AppResult};
 const DEBOUNCE: Duration = Duration::from_millis(250);
 const SELF_WRITE_WINDOW: Duration = Duration::from_millis(2000);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ChangeKind {
     Created,
@@ -26,7 +26,7 @@ pub enum ChangeKind {
     Renamed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct VaultChange {
     pub kind: ChangeKind,
     /// Vault-relative paths. For `renamed`, `[from, to]` when both are known.
@@ -171,6 +171,16 @@ pub fn translate(
     out
 }
 
+/// Drop repeated changes, keeping the first of each in order (a big batch, such as a
+/// folder copied in, can hold thousands).
+fn dedupe(changes: impl IntoIterator<Item = VaultChange>) -> Vec<VaultChange> {
+    let mut seen = HashSet::new();
+    changes
+        .into_iter()
+        .filter(|c| seen.insert(c.clone()))
+        .collect()
+}
+
 pub fn start(
     vault: Vault,
     self_writes: SelfWrites,
@@ -179,14 +189,11 @@ pub fn start(
     let root = vault.root().to_path_buf();
     let mut debouncer = new_debouncer(DEBOUNCE, None, move |res: DebounceEventResult| {
         let Ok(events) = res else { return };
-        let mut changes: Vec<VaultChange> = Vec::new();
-        for ev in events {
-            for change in translate(&vault, &self_writes, &ev.event.kind, &ev.event.paths) {
-                if !changes.contains(&change) {
-                    changes.push(change);
-                }
-            }
-        }
+        let changes = dedupe(
+            events
+                .iter()
+                .flat_map(|ev| translate(&vault, &self_writes, &ev.event.kind, &ev.event.paths)),
+        );
         if !changes.is_empty() {
             on_change(changes);
         }
@@ -208,6 +215,17 @@ mod tests {
             kind,
             paths: paths.iter().map(|p| p.to_string()).collect(),
         }
+    }
+
+    #[test]
+    fn dedupe_keeps_the_first_of_each_change_in_order() {
+        let (a, b) = (
+            change(ChangeKind::Modified, &["a.md"]),
+            change(ChangeKind::Created, &["b.md"]),
+        );
+        let renamed = change(ChangeKind::Renamed, &["a.md", "b.md"]);
+        let batch = vec![a.clone(), b.clone(), a.clone(), renamed.clone(), b.clone()];
+        assert_eq!(dedupe(batch), vec![a, b, renamed]);
     }
 
     #[test]

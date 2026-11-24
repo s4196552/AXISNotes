@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { backend } from "../../ipc";
-import { useAppStore } from "../../app/store";
+import { useAppStore, useContentVersion } from "../../app/store";
 import { type Heading, listHeadings } from "../../lib/headings";
 
 /**
@@ -8,7 +8,8 @@ import { type Heading, listHeadings } from "../../lib/headings";
  * saved file, so it follows edits once they are saved (autosave is half a second).
  */
 export function OutlinePanel({ path }: { path: string }) {
-  const indexVersion = useAppStore((s) => s.indexVersion);
+  // Its own saves too: a line added above a heading moves where clicking it jumps.
+  const version = useContentVersion(path);
   const [outline, setOutline] = useState<{ path: string; headings: Heading[] } | null>(null);
 
   useEffect(() => {
@@ -20,7 +21,7 @@ export function OutlinePanel({ path }: { path: string }) {
     return () => {
       cancelled = true;
     };
-  }, [path, indexVersion]);
+  }, [path, version]);
 
   const headings = outline?.path === path ? outline.headings : null;
   if (!headings) return null;

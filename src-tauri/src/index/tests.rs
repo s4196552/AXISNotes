@@ -509,3 +509,103 @@ fn leading_slash_resolves_only_the_exact_vault_path() {
         .iter()
         .any(|e| e.source == "School/Plan.md" && e.target == "Biology.md"));
 }
+
+/// Write `text` to `path` and re-index it, returning the structure-changed flag.
+fn save(v: &Vault, idx: &mut Index, path: &str, text: &str) -> bool {
+    v.write_file(path, text, None).unwrap();
+    idx.update_path(v, path).unwrap()
+}
+
+#[test]
+fn update_path_reports_structure_changes_only() {
+    let base = "---\nstatus: draft\n---\n# Title\n\nSome text [[Other]] #tag\n- [ ] task\n";
+    let (_d, v, mut idx) = vault_with(&[("n.md", base)]);
+    // Plain text typed anywhere, even before a link (its offsets move), is not structure.
+    assert!(!save(
+        &v,
+        &mut idx,
+        "n.md",
+        &base.replace("Some text", "Some more text")
+    ));
+    assert!(!save(
+        &v,
+        &mut idx,
+        "n.md",
+        &base.replace("task\n", "task\n\nA paragraph.\n")
+    ));
+    let changes = [
+        base.replace("# Title", "# Renamed"),
+        base.replace("# Title\n", "# Title\n## Section\n"),
+        base.replace("[[Other]]", "[[Another]]"),
+        base.replace("[[Other]]", "[[Other|alias]]"),
+        base.replace("[[Other]]", "![[Other]]"),
+        base.replace("#tag", "#tags"),
+        base.replace("draft", "done"),
+        base.replace("- [ ]", "- [x]"),
+        base.replace("Some text", "Some text ^block1"),
+        // Tasks are edited by line, so moving one is a change too.
+        base.replace("# Title\n", "# Title\n\n"),
+    ];
+    let mut last = base.to_string();
+    for text in changes {
+        assert!(save(&v, &mut idx, "n.md", &text), "should change: {text:?}");
+        last = text;
+    }
+    // Saving the same structure again is not a change.
+    assert!(!save(&v, &mut idx, "n.md", &format!("{last}more words\n")));
+    // A note new to the index, and one that goes, are changes.
+    assert!(save(&v, &mut idx, "fresh.md", "hello"));
+    std::fs::remove_file(v.resolve("fresh.md").unwrap()).unwrap();
+    assert!(idx.update_path(&v, "fresh.md").unwrap());
+}
+
+#[test]
+fn notes_indexed_before_signatures_count_as_changed_once() {
+    let (_d, v, idx) = vault_with(&[("n.md", "#t text")]);
+    idx.conn()
+        .execute_batch("ALTER TABLE notes DROP COLUMN sig")
+        .unwrap();
+    drop(idx);
+    let mut idx = Index::open(&v).unwrap();
+    assert!(save(&v, &mut idx, "n.md", "#t text and more"));
+    assert!(!save(&v, &mut idx, "n.md", "#t text and more still"));
+}
+
+#[test]
+fn sync_subtree_walks_only_that_folder() {
+    let (_d, v, mut idx) = vault_with(&[
+        ("A/one.md", "#a1"),
+        ("A/gone.md", "#gone"),
+        ("A/Deep/two.md", "#a2"),
+        ("AB/three.md", "#ab"),
+        ("B/four.md", "#b"),
+    ]);
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    v.write_file("A/one.md", "#a1new", None).unwrap();
+    v.write_file("A/Deep/two.md", "#a2new", None).unwrap();
+    v.write_file("A/added.md", "#added", None).unwrap();
+    std::fs::remove_file(v.resolve("A/gone.md").unwrap()).unwrap();
+    // Outside `A`: left alone, even `AB`, whose name starts the same.
+    v.write_file("B/four.md", "#bnew", None).unwrap();
+    std::fs::remove_file(v.resolve("AB/three.md").unwrap()).unwrap();
+
+    idx.sync_subtree(&v, "A").unwrap();
+    let mut tags: Vec<String> = idx.tags().unwrap().into_iter().map(|t| t.tag).collect();
+    tags.sort();
+    assert_eq!(tags, vec!["a1new", "a2new", "ab", "added", "b"]);
+
+    // A folder change on disk goes through `update_path`, which syncs just that folder.
+    v.write_file("B/five.md", "#five", None).unwrap();
+    assert!(idx.update_path(&v, "B").unwrap());
+    let tags: Vec<String> = idx.tags().unwrap().into_iter().map(|t| t.tag).collect();
+    assert!(tags.contains(&"five".to_string()) && tags.contains(&"bnew".to_string()));
+    assert!(
+        tags.contains(&"ab".to_string()),
+        "AB is still stale until it syncs"
+    );
+
+    // A folder that's gone drops its notes.
+    std::fs::remove_dir_all(v.resolve("A").unwrap()).unwrap();
+    idx.sync_subtree(&v, "A").unwrap();
+    assert!(idx.note_paths_under("A").unwrap().is_empty());
+}

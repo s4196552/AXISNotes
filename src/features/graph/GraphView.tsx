@@ -25,7 +25,7 @@ const cssVar = (name: string, fallback: string) => cssColor(name, fallback);
 
 /** Fetch graph data, refreshing when the index changes. */
 function useGraphData(): GraphData | null {
-  const indexVersion = useAppStore((s) => s.indexVersion);
+  const structureVersion = useAppStore((s) => s.structureVersion);
   const [data, setData] = useState<GraphData | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -36,7 +36,7 @@ function useGraphData(): GraphData | null {
     return () => {
       cancelled = true;
     };
-  }, [indexVersion]);
+  }, [structureVersion]);
   return data;
 }
 

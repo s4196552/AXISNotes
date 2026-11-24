@@ -39,7 +39,7 @@ import {
   X,
 } from "lucide-react";
 import { backend, isBackendError, type TaskRef, type VaultEntry } from "../../ipc";
-import { useAppStore } from "../../app/store";
+import { useAppStore, useContentVersion } from "../../app/store";
 import { useConfig } from "../../app/config";
 import { type DropBeside, dropBeside, usePointerDrag } from "../../app/usePointerDrag";
 import { formatDate } from "../../lib/dates";
@@ -151,7 +151,7 @@ function useClock(enabled: boolean): string {
 
 /** The vault's tasks and today's date and daily note path, for the planning widgets. */
 function useToday(enabled: boolean) {
-  const indexVersion = useAppStore((s) => s.indexVersion);
+  const structureVersion = useAppStore((s) => s.structureVersion);
   const dailyCfg = useConfig((s) => s.config.dailyNotes);
   const [tasks, setTasks] = useState<TaskRef[] | null>(null);
   const today = useDay();
@@ -167,14 +167,14 @@ function useToday(enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [enabled, indexVersion]);
+  }, [enabled, structureVersion]);
 
   return { tasks, today, dailyPath };
 }
 
 /** A note's text, or null while loading or when it doesn't exist. */
 function useNote(path: string) {
-  const indexVersion = useAppStore((s) => s.indexVersion);
+  const version = useContentVersion(path);
   const exists = useAppStore((s) => s.notes.some((n) => n.path === path));
   const [note, setNote] = useState<{ path: string; content: string } | null>(null);
   useEffect(() => {
@@ -187,7 +187,7 @@ function useNote(path: string) {
     return () => {
       cancelled = true;
     };
-  }, [exists, path, indexVersion]);
+  }, [exists, path, version]);
   // A note since deleted, or another day's, isn't this one.
   return exists && note?.path === path ? note : null;
 }

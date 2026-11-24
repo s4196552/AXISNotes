@@ -286,7 +286,8 @@ export function Editor({ path }: EditorProps) {
           const res = await backend.writeFile(path, content, force ? undefined : mtime.current);
           mtime.current = res.modifiedMs;
           noteSaved(path, v); // the same note in another pane follows
-          useAppStore.getState().bumpIndex(); // tags/links may have changed
+          // Panels reload only if links, tags, headings, ... changed (T-279).
+          useAppStore.getState().noteWritten(path, res.structureChanged);
           if (v.state.doc.toString() === content) {
             dirty.current = false;
             setStatus("saved");

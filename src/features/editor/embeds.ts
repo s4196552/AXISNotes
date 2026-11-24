@@ -71,8 +71,8 @@ async function writeBlock(
     return { ok: false, current: range && file.content.slice(range.from, range.to) } as WriteBack;
   }
   const text = file.content.slice(0, range.from) + next + file.content.slice(range.to);
-  await backend.writeFile(path, text, file.modifiedMs, vaultRoot);
-  useAppStore.getState().bumpIndex();
+  const res = await backend.writeFile(path, text, file.modifiedMs, vaultRoot);
+  useAppStore.getState().noteWritten(path, res.structureChanged);
   return { ok: true } as WriteBack;
 }
 
@@ -83,8 +83,8 @@ async function overwriteBlock(path: string, inner: string, next: string, vaultRo
   const range = embedRange(file.content, parseWikilinkInner(inner));
   if (!range) return false;
   const text = file.content.slice(0, range.from) + next + file.content.slice(range.to);
-  await backend.writeFile(path, text, file.modifiedMs, vaultRoot);
-  useAppStore.getState().bumpIndex();
+  const res = await backend.writeFile(path, text, file.modifiedMs, vaultRoot);
+  useAppStore.getState().noteWritten(path, res.structureChanged);
   return true;
 }
 
@@ -866,9 +866,11 @@ export async function anchorCompletions(
           const fresh = await backend.readFile(path);
           const r = ensureBlockId(fresh.content, b.pos);
           if (!r) return;
-          if (r.text !== fresh.content) await backend.writeFile(path, r.text, fresh.modifiedMs);
+          if (r.text !== fresh.content) {
+            const res = await backend.writeFile(path, r.text, fresh.modifiedMs);
+            useAppStore.getState().noteWritten(path, res.structureChanged);
+          }
           id = r.id;
-          useAppStore.getState().bumpIndex();
         }
         view.dispatch({
           changes: { from: f, to: t, insert: id + close },

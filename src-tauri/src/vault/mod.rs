@@ -300,10 +300,8 @@ impl Vault {
                 }
             })
             .collect();
-        kids.sort_by(|a, b| {
-            (a.kind != EntryKind::Dir, a.name.to_lowercase())
-                .cmp(&(b.kind != EntryKind::Dir, b.name.to_lowercase()))
-        });
+        // Folders first, then by name ignoring case; each key is built once (T-280).
+        kids.sort_by_cached_key(|e| (e.kind != EntryKind::Dir, e.name.to_lowercase()));
         kids
     }
 

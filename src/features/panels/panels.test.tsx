@@ -31,7 +31,8 @@ beforeEach(async () => {
     pendingTarget: null,
     leftPanel: "files",
     searchQuery: "",
-    indexVersion: 0,
+    structureVersion: 0,
+    contentVersions: {},
     error: null,
   });
   await act(() => useAppStore.getState().refreshTree());
