@@ -10,6 +10,7 @@ import {
 } from "../lib/markdown";
 import { noteMark, stricter } from "../lib/aiAccess";
 import { headingAt } from "../lib/searchText";
+import { listHeadings } from "../lib/headings";
 import { compareTasks, findTasks } from "../lib/tasks";
 import { isImagePath } from "../lib/attachments";
 import { isFontPath, VAULT_FONTS_FOLDER } from "../lib/fonts";
@@ -142,6 +143,26 @@ const SAMPLE_PACKS: Record<PackKind, { name: string; files: Record<string, strin
     },
   },
 };
+
+/**
+ * What `writeFile` compares to report `structureChanged`, like `structure_sig` in
+ * src-tauri/src/index/mod.rs: everything the index keeps about a note except its text.
+ * Grids and canvases have only their name.
+ */
+function structureOf(path: string, content: string): string {
+  if (!isNotePath(path)) return "";
+  const fm = splitFrontmatter(content);
+  const body = maskCode(content.slice(fm.length));
+  return JSON.stringify([
+    fm.yaml,
+    listHeadings(content).map((h) => [h.level, h.text]),
+    findWikilinks(content).map((l) => [l.target, l.heading, l.block, l.alias, l.embed]),
+    findTags(content),
+    inlineProperties(content),
+    body.match(/\s\^[\w-]+[ \t]*$/gm) ?? [],
+    findTasks(content).map((t) => [t.line, t.raw, t.done, t.due, t.priority]),
+  ]);
+}
 
 export function createMemoryBackend(
   initial: Record<string, string> = {},
@@ -670,9 +691,10 @@ export function createMemoryBackend(
       if (n && expectedModifiedMs !== undefined && n.modifiedMs !== expectedModifiedMs) {
         fail("Conflict", path);
       }
+      const structureChanged = !n || structureOf(p, n.content) !== structureOf(p, content);
       const modifiedMs = tick();
       put(p, { kind: "file", content, modifiedMs });
-      return { modifiedMs };
+      return { modifiedMs, structureChanged };
     },
     async createFile(path, content = "", vaultRoot) {
       requireVault(vaultRoot);

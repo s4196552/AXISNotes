@@ -34,8 +34,19 @@ export interface AppState {
   tree: VaultEntry | null;
   /** All notes (for link autocomplete, quick switcher, resolution hints). */
   notes: NoteRef[];
-  /** Bumped whenever indexed data may have changed; panels re-query on change. */
-  indexVersion: number;
+  /**
+   * Bumped when the vault's structure may have changed: a note's links, tags, headings,
+   * title, aliases, tasks or properties, or notes appearing, going or changing outside
+   * the app. Panels built from the index (graph, backlinks, tags, search, tasks, ...)
+   * re-query on it. Typing plain text doesn't bump it (T-279).
+   */
+  structureVersion: number;
+  /**
+   * Per path, bumped each time the app saves that file. Views showing one note's text
+   * (an outline, a canvas card) re-read on their note's entry and on `structureVersion`;
+   * see `useContentVersion`.
+   */
+  contentVersions: Record<string, number>;
   /**
    * The focused pane's tabs (see tabs.ts). `activePath` and `mainView` mirror its active
    * tab. Every tab action works on these.
@@ -63,10 +74,15 @@ export interface AppState {
   openVault(path: string): Promise<void>;
   /** `files`: notes to start the vault with (path → content). */
   createVault(parentDir: string, name: string, files?: Record<string, string>): Promise<void>;
-  /** Re-list files and notes, and bump `indexVersion`. */
+  /** Re-list files and notes, and bump `structureVersion`. */
   refreshTree(): Promise<void>;
-  /** Bump `indexVersion` and re-list notes (after the app's own writes). */
+  /** Bump `structureVersion` and re-list notes (after the app's own changes). */
   bumpIndex(): void;
+  /**
+   * The app saved `path` (with `writeFile`'s `structureChanged`): bumps its content
+   * version, and the structure only when that changed.
+   */
+  noteWritten(path: string, structureChanged: boolean): void;
   openFile(path: string | null, target?: OpenTarget, opts?: OpenOptions): void;
   /** Show a folder's dashboard ("" = the vault's Home). */
   openDashboard(folder: string, opts?: OpenOptions): void;
@@ -223,11 +239,29 @@ let pruneRestoredTabs = false;
 
 const initialPanes = P.singlePane();
 
+/** Whether two note lists say the same thing (so the old array can be kept). */
+export function sameNotes(a: readonly NoteRef[], b: readonly NoteRef[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((x, i) => {
+    const y = b[i]!;
+    return (
+      x.path === y.path &&
+      x.name === y.name &&
+      x.title === y.title &&
+      x.aiAccess === y.aiAccess &&
+      x.aliases.length === y.aliases.length &&
+      x.aliases.every((alias, j) => alias === y.aliases[j])
+    );
+  });
+}
+
 export const useAppStore = create<AppState>((set, get) => ({
   vault: null,
   tree: null,
   notes: [],
-  indexVersion: 0,
+  structureVersion: 0,
+  contentVersions: {},
   tabs: initialPanes.tabs[initialPanes.focused]!,
   panes: initialPanes,
   activePath: null,
@@ -273,7 +307,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   async refreshTree() {
     try {
       const [tree, notes] = await Promise.all([backend.listTree(), backend.listNotes()]);
-      set((s) => ({ tree, notes, indexVersion: s.indexVersion + 1 }));
+      set((s) => ({
+        tree,
+        notes: sameNotes(s.notes, notes) ? s.notes : notes,
+        structureVersion: s.structureVersion + 1,
+      }));
       if (pruneRestoredTabs) {
         pruneRestoredTabs = false;
         const paths = pathsIn(tree);
@@ -290,11 +328,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   bumpIndex() {
-    set((s) => ({ indexVersion: s.indexVersion + 1 }));
+    set((s) => ({ structureVersion: s.structureVersion + 1 }));
     backend.listNotes().then(
-      (notes) => set({ notes }),
+      // Only a list that differs replaces `notes`: every editor restyles its links on it.
+      (notes) => set((s) => (sameNotes(s.notes, notes) ? {} : { notes })),
       () => {},
     );
+  },
+
+  noteWritten(path, structureChanged) {
+    set((s) => ({
+      contentVersions: { ...s.contentVersions, [path]: (s.contentVersions[path] ?? 0) + 1 },
+    }));
+    if (structureChanged) get().bumpIndex();
   },
 
   openFile(path, target, opts) {
@@ -524,3 +570,11 @@ useAppStore.subscribe((s, prev) => {
     }
   }
 });
+
+/**
+ * Changes whenever `path`'s text may have changed: the app saved it, or the vault's
+ * structure changed (which includes edits made outside the app). For views of one note.
+ */
+export function useContentVersion(path: string): string {
+  return useAppStore((s) => `${s.structureVersion}:${s.contentVersions[path] ?? 0}`);
+}

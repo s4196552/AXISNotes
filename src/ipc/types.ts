@@ -40,6 +40,12 @@ export interface FileContent {
 
 export interface WriteResult {
   modifiedMs: number;
+  /**
+   * Whether the file's structure changed: its title, headings, links, tags, aliases,
+   * block IDs, tasks or properties, or it is new to the index. Typing plain text gives
+   * `false`, so panels built from the index needn't reload (T-279).
+   */
+  structureChanged: boolean;
 }
 
 export type ChangeKind = "created" | "modified" | "removed" | "renamed";

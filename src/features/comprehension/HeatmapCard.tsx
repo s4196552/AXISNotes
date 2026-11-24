@@ -44,7 +44,6 @@ type TopicSpec = Omit<Topic, "id">;
 /** The notes of a topic with their text, read again when the vault changes. */
 function useTopicNotes(sources: string[]) {
   const notes = useAppStore((s) => s.notes);
-  const version = useAppStore((s) => s.indexVersion);
   const paths = useMemo(
     () =>
       notesInSources(
@@ -52,6 +51,10 @@ function useTopicNotes(sources: string[]) {
         notes.map((n) => n.path),
       ),
     [sources, notes],
+  );
+  // Re-read when one of these notes is saved, or the vault's structure changes.
+  const version = useAppStore(
+    (s) => `${s.structureVersion}:${paths.reduce((n, p) => n + (s.contentVersions[p] ?? 0), 0)}`,
   );
   const [texts, setTexts] = useState<{ path: string; text: string }[] | null>(null);
   useEffect(() => {

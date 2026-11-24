@@ -31,7 +31,7 @@ const report = (e: unknown) =>
   useAppStore.getState().setError(isBackendError(e) ? e.message : String(e));
 
 export function TimeReport() {
-  const indexVersion = useAppStore((s) => s.indexVersion);
+  const structureVersion = useAppStore((s) => s.structureVersion);
   const running = useTimer((s) => s.running);
   const [entries, setEntries] = useState<TimeEntry[] | null>(null);
   const [preset, setPreset] = useState<Preset | "custom">("week");
@@ -44,7 +44,7 @@ export function TimeReport() {
     return () => {
       cancelled = true;
     };
-  }, [indexVersion, running]);
+  }, [structureVersion, running]);
 
   const range = preset === "custom" ? custom : presetRange(preset);
   const data = useMemo(

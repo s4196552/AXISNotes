@@ -20,7 +20,7 @@ const DEBOUNCE_MS = 150;
 export function SearchPanel() {
   const query = useAppStore((s) => s.searchQuery);
   const setQuery = useAppStore((s) => s.setSearchQuery);
-  const indexVersion = useAppStore((s) => s.indexVersion);
+  const structureVersion = useAppStore((s) => s.structureVersion);
   const openFile = useAppStore((s) => s.openFile);
   // Results remember the query they answer; stale ones are simply not shown.
   const [result, setResult] = useState<{
@@ -47,7 +47,7 @@ export function SearchPanel() {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query, indexVersion]);
+  }, [query, structureVersion]);
 
   const current = query.trim() && result?.query === query ? result : null;
   const hits = current && !current.error ? current.hits : null;

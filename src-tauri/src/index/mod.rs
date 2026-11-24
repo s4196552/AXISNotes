@@ -31,7 +31,8 @@ CREATE TABLE notes(
   mtime INTEGER NOT NULL,
   fm_len INTEGER NOT NULL,       -- byte length of frontmatter (body offset)
   fm_lines INTEGER NOT NULL,     -- newlines in the frontmatter (body line offset)
-  props TEXT NOT NULL DEFAULT '{}'
+  props TEXT NOT NULL DEFAULT '{}',
+  sig INTEGER                    -- structure_sig of the last parse (NULL: unknown)
 );
 CREATE INDEX notes_name ON notes(name);
 CREATE TABLE links(
@@ -240,6 +241,12 @@ impl Index {
             conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
                 .map_err(db_err)?;
         }
+        // Indexes from before T-279 lack `sig`; add it rather than rebuild (NULL = unknown,
+        // so the first save of each note reports a structure change).
+        if conn.prepare("SELECT sig FROM notes LIMIT 0").is_err() {
+            conn.execute_batch("ALTER TABLE notes ADD COLUMN sig INTEGER")
+                .map_err(db_err)?;
+        }
         Ok(Self { conn })
     }
 
@@ -257,19 +264,49 @@ impl Index {
         cancelled: &dyn Fn() -> bool,
         progress: &mut dyn FnMut(usize, usize),
     ) -> AppResult<()> {
+        self.sync_scope(vault, "", cancelled, progress)
+    }
+
+    /// `sync` for one folder (vault-relative; `""` is the whole vault): walks only that
+    /// folder, re-indexes its changed notes and drops the ones no longer in it.
+    pub fn sync_subtree(&mut self, vault: &Vault, rel: &str) -> AppResult<()> {
+        self.sync_scope(vault, rel, &|| false, &mut |_, _| {})
+    }
+
+    fn sync_scope(
+        &mut self,
+        vault: &Vault,
+        rel: &str,
+        cancelled: &dyn Fn() -> bool,
+        progress: &mut dyn FnMut(usize, usize),
+    ) -> AppResult<()> {
         const BATCH: usize = 500;
+        let rel = rel.trim_matches('/');
+        let dir = if rel.is_empty() {
+            vault.root().to_path_buf()
+        } else {
+            vault.resolve(rel)?
+        };
         let mut on_disk: HashMap<String, u64> = HashMap::new();
-        collect_notes(vault, vault.root(), &mut on_disk)?;
+        if dir.is_dir() {
+            collect_notes(vault, &dir, &mut on_disk)?;
+        }
         let known: HashMap<String, u64> = {
-            let mut stmt = self
-                .conn
-                .prepare("SELECT path, mtime FROM notes")
-                .map_err(db_err)?;
-            let rows = stmt
-                .query_map([], |r| {
-                    Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as u64))
-                })
-                .map_err(db_err)?;
+            let (sql, prefix) = if rel.is_empty() {
+                ("SELECT path, mtime FROM notes", None)
+            } else {
+                (
+                    "SELECT path, mtime FROM notes WHERE path LIKE ?1 ESCAPE '\\'",
+                    Some(format!("{}/%", like_escape(rel))),
+                )
+            };
+            let mut stmt = self.conn.prepare(sql).map_err(db_err)?;
+            let map = |r: &rusqlite::Row| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as u64));
+            let rows = match &prefix {
+                Some(p) => stmt.query_map([p], map),
+                None => stmt.query_map([], map),
+            }
+            .map_err(db_err)?;
             rows.collect::<Result<_, _>>().map_err(db_err)?
         };
         let gone: Vec<&String> = known.keys().filter(|p| !on_disk.contains_key(*p)).collect();
@@ -300,20 +337,26 @@ impl Index {
         Ok(())
     }
 
-    /// Re-index one path after it changed on disk (removes it if it's gone or not a note).
-    pub fn update_path(&mut self, vault: &Vault, rel: &str) -> AppResult<()> {
+    /// Re-index one path after it changed on disk (removes it if it's gone or not a note;
+    /// a folder re-syncs just that folder). Returns whether the vault's structure may have
+    /// changed: a note's title, headings, links, tags, aliases, block IDs, tasks or
+    /// properties, or a note appearing or going. Edits to plain text return `false`.
+    pub fn update_path(&mut self, vault: &Vault, rel: &str) -> AppResult<bool> {
         let abs = vault.resolve(rel)?;
         if abs.is_dir() {
-            return self.sync(vault);
+            self.sync_subtree(vault, rel)?;
+            return Ok(true);
         }
         if !is_indexed(rel) || !abs.is_file() {
-            return self.remove_path(rel);
+            self.remove_path(rel)?;
+            return Ok(true);
         }
         let text = std::fs::read_to_string(&abs)?;
         let mtime = std::fs::metadata(&abs).map(|m| modified_ms(&m))?;
         let tx = self.conn.transaction().map_err(db_err)?;
-        upsert_in(&tx, rel, mtime, &text)?;
-        tx.commit().map_err(db_err)
+        let changed = upsert_in(&tx, rel, mtime, &text)?;
+        tx.commit().map_err(db_err)?;
+        Ok(changed)
     }
 
     /// Remove a note, or every note under a folder.
@@ -775,7 +818,31 @@ fn remove_in(tx: &rusqlite::Transaction, path: &str) -> AppResult<()> {
     Ok(())
 }
 
-fn upsert_in(tx: &rusqlite::Transaction, path: &str, mtime: u64, text: &str) -> AppResult<()> {
+/// A hash of what panels show about a note besides its text: title, headings, links
+/// (target, heading, block, alias, embed; not where they sit), tags, aliases, block IDs,
+/// tasks (with their lines, which the task view edits by) and properties. Typing plain
+/// text leaves it unchanged (T-279).
+fn structure_sig(note: &parse::ParsedNote, props: &str) -> i64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    note.title.hash(&mut h);
+    note.headings.hash(&mut h);
+    for l in &note.links {
+        (&l.target, &l.heading, &l.block, &l.alias, l.embed).hash(&mut h);
+    }
+    note.tags.hash(&mut h);
+    note.aliases.hash(&mut h);
+    note.block_ids.hash(&mut h);
+    for t in &note.tasks {
+        (t.line, &t.raw, t.done, &t.due, t.priority).hash(&mut h);
+    }
+    props.hash(&mut h);
+    h.finish() as i64
+}
+
+/// Index one file. Returns whether its structure changed (see `structure_sig`); a note
+/// new to the index, or one indexed before signatures existed, counts as changed.
+fn upsert_in(tx: &rusqlite::Transaction, path: &str, mtime: u64, text: &str) -> AppResult<bool> {
     let note = if is_grid(path) {
         parse::ParsedNote {
             title: Some(stem(path).to_string()),
@@ -792,15 +859,19 @@ fn upsert_in(tx: &rusqlite::Transaction, path: &str, mtime: u64, text: &str) -> 
     let name = note_name(path);
     let props = serde_json::Value::Object(note.props.clone()).to_string();
     let fm_lines = text[..note.frontmatter_len].matches('\n').count() as i64;
-    let existing: Option<i64> = tx
-        .query_row("SELECT id FROM notes WHERE path = ?1", [path], |r| r.get(0))
+    let sig = structure_sig(&note, &props);
+    let existing: Option<(i64, Option<i64>)> = tx
+        .query_row("SELECT id, sig FROM notes WHERE path = ?1", [path], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
         .optional()
         .map_err(db_err)?;
+    let changed = existing.is_none_or(|(_, old)| old != Some(sig));
     let id = match existing {
-        Some(id) => {
+        Some((id, _)) => {
             tx.execute(
-                "UPDATE notes SET name = ?2, title = ?3, mtime = ?4, fm_len = ?5, props = ?6, fm_lines = ?7 WHERE id = ?1",
-                params![id, name, note.title, mtime as i64, note.frontmatter_len as i64, props, fm_lines],
+                "UPDATE notes SET name = ?2, title = ?3, mtime = ?4, fm_len = ?5, props = ?6, fm_lines = ?7, sig = ?8 WHERE id = ?1",
+                params![id, name, note.title, mtime as i64, note.frontmatter_len as i64, props, fm_lines, sig],
             )
             .map_err(db_err)?;
             for table in ["links", "tags", "aliases", "tasks"] {
@@ -813,8 +884,8 @@ fn upsert_in(tx: &rusqlite::Transaction, path: &str, mtime: u64, text: &str) -> 
         }
         None => {
             tx.execute(
-                "INSERT INTO notes(path, name, title, mtime, fm_len, props, fm_lines) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![path, name, note.title, mtime as i64, note.frontmatter_len as i64, props, fm_lines],
+                "INSERT INTO notes(path, name, title, mtime, fm_len, props, fm_lines, sig) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![path, name, note.title, mtime as i64, note.frontmatter_len as i64, props, fm_lines, sig],
             )
             .map_err(db_err)?;
             tx.last_insert_rowid()
@@ -883,7 +954,7 @@ fn upsert_in(tx: &rusqlite::Transaction, path: &str, mtime: u64, text: &str) -> 
         params![id, title, note.body],
     )
     .map_err(db_err)?;
-    Ok(())
+    Ok(changed)
 }
 
 #[cfg(test)]

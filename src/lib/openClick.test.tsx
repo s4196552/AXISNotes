@@ -25,7 +25,8 @@ beforeEach(async () => {
     activePath: null,
     tabs: initialTabs(),
     searchQuery: "",
-    indexVersion: 0,
+    structureVersion: 0,
+    contentVersions: {},
     error: null,
   });
   await act(() => useAppStore.getState().refreshTree());

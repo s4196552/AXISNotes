@@ -34,8 +34,8 @@ export async function editNote(
     const next = edit(file.content);
     if (next === null || next === file.content) return false;
     try {
-      await backend.writeFile(path, next, file.modifiedMs, vaultRoot);
-      useAppStore.getState().bumpIndex();
+      const res = await backend.writeFile(path, next, file.modifiedMs, vaultRoot);
+      useAppStore.getState().noteWritten(path, res.structureChanged);
       return true;
     } catch (e) {
       // Changed between our read and write: re-read and re-apply once.

@@ -103,7 +103,7 @@ export function useFileDocument(
         try {
           const res = await backend.writeFile(path, content, force ? undefined : mtime.current);
           mtime.current = res.modifiedMs;
-          useAppStore.getState().bumpIndex();
+          useAppStore.getState().noteWritten(path, res.structureChanged);
           if (edits.current === editsAtStart) {
             dirty.current = false;
             setStatus("saved");

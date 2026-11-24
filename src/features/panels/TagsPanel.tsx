@@ -5,7 +5,7 @@ import { buildTagTree, type TagNode } from "./tagTree";
 import { useAppStore } from "../../app/store";
 
 export function TagsPanel() {
-  const indexVersion = useAppStore((s) => s.indexVersion);
+  const structureVersion = useAppStore((s) => s.structureVersion);
   const search = useAppStore((s) => s.search);
   const [tags, setTags] = useState<TagCount[]>([]);
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -19,7 +19,7 @@ export function TagsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [indexVersion]);
+  }, [structureVersion]);
 
   const tree = useMemo(() => buildTagTree(tags), [tags]);
   const toggle = (tag: string) =>

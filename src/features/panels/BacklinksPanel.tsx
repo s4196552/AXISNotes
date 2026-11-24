@@ -7,7 +7,7 @@ import { openOnClick } from "../../lib/openClick";
 
 export function BacklinksPanel() {
   const activePath = useAppStore((s) => s.activePath);
-  const indexVersion = useAppStore((s) => s.indexVersion);
+  const structureVersion = useAppStore((s) => s.structureVersion);
   const openFile = useAppStore((s) => s.openFile);
   // Data remembers the note it belongs to; stale data is not shown.
   const [data, setData] = useState<{ path: string; linked: Backlink[]; mentions: Mention[] }>({
@@ -28,7 +28,7 @@ export function BacklinksPanel() {
     return () => {
       cancelled = true;
     };
-  }, [activePath, indexVersion]);
+  }, [activePath, structureVersion]);
 
   const link = useCallback(
     async (m: Mention) => {
