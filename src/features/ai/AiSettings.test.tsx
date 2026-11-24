@@ -71,6 +71,37 @@ describe("AI settings", () => {
     );
   });
 
+  it("refuses plain http:// to another computer, next to the endpoint box", async () => {
+    render(<AiSettingsPanel />);
+    await addProvider("ollama");
+    const card = await screen.findByRole("group", { name: "Provider Ollama (local)" });
+    const endpoint = within(card).getByLabelText("Endpoint of Ollama (local)");
+    for (const url of ["http://192.168.1.10:11434/v1", "http://localhost@evil.com/v1"]) {
+      fireEvent.change(endpoint, { target: { value: url } });
+      fireEvent.blur(endpoint);
+      expect(endpoint).toHaveValue("");
+      expect(within(card).getByRole("status")).toHaveTextContent(
+        "Plain http:// is only allowed for a server on this computer",
+      );
+    }
+    expect(JSON.stringify(await h.b.aiSettings())).not.toContain("192.168");
+    // The backend refuses it too.
+    const s = (await h.b.aiSettings()).settings;
+    await expect(
+      h.b.aiSaveSettings({
+        ...s,
+        providers: s.providers.map((p) => ({ ...p, baseUrl: "http://192.168.1.10:11434/v1" })),
+      }),
+    ).rejects.toMatchObject({ code: "Blocked" });
+    // A server on this computer still saves over http.
+    fireEvent.change(endpoint, { target: { value: "http://127.0.0.1:11435/v1" } });
+    fireEvent.blur(endpoint);
+    await waitFor(async () =>
+      expect(JSON.stringify(await h.b.aiSettings())).toContain("127.0.0.1:11435"),
+    );
+    expect(within(card).getByText("On this device")).toBeInTheDocument();
+  });
+
   it("marks local providers and picks models per task", async () => {
     render(<AiSettingsPanel />);
     await addProvider("ollama");

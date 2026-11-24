@@ -66,8 +66,25 @@ impl Default for AiSettings {
     }
 }
 
+/// Shown when an endpoint would send API keys and notes over unencrypted HTTP.
+pub const PLAIN_HTTP_REMOTE: &str = "Plain http:// is only allowed for a server on this computer (localhost, 127.0.0.1 or [::1]). Use https:// for other servers, so API keys and notes aren't sent unencrypted.";
+
 /// Why `url` can't be a provider endpoint, or None if it can (empty = the default).
 pub fn endpoint_problem(url: &str) -> Option<String> {
+    not_web_address(url).or_else(|| plaintext_remote(url).then(|| PLAIN_HTTP_REMOTE.into()))
+}
+
+/// An `http://` endpoint that isn't on this computer: keys and notes would cross the
+/// network unencrypted.
+pub fn plaintext_remote(url: &str) -> bool {
+    let url = url.trim();
+    url.get(..7)
+        .is_some_and(|s| s.eq_ignore_ascii_case("http://"))
+        && !super::is_local_url(url)
+}
+
+/// Why `url` isn't a web address at all (for example a pasted API key), or None.
+fn not_web_address(url: &str) -> Option<String> {
     let url = url.trim();
     if url.is_empty() {
         return None;
@@ -111,10 +128,12 @@ impl AiSettings {
 
     /// Clear endpoints that aren't web addresses (for example an API key pasted into the
     /// endpoint box, which would otherwise sit in this plain-text file). True if any changed.
+    /// A saved plain-http remote endpoint is kept, so the user sees it; requests to it are
+    /// refused by the transport until it is changed.
     pub fn clear_bad_endpoints(&mut self) -> bool {
         let mut changed = false;
         for p in &mut self.providers {
-            if endpoint_problem(&p.base_url).is_some() {
+            if not_web_address(&p.base_url).is_some() {
                 p.base_url.clear();
                 changed = true;
             }
