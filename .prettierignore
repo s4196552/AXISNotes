@@ -4,6 +4,9 @@ src-tauri/target
 src-tauri/gen
 pnpm-lock.yaml
 .agents
+# Task checkouts and local test vaults (T-283).
+.worktrees/
+test-vaults/
 
 # Human-owned design snapshots are preserved byte-for-byte, outside app formatting.
 DESIGN.md
