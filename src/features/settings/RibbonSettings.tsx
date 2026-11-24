@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { ArrowDown, ArrowUp, GripVertical } from "lucide-react";
-import { useRibbon, useRibbonDrag } from "../ribbon/Ribbon";
+import { useRibbon, useRibbonDrag } from "../ribbon/useRibbon";
 import { Field, type SectionProps } from "./parts";
 
 /** Settings → Appearance → Ribbon: turn it on or off; show, hide and reorder its buttons. */

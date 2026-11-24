@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import * as P from "./panes";
 import * as T from "./tabs";

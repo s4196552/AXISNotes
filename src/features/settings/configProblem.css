@@ -1,0 +1,32 @@
+/* The vault's settings file can't be read or saved (T-278). */
+.config-problem {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  width: max-content;
+  max-width: min(640px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--danger, #d14343);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+.config-problem-icon {
+  flex: none;
+  color: var(--danger, #d14343);
+}
+.config-problem-text {
+  flex: 1 1 280px;
+}
+.config-problem-actions {
+  display: flex;
+  gap: 6px;
+}

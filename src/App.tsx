@@ -21,6 +21,7 @@ import { WelcomeScreen } from "./features/vault/WelcomeScreen";
 import { setStatusSlot } from "./features/editor/statusSlot";
 import { useClipNotices } from "./features/clipper/useClipNotices";
 import { UpdateBanner } from "./features/updates/UpdateBanner";
+import { ConfigProblemBanner } from "./features/settings/ConfigProblemBanner";
 import { checkOnLaunch } from "./features/updates/updates";
 import { guardWindowClose } from "./features/files/closeGuard";
 import { recentVaults, rememberVault, reopenLast, takeGettingStarted } from "./app/recentVaults";
@@ -277,6 +278,7 @@ export default function App() {
       <WindowControls />
       <Modals />
       <UpdateBanner />
+      <ConfigProblemBanner />
       <AgentBridge />
       <footer className="statusbar">
         <span>{activePath ?? ""}</span>

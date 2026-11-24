@@ -8,6 +8,13 @@ export type StudyKind = "flashcards" | "quiz" | "mindmap";
 
 export const STUDY_KINDS: readonly StudyKind[] = ["flashcards", "quiz", "mindmap"];
 
+/** What each kind of card is called. */
+export const KIND_LABEL: Record<StudyKind, string> = {
+  flashcards: "Flash cards",
+  quiz: "Practice test",
+  mindmap: "Mind map",
+};
+
 /** The block kind a fence's info string names, if it's a study block. */
 export function studyKind(info: string): StudyKind | null {
   const lang = info.trim().split(/\s+/)[0]?.toLowerCase() ?? "";

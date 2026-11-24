@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { setAiResponder } from "../../ipc/memoryAi";

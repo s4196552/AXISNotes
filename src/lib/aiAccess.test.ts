@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { markText, noteMark, stricter } from "./aiAccess";
 
