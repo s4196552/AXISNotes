@@ -2,6 +2,32 @@
 
 Newest first. Each entry: date, decision, why, and (for dependencies) license.
 
+## 2026-11-25 — What counts as a local AI endpoint (T-281)
+
+- **Parsed, not matched.** `is_local_url` parses the endpoint with the `url` crate (WHATWG
+  rules, the parser reqwest itself uses), so the host checked is the host the client
+  connects to. Local means http/https, no user name or password, and a host that is a
+  loopback IP (127.0.0.0/8, `::1`), exactly `localhost`, or a name ending in `.localhost`.
+  `localhost.` (trailing dot), `0.0.0.0`, `::ffff:127.0.0.1` and anything unparsable are
+  not local. Before, `http://127.0.0.1.evil.com`, `http://evil.com#.localhost`,
+  `http://evil.com\.localhost` and `http://localhost@evil.com` counted as local.
+- **Plain http only on this computer.** Saving an `http://` endpoint for another computer
+  (including a LAN server such as `http://192.168.1.10:11434`) is refused, so API keys and
+  notes never cross a network unencrypted. Such a server needs https, or a local
+  forwarder (which then counts as local only in the "requests go to this computer" sense).
+  An endpoint saved by an older version is kept, so the user sees it, and the transport
+  refuses to send to it.
+- **Two HTTP clients.** Requests to local endpoints use a client that follows no
+  redirects, ignores system proxies and resolves names only to loopback. Remote requests
+  follow up to 5 redirects, only to the same host and port over https: never to this
+  computer, and never to another host, because some providers' keys travel in their own
+  headers (`x-api-key`, `x-goog-api-key`), which reqwest only strips from standard auth
+  headers.
+- Localhost still doesn't prove on-device inference; the folder-privacy hint says a local
+  server could pass requests on.
+- **Dependency:** `url` 2.5.8 (MIT OR Apache-2.0) as a direct dependency. It was already in
+  the lockfile through reqwest and Tauri; no new crate is downloaded.
+
 ## 2026-11-12 — AXIS Hub as a bundled Notes plugin (T-230)
 
 - The Windows launcher is available as a dashboard widget and sidebar panel.

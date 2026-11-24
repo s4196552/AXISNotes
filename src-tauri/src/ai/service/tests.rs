@@ -206,6 +206,90 @@ async fn local_only_folders_go_to_local_providers() {
     assert!(e.fx.requests.lock().unwrap().is_empty());
 }
 
+/// T-281: endpoints crafted to look local are remote, so "local models only" notes never
+/// reach them.
+#[tokio::test]
+async fn crafted_lookalike_endpoints_are_not_local() {
+    let crafted = [
+        "https://127.0.0.1.evil.com/v1",
+        "https://evil.com#.localhost",
+        "https://localhost@evil.com/v1",
+        "https://localhost./v1",
+    ];
+    let mut providers = vec![provider("openai", ProviderKind::OpenAi, "OpenAI")];
+    for (i, url) in crafted.iter().enumerate() {
+        let mut p = provider(&format!("custom-{i}"), ProviderKind::Custom, "Lookalike");
+        p.base_url = url.to_string();
+        providers.push(p);
+    }
+    let e = env(
+        vec![(200, CHAT_MODELS), (200, CHAT_OK)],
+        providers,
+        &["openai"],
+    );
+    let mut s = e.service.settings();
+    s.fallback = (0..crafted.len()).map(|i| format!("custom-{i}")).collect();
+    e.service.save_settings(s).unwrap();
+    assert!(e.service.providers().iter().all(|p| !p.local));
+    let (r, _) = run(&e, ask(&["Journal/day.md"])).await;
+    assert!(
+        matches!(r, Err(AppError::Blocked(ref m)) if m.contains("local")),
+        "{r:?}"
+    );
+    assert!(e.fx.requests.lock().unwrap().is_empty());
+}
+
+/// T-281: plain http:// is only for this computer; keys and notes aren't sent unencrypted.
+#[tokio::test]
+async fn plain_http_endpoints_must_be_on_this_computer() {
+    let e = env(vec![], std_providers(), &[]);
+    for url in [
+        "http://192.168.1.10:11434/v1",
+        "http://api.example.com/v1",
+        "http://localhost@evil.com/v1",
+        "http://127.0.0.1.evil.com/v1",
+        "HTTP://Example.com/v1",
+    ] {
+        let mut s = e.service.settings();
+        s.providers[2].base_url = url.into();
+        let err = e.service.save_settings(s).unwrap_err().to_string();
+        assert!(
+            err.contains("Plain http:// is only allowed"),
+            "{url}: {err}"
+        );
+    }
+    for url in [
+        "http://localhost:11434/v1",
+        "http://127.0.0.1:1234/v1",
+        "http://[::1]:8080/v1",
+        "http://ollama.localhost/v1",
+        "https://ollama.example.com/v1",
+    ] {
+        let mut s = e.service.settings();
+        s.providers[2].base_url = url.into();
+        e.service.save_settings(s).unwrap();
+        assert_eq!(e.service.settings().providers[2].base_url, url);
+    }
+
+    // One saved by an older version stays visible (not silently replaced by the default);
+    // the transport refuses to send to it.
+    let text = std::fs::read_to_string(&e.settings_path).unwrap().replace(
+        "https://ollama.example.com/v1",
+        "http://192.168.1.10:11434/v1",
+    );
+    std::fs::write(&e.settings_path, text).unwrap();
+    let reopened = AiService::new(
+        e.settings_path.clone(),
+        e.log_path.clone(),
+        Arc::new(Registry::bundled()),
+        e.keys.clone(),
+        e.fx.clone(),
+    );
+    let ollama = &reopened.providers()[2];
+    assert_eq!(ollama.config.base_url, "http://192.168.1.10:11434/v1");
+    assert!(!ollama.local);
+}
+
 #[tokio::test]
 async fn ai_output_keeps_the_rule_of_what_it_was_made_from() {
     // A note in an open folder, marked by an earlier AI answer about a local-only note.
