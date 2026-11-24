@@ -7,7 +7,7 @@ import { DraftBanner } from "./DraftBanner";
 import { PAGE_SANDBOX, WebFileView } from "./WebFileView";
 import { pageLink } from "./pageLinks";
 import { createDraft, draftName, isDraft, saveDraft, vaultFolders } from "./drafts";
-import { mountPageEmbed, pageHeight } from "./PageEmbed";
+import { mountPageEmbed, pageHeight } from "./mountPageEmbed";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { embeds, isPageTarget } from "../editor/embeds";

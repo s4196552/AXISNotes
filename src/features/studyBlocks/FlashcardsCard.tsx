@@ -2,7 +2,8 @@ import { useMemo, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Layers, RotateCcw, Shuffle } from "lucide-react";
 import { type FlashcardsBlock, shuffled } from "./model";
 import type { StudyCardHost } from "./studyBlocks";
-import { mountCard, report, Shell, Text, useSession } from "./shared";
+import { Shell, Text } from "./shared";
+import { report, useSession } from "./session";
 
 // A ```flashcards block (T-267): one card at a time, flipped with a click, Space or Enter.
 // "Again" / "Got it" sort the cards for this sitting only; when a round is sorted, it
@@ -173,5 +174,3 @@ export function FlashcardsView({ block, host }: { block: FlashcardsBlock; host: 
     </Shell>
   );
 }
-
-export const mount = mountCard(FlashcardsView);

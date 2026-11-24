@@ -448,7 +448,7 @@ class PageWidget extends WidgetType {
       view.dispatch({ selection: { anchor: view.state.doc.lineAt(pos).from } });
       view.focus();
     };
-    void import("../drafts/PageEmbed").then(({ mountPageEmbed }) => {
+    void import("../drafts/mountPageEmbed").then(({ mountPageEmbed }) => {
       if (entry.gone) return;
       wrap.textContent = "";
       entry.root = mountPageEmbed(wrap, {

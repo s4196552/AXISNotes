@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { Speller } from "../spellcheck/engine";
 import { flagWords, handwritingRequest, joinPieces, type Piece } from "./recognize";

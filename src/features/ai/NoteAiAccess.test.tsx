@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { useAppStore } from "../../app/store";
-import { NoteAiAccess, noteAccess } from "./NoteAiAccess";
+import { NoteAiAccess } from "./NoteAiAccess";
+import { noteAccess } from "./noteAccess";
 
 const h = vi.hoisted(() => ({ b: null as unknown as MemoryBackend }));
 vi.mock("../../ipc", async (orig) => {

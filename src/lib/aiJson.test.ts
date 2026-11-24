@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { extractJson, InvalidAnswer, parseAnswer, type Schema, validate } from "./aiJson";
 

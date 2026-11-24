@@ -5,8 +5,10 @@ import { useConfig } from "../../app/config";
 import { useAppStore } from "../../app/store";
 import { stricter } from "../../lib/aiAccess";
 import { changeSetting } from "../filetree/undo";
-import { ruleForPath } from "./folderScope";
+import { noteAccess } from "./noteAccess";
 import "./ai.css";
+
+const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
 
 // The AI access button beside a note's title: its icon shows whether AI may read and
 // change this note, and its menu sets the note's own rule — the same per-file rule as the
@@ -22,21 +24,6 @@ const RULES: Record<AiRule, { label: string; short: string; Icon: LucideIcon }> 
   },
   never: { label: "Never", short: "AI can't read this note", Icon: BotOff },
 };
-
-const parentOf = (path: string) => (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
-const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
-
-/** The rules that apply to a note: its own, its folder's, its file's mark and the result. */
-export function noteAccess(
-  folders: Record<string, AiRule>,
-  path: string,
-  mark: AiRule | undefined,
-): { own: AiRule | null; inherited: AiRule; mark: AiRule | null; effective: AiRule } {
-  const own = folders[path] ?? null;
-  const inherited = ruleForPath(folders, parentOf(path));
-  const effective = stricter(own ?? inherited, mark ?? "any");
-  return { own, inherited, mark: mark ?? null, effective };
-}
 
 export function NoteAiAccess({ path }: { path: string }) {
   const enabled = useConfig((s) => s.config.ai.titleButton !== false);

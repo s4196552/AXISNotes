@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment node
+import { beforeAll, describe, expect, it } from "vitest";
 import { computeProps, isFormula } from "./computed";
 import { displayValue } from "./formula/sheet";
+import { loadFunctions } from "./formula/functions";
+
+// Formula functions load lazily in the app; these tests evaluate formulas (T-284).
+beforeAll(() => loadFunctions());
 
 const shown = (props: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(computeProps(props)).map(([k, v]) => [k, displayValue(v)]));
