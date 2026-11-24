@@ -4,7 +4,8 @@ import { useAppStore } from "../../app/store";
 import { layoutTree, TREE_DIMS, type TreeNode } from "../graph/treeModel";
 import { type MindmapBlock, type MindNode, toMermaidMindmap } from "./model";
 import type { StudyCardHost } from "./studyBlocks";
-import { mountCard, Shell, Text, useSession } from "./shared";
+import { Shell, Text } from "./shared";
+import { useSession } from "./session";
 
 // A ```mindmap block (T-267): the nested list drawn as a tree with the graph view's tree
 // layout (features/graph/treeModel.ts), each main branch in its own colour. Folding is
@@ -178,5 +179,3 @@ export function MindmapView({ block, host }: { block: MindmapBlock; host: StudyC
     </Shell>
   );
 }
-
-export const mount = mountCard(MindmapView);

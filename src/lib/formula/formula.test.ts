@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment node
+import { beforeAll, describe, expect, it } from "vitest";
 import { evaluateSource, FormulaError, type Scalar, type Value } from "./evaluate";
 import { colIndex, colName, parseFormula } from "./parser";
 import {
@@ -11,6 +12,10 @@ import {
   serializeSheet,
   shiftSheet,
 } from "./sheet";
+import { loadFunctions } from "./functions";
+
+// Formula functions load lazily in the app; these tests evaluate formulas (T-284).
+beforeAll(() => loadFunctions());
 
 const noRefs = { cell: (): Scalar => null, name: () => undefined };
 const ev = (src: string, names: Record<string, Value> = {}) =>

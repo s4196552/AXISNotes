@@ -1,21 +1,15 @@
 import { useMemo, useState } from "react";
-import { createRoot, type Root } from "react-dom/client";
 import { ExternalLink, Globe, PanelTop, RotateCw } from "lucide-react";
 import { backend, isBackendError } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { resolveMedia } from "../../lib/attachments";
 import { PageFrame } from "./PageFrame";
+import { pageHeight } from "./pageHeight";
 import "./drafts.css";
 
 // A vault web page shown inside a note with ![[Page.html]] or ![[Page.html|600]] (T-269).
 // The page runs in the same sandboxed frame as a page tab (PageFrame); the number sets its
 // height. Loaded the first time a note has one, and the frame only when it nears the view.
-
-export const DEFAULT_PAGE_HEIGHT = 480;
-
-/** A height from the embed's `|number`, kept to something that fits a note. */
-export const pageHeight = (n: number | null) =>
-  n === null ? DEFAULT_PAGE_HEIGHT : Math.min(2000, Math.max(120, Math.round(n)));
 
 export interface PageEmbedProps {
   /** The link target as written, e.g. `Quiz.html` or `Lessons/Lesson 1.html`. */
@@ -26,7 +20,7 @@ export interface PageEmbedProps {
   onEditLink(): void;
 }
 
-function PageEmbed(p: PageEmbedProps) {
+export function PageEmbed(p: PageEmbedProps) {
   const tree = useAppStore((s) => s.tree);
   // Found like images and other attachments: by name anywhere, or relative to the note.
   const path = useMemo(() => {
@@ -92,10 +86,4 @@ function PageEmbed(p: PageEmbedProps) {
       )}
     </div>
   );
-}
-
-export function mountPageEmbed(host: HTMLElement, props: PageEmbedProps): Root {
-  const root = createRoot(host);
-  root.render(<PageEmbed {...props} />);
-  return root;
 }

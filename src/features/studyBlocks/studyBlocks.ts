@@ -21,11 +21,19 @@ export interface StudyCardHost {
 }
 
 type Mount = (host: HTMLElement, props: StudyCardHost) => Root;
+type MountCard = typeof import("./mountCard").mountCard;
+
+// Each card loads with the first block of its kind a note shows. The mount helper lives
+// apart from the card components, so those files only export components (T-284).
+const withCard = (view: () => Promise<Parameters<MountCard>[0]>) => async () => {
+  const [{ mountCard }, card] = await Promise.all([import("./mountCard"), view()]);
+  return { mount: mountCard(card) as Mount };
+};
 
 const loaders: Record<StudyKind, () => Promise<{ mount: Mount }>> = {
-  flashcards: () => import("./FlashcardsCard"),
-  quiz: () => import("./QuizCard"),
-  mindmap: () => import("./MindmapCard"),
+  flashcards: withCard(() => import("./FlashcardsCard").then((m) => m.FlashcardsView as never)),
+  quiz: withCard(() => import("./QuizCard").then((m) => m.QuizView as never)),
+  mindmap: withCard(() => import("./MindmapCard").then((m) => m.MindmapView as never)),
 };
 
 const roots = new WeakMap<HTMLElement, { root?: Root; gone?: boolean }>();

@@ -17,7 +17,7 @@ import {
   type QuizBlock,
 } from "./model";
 import { studyBlocks, type StudyCardHost } from "./studyBlocks";
-import { clearSessions, sourceOf } from "./shared";
+import { clearSessions, sourceOf } from "./session";
 import { FlashcardsView } from "./FlashcardsCard";
 import { QuizView } from "./QuizCard";
 import { MindmapView } from "./MindmapCard";

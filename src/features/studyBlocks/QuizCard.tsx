@@ -2,7 +2,8 @@ import { useId } from "react";
 import { Check, ClipboardCheck, RotateCcw, X } from "lucide-react";
 import { matchesAnswer, type QuizBlock, type QuizQuestion, shuffled } from "./model";
 import type { StudyCardHost } from "./studyBlocks";
-import { mountCard, report, Shell, Text, useSession } from "./shared";
+import { Shell, Text } from "./shared";
+import { report, useSession } from "./session";
 
 // A ```quiz block (T-267): multiple choice (one answer or "select all that apply") and
 // short answers. Checking shows right or wrong, the answer and the explanation; the score
@@ -226,5 +227,3 @@ export function QuizView({ block, host }: { block: QuizBlock; host: StudyCardHos
     </Shell>
   );
 }
-
-export const mount = mountCard(QuizView);
