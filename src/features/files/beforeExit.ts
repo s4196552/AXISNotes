@@ -1,3 +1,4 @@
+import { useConfig } from "../../app/config";
 import { describeUnsaved, saveAll, type UnsavedDocument } from "./unsavedWork";
 
 // Getting ready to close the app — installing an update (T-073) or closing the window
@@ -22,6 +23,8 @@ export async function saveBeforeExit(): Promise<UnsavedDocument[]> {
     // documents first: some arrive through React or Excalidraw a moment later.
     await new Promise((r) => setTimeout(r, 0));
     const unsaved = await saveAll();
+    // A settings change still waiting to be saved (T-278).
+    await useConfig.getState().flush();
     if (unsaved.length > 0) freezeEditing(false);
     return unsaved;
   } catch (e) {

@@ -241,6 +241,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async openVault(path) {
     try {
+      // A settings change still waiting is saved to the vault it belongs to (T-278).
+      await useConfig.getState().flush();
       const vault = await backend.openVault(path);
       rememberVault(vault);
       set({ vault, activePath: null, error: null });
@@ -252,6 +254,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   async createVault(parentDir, name, files = {}) {
     try {
+      await useConfig.getState().flush();
       const vault = await backend.createVault(parentDir, name);
       for (const [path, content] of Object.entries(files)) {
         const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
