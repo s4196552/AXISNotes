@@ -1093,3 +1093,39 @@ The human chose the symbols after comparing what Notion, Obsidian, Roam, Logseq,
 - **Known limits.** `[[links]]` inside a block aren't indexed (the indexer skips fenced code).
   Math isn't rendered in cards. Blocks show as source inside `![[Note]]` embeds. There is no
   per-feature switch yet; that waits for the module system (T-062).
+
+## 2026-11-25 — T-282: signed update manifests and publish guards
+
+- **Why:** the 2026-11-25 audit rated the folder updater the top risk. The SHA-256 sat in the
+  same folder as the installer, and automatic install was on by default, so anything that can
+  write to the updates folder (or a NAS share) could run code on the next launch. This
+  supersedes T-066's "signed updates come with hosted releases".
+- **Signature:** `publish-update.ps1` writes `latest.json.sig` next to `latest.json`: the
+  base64 Ed25519 signature of the manifest's exact bytes (so version, file name and SHA-256
+  are covered together; no JSON canonicalisation). The app embeds the raw public key
+  (`UPDATE_PUBLIC_KEY` in `src-tauri/src/updates.rs`) and checks the signature over the bytes
+  it parses, both when checking and again when preparing the install.
+- **Unverified manifests** (no signature, bad base64, wrong key, any edit after signing) are
+  still offered, marked "Not verified" with the reason, and the button reads "Install anyway".
+  They are never installed automatically: the launch check skips them, and Rust's `prepare`
+  refuses unless the call says `allowUnverified`, which the UI sends only for an update it
+  showed as unverified. A verified offer that turns unverified before the click is refused.
+- **Defaults unchanged:** check on launch and automatic install stay on; automatic install
+  now applies to verified updates only.
+- **Key:** generated once by `publish-update.ps1 -NewKey` (Node's `crypto`, through
+  `scripts/update-signing.mjs`), stored as PKCS#8 PEM at
+  `%APPDATA%\AXISNotes\update-signing.key` with inheritance removed and only the user granted.
+  Never in the repository. The script refuses to publish if that key's public half doesn't
+  match the embedded one. Losing the key means installed apps can only take a manual,
+  unverified install of a build that embeds a new key; it must be backed up offline.
+- **Publish guards:** refuse on a dirty tree (untracked files ignored), a branch other than
+  `main`, an existing tag, a version not newer than `package.json`, or failing `pnpm lint`,
+  `typecheck` or `test` (`-SkipChecks` for emergencies, recorded in the tag and
+  `publish-log.txt`). The script commits `Release X.Y.Z: version bump`, creates the annotated
+  tag `vX.Y.Z` (never pushes), and keeps the `-Keep` newest installers (10). `-DryRun` runs
+  the guards and prints the plan.
+- **Authenticode:** optional `-CertThumbprint` signs the installer with signtool (timestamped)
+  before hashing; without it the script warns. No certificate exists yet.
+- **No new dependencies.** Verification uses `ring` 0.17 (`ring::signature::ED25519`), already
+  a dependency for TLS and SHA-256 (license `Apache-2.0 AND ISC`); signing uses Node's built-in
+  `crypto`. `ed25519-dalek` was not needed.
