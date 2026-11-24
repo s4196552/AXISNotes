@@ -19,7 +19,7 @@ const TYPOGRAPHY_KEYS = [
 
 /**
  * Settings → Appearance → Typography: fonts, text size, spacing, Bionic Reading, and the
- * colors of bold, italic, strikethrough and math text (T-272).
+ * colors of main text (T-277) and of bold, italic, strikethrough and math text (T-272).
  */
 export function Typography({ config, set }: SectionProps) {
   const [fonts, setFonts] = useState<string[]>([]);
@@ -148,8 +148,8 @@ export function Typography({ config, set }: SectionProps) {
         />
       </Field>
       <Field
-        label="Bold, italic, strikethrough and math colors"
-        hint="Give each its own color in notes, AI answers, tasks and study cards, for light and for dark themes. Off, the text keeps the theme's color. Your Markdown files don't change."
+        label="Text colors"
+        hint="Main text colors the text of your notes and of the interface, and takes priority over the text colors under Theme & layout → Colors. Bold, italic, strikethrough and math each get their own color in notes, AI answers, tasks and study cards. Each has a color for light and for dark themes; off, the text keeps the theme's color. Your Markdown files don't change."
       >
         <TextColorSettings value={a.textColors} onChange={(textColors) => setA({ textColors })} />
       </Field>

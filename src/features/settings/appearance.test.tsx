@@ -355,6 +355,7 @@ describe("settings sections", () => {
         .map((t) => t.textContent);
     };
     expect(tabsOf("Appearance")).toEqual([
+      "Styles",
       "Theme & layout",
       "Typography",
       "Cursor",

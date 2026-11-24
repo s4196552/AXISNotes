@@ -11,6 +11,7 @@ import {
   tintPosition,
 } from "./asciiField";
 import "./asciiBackdrop.css";
+import { colorToHex, cssColor } from "../../lib/cssColor";
 
 // The ASCII art behind the welcome screen: letters and digits inside a soft three-cusp
 // star, tinted warm to cool (see asciiField.ts). Decorative only: hidden from screen
@@ -64,7 +65,7 @@ export function AsciiBackdrop() {
       canvas!.height = Math.round(height * dpr);
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const fg = getComputedStyle(canvas!).getPropertyValue("--fg");
+      const fg = colorToHex(cssColor("--fg", "", canvas!)) || cssColor("--fg", "", canvas!);
       const light = isLightColour(fg);
       // Light text means a dark theme (the glass themes' --bg is see-through, --fg isn't).
       const dark = light ?? window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? true;

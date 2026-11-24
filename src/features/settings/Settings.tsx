@@ -16,6 +16,7 @@ import {
   LayoutTemplate,
   type LucideIcon,
   PanelLeftDashed,
+  Paintbrush,
   Palette,
   Paperclip,
   Plus,
@@ -62,6 +63,7 @@ import { About } from "./About";
 import { PacksSettings } from "../packs/PacksSettings";
 import { Field, type SectionProps } from "./parts";
 import { Typography } from "./Typography";
+import { StylesSettings } from "./StylesSettings";
 import { CursorSettings } from "./CursorSettings";
 import { RibbonSettings } from "./RibbonSettings";
 import { EasyOnTheEyes } from "./EasyOnTheEyes";
@@ -69,6 +71,7 @@ import { SkillsSettings } from "./SkillsSettings";
 import "./settings.css";
 
 export type Section =
+  | "styles"
   | "appearance"
   | "typography"
   | "cursor"
@@ -90,6 +93,7 @@ export type Section =
   | "about";
 
 const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
+  { id: "styles", label: "Styles", icon: Paintbrush },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "typography", label: "Typography", icon: Type },
   { id: "cursor", label: "Cursor", icon: TextCursor },
@@ -120,7 +124,7 @@ const PAGES: { label: string; icon: LucideIcon; parts: Section[] }[] = [
   {
     label: "Appearance",
     icon: Palette,
-    parts: ["appearance", "typography", "cursor", "ribbon", "packs"],
+    parts: ["styles", "appearance", "typography", "cursor", "ribbon", "packs"],
   },
   { label: "Spelling", icon: SpellCheck, parts: ["spelling"] },
   { label: "Home & daily notes", icon: CalendarDays, parts: ["daily"] },
@@ -158,6 +162,8 @@ export function Settings({ onClose, section: initial }: { onClose(): void; secti
 
   const render = (id: Section) => {
     switch (id) {
+      case "styles":
+        return <StylesSettings config={config} set={set} />;
       case "appearance":
         return <Appearance config={config} set={set} />;
       case "typography":
