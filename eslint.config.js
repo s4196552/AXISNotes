@@ -13,6 +13,9 @@ export default tseslint.config(
       "node_modules",
       "coverage",
       "extension/vendor",
+      // Task checkouts and local test vaults (T-283): each holds a whole copy of the app.
+      ".worktrees",
+      "test-vaults",
     ],
   },
   {

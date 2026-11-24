@@ -18,3 +18,5 @@ extension/icons/
 
 # Local isolated task checkouts
 /.worktrees/
+# Local vaults for manual testing
+/test-vaults/

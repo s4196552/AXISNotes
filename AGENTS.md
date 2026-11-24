@@ -50,6 +50,13 @@ The human-requested Notes module implementation and detailed design are on `agen
 - Declare stable feature IDs, defaults, dependencies and supported platforms. Keep credentials and authorization in native backends. A UI feature switch is not a security boundary; local model unloading requires an owning runner's supported lifecycle, not merely closing a panel.
 - Compare startup/first-use latency, initial JS, idle CPU/memory, typing responsiveness and background concurrency using reproducible scenarios. Record baseline, environment and actual results; do not claim savings from code organization alone. Already-imported JavaScript may remain cached after disable, even when its activity stops.
 
+### Current state — 2026-11-25
+
+- AXISNotes is at 0.3.111; Notes phases 0–6 are nearly complete. The suite (Hub projects, Connect, Deck, Calendar, mobile/web) is still unbuilt. The suite baseline branches below remain unmerged; see the "Open branches without a row" list in `.agents/TASKS.md`.
+- [docs/research/improvements-2026-11-25.md](docs/research/improvements-2026-11-25.md) holds the human-approved improvement research and its four waves. Wave 1: T-278 (config safety, merged), T-279/T-280 (index and UI-thread performance), T-281 (local-only AI check), T-282 (signed updates), T-283 (repo hygiene, merged) and T-284 (tests, merged). Wave 1 ships as one patch release.
+- Finished task rows live in `.agents/TASKS-archive-2026.md`. Use `scripts/agents/prune-worktrees.ps1` to see which worktrees and branches are merged; `-Apply` removes them, and only after the human approves.
+- The section below is the September handoff, kept for history.
+
 ### Current handoff — 2026-09-30
 
 - **T-042 / S1:** architecture, research, contracts and tested reference helpers implemented; baseline commit `7502644`, with documentation follow-ups on the same branch. See [handoff](.agents/handoffs/T-042.md). Status is **in-review**, not merged or approved.

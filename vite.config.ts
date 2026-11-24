@@ -49,7 +49,8 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    watch: { ignored: ["**/src-tauri/**"] },
+    // Task checkouts and test vaults hold whole copies of the app; don't watch them (T-283).
+    watch: { ignored: ["**/src-tauri/**", "**/.worktrees/**", "**/test-vaults/**"] },
   },
   build: { target: "es2022" },
   test: {
