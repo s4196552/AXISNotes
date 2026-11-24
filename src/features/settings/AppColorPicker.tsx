@@ -8,10 +8,11 @@ import {
   normalHex,
 } from "../../app/appColors";
 import { type AppColors, NO_APP_COLORS } from "../../app/config";
+import { colorToHex, cssColor } from "../../lib/cssColor";
 
 /** The theme's own value of a colour token, if it's a plain hex colour. */
 function themeColor(token: "--bg" | "--bg-sidebar" | "--fg"): string {
-  return normalHex(getComputedStyle(document.documentElement).getPropertyValue(token));
+  return normalHex(colorToHex(cssColor(token, "")) || cssColor(token, ""));
 }
 
 /** One colour: a picker, what it is now ("Theme", "Auto" or the hex) and a reset. */

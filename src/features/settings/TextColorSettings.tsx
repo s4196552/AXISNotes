@@ -1,15 +1,17 @@
 import type { CSSProperties } from "react";
 import { RotateCcw } from "lucide-react";
-import { TEXT_COLOR_KINDS } from "../../app/appearance";
+import { MAIN_TEXT_SUGGESTED, TEXT_COLOR_KINDS } from "../../app/appearance";
 import { type TextColor, type TextColorKind, type TextColors, isHexColor } from "../../app/config";
 
-// Settings → Appearance → Typography: optional colors for bold, italic, strikethrough and
-// math text, in notes and in AI answers. Each is off by default; on, it uses the user's
-// color for light and for dark themes, or the theme's suggestion. The Markdown in the file
+// Settings → Appearance → Typography: optional colors for main text (notes and the
+// interface, T-277) and for bold, italic, strikethrough and math text in notes and AI
+// answers. Each is off by default; on, it uses the user's color for light and for dark
+// themes, or the theme's suggestion (a neutral for main text). The Markdown in the file
 // never changes.
 
 /** What a color box starts at before a color is picked (the default theme's suggestion). */
 const SUGGESTED: Record<TextColorKind, { light: string; dark: string }> = {
+  main: MAIN_TEXT_SUGGESTED,
   bold: { light: "#4f5bd5", dark: "#8a93ff" },
   italic: { light: "#0f766e", dark: "#5eead4" },
   strike: { light: "#6a6f77", dark: "#8d9199" },
@@ -17,6 +19,7 @@ const SUGGESTED: Record<TextColorKind, { light: string; dark: string }> = {
 };
 
 const SAMPLE_STYLE: Record<TextColorKind, CSSProperties> = {
+  main: {},
   bold: { fontWeight: 700 },
   italic: { fontStyle: "italic" },
   strike: { textDecoration: "line-through" },
@@ -41,7 +44,9 @@ export function TextColorSettings(p: { value: TextColors; onChange(next: TextCol
             <label className="text-color-toggle">
               <input
                 type="checkbox"
-                aria-label={`Color ${k.label.toLowerCase()} text`}
+                aria-label={
+                  k.id === "main" ? "Color main text" : `Color ${k.label.toLowerCase()} text`
+                }
                 checked={c.on}
                 onChange={(e) => setKind(k.id, { on: e.target.checked })}
               />
@@ -58,14 +63,22 @@ export function TextColorSettings(p: { value: TextColors; onChange(next: TextCol
                   title={
                     isHexColor(own)
                       ? `${k.label} in ${m.id} themes: ${own}`
-                      : `${k.label} in ${m.id} themes: the theme's color`
+                      : k.id === "main"
+                        ? `${k.label} in ${m.id} themes: ${shown}`
+                        : `${k.label} in ${m.id} themes: the theme's color`
                   }
                 >
                   <span
                     className="text-color-chip-sample"
                     style={{
                       ...SAMPLE_STYLE[k.id],
-                      color: c.on ? (isHexColor(own) ? own : `var(${k.css}-theme)`) : undefined,
+                      color: c.on
+                        ? isHexColor(own)
+                          ? own
+                          : k.id === "main"
+                            ? shown
+                            : `var(${k.css}-theme)`
+                        : undefined,
                     }}
                   >
                     {m.label}

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { type AiRule, backend, isBackendError } from "../ipc";
 import type { Dashboards } from "../features/dashboard/dashboardModel";
+import { sanitizeStyles } from "./styles";
 
 // Per-vault settings in `.axisnotes/config.json`. Unknown keys are preserved on save.
 
@@ -45,7 +46,8 @@ export interface TextColor {
   light: string;
   dark: string;
 }
-export type TextColorKind = "bold" | "italic" | "strike" | "math";
+/** `main` is the main text of notes and the interface (T-277); the rest are emphasis. */
+export type TextColorKind = "main" | "bold" | "italic" | "strike" | "math";
 export type TextColors = Record<TextColorKind, TextColor>;
 const NO_TEXT_COLOR: TextColor = { on: false, light: "", dark: "" };
 
@@ -63,6 +65,28 @@ export interface AppColors {
   mainFg: string;
 }
 export const NO_APP_COLORS: AppColors = { sidebarBg: "", sidebarFg: "", mainBg: "", mainFg: "" };
+
+/**
+ * A saved look (Settings → Appearance → Styles, T-277): a theme and the appearance
+ * settings it sets (see app/styles.ts). Settings it leaves out are the defaults.
+ */
+export interface Style {
+  name: string;
+  theme: string;
+  look: Partial<
+    Pick<
+      AxisConfig["appearance"],
+      | "noteFont"
+      | "uiFont"
+      | "noteFontSize"
+      | "letterSpacing"
+      | "lineHeight"
+      | "headingColors"
+      | "textColors"
+      | "appColors"
+    >
+  >;
+}
 
 /** What Windows draws behind the see-through window (Translucent theme). */
 export type WindowEffect = "clear" | "blur" | "frosted" | "liquid" | "mica" | "micaAlt";
@@ -108,7 +132,7 @@ export interface AxisConfig {
     editorWidth: EditorWidth;
     foldArrow: FoldArrow;
     headingColors: HeadingColors;
-    /** Own colours for bold, italic and strikethrough text, each off by default. */
+    /** Own colours for main text and for bold, italic, strikethrough and math, each off by default. */
     textColors: TextColors;
     /** Lines at the note's edge for its headings; pointing at them lists them. */
     headingIndicator: boolean;
@@ -137,6 +161,8 @@ export interface AxisConfig {
    * the user removed (see app/sidebarLayout). Unknown ids are ignored.
    */
   sidebars: { left: string[]; right: string[]; hidden: string[] };
+  /** The user's own Styles, in the order they were saved (T-277). */
+  styles: Style[];
   /** Favorite notes, files and folders by vault path, in the user's order (T-275). */
   favorites: string[];
   /**
@@ -220,6 +246,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     foldArrow: "triangle",
     headingColors: "theme",
     textColors: {
+      main: NO_TEXT_COLOR,
       bold: NO_TEXT_COLOR,
       italic: NO_TEXT_COLOR,
       strike: NO_TEXT_COLOR,
@@ -243,6 +270,7 @@ export const DEFAULT_CONFIG: AxisConfig = {
     hidden: [],
   },
   favorites: [],
+  styles: [],
   ribbon: { enabled: true, order: [], hidden: [] },
   dailyNotes: { folder: "Daily", format: "YYYY-MM-DD", template: "", openOnStartup: false },
   home: { openOnStartup: false, onLastTabClose: false },
@@ -327,6 +355,8 @@ export function mergeConfig(raw: unknown): AxisConfig & Record<string, unknown> 
   const out = merge(DEFAULT_CONFIG, raw) as AxisConfig & Record<string, unknown>;
   // Favorites are vault paths; anything else (a hand edit) is dropped (T-276).
   out.favorites = out.favorites.filter((p): p is string => typeof p === "string" && p !== "");
+  // Saved Styles are hand-editable too: only safe values reach the page (T-277).
+  out.styles = sanitizeStyles(out.styles);
   return out;
 }
 

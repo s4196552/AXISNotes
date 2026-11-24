@@ -18,6 +18,7 @@ import {
   type ForceSettings,
 } from "./graphSettings";
 import { createIconPainter, nodeIcon, type IconPainter, type NodeIcon } from "./nodeIcons";
+import { cssColor } from "../../lib/cssColor";
 
 // Render a graphology graph with sigma (WebGL) and move it with a live force simulation,
 // like Obsidian: nodes can be dragged (their neighbours follow), hovering highlights a
@@ -25,8 +26,8 @@ import { createIconPainter, nodeIcon, type IconPainter, type NodeIcon } from "./
 // without moving anything; force changes reheat the simulation. Labels can show each
 // note's icon. Sigma and d3-force are loaded on first use.
 
-const cssVar = (name: string, fallback: string) =>
-  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+// Resolved, so a `light-dark(…)` token (main text colour, T-277) is a colour canvas can draw.
+const cssVar = (name: string, fallback: string) => cssColor(name, fallback);
 
 /** Synchronous layout before the first frame, so the graph doesn't open as a cloud. */
 const PRETICK_MS = 120;

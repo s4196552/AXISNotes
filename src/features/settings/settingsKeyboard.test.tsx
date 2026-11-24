@@ -60,17 +60,19 @@ describe("arrow keys in Settings (T-273)", () => {
   it("move right into the page's tabs, which then take Left, Right, Home and End", () => {
     render(<Settings section="appearance" onClose={vi.fn()} />);
     fireEvent.keyDown(pageButton("Appearance"), { key: "ArrowRight" });
-    const first = screen.getByRole("tab", { name: "Theme & layout" });
-    expect(first).toHaveFocus();
+    // Right lands on the open tab (Theme & layout, after Styles since T-277).
+    const open = screen.getByRole("tab", { name: "Theme & layout" });
+    expect(open).toHaveFocus();
 
-    fireEvent.keyDown(first, { key: "End" });
+    fireEvent.keyDown(open, { key: "End" });
     const last = screen.getByRole("tab", { name: "Icon & image packs" });
     expect(last).toHaveFocus();
     expect(last).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(last, { key: "Home" });
+    const first = screen.getByRole("tab", { name: "Styles" });
     expect(first).toHaveFocus();
     fireEvent.keyDown(first, { key: "ArrowRight" });
-    expect(screen.getByRole("tab", { name: "Typography" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "Theme & layout" })).toHaveAttribute(
       "aria-selected",
       "true",
     );

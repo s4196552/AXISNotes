@@ -321,6 +321,7 @@ export function headingColorVars(preset: HeadingColors): Record<string, string> 
 
 /** The emphasised text that can have its own colour, with its CSS variable. */
 export const TEXT_COLOR_KINDS: readonly { id: TextColorKind; label: string; css: string }[] = [
+  { id: "main", label: "Main text", css: "--text-main" },
   { id: "bold", label: "Bold", css: "--text-bold" },
   { id: "italic", label: "Italic", css: "--text-italic" },
   { id: "strike", label: "Strikethrough", css: "--text-strike" },
@@ -338,15 +339,31 @@ export function textColorVars(colors: Partial<TextColors> | undefined): Record<s
   for (const k of TEXT_COLOR_KINDS) {
     const c = colors?.[k.id];
     if (!c?.on) continue;
-    const theme = `var(${k.css}-theme)`;
-    const light = isHexColor(c.light) ? c.light : theme;
-    const dark = isHexColor(c.dark) ? c.dark : theme;
+    // Main text replaces the theme's `--fg`, so its unset side can't follow the theme
+    // (it would refer to itself): it gets a plain neutral instead.
+    const theme = k.id === "main" ? "" : `var(${k.css}-theme)`;
+    const light = isHexColor(c.light) ? c.light : theme || MAIN_TEXT_SUGGESTED.light;
+    const dark = isHexColor(c.dark) ? c.dark : theme || MAIN_TEXT_SUGGESTED.dark;
     out[k.css] = light === dark ? light : `light-dark(${light}, ${dark})`;
   }
   return out;
 }
 
-/** Set (or clear) the emphasised-text colours on the page (editor.css, ai.css). */
+/** What an unset main text colour shows: dark text on light themes, light on dark. */
+export const MAIN_TEXT_SUGGESTED = { light: "#1f2328", dark: "#e6e6e6" };
+
+const MAIN_TEXT_ID = "axis-main-text";
+
+/**
+ * The stylesheet that makes `--text-main` the main text colour of notes and the interface.
+ * One more `:root` than `appColorsCss`, so it also wins over the Colors text colours there.
+ * Muted and secondary text keep the theme's colours.
+ */
+export const MAIN_TEXT_CSS =
+  ":root:root:root:root, :root:root:root:root :is(.content, .modal.settings, .sidebar, .statusbar, .settings-nav)" +
+  " { --fg: var(--text-main); color: var(--fg); }";
+
+/** Set (or clear) the text colours on the page (editor.css, ai.css, and main text). */
 export function applyTextColors(colors: Partial<TextColors> | undefined) {
   const style = document.documentElement.style;
   const vars = textColorVars(colors);
@@ -355,6 +372,18 @@ export function applyTextColors(colors: Partial<TextColors> | undefined) {
     if (value) style.setProperty(k.css, value);
     else style.removeProperty(k.css);
   }
+  let el = document.getElementById(MAIN_TEXT_ID);
+  if (!vars["--text-main"]) {
+    el?.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("style");
+    el.id = MAIN_TEXT_ID;
+  }
+  // Last in <head>, after the theme, snippets and app colours.
+  document.head.appendChild(el);
+  el.textContent = MAIN_TEXT_CSS;
 }
 
 const UI_FONT_FALLBACK = '"Segoe UI", system-ui, -apple-system, sans-serif';

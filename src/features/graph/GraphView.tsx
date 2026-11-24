@@ -17,11 +17,11 @@ import { GraphSettingsPanel } from "./GraphSettingsPanel";
 import { TreeView } from "./TreeView";
 import { busiestNote } from "./treeModel";
 import "./graph.css";
+import { cssColor } from "../../lib/cssColor";
 
 const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 
-const cssVar = (name: string, fallback: string) =>
-  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+const cssVar = (name: string, fallback: string) => cssColor(name, fallback);
 
 /** Fetch graph data, refreshing when the index changes. */
 function useGraphData(): GraphData | null {

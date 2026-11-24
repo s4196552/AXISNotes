@@ -3,7 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend";
 import { DEFAULT_CONFIG, mergeConfig, useConfig } from "../../app/config";
-import { applyTextColors, textColorVars } from "../../app/appearance";
+import { applyTextColors, MAIN_TEXT_CSS, textColorVars } from "../../app/appearance";
+import { appColorsCss } from "../../app/appColors";
 import { AnswerText } from "../ai/AnswerText";
 import { InlineText } from "../tasks/InlineText";
 import { Settings } from "./Settings";
@@ -29,6 +30,7 @@ const off = { on: false, light: "", dark: "" };
 describe("bold, italic and strikethrough colors (T-260)", () => {
   it("are off by default, so text keeps the theme's color", () => {
     expect(DEFAULT_CONFIG.appearance.textColors).toEqual({
+      main: off,
       bold: off,
       italic: off,
       strike: off,
@@ -148,6 +150,7 @@ describe("bold, italic and strikethrough colors (T-260)", () => {
       expect(
         JSON.parse((await h.b.readFile(".axisnotes/config.json")).content).appearance.textColors,
       ).toEqual({
+        main: off,
         bold: { on: true, light: "#cc0000", dark: "#ff9999" },
         italic: off,
         strike: { on: true, light: "", dark: "" },
@@ -162,5 +165,61 @@ describe("bold, italic and strikethrough colors (T-260)", () => {
       light: "",
       dark: "",
     });
+  });
+});
+
+describe("main text color (T-277)", () => {
+  const specificity = (selector: string) => (selector.match(/:root/g) ?? []).length;
+
+  it("colors note and interface text, with a neutral where a mode is left unset", () => {
+    expect(textColorVars({ main: { on: true, light: "#112233", dark: "" } })).toEqual({
+      "--text-main": "light-dark(#112233, #e6e6e6)",
+    });
+    expect(textColorVars({ main: { on: true, light: "", dark: "" } })).toEqual({
+      "--text-main": "light-dark(#1f2328, #e6e6e6)",
+    });
+    // A theme token would refer back to --fg, which main text replaces.
+    expect(JSON.stringify(textColorVars({ main: { on: true, light: "", dark: "" } }))).not.toMatch(
+      /var\(/,
+    );
+    expect(textColorVars({ main: { on: false, light: "#112233", dark: "#445566" } })).toEqual({});
+  });
+
+  it("adds its stylesheet when on and removes it when off", () => {
+    applyTextColors({
+      ...DEFAULT_CONFIG.appearance.textColors,
+      main: { on: true, light: "#112233", dark: "#ddeeff" },
+    });
+    expect(document.documentElement.style.getPropertyValue("--text-main")).toBe(
+      "light-dark(#112233, #ddeeff)",
+    );
+    const el = document.getElementById("axis-main-text")!;
+    expect(el.textContent).toBe(MAIN_TEXT_CSS);
+    expect(el.textContent).toMatch(/\.content[\s\S]*\.sidebar[\s\S]*--fg: var\(--text-main\)/);
+    applyTextColors(DEFAULT_CONFIG.appearance.textColors);
+    expect(document.getElementById("axis-main-text")).toBeNull();
+    expect(document.documentElement.style.getPropertyValue("--text-main")).toBe("");
+  });
+
+  it("outranks the Colors text colors of the note area and sidebars", () => {
+    const colors = appColorsCss("dark", {
+      sidebarBg: "#101010",
+      sidebarFg: "#a0a0a0",
+      mainBg: "#202020",
+      mainFg: "#b0b0b0",
+    });
+    const theirs = Math.max(...[...colors.matchAll(/^([^{]+)\{/gm)].map((m) => specificity(m[1]!)));
+    const ours = Math.min(
+      ...MAIN_TEXT_CSS.split("{")[0]!
+        .split(/,(?![^(]*\))/)
+        .map(specificity),
+    );
+    expect(ours).toBeGreaterThan(theirs);
+  });
+
+  it("is the first row in Typography's text colors", async () => {
+    render(<Settings section="typography" onClose={vi.fn()} />);
+    const rows = screen.getAllByRole("checkbox", { name: /^Color .* text$/ });
+    expect(rows[0]).toHaveAccessibleName("Color main text");
   });
 });

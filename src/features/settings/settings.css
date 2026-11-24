@@ -683,3 +683,117 @@
 .text-color-row:not([data-on]) .text-color-chip {
   opacity: 0.55;
 }
+
+/* Settings → Appearance → Styles (T-277) */
+.style-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+.style-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  padding: 5px 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.style-card:hover {
+  background: var(--bg-hover);
+}
+.style-card[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.style-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.style-card-preview {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 8px;
+  height: 56px;
+  padding: 6px 10px;
+  overflow: hidden;
+  border-radius: calc(var(--radius) - 2px);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.style-card-heading {
+  font-size: 20px;
+  font-weight: 700;
+}
+.style-card-dots {
+  display: flex;
+  gap: 4px;
+  justify-self: end;
+}
+.style-card-dots > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.style-card-text {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.style-card-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.style-card-name svg {
+  color: var(--accent);
+}
+.style-card-note {
+  padding: 0 2px;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.style-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+.style-own {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+.style-own-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.style-own-actions {
+  display: flex;
+  gap: 4px;
+}
+.style-name-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Style cards get the whole width, under their label, like the theme cards. */
+.settings-field:has(> .settings-control > .style-grid, > .settings-control > .style-own) {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
