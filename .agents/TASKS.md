@@ -18,3 +18,4 @@ Found by `scripts/agents/prune-worktrees.ps1` on 2026-11-25. Each is unmerged; a
 - Suite baseline and follow-ups: `agent/codex/T-042`, `agent/claude/T-043`, `agent/claude/T-060`, `agent/codex/T-061` (Linux E2E fix), `agent/codex/T-062` (feature modules), `agent/claude/T-063`
 - Later: `agent/claude/T-202`, `agent/codex/T-215`, `agent/codex/T-220`, `agent/codex/T-228`, `agent/codex/T-229` (standalone Hub)
 - Superseded but still present: `agent/claude/T-068`, `agent/claude/T-070`
+| T-285 | 6 | Publish script's tests run on half the cores and retry a failed test once, so a busy machine's 20 s UI-test timeouts no longer stop a release (0.3.112 needed `-SkipChecks` after two such stops); a real failure still fails twice | claude | merged | agent/claude/T-285 | `scripts/publish-update.ps1`, task coordination |

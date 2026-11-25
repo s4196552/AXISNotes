@@ -6,7 +6,8 @@
   1. Refuses unless the working tree is clean (untracked files are ignored), the branch is
      main, the tag vX.Y.Z doesn't exist yet and the signing key matches the public key built
      into the app (src-tauri/src/updates.rs).
-  2. Runs pnpm lint, pnpm typecheck and pnpm test (-SkipChecks skips them in an emergency;
+  2. Runs pnpm lint, pnpm typecheck and the tests (Vitest on half the cores, a failed test
+     retried once, so load on a busy machine doesn't stop a release; -SkipChecks skips them in an emergency;
      the skip is written to the tag and to publish-log.txt in the updates folder).
   3. Sets the version in package.json, src-tauri/tauri.conf.json and src-tauri/Cargo.toml,
      and builds the Windows installer (NSIS .exe).
@@ -198,7 +199,14 @@ if ($SkipChecks) {
     Write-Host "pnpm $check..."
     Push-Location $root
     try {
-      & pnpm $check
+      if ($check -eq "test") {
+        # Half the cores, and a failed test runs once more (T-285). With every core busy, a
+        # busy machine made healthy UI tests hit their 20 s limit and stopped the publish;
+        # a real failure still fails twice.
+        & pnpm exec vitest run --maxWorkers=50% --retry=1
+      } else {
+        & pnpm $check
+      }
       $code = $LASTEXITCODE
     } finally {
       Pop-Location
