@@ -19,3 +19,4 @@ Found by `scripts/agents/prune-worktrees.ps1` on 2026-11-25. Each is unmerged; a
 - Later: `agent/claude/T-202`, `agent/codex/T-215`, `agent/codex/T-220`, `agent/codex/T-228`, `agent/codex/T-229` (standalone Hub)
 - Superseded but still present: `agent/claude/T-068`, `agent/claude/T-070`
 | T-285 | 6 | Publish script's tests run on half the cores and retry a failed test once, so a busy machine's 20 s UI-test timeouts no longer stop a release (0.3.112 needed `-SkipChecks` after two such stops); a real failure still fails twice | claude | merged | agent/claude/T-285 | `scripts/publish-update.ps1`, task coordination |
+| T-286 | 6 | Tables: empty cells keep one text line of height; the + bars show only while the pointer is on the bar itself; inline code styled like the note and `` ```lang<br>…<br>``` `` cells drawn as code blocks | claude | merged | agent/claude/T-286 | `src/features/editor/{tables.ts,tables.test.ts,editor.css}`, task coordination |

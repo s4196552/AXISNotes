@@ -194,6 +194,27 @@ describe("Obsidian Markdown tables", () => {
     expect(tableCells("| A | ")).toEqual(["A"]);
     expect(parseTable(["one | two", "--- | no"])).toBeNull();
   });
+  it("shows inline code and <br>-joined code blocks in cells (T-286)", () => {
+    const doc =
+      "| Code | Block |\n| --- | --- |\n| `a | b` | ```ts<br>const x = 1;<br>if (a || b) go();<br>``` after |\n|  | ~~~<br>plain<br>~~~ |";
+    const view = open(doc);
+    const ui = within(view.dom);
+    const inline = ui.getByText("a | b");
+    expect(inline.tagName).toBe("CODE");
+    expect(inline).toHaveClass("cm-lp-code");
+    const block = view.dom.querySelector<HTMLElement>(".cm-table-codeblock")!;
+    expect(block.tagName).toBe("PRE");
+    expect(block.dataset.language).toBe("ts");
+    expect(block.textContent).toBe("const x = 1;\nif (a || b) go();");
+    expect(block.parentElement!.textContent).toContain("after");
+    const second = view.dom.querySelectorAll(".cm-table-codeblock")[1]!;
+    expect(second.textContent).toBe("plain");
+    // The empty cell still has its preview line, so the row keeps a text line's height.
+    expect(
+      ui.getByRole("cell", { name: "Row 2, column 1" }).querySelector(".cm-table-cell-preview"),
+    ).not.toBeNull();
+    expect(view.state.doc.toString()).toBe(doc);
+  });
   it("keeps fenced and indented code literal", () => {
     const view = open("```md\n" + COSTS + "\n```\n\n    | A | B |\n    | --- | --- |\n");
     expect(within(view.dom).queryByRole("table")).toBeNull();
