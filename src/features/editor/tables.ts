@@ -46,6 +46,29 @@ const sourceTable = StateField.define<{ from: number; to: number } | null>({
 function inline(parent: HTMLElement, source: string, view: EditorView) {
   const text = source.replace(/\\\|/g, "|");
   let last = 0;
+  // A code block in a cell: a fence, its lines joined with <br> (one table row is one line).
+  for (const m of text.matchAll(CELL_FENCE)) {
+    inlineSpans(parent, text.slice(last, m.index), view);
+    const pre = document.createElement("pre");
+    pre.className = "cm-table-codeblock";
+    const code = document.createElement("code");
+    code.textContent = m[3]!.replace(BR, "\n");
+    const language = m[2]!.trim();
+    if (language) pre.dataset.language = language;
+    pre.append(code);
+    parent.append(pre);
+    last = m.index + m[0].length;
+  }
+  inlineSpans(parent, text.slice(last), view);
+}
+
+const BR = /<br\s*\/?\s*>/gi;
+/** ```lang<br>line<br>line<br>``` (or ~~~); the language and the last <br> are optional. */
+const CELL_FENCE =
+  /(`{3,}|~{3,})([^`~<\n]*?)\s*<br\s*\/?\s*>([\s\S]*?)(?:<br\s*\/?\s*>)?\s*\1(?![`~])/gi;
+
+function inlineSpans(parent: HTMLElement, text: string, view: EditorView) {
+  let last = 0;
   // Inline icons (`![label](<lucide:Rocket>)`, from the `:` menu) draw as icons.
   for (const m of text.matchAll(INLINE_IMAGE)) {
     const image = parseMarkdownEmbed(m[0]);
@@ -62,6 +85,7 @@ const INLINE_IMAGE = /!\[[^\]\n]*\]\(\s*(?:<[^>\n]+>|[^\s()]+)\s*\)/g;
 
 /** Bold, italic and strikethrough look as they do in the note, with their colours (T-260). */
 const STYLE_CLASS: Partial<Record<string, string>> = {
+  code: "cm-lp-code",
   bold: "cm-lp-strong",
   italic: "cm-lp-em",
   strike: "cm-lp-strike",
@@ -589,7 +613,7 @@ class TableController {
         const cell = document.createElement(r === 0 ? "th" : "td");
         if (r === 0) cell.scope = "col";
         cell.style.textAlign = table.alignment[c] ?? "left";
-        const preview = document.createElement("span");
+        const preview = document.createElement("div");
         preview.className = "cm-table-cell-preview";
         inline(preview, value, this.view);
         cell.append(preview);
