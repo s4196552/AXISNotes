@@ -100,14 +100,14 @@ describe("Sidebar AI chat", () => {
     }
   });
 
-  it("asks about a right-clicked selection without sending the rest of the note", async () => {
+  it("asks about a selection without sending the rest of the note", async () => {
     await $('.filetree [data-path="Welcome.md"]').click();
     await $(".cm-content").click();
     await browser.keys([Key.Ctrl, Key.End]);
     await browser.keys([Key.ArrowUp, Key.ArrowUp, Key.ArrowUp, Key.Home]);
     await browser.keys([Key.Shift, Key.End]);
-    await $(".cm-line*=Cells").click({ button: "right" });
-    await $('[role="menuitem"]=Ask AI about this selection').click();
+    // The note's right-click menu has no AI items since T-289: the chat follows the selection.
+    await $('button[aria-label="AI chat"]').click();
     const summary = $(".sidebar-chat-context summary");
     const passage = $(".sidebar-chat-context blockquote");
     await expect(summary).toHaveText(expect.stringContaining("Selected text"));
@@ -116,7 +116,7 @@ describe("Sidebar AI chat", () => {
     await expect(passage).toHaveText(expect.stringContaining("Cells make ATP."));
     await summary.click();
     await expect(passage).not.toBeDisplayed();
-    await expect($('[aria-label="Chat message"]')).toHaveValue("Explain this selection.");
+    await $('[aria-label="Chat message"]').setValue("Explain this selection.");
     await $(".sidebar-chat").$("button=Send").click();
     await expect($(".sidebar-chat-log")).toHaveText(expect.stringContaining(answer));
     expect(requests).toHaveLength(1);

@@ -23,13 +23,11 @@ import {
   ListTodo,
   type LucideIcon,
   type LucideProps,
-  MessageSquare,
   Palette,
   Pilcrow,
   Scissors,
   SeparatorHorizontal,
   Sigma,
-  Sparkles,
   SpellCheck,
   SquareCode,
   SquarePlus,
@@ -45,7 +43,6 @@ import { clipboardReadAllowed, readClipboardText } from "../../ipc/clipboard";
 import { useFitToViewport } from "../../app/menuPosition";
 import { ContextMenu, MenuGroup, MenuItem, SubMenu } from "../filetree/ContextMenu";
 import "../filetree/filetree.css";
-import { type ChatContext, openSidebarChat } from "../ai/sidebarChatState";
 import type { SpellingFix } from "../spellcheck";
 import { getActiveEditor } from "./activeEditor";
 import { CODE_COLORS, type CodeColor, codeColorClass } from "./codeColors";
@@ -64,9 +61,9 @@ import {
   toggleParagraph,
 } from "./editorMenuActions";
 
-// The note's right-click menu (T-288), in the human's layout: Format ▸, Paragraph ▸ and
-// Insert ▸ act on the selection (or at the caret), then the clipboard, then the AI items
-// the menu had before. On a misspelled word its fixes come first.
+// The note's right-click menu (T-288, T-289), in the human's layout: Format ▸, Paragraph ▸
+// and Insert ▸ act on the selection (or at the caret), then the clipboard. On a misspelled
+// word its fixes come first. Asking AI is Ctrl+J or the AI chat, which follows the selection.
 
 const HEADINGS: [ParagraphKind, LucideIcon][] = [
   ["h1", Heading1],
@@ -130,14 +127,15 @@ async function clipboardFiles(): Promise<File[]> {
 export function NoteContextMenu({
   x,
   y,
-  context,
+  path,
   view: given,
   spelling,
   onClose,
 }: {
   x: number;
   y: number;
-  context: ChatContext;
+  /** The note the menu is for. */
+  path: string;
   /** The editor the menu is for (else the active one). */
   view?: EditorView;
   /** The misspelled word right-clicked, if any. */
@@ -167,7 +165,7 @@ export function NoteContextMenu({
   const editor = (): EditorView | null => {
     if (given) return given.dom.isConnected ? given : null;
     const active = getActiveEditor();
-    return active?.path === context.path ? active.view : null;
+    return active?.path === path ? active.view : null;
   };
   const view = editor();
   const state = view?.state;
@@ -204,7 +202,6 @@ export function NoteContextMenu({
         clipboardError(e);
       }
     });
-  const label = context.selection ? "selection" : "note";
   /** Close the menu and put the caret back in the note (Escape, Tab). */
   const close = () => {
     onClose();
@@ -345,18 +342,6 @@ export function NoteContextMenu({
               v.dispatch({ selection: { anchor: 0, head: v.state.doc.length } });
               v.focus();
             })}
-          />
-        </MenuGroup>
-        <MenuGroup label="AI">
-          <MenuItem
-            label={`Ask AI about this ${label}`}
-            icon={Sparkles}
-            onClick={() => openSidebarChat(context, `Explain this ${label}.`)}
-          />
-          <MenuItem
-            label={`Send ${label} to AI chat`}
-            icon={MessageSquare}
-            onClick={() => openSidebarChat(context)}
           />
         </MenuGroup>
       </ContextMenu>

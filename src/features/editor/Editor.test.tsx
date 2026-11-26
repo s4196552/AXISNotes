@@ -307,4 +307,21 @@ describe("Editor", () => {
     fireEvent.click(add.querySelector(".cm-line-tool-row")!);
     expect(view.state.doc.toString()).toBe("# Start\nBody\n");
   });
+
+  it("opens the note's menu on its title row and margins, but not in the title field", async () => {
+    useAppStore.setState({ vault: { root: "/vault", name: "vault" } as never });
+    const { container, view } = await open();
+    view.dispatch({ selection: { anchor: 11 } });
+    fireEvent.contextMenu(container.querySelector(".editor-header")!, { clientX: 30, clientY: 30 });
+    expect(screen.getByRole("menu", { name: "Note actions" })).toBeInTheDocument();
+    // It acts at the caret: Paragraph ▸ Heading 2 makes the caret's line a heading.
+    fireEvent.mouseEnter(screen.getByRole("menuitem", { name: "Paragraph" }).parentElement!);
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Heading 2" }));
+    expect(view.state.doc.line(3).text).toBe("## Hello **world**");
+    const title = container.querySelector(".editor-header input, .editor-header textarea");
+    if (title) {
+      fireEvent.contextMenu(title, { clientX: 30, clientY: 30 });
+      expect(screen.queryByRole("menu", { name: "Note actions" })).toBeNull();
+    }
+  });
 });

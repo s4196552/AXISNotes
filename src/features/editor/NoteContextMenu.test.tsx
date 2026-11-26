@@ -29,20 +29,12 @@ function setup(doc: string, from: number, to = from, spelling: SpellingFix | nul
     }),
   });
   const onClose = vi.fn();
-  const context = {
-    root: "/vault",
-    path: "Note.md",
-    doc,
-    from: from === to ? 0 : from,
-    to: from === to ? doc.length : to,
-    text: from === to ? doc : doc.slice(from, to),
-    selection: from !== to,
-  };
+
   render(
     <NoteContextMenu
       x={10}
       y={10}
-      context={context}
+      path="Note.md"
       view={view}
       spelling={spelling}
       onClose={onClose}
@@ -65,7 +57,7 @@ function layout(menu: HTMLElement): string[] {
 }
 
 describe("note right-click menu", () => {
-  it("has the human's layout, with the AI items kept at the end", () => {
+  it("has the human's layout and nothing else", () => {
     setup("Some text", 0, 4);
     const menu = screen.getByRole("menu", { name: "Note actions" });
     expect(layout(menu)).toEqual([
@@ -78,9 +70,6 @@ describe("note right-click menu", () => {
       "Paste",
       "Paste as plain text",
       "Select All",
-      "---",
-      "Ask AI about this selection",
-      "Send selection to AI chat",
     ]);
     fireEvent.mouseEnter(screen.getByRole("menuitem", { name: "Paragraph" }).parentElement!);
     expect(layout(screen.getByRole("menu", { name: "Paragraph" }))).toEqual([

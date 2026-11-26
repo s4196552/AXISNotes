@@ -470,7 +470,7 @@ export function FileTree() {
     store.notify(`${verb} ${itemsLabel(list, name)}. Select a folder and press Ctrl+V to paste.`);
   }, []);
 
-  /** "Make a copy": a copy beside the item, named "Name copy" (T-287). */
+  /** The menu's first "Copy": a copy beside the item, named "Name copy" (T-287). */
   const duplicate = useCallback(
     (path: string) =>
       run(async () => {
@@ -1242,7 +1242,8 @@ function EntryMenu(props: {
   return (
     <>
       <MenuGroup>
-        <MenuItem label="Make a copy" icon={CopyPlus} onClick={props.duplicate} />
+        {/* Duplicates beside the item ("Name copy"); the last group's Copy is the clipboard. */}
+        <MenuItem label="Copy" icon={CopyPlus} onClick={props.duplicate} />
         <MenuItem
           label={dir ? "Move folder" : "Move file"}
           icon={FolderInput}
@@ -1307,11 +1308,10 @@ async function openInWindow(path: string) {
   }
 }
 
-/** "AI ▸": the AI chat, asking AI, the heatmap, skills, and who may read this item. */
+/** "AI ▸": the AI chat, skills, and who may read this item (the human's layout, T-289). */
 function AiMenu({ entry }: { entry: VaultEntry }) {
   const readable = entry.kind === "dir" || isNotePath(entry.path);
   const path = entry.path;
-  const open = useUi.getState().open;
   return (
     <SubMenu label="AI" icon={Sparkles}>
       {readable && (
@@ -1320,18 +1320,6 @@ function AiMenu({ entry }: { entry: VaultEntry }) {
             label="Send to AI Chat"
             icon={MessageSquare}
             onClick={() => void sendFilesToSidebar([path])}
-          />
-          <MenuItem
-            label={entry.kind === "dir" ? "Ask AI about this folder" : "Ask AI about this note"}
-            icon={Sparkles}
-            onClick={() =>
-              open(entry.kind === "dir" ? { kind: "ask", folder: path } : { kind: "ask", path })
-            }
-          />
-          <MenuItem
-            label="Add to comprehension heatmap…"
-            icon={Grid3x3}
-            onClick={() => open({ kind: "heatmap-topic", paths: [path] })}
           />
           <SkillsMenu paths={[path]} />
         </>
@@ -1428,7 +1416,7 @@ function AiAccessMenu({ path }: { path: string }) {
       ))}
       <MenuItem
         icon={ListChecks}
-        label={models ? `Allowed models… (${models.length})` : "Allowed models…"}
+        label={models ? `Allowed models (${models.length})` : "Allowed models"}
         onClick={() => useUi.getState().open({ kind: "allowed-models", path })}
       />
     </SubMenu>
