@@ -73,7 +73,9 @@ vi.mock("./excalidraw", async () => {
           selectedElementIds: h.selected,
         }),
         getFiles: () => ({}),
-        getSceneElements: () => current,
+        getSceneElements: () => current.filter((e) => !e.isDeleted),
+        getSceneElementsIncludingDeleted: () => current,
+        addFiles: () => {},
         updateScene: ({ elements }: { elements: El[] }) => {
           current = elements;
           setScene(elements);
@@ -98,7 +100,16 @@ vi.mock("./excalidraw", async () => {
     Excalidraw,
     MainMenu: Object.assign(Noop, { DefaultItems: any }),
     WelcomeScreen: Object.assign(Noop, { Hints: any, Center: Object.assign(Noop, any) }),
-    CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY" },
+    CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER" },
+    // Each element: the side with the higher version wins.
+    reconcileElements: (local: El[], remote: El[]) => {
+      const out = new Map(local.map((e) => [e.id, e]));
+      for (const r of remote) {
+        const l = out.get(r.id);
+        if (!l || (r.version ?? 1) > (l.version ?? 1)) out.set(r.id, r);
+      }
+      return [...out.values()];
+    },
     exportToBlob: ({ elements }: { elements: El[] }) => {
       h.exported.push(elements);
       return Promise.resolve(new Blob(["png"], { type: "image/png" }));
@@ -106,8 +117,8 @@ vi.mock("./excalidraw", async () => {
     convertToExcalidrawElements: (els: Omit<El, "id">[]) =>
       els.map((e) => ({ ...e, id: `new${n++}`, version: 1 })),
     getSceneVersion: (els: El[]) => els.reduce((s, e) => s + (e.version ?? 1), 0),
-    restoreElements: (els: Omit<El, "id">[]) =>
-      els.map((e) => ({ ...e, id: `new${n++}`, version: 1 })),
+    restoreElements: (els: (Omit<El, "id"> & { id?: string })[]) =>
+      els.map((e) => ({ ...e, id: e.id ?? `new${n++}`, version: e.version ?? 1 })),
     viewportCoordsToSceneCoords: (p: { clientX: number; clientY: number }) => ({
       x: p.clientX,
       y: p.clientY,
@@ -210,13 +221,42 @@ describe("Canvas", () => {
     expect(useAppStore.getState().activePath).toBe("Ideas.md");
   });
 
-  it("reloads the scene when the file changes on disk", async () => {
+  it("takes outside changes in place, without reloading the canvas", async () => {
     await open();
     const next = JSON.parse(BOARD) as { elements: El[] };
-    next.elements = [{ id: "only", type: "text", version: 3 }];
+    next.elements = [...next.elements, { id: "claude", type: "rectangle", version: 1 }];
     act(() => h.b.externalWrite("Board.axcanvas", JSON.stringify(next)));
-    await waitFor(() => expect(h.mounts).toBe(2));
-    expect(h.props!.initialData.elements.map((e) => e.id)).toEqual(["only"]);
+    await waitFor(() =>
+      expect(h.api!.getSceneElements().map((e) => e.id)).toEqual(["t", "c", "claude"]),
+    );
+    expect(h.mounts).toBe(1); // same Excalidraw: view and undo history kept
+    expect(screen.queryByText(/changed on disk/)).toBeNull();
+  });
+
+  it("merges an outside change with unsaved edits and saves both", async () => {
+    await open();
+    act(() =>
+      h.api!.updateScene({
+        elements: [...h.api!.getSceneElements(), { id: "ink", type: "freedraw", version: 1 }],
+      }),
+    );
+    const next = JSON.parse(BOARD) as { elements: El[] };
+    // Outside: "t" deleted and a shape added.
+    next.elements = [next.elements[1]!, { id: "claude", type: "rectangle", version: 1 }];
+    act(() => h.b.externalWrite("Board.axcanvas", JSON.stringify(next)));
+    await waitFor(() =>
+      expect(h.api!.getSceneElements().map((e) => e.id)).toEqual(["c", "ink", "claude"]),
+    );
+    expect(screen.queryByText(/changed on disk/)).toBeNull();
+    await settle();
+    expect(saved().elements.map((e) => e.id)).toEqual(["c", "ink", "claude"]);
+    expect(h.mounts).toBe(1);
+  });
+
+  it("still reloads when the outside version can't be read", async () => {
+    await open();
+    act(() => h.b.externalWrite("Board.axcanvas", "{broken"));
+    expect(await screen.findByText(/could not be read/)).toBeInTheDocument();
   });
 
   it("opens unreadable files read-only and never saves them", async () => {

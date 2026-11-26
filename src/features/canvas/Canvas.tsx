@@ -24,6 +24,7 @@ import { blobToBase64 } from "../handwriting/pad";
 import type { Image } from "../handwriting/recognize";
 import { NoteCard } from "./NoteCard";
 import { type Lib, loadExcalidraw } from "./loadExcalidraw";
+import { mergeOutside, needsRemeasure, remeasure } from "./liveMerge";
 import "./canvas.css";
 
 type Api = import("./excalidraw").ExcalidrawImperativeAPI;
@@ -86,6 +87,49 @@ export function Canvas({ path }: { path: string }) {
     }
     return track.current;
   };
+  /** A version of the file written outside the app, merged into the open scene (T-293). */
+  const absorb = (content: string): boolean => {
+    const a = api.current;
+    if (!a || !lib || loaded.error !== undefined) return false;
+    let next: CanvasFile;
+    try {
+      next = parseCanvas(content);
+    } catch {
+      return false; // unreadable: the usual reload shows it read-only
+    }
+    const t = tracking();
+    let previous: CanvasElement[] = [];
+    try {
+      previous = parseCanvas(t.onDisk).elements;
+    } catch {
+      /* nothing known about the old version */
+    }
+    const elements = mergeOutside(
+      lib,
+      a.getSceneElementsIncludingDeleted() as unknown as CanvasElement[],
+      previous,
+      next.elements,
+      a.getAppState(),
+      t.dirty,
+    );
+    t.onDisk = content;
+    const files = Object.values(next.files);
+    if (files.length) a.addFiles(files as never);
+    a.updateScene({
+      elements: elements as never,
+      appState: {
+        ...(next.appState.viewBackgroundColor
+          ? { viewBackgroundColor: next.appState.viewBackgroundColor }
+          : {}),
+        ...(next.appState.gridSize ? { gridSize: next.appState.gridSize } : {}),
+        ...(next.appState.gridStep ? { gridStep: next.appState.gridStep } : {}),
+        gridModeEnabled: next.appState.gridModeEnabled ?? false,
+      } as never,
+      // One undo step, so an outside change (Claude's drawing) can be taken back.
+      captureUpdate: lib.CaptureUpdateAction.IMMEDIATELY,
+    });
+    return true;
+  };
   const file = useFileDocument(
     path,
     () => {
@@ -97,6 +141,7 @@ export function Canvas({ path }: { path: string }) {
       return text;
     },
     loaded.error === undefined,
+    absorb,
   );
   if (file.text !== null && file.loadVersion !== loaded.version) {
     try {
@@ -121,6 +166,27 @@ export function Canvas({ path }: { path: string }) {
   const themeSetting = useConfig((s) => s.config.theme);
   const theme = effectiveMode(themeSetting);
   const readOnly = loaded.error !== undefined;
+
+  // Which load of the file Excalidraw has mounted (its API is set then).
+  const [mounted, setMounted] = useState(-1);
+  // Text written outside the app while the canvas was closed is measured once it shows.
+  useEffect(() => {
+    const a = api.current;
+    if (!lib || !a || mounted !== loaded.version || readOnly) return;
+    if (!needsRemeasure(a.getSceneElementsIncludingDeleted() as unknown as CanvasElement[])) return;
+    let live = true;
+    void (document.fonts?.ready ?? Promise.resolve()).then(() => {
+      if (!live || api.current !== a) return;
+      const els = a.getSceneElementsIncludingDeleted() as unknown as CanvasElement[];
+      a.updateScene({
+        elements: remeasure(lib, els) as never,
+        captureUpdate: lib.CaptureUpdateAction.NEVER,
+      });
+    });
+    return () => {
+      live = false;
+    };
+  }, [lib, mounted, loaded.version, readOnly]);
 
   const onChange = (
     elements: readonly CanvasElement[],
@@ -376,7 +442,10 @@ export function Canvas({ path }: { path: string }) {
           <Ex
             key={loaded.version}
             initialData={initialData}
-            excalidrawAPI={(a) => (api.current = a)}
+            excalidrawAPI={(a) => {
+              api.current = a;
+              setMounted(loaded.version);
+            }}
             onChange={(els, st, files) =>
               onChange(els as readonly CanvasElement[], st, files as Record<string, unknown>)
             }

@@ -8,6 +8,7 @@
 //! `.axisnotes/claude-activity.jsonl`.
 
 mod access;
+mod canvas;
 mod tools;
 
 #[cfg(test)]
@@ -33,7 +34,7 @@ const ACTIVITY_MAX_BYTES: u64 = 256_000;
 /// Re-check the files for changes made while the app is closed, at most this often.
 const RESYNC_AFTER: Duration = Duration::from_secs(5);
 
-const INSTRUCTIONS: &str = "AXISNotes is the user's local notes app. These tools read and edit one AXISNotes vault: a folder of Markdown notes linked with [[wikilinks]], #tags and YAML frontmatter, plus grids (.axgrid) and canvases (.axcanvas). Paths are vault-relative with forward slashes. Call vault_info first. Read a note before changing it, and prefer replace_in_note or append_to_note over rewriting whole notes. Some folders are kept from cloud AI by the user and are never shown; don't try to reach them.";
+const INSTRUCTIONS: &str = "AXISNotes is the user's local notes app. These tools read and edit one AXISNotes vault: a folder of Markdown notes linked with [[wikilinks]], #tags and YAML frontmatter, plus grids (.axgrid) and canvases (.axcanvas). Paths are vault-relative with forward slashes. Call vault_info first. Read a note before changing it, and prefer replace_in_note or append_to_note over rewriting whole notes. To draw (diagrams, mind maps, boards), use the canvas tools: read_canvas first, then add_to_canvas or change_canvas; an open canvas shows the change live, and for a step-by-step drawing make several small calls. Some folders are kept from cloud AI by the user and are never shown; don't try to reach them.";
 
 /// Entry point for `--mcp`: returns the process exit code.
 pub fn main(args: &[String]) -> i32 {
