@@ -7,6 +7,7 @@ import {
   displayName,
   dropSide,
   findEntry,
+  folderQuery,
   orderedChildren,
   placeName,
   remapOrder,
@@ -151,5 +152,12 @@ describe("treeModel", () => {
       "A.md",
       "Schoolwork.md",
     ]);
+  });
+});
+
+describe("folderQuery", () => {
+  it("searches under a folder, quoting a path with spaces", () => {
+    expect(folderQuery("School")).toBe("path:School/ ");
+    expect(folderQuery("School/Week 1")).toBe(`path:"School/Week 1/" `);
   });
 });

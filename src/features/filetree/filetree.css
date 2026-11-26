@@ -228,6 +228,72 @@ body.filetree-dragging * {
 .filetree-menu button.danger {
   color: var(--danger);
 }
+.filetree-menu:focus {
+  outline: none;
+}
+
+/* The file tree's menus (T-287): groups divided by a line, and submenus beside an item. */
+.filetree-menu-section {
+  display: flex;
+  flex-direction: column;
+}
+.filetree-menu-section:empty {
+  display: none;
+}
+.filetree-menu-section:not(:empty) ~ .filetree-menu-section:not(:empty) {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+.filetree-menu .menu-label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+}
+.filetree-menu .menu-more,
+.filetree-menu .menu-check {
+  flex: none;
+  margin-left: 12px;
+  color: var(--fg-muted);
+}
+.filetree-menu .menu-check {
+  min-width: 1em;
+  text-align: center;
+  color: var(--accent);
+}
+.filetree-menu button:focus-visible,
+.filetree-menu button.open {
+  background: var(--bg-hover);
+  outline: none;
+}
+.filetree-submenu-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.filetree-menu.filetree-submenu {
+  position: absolute;
+  top: -5px;
+  left: calc(100% + 4px);
+  white-space: nowrap;
+}
+.filetree-menu.filetree-submenu.on-left {
+  left: auto;
+  right: calc(100% + 4px);
+}
+/* A bridge over the gap, so the pointer can cross to the submenu without closing it. */
+.filetree-menu.filetree-submenu::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  width: 8px;
+}
+.filetree-menu.filetree-submenu.on-left::before {
+  left: auto;
+  right: -8px;
+}
 .filetree-ai {
   display: inline-flex;
   flex: none;
@@ -308,13 +374,6 @@ body.filetree-dragging * {
   gap: 8px;
 }
 /* "AI skill on 12 items": the skills, as a labelled group in the menu. */
-.filetree-menu-group {
-  display: flex;
-  flex-direction: column;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
-  padding-bottom: 4px;
-}
 .filetree-menu-label {
   padding: 4px 10px 2px;
   font-size: 11px;

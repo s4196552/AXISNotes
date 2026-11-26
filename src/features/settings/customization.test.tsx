@@ -79,7 +79,7 @@ describe("folder icons", () => {
       </>,
     );
     fireEvent.contextMenu(screen.getByRole("treeitem", { name: "School" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Change icon…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Change Icon" }));
     const dialog = screen.getByRole("dialog", { name: "Icon for School" });
     fireEvent.click(within(dialog).getByRole("radio", { name: "Color #30a46c" }));
     fireEvent.click(within(dialog).getByRole("option", { name: "GraduationCap" }));
@@ -94,7 +94,7 @@ describe("folder icons", () => {
 
     // Emoji icons work too.
     fireEvent.contextMenu(screen.getByRole("treeitem", { name: "Ideas" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Change icon…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Change Icon" }));
     fireEvent.click(screen.getByRole("tab", { name: "Emoji" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Filter icons" }), {
       target: { value: "bulb" },
@@ -130,7 +130,7 @@ describe("folder icons", () => {
       </>,
     );
     fireEvent.contextMenu(screen.getByRole("treeitem", { name: "School" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Change icon…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Change Icon" }));
     const dialog = screen.getByRole("dialog", { name: "Icon for School" });
     // The full set loads on demand; a few hundred render before "Show more".
     const all = await within(dialog).findByRole("listbox", { name: "Choose an icon" });

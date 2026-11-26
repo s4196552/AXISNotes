@@ -383,6 +383,11 @@ interface ConfigState {
   update(fn: (c: AxisConfig) => AxisConfig): Promise<void>;
   /** Save a change still waiting (before switching vaults or closing). */
   flush(): Promise<void>;
+  /**
+   * Read the file again after another app window saved it (T-287). Skipped while a change
+   * made here waits to be saved, which then wins.
+   */
+  reload(): Promise<void>;
   /** Replace a broken settings file with the settings shown now (a copy was kept). */
   resetBroken(): Promise<void>;
 }
@@ -497,6 +502,12 @@ export const useConfig = create<ConfigState>((set, get) => {
         await save().catch(() => {});
       }
       await saving;
+    },
+
+    async reload() {
+      await saving;
+      if (timer || !get().loaded) return;
+      await get().load();
     },
 
     async resetBroken() {

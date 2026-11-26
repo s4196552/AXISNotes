@@ -2,7 +2,8 @@ import { type CSSProperties, useEffect } from "react";
 import { AgentBridge } from "./features/agent/AgentBridge";
 import { backend } from "./ipc";
 import { useAppStore } from "./app/store";
-import { useConfig } from "./app/config";
+import { CONFIG_PATH, useConfig } from "./app/config";
+import { noteWindowPath, onOtherWindows } from "./app/windows";
 import { openStartupPages } from "./app/startup";
 import {
   applyAppearance,
@@ -39,6 +40,9 @@ import { WindowControls } from "./features/window/WindowControls";
 import { applyWindowLogo } from "./app/windowLogo";
 import { applyVaultFonts } from "./app/vaultFonts";
 import { type VaultFont, vaultFonts } from "./lib/fonts";
+
+/** Set in a window opened on one note with "Open in new window" (T-287). */
+const noteWindow = noteWindowPath();
 
 export default function App() {
   const vault = useAppStore((s) => s.vault);
@@ -96,10 +100,12 @@ export default function App() {
 
   // A vault created just now: show "Getting started" once.
   useEffect(() => {
-    if (vault && takeGettingStarted(vault.root)) useUi.getState().open({ kind: "getting-started" });
+    if (vault && !noteWindow && takeGettingStarted(vault.root))
+      useUi.getState().open({ kind: "getting-started" });
   }, [vault]);
 
-  // Load vault settings; optionally open today's daily note and Home.
+  // Load vault settings; optionally open today's daily note and Home. A window opened on
+  // one note shows that note instead.
   useEffect(() => {
     if (!vault) return;
     let cancelled = false;
@@ -108,6 +114,7 @@ export default function App() {
       .load()
       .then(async () => {
         if (cancelled) return;
+        if (noteWindow !== null) return useAppStore.getState().openFile(noteWindow);
         void useTimer.getState().restore();
         await openStartupPages(() => cancelled);
       });
@@ -115,6 +122,28 @@ export default function App() {
       cancelled = true;
     };
   }, [vault]);
+
+  // The other app windows: settings saved there are read again here. Another vault opened
+  // in one of them is served to every window, so the main window follows it and a window
+  // opened on one note closes.
+  useEffect(
+    () =>
+      onOtherWindows((m) => {
+        if (m.kind === "changes") {
+          if (m.changes.some((c) => c.paths.includes(CONFIG_PATH)))
+            void useConfig.getState().reload();
+        } else if (m.root !== useAppStore.getState().vault?.root) {
+          if (noteWindow !== null) void backend.windowFrame?.requestClose();
+          else
+            void backend.currentVault().then((v) => {
+              if (!v || v.root === useAppStore.getState().vault?.root) return;
+              rememberVault(v);
+              useAppStore.setState({ vault: v, activePath: null, error: null });
+            });
+        }
+      }),
+    [],
+  );
 
   const theme = useConfig((s) => s.config.theme);
   const snippets = useConfig((s) => s.config.snippets);
@@ -168,7 +197,7 @@ export default function App() {
   useEffect(() => (vault ? installFileDrops() : undefined), [vault]);
 
   // A newer version in the updates folder is offered by a banner (never installed unasked).
-  useEffect(() => void checkOnLaunch(), []);
+  useEffect(() => void (noteWindow === null && checkOnLaunch()), []);
 
   // Closing the window saves every open document first, and stays open if one can't be.
   useEffect(() => guardWindowClose(), []);
@@ -279,7 +308,7 @@ export default function App() {
       <Modals />
       <UpdateBanner />
       <ConfigProblemBanner />
-      <AgentBridge />
+      {noteWindow === null && <AgentBridge />}
       <footer className="statusbar">
         <span>{activePath ?? ""}</span>
         {indexing && (

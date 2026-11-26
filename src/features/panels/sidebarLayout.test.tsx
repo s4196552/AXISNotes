@@ -225,10 +225,10 @@ describe("customizing the sidebars", () => {
       { name: "Favorites" },
     );
     expect(toggle).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByText(/choose Add to favorites/)).toBeTruthy();
+    expect(screen.getByText(/choose Favorite/)).toBeTruthy();
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByText(/choose Add to favorites/)).toBeNull();
+    expect(screen.queryByText(/choose Favorite/)).toBeNull();
     expect(JSON.parse(localStorage.getItem(FOLDS_KEY)!)).toMatchObject({ favorites: false });
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
@@ -245,15 +245,15 @@ describe("favorites", () => {
     render(<LeftSidebar />);
     const tree = screen.getByRole("tree", { name: "Vault files" });
     fireEvent.contextMenu(within(tree).getByText("Plan"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Add to favorites" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Favorite" }));
     fireEvent.contextMenu(within(tree).getByText("School"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Add to favorites" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Favorite" }));
     await waitFor(() => expect(favNames()).toEqual(["Plan", "School"]));
     expect((await saved()).favorites).toEqual(["Plan.md", "School"]);
 
     // The menu now offers to take it out again.
     fireEvent.contextMenu(within(tree).getByText("Plan"));
-    expect(screen.getByRole("menuitem", { name: "Remove from favorites" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Unfavorite" })).toBeTruthy();
     fireEvent.keyDown(window, { key: "Escape" });
 
     // Clicking opens a note; a folder opens in the file tree.

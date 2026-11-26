@@ -73,8 +73,9 @@ describe("FileTree", () => {
     useUi.setState({ modal: null });
     useSidebarChat.setState({ open: false, context: null });
     fireEvent.contextMenu(row("Bio"), { clientX: 20, clientY: 20 });
+    fireEvent.click(screen.getByRole("menuitem", { name: "AI" }));
     expect(screen.getByRole("menuitem", { name: "Ask AI about this note" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Send to AI chat" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Send to AI Chat" }));
     await waitFor(() => expect(useSidebarChat.getState().open).toBe(true));
     expect(useSidebarChat.getState().context).toMatchObject({
       sources: ["Bio.md"],
@@ -365,15 +366,15 @@ describe("FileTree", () => {
     await waitFor(() => expect(names()).toEqual(["School", "X", "B", "Y", "Zed", "A"]));
   });
 
-  it("moves items up and down with Alt + arrows and the menu, and sorts A–Z again", async () => {
+  it("moves items up and down with Alt + arrows, and sorts A–Z again from the menu", async () => {
     await setup({ "A.md": "", "B.md": "", "C.md": "" });
     const names = () => screen.getAllByRole("treeitem").map((r) => r.textContent);
     fireEvent.click(row("C"));
     fireEvent.keyDown(screen.getByRole("tree"), { key: "ArrowUp", altKey: true });
     await waitFor(() => expect(names()).toEqual(["A", "C", "B"]));
 
-    fireEvent.contextMenu(row("A"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move down" }));
+    fireEvent.click(row("A"));
+    fireEvent.keyDown(screen.getByRole("tree"), { key: "ArrowDown", altKey: true });
     await waitFor(() => expect(names()).toEqual(["C", "A", "B"]));
 
     // On the empty area (the top level), the menu offers A–Z again.
@@ -384,11 +385,14 @@ describe("FileTree", () => {
     expect(screen.queryByRole("menuitem", { name: "Sort A–Z" })).not.toBeInTheDocument();
   });
 
-  it("offers Move to… for files and folders", async () => {
-    await setup({ "School/Bio.md": "" });
+  it("offers Move folder and Move file", async () => {
+    await setup({ "School/Bio.md": "", "Ideas.md": "" });
     fireEvent.contextMenu(row("School"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move to…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move folder" }));
     expect(useUi.getState().modal).toEqual({ kind: "move", path: "School" });
+    fireEvent.contextMenu(row("Ideas"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move file" }));
+    expect(useUi.getState().modal).toEqual({ kind: "move", path: "Ideas.md" });
   });
 
   it("moves a folder to the trash only after confirmation", async () => {
@@ -443,7 +447,13 @@ describe("FileTree", () => {
   it("sets a folder's AI access from the context menu and marks it", async () => {
     await setup({ "Medical/scan.md": "", "Notes/a.md": "" });
     fireEvent.contextMenu(row("Medical"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "AI access: never" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "AI" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "AI Access" }));
+    expect(screen.getByRole("menuitemradio", { name: "Inherit" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Never" }));
     await waitFor(() =>
       expect(JSON.parse(h.b.files()[".axisnotes/config.json"]!).ai.folders).toEqual({
         Medical: "never",
@@ -451,15 +461,20 @@ describe("FileTree", () => {
     );
     expect(within(row("Medical, AI: never")).getByTitle("AI: never")).toBeInTheDocument();
     fireEvent.contextMenu(row("Medical, AI: never"));
-    expect(screen.getByRole("menuitem", { name: "✓ AI access: never" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("menuitem", { name: "AI access: inherit" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "AI" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "AI Access" }));
+    expect(screen.getByRole("menuitemradio", { name: "Never" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Inherit" }));
     await waitFor(() => expect(row("Medical")).toBeInTheDocument());
   });
 
-  it("gives a row its own background and text color from Change colors…", async () => {
+  it("gives a row its own background and text color from Change Colors", async () => {
     await setup({ "Ideas.md": "", "School/Bio.md": "" });
     fireEvent.contextMenu(row("Ideas"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Change colors…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Change Colors" }));
     expect(useUi.getState().modal).toEqual({ kind: "colors", path: "Ideas.md" });
 
     const onClose = vi.fn();
@@ -704,7 +719,7 @@ describe("FileTree: copy, cut and paste (T-194)", () => {
     fireEvent.contextMenu(row("School"));
     fireEvent.click(menuItem("Copy"));
     fireEvent.contextMenu(tree());
-    fireEvent.click(menuItem("Paste here"));
+    fireEvent.click(menuItem("Paste"));
     await waitFor(() =>
       expect(h.b.files()).toEqual({
         "School/Maths.md": "sums",
@@ -716,7 +731,7 @@ describe("FileTree: copy, cut and paste (T-194)", () => {
     await waitFor(() => expect(picked()).toEqual(["School copy"]));
 
     fireEvent.contextMenu(row("School"));
-    fireEvent.click(menuItem("Paste here"));
+    fireEvent.click(menuItem("Paste"));
     await waitFor(() => expect(useAppStore.getState().error).toMatch(/"School" into itself/));
     expect(Object.keys(h.b.files())).toHaveLength(4);
   });
@@ -731,7 +746,7 @@ describe("FileTree: copy, cut and paste (T-194)", () => {
     expect(h.b.files()).toHaveProperty(["A.md"]);
 
     fireEvent.contextMenu(row("School"));
-    fireEvent.click(menuItem("Paste 2 items here"));
+    fireEvent.click(menuItem("Paste 2 items"));
     await waitFor(() =>
       expect(h.b.files()).toEqual({ "School/A.md": "a", "School/B.md": "b", "School/X.md": "" }),
     );
@@ -784,5 +799,171 @@ describe("FileTree: copy, cut and paste (T-194)", () => {
     key("v");
     await waitFor(() => expect(useAppStore.getState().error).toMatch(/no longer in the vault/));
     expect(h.b.files()).toEqual({ "A.md": "" });
+  });
+});
+
+describe("FileTree menus (T-287)", () => {
+  const tree = () => screen.getByRole("tree");
+  const menuItem = (name: string) => screen.getByRole("menuitem", { name });
+  const labels = (el: Element) => [...el.querySelectorAll(".menu-label")].map((l) => l.textContent);
+  /** The open menu's groups (each divided from the last by a line), by item label. */
+  const groups = () =>
+    within(screen.getAllByRole("menu")[0]!)
+      .getAllByRole("group")
+      .map(labels)
+      .filter((g) => g.length > 0);
+
+  it("lays out a file's menu in the human's order, with an AI submenu", async () => {
+    await setup({ "School/Bio.md": "" });
+    h.b.appWindows = { openNote: vi.fn(async () => {}) };
+    fireEvent.click(row("School"));
+    fireEvent.contextMenu(row("Bio"));
+    expect(groups()).toEqual([
+      ["Open in new tab", "Open in split screen", "Open in new window"],
+      ["New Note", "New Grid", "New Canvas", "New Folder"],
+      ["Make a copy", "Move file", "Favorite"],
+      ["AI"],
+      ["Change Icon", "Change Colors"],
+      ["Delete", "Copy", "Cut", "Rename"],
+    ]);
+    fireEvent.click(menuItem("AI"));
+    const ai = screen.getByRole("menu", { name: "AI" });
+    expect(within(ai).getByRole("menuitem", { name: "Send to AI Chat" })).toBeInTheDocument();
+    expect(within(ai).getByRole("menuitem", { name: "AI Skills" })).toBeInTheDocument();
+    fireEvent.click(within(ai).getByRole("menuitem", { name: "AI Access" }));
+    expect(labels(screen.getByRole("menu", { name: "AI Access" }))).toEqual([
+      "Inherit",
+      "Never",
+      "Local models only",
+      "Allowed models…",
+    ]);
+  });
+
+  it("lays out a folder's menu, keeping rename, delete and the clipboard last", async () => {
+    await setup({ "School/Bio.md": "" });
+    fireEvent.contextMenu(row("School"));
+    expect(groups()).toEqual([
+      ["New Note", "New Grid", "New Canvas", "New Folder"],
+      ["Make a copy", "Move folder", "Search in folder", "Favorite"],
+      ["AI"],
+      ["Change Icon", "Change Colors"],
+      ["Add dashboard"],
+      ["Delete", "Copy", "Cut", "Rename"],
+    ]);
+  });
+
+  it("drops the word here from the empty space's menu", async () => {
+    await setup({ "A.md": "" });
+    fireEvent.contextMenu(tree());
+    expect(groups()).toEqual([["New Note", "New Grid", "New Canvas", "New Folder"]]);
+  });
+
+  it("creates new items next to a file, in its folder", async () => {
+    await setup({ "School/Bio.md": "" });
+    fireEvent.click(row("School"));
+    fireEvent.contextMenu(row("Bio"));
+    fireEvent.click(menuItem("New Note"));
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["School/Untitled.md"]));
+  });
+
+  it("opens a file in a new tab, a split pane or a new window", async () => {
+    await setup({ "Bio.md": "", "Ideas.md": "" });
+    const openNote = vi.fn(async () => {});
+    h.b.appWindows = { openNote };
+    useAppStore.getState().openFile("Ideas.md");
+
+    fireEvent.contextMenu(row("Bio"));
+    fireEvent.click(menuItem("Open in new tab"));
+    expect(useAppStore.getState().tabs.list.map((t) => t.path)).toEqual(["Ideas.md", "Bio.md"]);
+
+    const before = useAppStore.getState().panes;
+    fireEvent.contextMenu(row("Ideas"));
+    fireEvent.click(menuItem("Open in split screen"));
+    const s = useAppStore.getState();
+    expect(Object.keys(s.panes.tabs)).toHaveLength(Object.keys(before.tabs).length + 1);
+    // The new pane shows the file; the first pane keeps its tabs.
+    expect(s.panes.focused).not.toBe(before.focused);
+    expect(s.activePath).toBe("Ideas.md");
+    expect(s.panes.tabs[before.focused]!.list.map((t) => t.path)).toEqual(["Ideas.md", "Bio.md"]);
+
+    fireEvent.contextMenu(row("Bio"));
+    fireEvent.click(menuItem("Open in new window"));
+    expect(openNote).toHaveBeenCalledWith("Bio.md");
+  });
+
+  it("leaves Open in new window out where no other window can open", async () => {
+    await setup({ "Bio.md": "" });
+    fireEvent.contextMenu(row("Bio"));
+    expect(menuItem("Open in split screen")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Open in new window" })).toBeNull();
+  });
+
+  it("makes a copy beside the item, and undoes it", async () => {
+    await setup({ "School/Bio.md": "cells" });
+    fireEvent.click(row("School"));
+    fireEvent.contextMenu(row("Bio"));
+    fireEvent.click(menuItem("Make a copy"));
+    await waitFor(() => expect(h.b.files()).toHaveProperty(["School/Bio copy.md"], "cells"));
+    await waitFor(() => expect(row("Bio copy")).toHaveAttribute("aria-selected", "true"));
+    fireEvent.keyDown(tree(), { key: "z", ctrlKey: true });
+    await waitFor(() => expect(h.b.files()).toEqual({ "School/Bio.md": "cells" }));
+  });
+
+  it("searches in a folder", async () => {
+    await setup({ "Week 1/Notes.md": "", "School/Bio.md": "" });
+    fireEvent.contextMenu(row("Week 1"));
+    fireEvent.click(menuItem("Search in folder"));
+    expect(useAppStore.getState().leftPanel).toBe("search");
+    expect(useAppStore.getState().searchQuery).toBe(`path:"Week 1/" `);
+  });
+
+  it("favorites a file, then offers to unfavorite it", async () => {
+    await setup({ "Bio.md": "" });
+    fireEvent.contextMenu(row("Bio"));
+    fireEvent.click(menuItem("Favorite"));
+    await waitFor(() => expect(useConfig.getState().config.favorites).toEqual(["Bio.md"]));
+    fireEvent.contextMenu(row("Bio"));
+    expect(menuItem("Unfavorite")).toBeInTheDocument();
+  });
+
+  it("works from the keyboard: the menu key, arrows into and out of submenus, Escape", async () => {
+    await setup({ "Bio.md": "" });
+    fireEvent.click(row("Bio"));
+    fireEvent.keyDown(tree(), { key: "ContextMenu" });
+    const menu = screen.getByRole("menu", { name: "Bio" });
+    expect(menu).toHaveFocus();
+    const press = (key: string) => fireEvent.keyDown(document.activeElement!, { key });
+    press("ArrowDown");
+    expect(menuItem("Open in new tab")).toHaveFocus();
+    press("End");
+    expect(menuItem("Rename")).toHaveFocus();
+    // Up from Rename to AI: Cut, Copy, Delete, Change Colors, Change Icon, AI.
+    for (let i = 0; i < 6; i++) press("ArrowUp");
+    expect(menuItem("AI")).toHaveFocus();
+    press("ArrowRight");
+    expect(menuItem("Send to AI Chat")).toHaveFocus();
+    press("End");
+    expect(menuItem("AI Access")).toHaveFocus();
+    press("Enter");
+    expect(screen.getByRole("menuitemradio", { name: "Inherit" })).toHaveFocus();
+    press("ArrowLeft");
+    expect(menuItem("AI Access")).toHaveFocus();
+    expect(screen.queryByRole("menu", { name: "AI Access" })).toBeNull();
+    press("Escape");
+    expect(menuItem("AI")).toHaveFocus();
+    expect(screen.queryByRole("menu", { name: "AI" })).toBeNull();
+    press("Escape");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(tree()).toHaveFocus();
+  });
+
+  it("opens a submenu on hover and closes it when another item is pointed at", async () => {
+    await setup({ "Bio.md": "" });
+    fireEvent.contextMenu(row("Bio"));
+    fireEvent.mouseEnter(menuItem("AI").parentElement!);
+    expect(screen.getByRole("menu", { name: "AI" })).toBeInTheDocument();
+    expect(menuItem("AI")).toHaveAttribute("aria-expanded", "true");
+    fireEvent.mouseEnter(menuItem("Change Icon"));
+    expect(screen.queryByRole("menu", { name: "AI" })).toBeNull();
   });
 });
