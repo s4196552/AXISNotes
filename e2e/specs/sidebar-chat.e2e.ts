@@ -49,6 +49,12 @@ function invoke<T>(command: string, args: object): Promise<T> {
   ) as Promise<T>;
 }
 
+/** Format and View are under the chat header's "Chat options" button (T-291). */
+async function openChatOptions() {
+  if (!(await $('[aria-label="Answer format"]').isDisplayed()))
+    await $('.sidebar-chat [aria-label="Chat options"]').click();
+}
+
 describe("Sidebar AI chat", () => {
   before(async () => {
     fs.writeFileSync(file(), note);
@@ -117,7 +123,7 @@ describe("Sidebar AI chat", () => {
     await summary.click();
     await expect(passage).not.toBeDisplayed();
     await $('[aria-label="Chat message"]').setValue("Explain this selection.");
-    await $(".sidebar-chat").$("button=Send").click();
+    await $('.sidebar-chat [aria-label="Send"]').click();
     await expect($(".sidebar-chat-log")).toHaveText(expect.stringContaining(answer));
     expect(requests).toHaveLength(1);
     expect(requests[0]).toContain("Cells make ATP.");
@@ -129,7 +135,7 @@ describe("Sidebar AI chat", () => {
     answer = "==Mitochondria supply ATP.==";
     await $('[aria-label="Chat action"]').selectByAttribute("value", "edit");
     await $('[aria-label="Chat message"]').setValue("Improve the selected sentence");
-    await $(".sidebar-chat").$("button=Suggest changes").click();
+    await $('.sidebar-chat [aria-label="Suggest changes"]').click();
     const apply = $(".sidebar-chat").$("button=Apply approved changes");
     await apply.waitForDisplayed();
     expect(fs.readFileSync(file(), "utf8")).toBe(note);
@@ -145,10 +151,10 @@ describe("Sidebar AI chat", () => {
     const before = fs.readFileSync(file(), "utf8");
     answer =
       "## Energy\n\n> [!tip] Remember\n> ==ATP== powers cells.\n\n> [!note]- Test yourself\n> Explain energy transfer.\n\n| Topic | Detail |\n| --- | --- |\n| Cells | **ATP** |\n\n- [x] Read\n- [ ] Recall\n\n```green\nconst energy = 'ATP';\n```";
-    await $(".sidebar-chat").$("button=New chat").click();
+    await $('.sidebar-chat [aria-label="New chat"]').click();
     await $('[aria-label="Chat action"]').selectByAttribute("value", "ask");
     await $('[aria-label="Chat message"]').setValue("Explain with Markdown blocks");
-    await $(".sidebar-chat").$("button=Send").click();
+    await $('.sidebar-chat [aria-label="Send"]').click();
     const turn = $(".sidebar-chat-turn.assistant");
     await expect(turn.$("h2")).toHaveText("Energy");
     await expect(turn.$(".answer-callout-tip mark")).toHaveText("ATP");
@@ -165,10 +171,12 @@ describe("Sidebar AI chat", () => {
     });
     await browser.saveScreenshot(path.join(dir, "markdown-blocks.png"));
     const count = requests.length;
+    await openChatOptions();
     await $('[aria-label="Answer display"]').selectByAttribute("value", "source");
     await expect(turn.$(".sidebar-chat-source")).toHaveText(answer);
     await expect(turn.$("table")).not.toExist();
     await browser.saveScreenshot(path.join(dir, "markdown-source.png"));
+    await openChatOptions();
     await $('[aria-label="Answer display"]').selectByAttribute("value", "markdown");
     await expect(turn.$("table")).toBeDisplayed();
     expect(requests).toHaveLength(count);
@@ -187,7 +195,7 @@ describe("Sidebar AI chat", () => {
     expect(requests).toHaveLength(count);
     await $('[aria-label="Chat message"]').setValue("Explain this attached note");
     answer = "Attached biology note reviewed.";
-    await $(".sidebar-chat").$("button=Send").click();
+    await $('.sidebar-chat [aria-label="Send"]').click();
     await expect($(".sidebar-chat-log")).toHaveText(expect.stringContaining(answer));
     expect(requests.at(-1)).toContain("School/Biology.md");
     expect(requests.at(-1)).toContain("read ch. 1");
@@ -219,12 +227,13 @@ describe("Sidebar AI chat", () => {
 
   it("renders interactive HTML safely, retains copy/source controls and zooms inside its frame", async () => {
     const before = fs.readFileSync(file(), "utf8");
-    await $(".sidebar-chat").$("button=New chat").click();
+    await $('.sidebar-chat [aria-label="New chat"]').click();
+    await openChatOptions();
     await $('[aria-label="Answer format"]').selectByAttribute("value", "html");
     answer =
       "<!doctype html><html><head><style>body{font:16px sans-serif}button{padding:12px}</style></head><body><h1>Energy page</h1><button onclick=\"this.textContent='Correct!'\">Check</button></body></html>";
     await $('[aria-label="Chat message"]').setValue("Give an interactive HTML answer");
-    await $(".sidebar-chat").$("button=Send").click();
+    await $('.sidebar-chat [aria-label="Send"]').click();
     const frame = $('.sidebar-chat iframe[title="AI HTML answer"]');
     await frame.waitForDisplayed();
     await expect(frame).toHaveAttribute("sandbox", "allow-scripts allow-forms allow-modals");
@@ -281,8 +290,10 @@ describe("Sidebar AI chat", () => {
       await browser.execute(() => (window as unknown as { copiedAnswer: string }).copiedAnswer),
     ).not.toContain("<html>");
     const count = requests.length;
+    await openChatOptions();
     await $('[aria-label="Answer display"]').selectByAttribute("value", "source");
     await expect($(".assistant .sidebar-chat-source")).toHaveText(answer);
+    await openChatOptions();
     await $('[aria-label="Answer display"]').selectByAttribute("value", "markdown");
     await frame.waitForDisplayed();
     expect(requests).toHaveLength(count);
@@ -292,6 +303,7 @@ describe("Sidebar AI chat", () => {
     await browser.saveScreenshot(path.join(qa, "sidebar-html-copy-zoom.png"));
     await $(".sidebar-right").$("button=Note details").click();
     await $(".sidebar-right").$("button=AI chat").click();
+    await openChatOptions();
     await expect($('[aria-label="Answer format"]')).toHaveValue("html");
     await frame.waitForDisplayed();
   });
