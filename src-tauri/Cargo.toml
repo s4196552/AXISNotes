@@ -1,6 +1,6 @@
 [package]
 name = "axisnotes"
-version = "0.3.114"
+version = "0.3.115"
 description = "AXISNotes - local-first personal knowledge base, by AXIS"
 authors = ["AXIS"]
 license = ""
