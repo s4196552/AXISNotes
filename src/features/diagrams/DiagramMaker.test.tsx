@@ -193,9 +193,10 @@ describe("Diagram maker (canvas)", () => {
     await waitFor(() => expect(onInsert).toHaveBeenCalledWith({ graph }));
     expect(onClose).toHaveBeenCalled();
     // Drafts grew node by node, then edge by edge.
-    const sizes = onDraft.mock.calls.map(([g]: [{ nodes: unknown[]; edges: unknown[] }]) =>
-      [g.nodes.length, g.edges.length].join("/"),
-    );
+    const sizes = onDraft.mock.calls.map((call) => {
+      const g = call[0] as { nodes: unknown[]; edges: unknown[] };
+      return `${g.nodes.length}/${g.edges.length}`;
+    });
     expect(sizes).toEqual(["1/0", "2/0", "3/0", "3/1", "3/2"]);
   });
 
