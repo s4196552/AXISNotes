@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { $, $$, browser, expect } from "@wdio/globals";
+import { expectNoteTitle } from "../noteTitle";
 import { Key } from "webdriverio";
 
 // Phase 2 acceptance on the real app and disk: embed a single bullet from another note and
@@ -11,7 +12,6 @@ const vault = process.env.AXIS_E2E_VAULT!;
 const onDisk = (rel: string) => path.join(vault, ...rel.split("/"));
 const read = (rel: string) => fs.readFileSync(onDisk(rel), "utf8");
 const row = (rel: string) => $(`[data-path="${rel}"]`);
-const title = () => $(".editor-title");
 const QA_DIR = path.resolve(process.cwd(), ".agents", "qa", "phase-2");
 
 async function snapshot(name: string) {
@@ -37,7 +37,7 @@ async function acceptCompletion() {
 describe("Phase 2: blocks, outliner and graph on a real vault", () => {
   it("embeds a single bullet from another note", async () => {
     await row("Plan.md").click();
-    await expect(title()).toHaveText("Plan");
+    await expectNoteTitle("Plan");
     const embedded = $('[aria-label="Embedded Groceries#^m1"]');
     await embedded.waitForDisplayed();
     await expect(embedded).toHaveText(expect.stringContaining("milk"));
@@ -76,7 +76,7 @@ describe("Phase 2: blocks, outliner and graph on a real vault", () => {
 
   it("indents and moves list items with the keyboard", async () => {
     await row("Outline.md").click();
-    await expect(title()).toHaveText("Outline");
+    await expectNoteTitle("Outline");
     // Put the cursor at the end of "- b" by clicking its line.
     const lines = await $$(".cm-content .cm-line");
     await lines[1]!.click();
@@ -117,7 +117,7 @@ describe("Phase 2: blocks, outliner and graph on a real vault", () => {
       };
       el.__sigma!.emit("clickNode", { node: "Groceries.md" });
     });
-    await expect(title()).toHaveText("Groceries");
+    await expectNoteTitle("Groceries");
     // The header is CSS-uppercased, and WebDriver returns rendered text.
     await expect($('[aria-label="Local graph"]')).toHaveText(expect.stringMatching(/2 notes/i));
     await snapshot("03-local-graph");

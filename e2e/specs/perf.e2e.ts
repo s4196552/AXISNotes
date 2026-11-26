@@ -1,4 +1,5 @@
 import { $, browser, expect } from "@wdio/globals";
+import { expectNoteTitle } from "../noteTitle";
 import { Key } from "webdriverio";
 
 // Phase 1 acceptance: a 5,000-note vault stays fast in the real app. Search times are
@@ -70,7 +71,7 @@ describe("Phase 1: 5,000-note vault performance", () => {
     );
     console.log(`switcher filter: ${Date.now() - started} ms (incl. WebDriver typing)`);
     await browser.keys(Key.Enter);
-    await expect($(".editor-title")).toHaveText("Note 4999");
+    await expectNoteTitle("Note 4999");
     // Backlinks come from Note 4998 ([[Note 4999]]).
     await expect($('[aria-label="Linked mentions"]')).toHaveText(
       expect.stringContaining("Note 4998"),

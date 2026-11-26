@@ -98,23 +98,28 @@ describe("Categorized built-in AI skills (T-222)", () => {
       ["Visualize & present", ["Mind map", "Infographic", "Slide Deck"]],
       ["Plan & collaborate", ["Grill me", "Handoff"]],
     ] as const;
-    expect(
-      await browser.execute(() =>
-        [...document.querySelectorAll<HTMLElement>("completion-section[data-skill-category]")].map(
-          (heading) => {
-            const titles: string[] = [];
-            for (
-              let row = heading.nextElementSibling;
-              row?.tagName === "LI";
-              row = row.nextElementSibling
-            ) {
-              titles.push(row.querySelector(".cm-completionLabel")?.textContent ?? "");
-            }
-            return [heading.textContent, titles];
-          },
-        ),
+    const shown = await browser.execute(() =>
+      [...document.querySelectorAll<HTMLElement>("completion-section[data-skill-category]")].map(
+        (heading): [string, string[]] => {
+          const titles: string[] = [];
+          for (
+            let row = heading.nextElementSibling;
+            row?.tagName === "LI";
+            row = row.nextElementSibling
+          ) {
+            titles.push(row.querySelector(".cm-completionLabel")?.textContent ?? "");
+          }
+          return [heading.textContent ?? "", titles];
+        },
       ),
-    ).toEqual(groups);
+    );
+    expect(shown.slice(0, groups.length)).toEqual(groups);
+    // Since T-257 the bundled Matt Pocock collection follows the built-in categories, its
+    // look-alike titles named after him so they don't hide AXIS's own skills.
+    expect(shown.slice(groups.length).map(([name]) => name)).toEqual(["Matt Pocock"]);
+    const [, collection] = shown[groups.length]!;
+    expect(collection.length).toBeGreaterThan(20);
+    expect(collection).toEqual(expect.arrayContaining(["Grill Me (Matt Pocock)", "TDD"]));
     for (const [index, [category, titles]] of groups.entries()) {
       await $(`completion-section[data-skill-category="${category}"]`).scrollIntoView({
         block: "start",
@@ -132,9 +137,9 @@ describe("Categorized built-in AI skills (T-222)", () => {
     it(`runs ${skill.title} in both formats without changing the source note`, async () => {
       await openMenu();
       await browser.keys(skill.title);
-      await browser.waitUntil(async () => (await $$(".cm-completionLabel").length) === 1);
-      await browser.pause(150); // CodeMirror's initial completion interaction delay.
-      await browser.keys(Key.Enter);
+      // Other commands match a skill's name too (T-257's collection, T-267's study
+      // blocks), so pick the skill itself.
+      await $(".cm-tooltip-autocomplete").$(`.cm-completionLabel=${skill.title}`).click();
       const block = $('[role="group"][aria-label="AI block"]');
       await expect(block.$(".ai-skill")).toHaveText(
         expect.stringContaining(`Skill: ${skill.title}`),

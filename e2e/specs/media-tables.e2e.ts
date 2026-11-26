@@ -63,8 +63,14 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     await browser.saveScreenshot(path.join(dir, "direct-cell-edit.png"));
     await browser.keys("Tab");
     await expect($('textarea[aria-label="Row 1, column 4"]')).toBeFocused();
+    // Since T-259 Enter goes to the cell below, as in Obsidian; Escape closes the editor.
     await browser.keys("Enter");
+    await expect($('textarea[aria-label="Row 2, column 4"]')).toBeFocused();
+    await browser.keys("Escape");
     await expect($$(".cm-markdown-table textarea")).toBeElementsArrayOfSize(0);
+    expect(fs.readFileSync(file("Costs.md"), "utf8")).toBe(
+      costs.replace("|—|Space", "|Reviewed administration|Space"),
+    );
     await expect($(".cm-markdown-table table")).toHaveText(
       expect.stringContaining("Reviewed administration"),
     );
@@ -170,11 +176,16 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     fs.mkdirSync(dir, { recursive: true });
     await browser.saveScreenshot(path.join(dir, "cell-tools-and-list-image.png"));
   });
+  /** Since T-154 crop and exact size are in the image's right-click menu (no toolbar). */
+  const openImageControls = async () => {
+    await $(".cm-image-embed[data-kind=image] .cm-image-frame").click({ button: "right" });
+    await $(".cm-image-menu").$("button*=Crop and exact size").click();
+  };
   it("saves image size/crop, preserves original bytes and restores on reopen", async () => {
     const original = fs.readFileSync(file("dot.png"));
     await open("Media");
     const image = $(".cm-image-embed[data-kind=image]");
-    await image.$("button=Edit image").click();
+    await openImageControls();
     await image.$("input[type=checkbox]").click();
     await image.$('input[aria-label="Width (px)"]').setValue("120");
     await image.$('input[aria-label="Height (px)"]').setValue("60");
@@ -192,7 +203,7 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
       "style",
       expect.stringContaining("width: 120px"),
     );
-    await $(".cm-image-embed[data-kind=image]").$("button=Edit image").click();
+    await openImageControls();
     await expect($('input[aria-label="Left crop (%)"]')).toHaveValue("10");
     await snapshot("02-image-controls");
   });

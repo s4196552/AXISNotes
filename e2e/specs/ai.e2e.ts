@@ -3,6 +3,7 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { $, browser, expect } from "@wdio/globals";
+import { expectNoteTitle } from "../noteTitle";
 import { Key } from "webdriverio";
 
 // Phase 4 acceptance on the real app: a provider is configured through Settings → AI
@@ -147,7 +148,7 @@ describe("Phase 4: AI providers, privacy and keys on the real app", () => {
     seen.length = 0;
     await $('[data-path="School"]').click();
     await $('[data-path="School/Bio.md"]').click();
-    await expect($(".editor-title")).toHaveText("Bio");
+    await expectNoteTitle("Bio");
     await $('[aria-label="Ask AI"]').click();
     await expect($('[aria-label="Destination"]')).toHaveText(
       expect.stringContaining("OpenAI-compatible endpoint · mock-model"),
@@ -169,7 +170,7 @@ describe("Phase 4: AI providers, privacy and keys on the real app", () => {
     seen.length = 0;
     await $('[data-path="Medical"]').click();
     await $('[data-path="Medical/scan.md"]').click();
-    await expect($(".editor-title")).toHaveText("scan");
+    await expectNoteTitle("scan");
     await browser.keys([Key.Ctrl, "j"]);
     await $('[aria-label="Question"]').setValue("Summarize this");
     await $("button*=Ask").click();

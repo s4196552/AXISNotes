@@ -63,6 +63,11 @@ describe("commands and styles while typing in a table cell (T-263)", () => {
     expect(disabled.map((i) => i.id)).not.toContain("bold");
     const typed = cellCommandItems(DEFAULT_QUICK_CONFIG, "ital");
     expect(typed[0]).toMatchObject({ id: "italic", section: FILTERED_SECTION });
+    // Punctuation in a label doesn't stop a typed phrase from finding it.
+    expect(cellCommandItems(DEFAULT_QUICK_CONFIG, "priority high")[0]?.id).toBe("priority-high");
+    expect(cellCommandItems(DEFAULT_QUICK_CONFIG, "Priority: high")[0]?.id).toBe("priority-high");
+    expect(cellCommandItems(DEFAULT_QUICK_CONFIG, "high")[0]?.id).toBe("priority-high");
+    expect(cellCommandItems(DEFAULT_QUICK_CONFIG, "nothing like this")).toEqual([]);
   });
 
   it("toggles marks on plain text the way the note does", () => {

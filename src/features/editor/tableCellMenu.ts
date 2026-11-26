@@ -63,12 +63,22 @@ export const FILTERED_SECTION = "Filtered results";
 /** Text for one table cell: line breaks become `<br>`, the way tables write them. */
 export const oneLine = (text: string) => text.replace(/\r?\n/g, "<br>");
 
-/** How well `label` matches `query` (lower is better), or null when it doesn't. */
+/** Lower case, with punctuation and runs of spaces as single spaces ("Priority: high"). */
+const words = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+/**
+ * How well `label` matches `query` (lower is better), or null when it doesn't. Punctuation
+ * is ignored, so "priority high" finds "Priority: high" as the note's own menu does.
+ */
 function score(label: string, query: string): number | null {
-  const l = label.toLowerCase();
-  const q = query.toLowerCase().trim();
+  const l = words(label);
+  const q = words(query);
   if (l.startsWith(q)) return 0;
-  if (l.split(/[\s:·-]+/).some((w) => w.startsWith(q))) return 1;
+  if (l.split(" ").some((w) => w.startsWith(q))) return 1;
   return l.includes(q) ? 2 : null;
 }
 

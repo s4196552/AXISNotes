@@ -27,11 +27,12 @@ async function chooseSkill(name: string) {
   await $(".pane.focused .cm-content, .workspace.single .cm-content").click();
   await browser.keys([Key.Ctrl, "/"]);
   await browser.keys(Key.Ctrl);
-  await $(".cm-tooltip-autocomplete").waitForDisplayed();
+  const menu = $(".cm-tooltip-autocomplete");
+  await menu.waitForDisplayed();
   await browser.keys(name);
-  await browser.waitUntil(async () => (await $$(".cm-completionLabel").length) === 1);
-  await browser.pause(150);
-  await browser.keys(Key.Enter);
+  // Since T-267 the study blocks ("Mind map block", "Flash cards block") match the skill's
+  // name too, so pick the skill itself rather than expecting a single match.
+  await menu.$(`.cm-completionLabel=${name}`).click();
   await $('[aria-label="Results in"]').waitForDisplayed();
 }
 const block = () => $('[role="group"][aria-label="AI block"]');
