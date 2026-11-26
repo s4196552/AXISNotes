@@ -49,6 +49,26 @@ interface Tracking {
   dirty: boolean;
 }
 
+type Box = { x?: number; y?: number; width?: number; height?: number };
+
+/** Whether an element shows in the view (Excalidraw's scroll is the scene offset). */
+function inView(
+  e: Box,
+  st: { scrollX: number; scrollY: number; zoom: { value: number }; width: number; height: number },
+) {
+  const z = st.zoom?.value || 1;
+  const left = -st.scrollX;
+  const top = -st.scrollY;
+  const x = e.x ?? 0;
+  const y = e.y ?? 0;
+  return (
+    x + (e.width ?? 0) > left &&
+    x < left + st.width / z &&
+    y + (e.height ?? 0) > top &&
+    y < top + st.height / z
+  );
+}
+
 function titleOf(path: string) {
   const name = path.slice(path.lastIndexOf("/") + 1);
   return name.replace(/\.axcanvas$/i, "");
@@ -128,6 +148,15 @@ export function Canvas({ path }: { path: string }) {
       // One undo step, so an outside change (Claude's drawing) can be taken back.
       captureUpdate: lib.CaptureUpdateAction.IMMEDIATELY,
     });
+    // New elements that are all out of view: bring them into view (not when any shows,
+    // so the view doesn't jump about while someone works).
+    const had = new Set(previous.map((e) => e.id));
+    const added = (elements as (CanvasElement & Box & { isDeleted?: boolean })[]).filter(
+      (e) => !e.isDeleted && e.id && !had.has(e.id),
+    );
+    if (added.length && !added.some((e) => inView(e, a.getAppState()))) {
+      a.scrollToContent(added as never, { fitToContent: false, animate: true, duration: 300 });
+    }
     return true;
   };
   const file = useFileDocument(
