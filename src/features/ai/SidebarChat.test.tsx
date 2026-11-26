@@ -154,7 +154,8 @@ it("attaches exact file-tree notes with intersected rules without sending automa
     context: { sources: ["Bio.md", "Other.md"], rule: "local" },
   });
   render(<SidebarChat />);
-  expect(screen.getByText("Attached notes · 2")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove Bio" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove Other" })).toBeInTheDocument();
   expect(screen.getByRole("option", { name: "Suggest edit" })).toBeDisabled();
   fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Compare" } });
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -418,4 +419,38 @@ it("sends the chosen effort and sends on Enter but not Shift+Enter", async () =>
   fireEvent.keyDown(box, { key: "Enter" });
   await screen.findByText("Updated cells.");
   expect(requests[0]!.effort).toBe("deep");
+});
+
+it("shows attached notes as chips and removes one with its ×", async () => {
+  await h.b.createFile("Other.md", "---\nai-access: local\n---\n# Other\nSecond material.");
+  await sendFilesToSidebar(["Bio.md", "Other.md"]);
+  render(<SidebarChat />);
+  fireEvent.click(screen.getByRole("button", { name: "Remove Other" }));
+  expect(screen.queryByRole("button", { name: "Remove Other" })).toBeNull();
+  expect(useSidebarChat.getState().context).toMatchObject({ sources: ["Bio.md"], rule: "any" });
+  fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Explain" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByText("Updated cells.");
+  expect(requests[0]!.sources).toEqual(["Bio.md"]);
+  expect(requests[0]!.atLeast).toBe("any");
+  expect(JSON.stringify(requests[0]!.messages)).not.toContain("Second material.");
+});
+
+it("removes the selection, then the open note, until the user picks something else", async () => {
+  render(<SidebarChat />);
+  fireEvent.click(screen.getByRole("button", { name: "Remove selected text" }));
+  expect(screen.queryByText("Selected text · Bio")).toBeNull();
+  expect(screen.getByText(/Open a note to include it/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Hello" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await screen.findByText("Updated cells.");
+  expect(requests[0]!.sources).toEqual([]);
+  expect(JSON.stringify(requests[0]!.messages)).not.toContain("Cells make ATP");
+  // Clicking in the note (no selection now) brings the whole note back as a chip.
+  act(() => {
+    view.dispatch({ selection: { anchor: 0 } });
+    activeEditorChanged(view);
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Remove Bio" }));
+  expect(screen.queryByRole("button", { name: "Remove Bio" })).toBeNull();
 });
