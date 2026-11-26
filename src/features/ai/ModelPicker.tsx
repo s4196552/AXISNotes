@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, HardDrive } from "lucide-react";
+import { Check, ChevronDown, Gauge, HardDrive } from "lucide-react";
 import {
   type AiEffort,
   type AiModel,
@@ -20,10 +20,25 @@ export interface ModelPickerProps {
   rule?: AiRule;
   /** What "Default" resolves to now, e.g. "Ollama · llama3.3". */
   defaultLabel?: string;
+  /** The chip's name for "Default", e.g. "llama3.3" (otherwise "Default model"). */
+  defaultName?: string;
   disabled?: boolean;
+  /** Effort has its own chip (`EffortPicker`), so leave it out of this one. */
+  separateEffort?: boolean;
+  /** Open the menu above the chip (a composer at the bottom of a panel). */
+  above?: boolean;
 }
 
-export function ModelPicker({ choice, onChange, rule, defaultLabel, disabled }: ModelPickerProps) {
+export function ModelPicker({
+  choice,
+  onChange,
+  rule,
+  defaultLabel,
+  defaultName,
+  disabled,
+  separateEffort,
+  above,
+}: ModelPickerProps) {
   const [open, setOpen] = useState(false);
   const [providers, setProviders] = useState<AiProviderStatus[]>([]);
   const [models, setModels] = useState<Record<string, AiModel[]>>({});
@@ -57,7 +72,10 @@ export function ModelPicker({ choice, onChange, rule, defaultLabel, disabled }: 
   const modelName =
     choice.provider && choice.model
       ? (models[choice.provider]?.find((m) => m.id === choice.model)?.name ?? choice.model)
-      : "Default model";
+      : (defaultName ?? "Default model");
+  const label = separateEffort
+    ? `Model: ${modelName}`
+    : `Model and effort: ${modelName}, ${EFFORT_LABELS[choice.effort]}`;
 
   const pick = (next: AiChoice) => {
     onChange(next);
@@ -80,27 +98,35 @@ export function ModelPicker({ choice, onChange, rule, defaultLabel, disabled }: 
         className="ai-chip ai-model-chip"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Model and effort: ${modelName}, ${EFFORT_LABELS[choice.effort]}`}
+        aria-label={label}
+        title={!choice.provider && defaultLabel ? `Default · ${defaultLabel}` : undefined}
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
       >
-        <strong>{modelName}</strong> <span>{EFFORT_LABELS[choice.effort]}</span>
+        <strong>{modelName}</strong>
+        {!separateEffort && <span>{EFFORT_LABELS[choice.effort]}</span>}
         <ChevronDown size={12} aria-hidden />
       </button>
       {open && (
-        <div className="ai-model-menu" role="menu" aria-label="Choose a model">
-          <div className="ai-model-effort" role="group" aria-label="Effort">
-            {(Object.keys(EFFORT_LABELS) as AiEffort[]).map((e) => (
-              <button
-                key={e}
-                type="button"
-                aria-pressed={choice.effort === e}
-                onClick={() => onChange({ ...choice, effort: e })}
-              >
-                {EFFORT_LABELS[e]}
-              </button>
-            ))}
-          </div>
+        <div
+          className={above ? "ai-model-menu above" : "ai-model-menu"}
+          role="menu"
+          aria-label="Choose a model"
+        >
+          {!separateEffort && (
+            <div className="ai-model-effort" role="group" aria-label="Effort">
+              {(Object.keys(EFFORT_LABELS) as AiEffort[]).map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  aria-pressed={choice.effort === e}
+                  onClick={() => onChange({ ...choice, effort: e })}
+                >
+                  {EFFORT_LABELS[e]}
+                </button>
+              ))}
+            </div>
+          )}
           <button
             type="button"
             role="menuitemradio"
@@ -152,6 +178,89 @@ export function ModelPicker({ choice, onChange, rule, defaultLabel, disabled }: 
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const EFFORT_HINTS: Record<AiEffort, string> = {
+  quick: "Fastest answers, least reasoning",
+  balanced: "A good default for most questions",
+  deep: "Thinks longer for hard questions",
+};
+
+/** The effort chip: Quick, Balanced or Deep reasoning for the chosen model. */
+export function EffortPicker({
+  effort,
+  onChange,
+  disabled,
+  above,
+}: {
+  effort: AiEffort;
+  onChange(effort: AiEffort): void;
+  disabled?: boolean;
+  above?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+  return (
+    <div
+      className="ai-model-picker"
+      ref={box}
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && open) {
+          e.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        className="ai-chip ai-model-chip"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Effort: ${EFFORT_LABELS[effort]}`}
+        disabled={disabled}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Gauge size={12} aria-hidden />
+        <span>{EFFORT_LABELS[effort]}</span>
+        <ChevronDown size={12} aria-hidden />
+      </button>
+      {open && (
+        <div
+          className={above ? "ai-model-menu ai-effort-menu above" : "ai-model-menu ai-effort-menu"}
+          role="menu"
+          aria-label="Choose an effort"
+        >
+          {(Object.keys(EFFORT_LABELS) as AiEffort[]).map((e) => (
+            <button
+              key={e}
+              type="button"
+              role="menuitemradio"
+              aria-checked={effort === e}
+              className="ai-model-item"
+              onClick={() => {
+                onChange(e);
+                setOpen(false);
+              }}
+            >
+              <span className="ai-model-check">{effort === e && <Check size={12} />}</span>
+              <span className="ai-model-name">
+                {EFFORT_LABELS[e]}
+                <span className="ai-effort-hint muted">{EFFORT_HINTS[e]}</span>
+              </span>
+            </button>
+          ))}
         </div>
       )}
     </div>

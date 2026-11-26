@@ -21,6 +21,11 @@ vi.mock("../../ipc", async (orig) => ({
   ...(await orig<typeof import("../../ipc")>()),
   backend: new Proxy({}, { get: (_t, key) => h.b[key as keyof MemoryBackend] }),
 }));
+/** Format and View live under the header's "Chat options" button. */
+const openOptions = () => {
+  if (!screen.queryByLabelText("Answer format"))
+    fireEvent.click(screen.getByRole("button", { name: "Chat options" }));
+};
 const doc = "# Biology\n\n==Cells make ATP.==\n\nOther material.\n";
 let view: EditorView;
 const requests: AiRunRequest[] = [];
@@ -95,6 +100,7 @@ it("requests HTML, isolates its saved preview, preserves privacy and keeps the f
   });
   openSidebarChat({ ...editorChatContext()!, rule: "local" });
   const first = render(<SidebarChat />);
+  openOptions();
   fireEvent.change(screen.getByLabelText("Answer format"), { target: { value: "html" } });
   fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Make a page" } });
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -109,10 +115,12 @@ it("requests HTML, isolates its saved preview, preserves privacy and keeps the f
   expect(h.b.files()[path]).toContain("data-axisnotes-copyable");
   expect(h.b.files()[path]).toContain("axisSidebarZoom");
   expect(h.b.files()["Bio.md"]).toBe(doc);
+  openOptions();
   fireEvent.change(screen.getByLabelText("Answer display"), { target: { value: "source" } });
   expect(first.container.querySelector(".assistant pre")!.textContent).toBe(html);
   first.unmount();
   render(<SidebarChat />);
+  openOptions();
   expect(screen.getByLabelText("Answer format")).toHaveValue("html");
 });
 
@@ -124,6 +132,7 @@ it("keeps failed HTML output copyable and retries its preview without asking the
   });
   const create = vi.spyOn(h.b, "createFile").mockRejectedValueOnce(new Error("Disk full"));
   render(<SidebarChat />);
+  openOptions();
   fireEvent.change(screen.getByLabelText("Answer format"), { target: { value: "html" } });
   fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Make a page" } });
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -157,9 +166,12 @@ it("attaches exact file-tree notes with intersected rules without sending automa
 
 it("keeps suggested note edits in Markdown even when HTML answers are selected", async () => {
   render(<SidebarChat />);
+  openOptions();
   fireEvent.change(screen.getByLabelText("Answer format"), { target: { value: "html" } });
   fireEvent.change(screen.getByLabelText("Chat action"), { target: { value: "edit" } });
+  openOptions();
   expect(screen.getByLabelText("Answer format")).toHaveValue("markdown");
+  openOptions();
   expect(screen.getByLabelText("Answer format")).toBeDisabled();
   fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Improve" } });
   fireEvent.click(screen.getByRole("button", { name: "Suggest changes" }));
@@ -180,6 +192,7 @@ it("cannot write an HTML answer into a newly opened vault", async () => {
   };
   setAiResponder(() => html);
   render(<SidebarChat />);
+  openOptions();
   fireEvent.change(screen.getByLabelText("Answer format"), { target: { value: "html" } });
   fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Make a page" } });
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -284,14 +297,17 @@ it("defaults to Markdown blocks and switches the same answer to exact source wit
     return answer;
   });
   const { container } = render(<SidebarChat />);
+  openOptions();
   expect(screen.getByLabelText("Answer display")).toHaveValue("markdown");
   fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Explain" } });
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
   await screen.findByRole("table");
   await waitFor(() => expect(container.querySelector(".assistant mark")).toHaveTextContent("ATP"));
+  openOptions();
   fireEvent.change(screen.getByLabelText("Answer display"), { target: { value: "source" } });
   expect(container.querySelector(".sidebar-chat-source")!.textContent).toBe(answer);
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  openOptions();
   fireEvent.change(screen.getByLabelText("Answer display"), { target: { value: "markdown" } });
   expect(screen.getByRole("table")).toBeInTheDocument();
   expect(requests).toHaveLength(1);
@@ -316,6 +332,7 @@ it("can switch display while an unfinished code block streams, keeping the final
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
   const response = await screen.findByLabelText("AI response");
   expect(response.querySelector("pre code")).toHaveTextContent("const energy");
+  openOptions();
   fireEvent.change(screen.getByLabelText("Answer display"), { target: { value: "source" } });
   act(() => emit(" = 'ATP';\n```"));
   const answer = "```green\nconst energy = 'ATP';\n```";
@@ -333,8 +350,72 @@ it("can switch display while an unfinished code block streams, keeping the final
     }),
   );
   expect(container.querySelector(".assistant .sidebar-chat-source")!.textContent).toBe(answer);
+  openOptions();
   fireEvent.change(screen.getByLabelText("Answer display"), { target: { value: "markdown" } });
   expect(container.querySelector(".assistant pre code")).toHaveTextContent("const energy = 'ATP';");
   expect(requests).toHaveLength(1);
   expect(h.b.files()["Bio.md"]).toBe(doc);
+});
+
+it("offers skills before the first message and runs a text skill in the chat", async () => {
+  render(<SidebarChat />);
+  const skills = screen.getByRole("list", { name: "Skills" });
+  const summarize = screen.getByRole("button", { name: "Summarize this note" });
+  expect(skills).toContainElement(summarize);
+  expect(summarize.querySelector("svg")).not.toBeNull();
+  fireEvent.click(summarize);
+  await screen.findByText("Updated cells.");
+  expect(requests).toHaveLength(1);
+  const system = JSON.stringify(requests[0]!.messages[0]);
+  expect(system).toContain("# Skill: Summary");
+  expect(JSON.stringify(requests[0]!.messages)).toContain("==Cells make ATP.==");
+  expect(requests[0]!.sources).toEqual(["Bio.md"]);
+  // The welcome screen gives way to the conversation, which keeps using the skill.
+  expect(screen.queryByRole("list", { name: "Skills" })).toBeNull();
+  expect(screen.getAllByText("Summarize this note").length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: "Stop using Summary" })).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Shorter" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await waitFor(() => expect(requests).toHaveLength(2));
+  expect(JSON.stringify(requests[1]!.messages[0])).toContain("# Skill: Summary");
+  await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeDisabled());
+  fireEvent.click(screen.getByRole("button", { name: "Stop using Summary" }));
+  fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Plain" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
+  await waitFor(() => expect(requests).toHaveLength(3));
+  expect(JSON.stringify(requests[2]!.messages[0])).not.toContain("# Skill:");
+});
+
+it("runs a study-block skill as a note, as the file tree does", async () => {
+  useAppStore.setState({ notes: [{ path: "Bio.md", name: "Bio", title: "Biology", aliases: [] }] });
+  render(<SidebarChat />);
+  fireEvent.click(screen.getByRole("button", { name: "More skills" }));
+  fireEvent.click(screen.getByRole("button", { name: "Make a mind map" }));
+  await waitFor(() =>
+    expect(Object.keys(h.b.files()).some((p) => /^mind ?map - /i.test(p))).toBe(true),
+  );
+  expect(requests).toHaveLength(0);
+});
+
+it("disables skills until a note is open", () => {
+  clearActiveEditor(view);
+  useAppStore.setState({ mainView: "graph" });
+  render(<SidebarChat />);
+  expect(screen.getByRole("button", { name: "Summarize this note" })).toBeDisabled();
+  expect(screen.getByText(/open a note to use a skill/i)).toBeInTheDocument();
+});
+
+it("sends the chosen effort and sends on Enter but not Shift+Enter", async () => {
+  render(<SidebarChat />);
+  fireEvent.click(screen.getByRole("button", { name: "Effort: Balanced" }));
+  fireEvent.click(screen.getByRole("menuitemradio", { name: /Deep/ }));
+  expect(screen.getByRole("button", { name: "Effort: Deep" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^Model: / })).toBeInTheDocument();
+  const box = screen.getByLabelText("Chat message");
+  fireEvent.change(box, { target: { value: "Explain" } });
+  fireEvent.keyDown(box, { key: "Enter", shiftKey: true });
+  expect(requests).toHaveLength(0);
+  fireEvent.keyDown(box, { key: "Enter" });
+  await screen.findByText("Updated cells.");
+  expect(requests[0]!.effort).toBe("deep");
 });

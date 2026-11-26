@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUp, ChevronDown, Ellipsis, Sparkles, Square, SquarePen, X } from "lucide-react";
 import { create } from "zustand";
 import { type AiPlan, type AiRule, type AiRunRequest, backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
@@ -8,7 +9,7 @@ import { noteName } from "../../lib/markdown";
 import { onActiveEditorChange } from "../editor/activeEditor";
 import { editNote } from "../files/editNote";
 import { AnswerText } from "./AnswerText";
-import { ModelPicker } from "./ModelPicker";
+import { EffortPicker, ModelPicker } from "./ModelPicker";
 import { type AiChoice, loadChoice, saveChoice } from "./aiBlockStore";
 import { withHistory, type Turn } from "./conversation";
 import { cleanReply } from "./fixPrompt";
@@ -17,6 +18,13 @@ import { AiRun, errorMessage, runAi, text } from "./runAi";
 import { editorChatContext, type ChatContext, useSidebarChat } from "./sidebarChatState";
 import { PAGE_SANDBOX } from "../drafts/WebFileView";
 import { copyPageText } from "../skills/copyable";
+import { folderOf } from "../drafts/drafts";
+import { skillIcon } from "../skills/skillIcons";
+import { groupSkills } from "../skills/skillGroups";
+import { runSkillOnPicked } from "../skills/skillOnFiles";
+import { skillPrompt } from "../skills/skillRun";
+import { type Skill, useSkills } from "../skills/skills";
+import { type ChatSkill, chatSkill, featuredSkills, skillAction } from "./sidebarChatSkills";
 import {
   HTML_ANSWER_INSTRUCTIONS,
   loadSidebarFormat,
@@ -45,8 +53,16 @@ interface Session {
   sources: string[];
   rule: AiRule;
   proposal: Proposal | null;
+  /** The skill this conversation runs (from a skill picked on the welcome screen). */
+  skill: ChatSkill | null;
 }
-const emptySession = (): Session => ({ turns: [], sources: [], rule: "any", proposal: null });
+const emptySession = (): Session => ({
+  turns: [],
+  sources: [],
+  rule: "any",
+  proposal: null,
+  skill: null,
+});
 const useSession = create<Session>(emptySession);
 useAppStore.subscribe((s, prev) => {
   if (s.vault?.root !== prev.vault?.root) useSession.setState(emptySession());
@@ -96,6 +112,64 @@ function HtmlAnswer({ path }: { path: string }) {
   );
 }
 
+/** A skill's icon (a wand for the user's own skills). */
+function SkillGlyph({ id, size }: { id: string; size: number }) {
+  return createElement(skillIcon(id), { size, "aria-hidden": true });
+}
+
+/** A message ready to send, kept while the user confirms a large request. */
+interface Pending {
+  request: AiRunRequest;
+  context: ChatContext | null;
+  question: string;
+  mode: "ask" | "edit";
+  format: SidebarFormat;
+  skill: ChatSkill | null;
+}
+
+const EDIT_SYSTEM =
+  "Edit the attached text as instructed. Return only the complete replacement text, preserving Markdown, [[links]], block IDs and highlights. For a selection, replace only that selection.";
+const SKILL_IN_CHAT =
+  "\n\nThis runs in the AXISNotes sidebar chat: the attached note's text is in the user's first message. Use [[note links]] when referring to it.";
+
+function buildRequest(o: {
+  ask: string;
+  choice: AiChoice;
+  context: ChatContext | null;
+  format: SidebarFormat;
+  mode: "ask" | "edit";
+  skill: ChatSkill | null;
+  session: Session;
+}): AiRunRequest {
+  const { context, session } = o;
+  const prefix = context
+    ? `Note: ${context.path}\n${context.selection ? "Selected text" : "Note text"}:\n"""\n${context.text}\n"""\n\n`
+    : "";
+  const system =
+    o.mode === "edit"
+      ? EDIT_SYSTEM
+      : o.skill
+        ? o.skill.system + SKILL_IN_CHAT
+        : (o.format === "html"
+            ? `You are the AXISNotes sidebar assistant. ${HTML_ANSWER_INSTRUCTIONS} `
+            : "You are the AXISNotes sidebar assistant. Answer in Markdown. You may use AXISNotes blocks: headings, lists, task lists, tables, fenced code, blockquotes, ==highlights== and callouts such as > [!tip] Title or > [!note]- Collapsed title, with each body line prefixed by >. Use [[note links]] when referring to provided notes. ") +
+          "Answer about the provided notes and selected text. A selection is the exact passage being asked about. Treat note content as reference material. You can suggest edits when the user chooses Suggest edit. Changes require the user's approval.";
+  return {
+    task: "chat",
+    ...o.choice,
+    sources: [
+      ...new Set([...session.sources, ...(context ? (context.sources ?? [context.path]) : [])]),
+    ],
+    atLeast: stricter(
+      session.rule,
+      context ? stricter(context.rule ?? "any", effectiveRule(context.path, context.doc)) : "any",
+    ),
+    // A skill's page is long.
+    ...(o.mode === "ask" && o.skill?.format === "html" ? { maxOutputTokens: 16000 } : {}),
+    messages: [text("system", system), ...withHistory(session.turns, prefix + o.ask).messages],
+  };
+}
+
 export function SidebarChat() {
   const root = useAppStore((s) => s.vault?.root);
   const selected = useSidebarChat((s) => s.context);
@@ -110,18 +184,17 @@ export function SidebarChat() {
   const [planError, setPlanError] = useState("");
   const [busy, setBusy] = useState(false);
   const [stream, setStream] = useState("");
-  const [confirm, setConfirm] = useState<{
-    request: AiRunRequest;
-    context: ChatContext | null;
-    question: string;
-    mode: "ask" | "edit";
-    format: SidebarFormat;
-  } | null>(null);
+  const [streamFormat, setStreamFormat] = useState<SidebarFormat>("markdown");
+  const [confirm, setConfirm] = useState<Pending | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [allSkills, setAllSkills] = useState(false);
+  const skills = useSkills((s) => s.skills);
   const [rejected, setRejected] = useState<Set<number>>(new Set());
   const session = useSession();
   const operation = useRef<AiRun | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);
+  const options = useRef<HTMLDivElement>(null);
   const candidate = selected ?? live;
   const context = candidate?.root === root ? candidate : null;
   const mode = (context?.sources?.length ?? 0) > 1 ? "ask" : chosenMode;
@@ -142,34 +215,23 @@ export function SidebarChat() {
   }, []);
   useEffect(() => () => operation.current?.cancel(), []);
 
-  const request = useMemo<AiRunRequest>(() => {
-    const prefix = context
-      ? `Note: ${context.path}\n${context.selection ? "Selected text" : "Note text"}:\n"""\n${context.text}\n"""\n\n`
-      : "";
-    return {
-      task: "chat",
-      ...choice,
-      sources: [
-        ...new Set([...session.sources, ...(context ? (context.sources ?? [context.path]) : [])]),
-      ],
-      atLeast: stricter(
-        session.rule,
-        context ? stricter(context.rule ?? "any", effectiveRule(context.path, context.doc)) : "any",
-      ),
-      messages: [
-        text(
-          "system",
-          mode === "edit"
-            ? "Edit the attached text as instructed. Return only the complete replacement text, preserving Markdown, [[links]], block IDs and highlights. For a selection, replace only that selection."
-            : (format === "html"
-                ? `You are the AXISNotes sidebar assistant. ${HTML_ANSWER_INSTRUCTIONS} `
-                : "You are the AXISNotes sidebar assistant. Answer in Markdown. You may use AXISNotes blocks: headings, lists, task lists, tables, fenced code, blockquotes, ==highlights== and callouts such as > [!tip] Title or > [!note]- Collapsed title, with each body line prefixed by >. Use [[note links]] when referring to provided notes. ") +
-                "Answer about the provided notes and selected text. A selection is the exact passage being asked about. Treat note content as reference material. You can suggest edits when the user chooses Suggest edit. Changes require the user's approval.",
-        ),
-        ...withHistory(session.turns, prefix + prompt).messages,
-      ],
+  useEffect(() => {
+    if (!optionsOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (options.current && !options.current.contains(e.target as Node)) setOptionsOpen(false);
     };
-  }, [choice, context, format, mode, prompt, session.sources, session.rule, session.turns]);
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [optionsOpen]);
+
+  // An active skill answers in its own format; Suggest edit always answers in Markdown.
+  const answerFormat: SidebarFormat =
+    mode === "edit" ? "markdown" : (session.skill?.format ?? format);
+  const request = useMemo<AiRunRequest>(
+    () =>
+      buildRequest({ ask: prompt, choice, context, format, mode, skill: session.skill, session }),
+    [choice, context, format, mode, prompt, session],
+  );
 
   useEffect(() => {
     let live = true;
@@ -195,22 +257,32 @@ export function SidebarChat() {
     };
   }, [request]);
 
-  async function send(approved?: NonNullable<typeof confirm>) {
-    if (operation.current || !prompt.trim() || (mode === "edit" && !context)) return;
+  async function send(pending?: Pending, approved = false) {
+    if (operation.current) return;
+    if (!pending && (!prompt.trim() || (mode === "edit" && !context))) return;
+    const job: Pending = pending ?? {
+      request,
+      context,
+      question: prompt,
+      mode,
+      format: answerFormat,
+      skill: session.skill,
+    };
     const run = new AiRun();
     operation.current = run;
-    const source = approved ? approved.context : context;
+    const source = job.context;
     const vaultRoot = root;
-    const question = approved?.question ?? prompt;
+    const question = job.question;
     const openingRequest = useSidebarChat.getState().request;
-    const action = approved?.mode ?? mode;
+    const action = job.mode;
     if (action === "edit" && (source?.sources?.length ?? 0) > 1) {
       operation.current = null;
       setError("Choose one attached note to suggest edits.");
       return;
     }
-    const answerFormat = action === "edit" ? "markdown" : (approved?.format ?? format);
-    const req = approved?.request ?? request;
+    const outFormat = action === "edit" ? "markdown" : job.format;
+    setStreamFormat(outFormat);
+    const req = job.request;
     const current = () => !run.cancelled && useAppStore.getState().vault?.root === vaultRoot;
     setBusy(true);
     setError("");
@@ -220,7 +292,7 @@ export function SidebarChat() {
       const p = await backend.aiPlan(req);
       if (!current()) return;
       if (p.needsConfirm && !approved) {
-        setConfirm({ request: req, context: source, question, mode: action, format: answerFormat });
+        setConfirm(job);
         return;
       }
       const result = await runAi(
@@ -235,7 +307,7 @@ export function SidebarChat() {
       const answer =
         action === "edit" && source ? cleanReply(result.text, source.text) : result.text;
       let page: string | undefined, pageError: string | undefined;
-      if (answerFormat === "html" && vaultRoot) {
+      if (outFormat === "html" && vaultRoot) {
         try {
           page = await saveSidebarPage(answer, rule, vaultRoot);
         } catch (e) {
@@ -254,7 +326,7 @@ export function SidebarChat() {
             role: "assistant",
             text: answer,
             path: source?.path,
-            format: answerFormat,
+            format: outFormat,
             page,
             pageError,
             rule,
@@ -262,6 +334,7 @@ export function SidebarChat() {
         ],
         sources: req.sources ?? [],
         rule,
+        skill: job.skill,
         proposal:
           action === "edit" && source
             ? { context: source, segments: diffForReview(source.text, answer), rule }
@@ -278,6 +351,48 @@ export function SidebarChat() {
         setBusy(false);
       }
     }
+  }
+
+  /** Run a skill from the welcome screen on the note in context (and any typed request). */
+  function startSkill(skill: Skill) {
+    if (operation.current) return;
+    if (!context) {
+      setError("Open a note to use a skill on it.");
+      return;
+    }
+    const run = chatSkill(skill, format);
+    if (!run) {
+      // Study-block notes and lesson folders are made as files, as from the file tree.
+      void runSkillOnPicked(
+        skill,
+        skill.reads === "folder" ? [folderOf(context.path)] : (context.sources ?? [context.path]),
+      );
+      return;
+    }
+    const typed = prompt.trim();
+    setMode("ask");
+    void send({
+      request: buildRequest({
+        ask: skillPrompt(skill, typed),
+        choice,
+        context,
+        format: run.format,
+        mode: "ask",
+        skill: run,
+        session,
+      }),
+      context,
+      question: typed ? `${skillAction(skill)}: ${typed}` : skillAction(skill),
+      mode: "ask",
+      format: run.format,
+      skill: run,
+    });
+  }
+
+  function updateChoice(next: AiChoice) {
+    setChoice(next);
+    if (root) saveChoice(root, next);
+    setConfirm(null);
   }
 
   async function apply() {
@@ -348,57 +463,129 @@ export function SidebarChat() {
     }
   }
 
+  const empty = !session.turns.length && !stream && !session.proposal;
+  const featured = featuredSkills(skills);
+  const moreGroups = groupSkills(skills.filter((sk) => !featured.includes(sk)));
+  const firstQuestion = session.turns.find((t) => t.role === "user");
+  const title = firstQuestion ? (firstQuestion.display ?? firstQuestion.text) : "New AI chat";
+  const skillButton = (sk: Skill) => {
+    return (
+      <li key={sk.id}>
+        <button
+          type="button"
+          className="sidebar-chat-skill"
+          disabled={busy || !context}
+          title={context ? sk.description : "Open a note to use a skill on it."}
+          onClick={() => startSkill(sk)}
+        >
+          <SkillGlyph id={sk.id} size={16} />
+          <span>{skillAction(sk)}</span>
+        </button>
+      </li>
+    );
+  };
+
   return (
     <div className="sidebar-chat" aria-label="AI chat">
-      <div className="sidebar-chat-toolbar">
-        <button type="button" onClick={reset}>
-          New chat
+      <div className="sidebar-chat-header">
+        <span className="sidebar-chat-title" title={title}>
+          {title}
+        </span>
+        <button
+          type="button"
+          className="sidebar-chat-icon"
+          aria-label="New chat"
+          title="New chat"
+          onClick={reset}
+        >
+          <SquarePen size={15} aria-hidden />
         </button>
-        <label className="sidebar-chat-display">
-          Format
-          <select
-            aria-label="Answer format"
-            value={mode === "edit" ? "markdown" : format}
-            disabled={busy || mode === "edit"}
-            onChange={(e) => {
-              const next = e.target.value as SidebarFormat;
-              setFormat(next);
-              saveSidebarFormat(root, next);
-              setConfirm(null);
-            }}
+        <div className="sidebar-chat-options-wrap" ref={options}>
+          <button
+            type="button"
+            className="sidebar-chat-icon"
+            aria-label="Chat options"
+            title="Chat options"
+            aria-expanded={optionsOpen}
+            onClick={() => setOptionsOpen((o) => !o)}
           >
-            <option value="markdown">Markdown</option>
-            <option value="html">HTML</option>
-          </select>
-        </label>
-        <label className="sidebar-chat-display">
-          View
-          <select
-            aria-label="Answer display"
-            value={display}
-            onChange={(e) => setDisplay(e.target.value as typeof display)}
-          >
-            <option value="markdown">Rendered</option>
-            <option value="source">Source</option>
-          </select>
-        </label>
-        <ModelPicker
-          choice={choice}
-          onChange={(next) => {
-            setChoice(next);
-            if (root) saveChoice(root, next);
-            setConfirm(null);
-          }}
-          rule={plan?.rule}
-          disabled={busy}
-          defaultLabel={plan ? `${plan.providerName} · ${plan.model}` : undefined}
-        />
+            <Ellipsis size={15} aria-hidden />
+          </button>
+          {optionsOpen && (
+            <div className="sidebar-chat-options" role="group" aria-label="Answer options">
+              <label className="sidebar-chat-display">
+                Format
+                <select
+                  aria-label="Answer format"
+                  value={answerFormat}
+                  disabled={busy || mode === "edit" || !!session.skill}
+                  onChange={(e) => {
+                    const next = e.target.value as SidebarFormat;
+                    setFormat(next);
+                    saveSidebarFormat(root, next);
+                    setConfirm(null);
+                  }}
+                >
+                  <option value="markdown">Markdown</option>
+                  <option value="html">HTML</option>
+                </select>
+              </label>
+              <label className="sidebar-chat-display">
+                View
+                <select
+                  aria-label="Answer display"
+                  value={display}
+                  onChange={(e) => setDisplay(e.target.value as typeof display)}
+                >
+                  <option value="markdown">Rendered</option>
+                  <option value="source">Source</option>
+                </select>
+              </label>
+            </div>
+          )}
+        </div>
       </div>
-      <div ref={log} className="sidebar-chat-log" role="log" aria-label="AI conversation">
-        {!session.turns.length && (
-          <p className="muted">
-            Ask about your notes, or choose Suggest edit to review changes before applying them.
-          </p>
+      <div
+        ref={log}
+        className={empty ? "sidebar-chat-log empty" : "sidebar-chat-log"}
+        role="log"
+        aria-label="AI conversation"
+      >
+        {empty && (
+          <div className="sidebar-chat-welcome">
+            <span className="sidebar-chat-avatar" aria-hidden>
+              <Sparkles size={22} />
+            </span>
+            <h2>What should we work on?</h2>
+            <p className="muted">
+              {context
+                ? "Ask about your notes, choose Suggest edit to review changes before applying them, or start with a skill."
+                : "Ask anything, or open a note to use a skill on it."}
+            </p>
+            <ul className="sidebar-chat-skills" aria-label="Skills">
+              {featured.map(skillButton)}
+              {moreGroups.length > 0 && (
+                <li>
+                  <button
+                    type="button"
+                    className="sidebar-chat-skill more"
+                    aria-expanded={allSkills}
+                    onClick={() => setAllSkills((v) => !v)}
+                  >
+                    <ChevronDown size={16} aria-hidden />
+                    <span>{allSkills ? "Fewer skills" : "More skills"}</span>
+                  </button>
+                </li>
+              )}
+            </ul>
+            {allSkills &&
+              moreGroups.map((g) => (
+                <section key={g.name} className="sidebar-chat-skill-group" aria-label={g.name}>
+                  <h3>{g.name}</h3>
+                  <ul className="sidebar-chat-skills">{g.skills.map(skillButton)}</ul>
+                </section>
+              ))}
+          </div>
         )}
         {session.turns.map((t, i) => (
           <div className={`sidebar-chat-turn ${t.role}`} key={i}>
@@ -452,7 +639,7 @@ export function SidebarChat() {
           <div aria-label="AI response" aria-busy>
             {display === "source" ? (
               <pre className="sidebar-chat-source">{stream}</pre>
-            ) : mode === "ask" && format === "html" ? (
+            ) : streamFormat === "html" ? (
               <p className="muted">Writing HTML… {stream.length.toLocaleString()} characters</p>
             ) : (
               <AnswerText text={stream} from={context?.path ?? ""} />
@@ -500,96 +687,161 @@ export function SidebarChat() {
           </section>
         )}
       </div>
-      <div className="sidebar-chat-context" aria-label="AI context">
-        {context ? (
-          <>
-            {context.selection ? (
-              <details>
-                <summary>Selected text · {noteName(context.path)}</summary>
-                <blockquote>{context.text}</blockquote>
+      <div className="sidebar-chat-compose">
+        <div className="sidebar-chat-box">
+          <div className="sidebar-chat-context" aria-label="AI context">
+            {session.skill && (
+              <span className="sidebar-chat-skill-chip">
+                <SkillGlyph id={session.skill.id} size={12} />
+                {session.skill.title}
                 <button
                   type="button"
+                  aria-label={`Stop using ${session.skill.title}`}
+                  title="Stop using this skill"
                   disabled={busy}
-                  onClick={() =>
-                    useSidebarChat.setState({
-                      context: {
-                        ...context,
-                        selection: false,
-                        from: 0,
-                        to: context.doc.length,
-                        text: context.doc,
-                      },
-                    })
-                  }
+                  onClick={() => useSession.setState({ skill: null })}
                 >
-                  Use whole note
+                  <X size={12} aria-hidden />
                 </button>
-              </details>
-            ) : context.sources ? (
-              <details>
-                <summary>Attached notes · {context.sources.length}</summary>
-                <ul>
-                  {context.sources.map((path) => (
-                    <li key={path}>{path}</li>
-                  ))}
-                </ul>
-              </details>
+              </span>
+            )}
+            {context ? (
+              <>
+                {context.selection ? (
+                  <details>
+                    <summary>Selected text · {noteName(context.path)}</summary>
+                    <blockquote>{context.text}</blockquote>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        useSidebarChat.setState({
+                          context: {
+                            ...context,
+                            selection: false,
+                            from: 0,
+                            to: context.doc.length,
+                            text: context.doc,
+                          },
+                        })
+                      }
+                    >
+                      Use whole note
+                    </button>
+                  </details>
+                ) : context.sources ? (
+                  <details>
+                    <summary>Attached notes · {context.sources.length}</summary>
+                    <ul>
+                      {context.sources.map((path) => (
+                        <li key={path}>{path}</li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : (
+                  <strong>Open note · {noteName(context.path)}</strong>
+                )}
+                {selected && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => useSidebarChat.setState({ context: null })}
+                  >
+                    Follow editor selection
+                  </button>
+                )}
+              </>
             ) : (
-              <strong>Open note · {noteName(context.path)}</strong>
+              <span className="muted">Open a note to include it in chat.</span>
             )}
-            {selected && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => useSidebarChat.setState({ context: null })}
-              >
-                Follow editor selection
-              </button>
-            )}
-          </>
-        ) : (
-          <span className="muted">Open a note to include it in chat.</span>
-        )}
-      </div>
-      <div className="sidebar-chat-compose">
-        <label>
-          Action{" "}
-          <select
-            aria-label="Chat action"
-            value={mode}
+          </div>
+          <textarea
+            ref={input}
+            aria-label="Chat message"
+            value={prompt}
             disabled={busy}
+            rows={2}
+            placeholder={
+              session.skill
+                ? `Reply to ${session.skill.title}…`
+                : context?.selection
+                  ? "Ask about this selection…"
+                  : context
+                    ? "Ask about your note…"
+                    : "Ask AI anything…"
+            }
             onChange={(e) => {
-              setMode(e.target.value as typeof mode);
+              setPrompt(e.target.value);
               setConfirm(null);
             }}
-          >
-            <option value="ask">Ask</option>
-            <option value="edit" disabled={(context?.sources?.length ?? 0) > 1}>
-              Suggest edit
-            </option>
-          </select>
-        </label>
-        <textarea
-          ref={input}
-          aria-label="Chat message"
-          value={prompt}
-          disabled={busy}
-          rows={3}
-          placeholder={context?.selection ? "Ask about this selection…" : "Ask about your note…"}
-          onChange={(e) => {
-            setPrompt(e.target.value);
-            setConfirm(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-        />
+            onKeyDown={(e) => {
+              // Enter sends (Ctrl+Enter too); Shift+Enter starts a new line.
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+          />
+          <div className="sidebar-chat-controls">
+            <select
+              aria-label="Chat action"
+              className="sidebar-chat-action"
+              value={mode}
+              disabled={busy}
+              onChange={(e) => {
+                setMode(e.target.value as typeof mode);
+                setConfirm(null);
+              }}
+            >
+              <option value="ask">Ask</option>
+              <option value="edit" disabled={(context?.sources?.length ?? 0) > 1}>
+                Suggest edit
+              </option>
+            </select>
+            <ModelPicker
+              choice={choice}
+              onChange={updateChoice}
+              rule={plan?.rule}
+              disabled={busy}
+              separateEffort
+              above
+              defaultName={plan?.model}
+              defaultLabel={plan ? `${plan.providerName} · ${plan.model}` : undefined}
+            />
+            <EffortPicker
+              effort={choice.effort}
+              onChange={(effort) => updateChoice({ ...choice, effort })}
+              disabled={busy}
+              above
+            />
+            <span className="sidebar-chat-spacer" />
+            {busy ? (
+              <button
+                type="button"
+                className="sidebar-chat-send"
+                aria-label="Stop"
+                title="Stop"
+                onClick={() => operation.current?.cancel()}
+              >
+                <Square size={12} aria-hidden fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="sidebar-chat-send"
+                aria-label={mode === "edit" ? "Suggest changes" : "Send"}
+                title={mode === "edit" ? "Suggest changes (Enter)" : "Send (Enter)"}
+                disabled={!prompt.trim() || (mode === "edit" && !context) || !!confirm}
+                onClick={() => void send()}
+              >
+                <ArrowUp size={16} aria-hidden />
+              </button>
+            )}
+          </div>
+        </div>
         {plan && (
           <p className="muted sidebar-chat-destination">
-            {plan.providerName} · {plan.model}
+            Sends to {plan.providerName} · {plan.model}
           </p>
         )}
         {(error || planError) && (
@@ -597,29 +849,16 @@ export function SidebarChat() {
             {error || planError}
           </p>
         )}
-        {confirm ? (
-          <div role="alert">
+        {confirm && (
+          <div role="alert" className="sidebar-chat-confirm">
             Send about {plan?.estimatedInputTokens.toLocaleString()} input tokens?
-            <button type="button" onClick={() => void send(confirm)}>
+            <button type="button" onClick={() => void send(confirm, true)}>
               Confirm send
             </button>
             <button type="button" onClick={() => setConfirm(null)}>
               Cancel
             </button>
           </div>
-        ) : busy ? (
-          <button type="button" onClick={() => operation.current?.cancel()}>
-            Stop
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="primary"
-            disabled={!prompt.trim() || (mode === "edit" && !context)}
-            onClick={() => void send()}
-          >
-            {mode === "edit" ? "Suggest changes" : "Send"}
-          </button>
         )}
       </div>
     </div>
