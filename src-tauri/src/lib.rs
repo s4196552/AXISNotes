@@ -1,6 +1,7 @@
 mod ai;
 mod ai_commands;
 mod attachments;
+mod clipboard;
 mod clipper;
 mod clipper_commands;
 mod commands;
@@ -81,6 +82,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::open_vault,
+            clipboard::read_clipboard_text,
             taskbar_icon::set_taskbar_icon,
             commands::create_vault,
             commands::current_vault,
