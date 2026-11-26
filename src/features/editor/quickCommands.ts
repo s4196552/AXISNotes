@@ -161,7 +161,7 @@ export type CommandIcon = LucideIcon | readonly [LucideIcon, LucideIcon];
 /** Text before and after the cursor in a block: `[before, after]`. */
 type BlockText = readonly [head: string, tail: string];
 
-interface SlashCommand {
+export interface SlashCommand {
   id: string;
   label: string;
   /** One icon, or a small one before a larger one (e.g. ▸ H1 for a toggle heading). */
@@ -246,7 +246,7 @@ const prefixed =
   (prefix: string) =>
   (t: string): BlockText => [prefix + t, ""];
 
-const QUOTE_HEADER = "> [!NOTE] TITLE";
+export const QUOTE_HEADER = "> [!NOTE] TITLE";
 const QUOTE_PLACEHOLDER = "Contents";
 
 export const SLASH_COMMANDS: SlashCommand[] = [

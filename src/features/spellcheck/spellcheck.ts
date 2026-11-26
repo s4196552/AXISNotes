@@ -20,7 +20,8 @@ import { normalizeWord, proseWords, type WordRange } from "../../lib/spelling";
 import type { Speller } from "./engine";
 
 // Offline spellcheck for the Markdown editor: misspelled prose words in the visible part
-// of the note get a wavy underline. Right-click one (or Ctrl+. on it) for quick fixes:
+// of the note get a wavy underline. Right-click one (its fixes top the note's menu) or
+// press Ctrl+. on it for quick fixes:
 // suggestions, "Add to dictionary" (the vault's personal word list), or "Ignore" (for
 // this session).
 
@@ -280,17 +281,67 @@ const menuField = StateField.define<FixMenu | null>({
     }),
 });
 
-/** Open the quick-fix menu for the misspelled word at `pos`. Returns false if none. */
-export function openSpellFix(view: EditorView, pos: number): boolean {
-  const opts = view.state.facet(options);
+/** The underlined word at `pos`, or null. */
+function flaggedAt(view: EditorView, pos: number): { from: number; to: number } | null {
   const decorations = view.plugin(spellPlugin)?.decorations;
-  if (!opts || !decorations) return false;
+  if (!decorations) return null;
   let hit: { from: number; to: number } | null = null;
   decorations.between(pos, pos, (from, to) => {
     hit = { from, to };
     return false;
   });
-  if (!hit) return false;
+  return hit;
+}
+
+/** A misspelled word and its fixes, for the note's right-click menu (T-288). */
+export interface SpellingFix {
+  word: string;
+  from: number;
+  to: number;
+  suggest(): Promise<string[]>;
+  /** Replace the word with `s` (when it's still there). */
+  replace(s: string): void;
+  addToDictionary(): void;
+  ignore(): void;
+}
+
+/** The misspelled word at `pos` and what fixes it, or null where nothing is underlined. */
+export function spellingAt(view: EditorView, pos: number): SpellingFix | null {
+  const opts = view.state.facet(options);
+  const hit = opts && flaggedAt(view, pos);
+  if (!opts || !hit) return null;
+  const { from, to } = hit;
+  const word = view.state.sliceDoc(from, to);
+  return {
+    word,
+    from,
+    to,
+    suggest: () => opts.speller.suggest(normalizeWord(word)).catch(() => []),
+    replace(s) {
+      if (view.state.sliceDoc(from, to) !== word) return;
+      view.dispatch({
+        changes: { from, to, insert: s },
+        selection: { anchor: from + s.length },
+      });
+      view.focus();
+    },
+    addToDictionary() {
+      opts.addWord(normalizeWord(word).toLowerCase());
+      view.focus();
+    },
+    ignore() {
+      ignored.add(normalizeWord(word).toLowerCase());
+      view.dispatch({ effects: recheck.of(null) });
+      view.focus();
+    },
+  };
+}
+
+/** Open the quick-fix menu (Ctrl+.) for the misspelled word at `pos`. False if none. */
+export function openSpellFix(view: EditorView, pos: number): boolean {
+  const opts = view.state.facet(options);
+  const hit = opts && flaggedAt(view, pos);
+  if (!opts || !hit) return false;
   const { from, to } = hit;
   const word = view.state.sliceDoc(from, to);
   view.dispatch({ effects: openFix.of({ from, to, word, suggestions: null }) });
@@ -320,13 +371,6 @@ export function spellcheck(opts: SpellcheckOptions): Extension {
         },
       },
     ]),
-    EditorView.domEventHandlers({
-      contextmenu(e, view) {
-        const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
-        if (pos === null || !openSpellFix(view, pos)) return false;
-        e.preventDefault();
-        return true;
-      },
-    }),
+    // Right-clicking a word shows its fixes at the top of the note's menu (spellingAt).
   ];
 }

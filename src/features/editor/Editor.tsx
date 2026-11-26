@@ -61,7 +61,7 @@ import { TimerButton } from "../time/TimerControls";
 import { dailyDateOf, followLink, openAskAi, openFixText } from "../commands/actions";
 import { formatDate } from "../../lib/dates";
 import { allCommands } from "../commands/registry";
-import { configuredSpellcheck, recheck } from "../spellcheck";
+import { configuredSpellcheck, recheck, type SpellingFix, spellingAt } from "../spellcheck";
 import { bionicReading } from "./bionic";
 import { headingIndicator } from "./headingIndicator";
 import { mermaidBlocks } from "../diagrams/mermaidBlocks";
@@ -166,9 +166,13 @@ function pageStyle(props: Props): string {
 const paperClass = (style: string) => `page-${style}${style === "plain" ? "" : " page-paper"}`;
 
 export function Editor({ path }: EditorProps) {
-  const [noteMenu, setNoteMenu] = useState<{ x: number; y: number; context: ChatContext } | null>(
-    null,
-  );
+  const [noteMenu, setNoteMenu] = useState<{
+    x: number;
+    y: number;
+    view: EditorView;
+    spelling: SpellingFix | null;
+    context: ChatContext;
+  } | null>(null);
   const closeNoteMenu = useCallback(() => setNoteMenu(null), []);
   const host = useRef<HTMLDivElement>(null);
   // Keep React-owned metadata outside the editable document, but inside its scroller.
@@ -454,16 +458,32 @@ export function Editor({ path }: EditorProps) {
             EditorView.domEventHandlers({
               contextmenu(event, v) {
                 const root = useAppStore.getState().vault?.root;
-                if (!root) return false;
+                // A table cell or image has its own menu.
+                if (!root || event.defaultPrevented) return false;
                 event.preventDefault();
                 setActiveEditor(v, path);
+                // Right-clicking outside the selection puts the caret there, as in other
+                // editors, so the menu's items act where the pointer is.
+                // The menu key or Shift+F10 opens it at the caret instead.
+                const keyboard =
+                  ("pointerType" in event && (event as PointerEvent).pointerType === "") ||
+                  (event.clientX === 0 && event.clientY === 0);
+                const caret = keyboard ? v.coordsAtPos(v.state.selection.main.head) : null;
+                const x = caret ? caret.left : event.clientX;
+                const y = caret ? caret.bottom : event.clientY;
+                const at = keyboard ? null : v.posAtCoords({ x, y });
+                const was = v.state.selection.main;
+                if (at !== null && (was.empty || at < was.from || at > was.to))
+                  v.dispatch({ selection: { anchor: at } });
                 const doc = v.state.doc.toString();
                 const sel = v.state.selection.main;
                 const from = sel.empty ? 0 : sel.from;
                 const to = sel.empty ? doc.length : sel.to;
                 setNoteMenu({
-                  x: event.clientX,
-                  y: event.clientY,
+                  x,
+                  y,
+                  view: v,
+                  spelling: at === null ? null : spellingAt(v, at),
                   context: {
                     root,
                     path,

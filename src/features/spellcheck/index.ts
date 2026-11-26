@@ -4,7 +4,7 @@ import { getSpeller } from "./engine";
 import { spellcheck } from "./spellcheck";
 import "./spellcheck.css";
 
-export { recheck, openSpellFix } from "./spellcheck";
+export { recheck, openSpellFix, spellingAt, type SpellingFix } from "./spellcheck";
 
 let known: { words: string[]; set: Set<string> } | null = null;
 
