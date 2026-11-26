@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { BotOff, Check, Cpu, Sparkles, type LucideIcon } from "lucide-react";
+import { BotOff, Check, Cpu, type LucideIcon } from "lucide-react";
+import { AiIcon } from "./AiIcon";
 import type { AiRule } from "../../ipc";
 import { useConfig } from "../../app/config";
 import { useAppStore } from "../../app/store";
@@ -16,7 +17,7 @@ const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
 // layer on every request. Turn the button off in Settings → AI.
 
 const RULES: Record<AiRule, { label: string; short: string; Icon: LucideIcon }> = {
-  any: { label: "Any AI", short: "AI can read this note", Icon: Sparkles },
+  any: { label: "Any AI", short: "AI can read this note", Icon: AiIcon },
   local: {
     label: "Local models only",
     short: "Only AI models on this device can read this note",

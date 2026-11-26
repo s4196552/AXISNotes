@@ -12,10 +12,10 @@ import {
   ListChecks,
   Network,
   Search,
-  Sparkles,
   Settings as SettingsIcon,
   Star,
 } from "lucide-react";
+import { AiIcon } from "../ai/AiIcon";
 import { lazyNamed } from "../../app/lazy";
 
 // The local graph (and its graph library) loads right after the first paint.
@@ -531,7 +531,7 @@ export function RightSidebar() {
               openSidebarChat(null);
             }}
           >
-            <Sparkles size={14} /> AI chat
+            <AiIcon size={14} /> AI chat
           </button>
           {hubEnabled && (
             <button type="button" role="tab" aria-selected={hub} onClick={() => selectPanel("hub")}>

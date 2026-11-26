@@ -6,10 +6,10 @@ import {
   MessagesSquare,
   RotateCcw,
   Send,
-  Sparkles,
   Square,
   X,
 } from "lucide-react";
+import { AiIcon } from "./AiIcon";
 import {
   type AiEffort,
   type AiRule,
@@ -308,7 +308,7 @@ export function AskAi({ path, selection, folder, vault = false, onClose }: AskAi
         onKeyDown={(e) => e.key === "Escape" && !running && onClose()}
       >
         <header className="ask-ai-header">
-          <Sparkles size={15} /> <strong>{vault ? "Ask your vault" : "Ask AI"}</strong>
+          <AiIcon size={15} /> <strong>{vault ? "Ask your vault" : "Ask AI"}</strong>
           <button className="ai-icon" aria-label="Close" onClick={onClose} disabled={running}>
             <X size={15} />
           </button>
