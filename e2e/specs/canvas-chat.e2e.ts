@@ -77,8 +77,20 @@ function stream(res: http.ServerResponse, text: string) {
 }
 
 async function openFile(rel: string) {
-  await $(`.filetree [data-path="${rel}"]`).click();
+  const row = $(`.filetree [data-path="${rel}"]`);
+  // Files in a folder show once the folder is expanded.
+  if (!(await row.isExisting())) await $(`.filetree [data-path="${rel.split("/")[0]}"]`).click();
+  await row.waitForDisplayed();
+  await row.click();
   await $("canvas.interactive").waitForDisplayed({ timeout: 20_000 });
+}
+
+/** Wait until the chat (its answers or its error line) shows `text`. */
+async function chatSays(text: string, timeout: number) {
+  await browser.waitUntil(async () => (await $(".sidebar-chat").getText()).includes(text), {
+    timeout,
+    timeoutMsg: `the chat never said "${text}"`,
+  });
 }
 
 async function draw(prompt: string) {
@@ -104,6 +116,7 @@ describe("AI chat drawing on a canvas", () => {
       });
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    await $(".filetree").waitForDisplayed({ timeout: 30_000 });
     const { settings } = await invoke<{ settings: Record<string, unknown> }>("ai_settings", {});
     const result = await invoke<{ error?: unknown }>("ai_save_settings", {
       settings: {
@@ -141,7 +154,7 @@ describe("AI chat drawing on a canvas", () => {
       { timeout: 15_000, interval: 50, timeoutMsg: "no partial drawing shown" },
     );
     await browser.saveScreenshot(path.join(qa, "1-drawing-live.png"));
-    await $("*=Drew the four phases").waitForDisplayed({ timeout: 20_000 });
+    await chatSays("Drew the four phases", 20_000);
     await expect($(".sidebar-chat-log")).toHaveText(expect.stringContaining("Canvas: added 7"));
     await browser.waitUntil(() => elements("Boards/Mitosis.axcanvas").length >= 11, {
       timeout: 10_000,
@@ -158,7 +171,7 @@ describe("AI chat drawing on a canvas", () => {
     expect(first).not.toContain("versionNonce");
 
     await draw("Move the Anaphase box under Metaphase and color it green");
-    await $("*=Moved Anaphase under Metaphase").waitForDisplayed({ timeout: 20_000 });
+    await chatSays("Moved Anaphase under Metaphase", 20_000);
     expect(requests[1]).toContain('\\"id\\":\\"ana\\"');
     expect(requests[1]).not.toContain("versionNonce");
     await browser.waitUntil(
@@ -193,7 +206,7 @@ describe("AI chat drawing on a canvas", () => {
     const before = requests.length;
     await openFile("Private/Secret.axcanvas");
     await draw("Draw a flowchart of mitosis");
-    await $("*=marked AI: never").waitForDisplayed({ timeout: 10_000 });
+    await chatSays("marked AI: never", 10_000);
     await browser.pause(500);
     expect(requests.length).toBe(before);
     expect(elements("Private/Secret.axcanvas")).toHaveLength(0);

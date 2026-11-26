@@ -222,10 +222,11 @@ describe("Phase 5: AI features on the real app", () => {
     const bad = $(".cm-misspelled=teh");
     await bad.waitForDisplayed({ timeout: 15_000 }); // the dictionary loads in a worker
     await bad.click({ button: "right" });
-    const menu = $(".cm-spell-menu");
+    // The note's menu lists a misspelled word's fixes first (T-288).
+    const menu = $('[role="menu"][aria-label="Note actions"]');
     await menu.waitForDisplayed();
     await snapshot("01-spellcheck");
-    const the = menu.$("button=the");
+    const the = menu.$('[role="menuitem"]=the');
     await the.waitForDisplayed({ timeout: 15_000 }); // suggestions arrive from the worker
     await the.click();
     await browser.waitUntil(() => read("School/Bio.md").includes("is the powerhouse"), {
@@ -381,8 +382,7 @@ describe("Phase 5: AI features on the real app", () => {
     await $("button*=Diagram").click();
     await $('[aria-label="Describe the diagram"]').setValue("stages of mitosis");
     await $("button*=Generate").click();
-    await $(".dg-preview svg").waitForDisplayed({ timeout: 15_000 });
-    await $("button=Add to canvas").click();
+    // On a canvas the diagram is drawn there as it's written, then the dialog closes (T-293).
     await browser.waitUntil(
       () => {
         const els = JSON.parse(read("Board.axcanvas")).elements as {
