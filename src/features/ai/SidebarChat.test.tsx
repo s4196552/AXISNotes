@@ -8,7 +8,6 @@ import type { AiRunRequest, AiRunResult } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { noteMark } from "../../lib/aiAccess";
 import { clearActiveEditor, setActiveEditor, activeEditorChanged } from "../editor/activeEditor";
-import { NoteContextMenu } from "../editor/NoteContextMenu";
 import { SidebarChat } from "./SidebarChat";
 import {
   editorChatContext,
@@ -275,18 +274,6 @@ it("keeps a conversation's privacy when later reading another note", async () =>
   fireEvent.click(screen.getByRole("button", { name: "Send" }));
   await waitFor(() => expect(requests).toHaveLength(2));
   expect(requests[1]!.atLeast).toBe("local");
-});
-
-it("pins right-click context and offers an AI question without sending it", () => {
-  const context = editorChatContext()!;
-  render(<NoteContextMenu x={20} y={20} context={context} onClose={() => {}} />);
-  fireEvent.click(screen.getByRole("menuitem", { name: "Ask AI about this selection" }));
-  expect(useSidebarChat.getState()).toMatchObject({
-    open: true,
-    context,
-    prompt: "Explain this selection.",
-  });
-  expect(requests).toHaveLength(0);
 });
 
 it("defaults to Markdown blocks and switches the same answer to exact source without another request", async () => {

@@ -74,7 +74,7 @@ describe("FileTree", () => {
     useSidebarChat.setState({ open: false, context: null });
     fireEvent.contextMenu(row("Bio"), { clientX: 20, clientY: 20 });
     fireEvent.click(screen.getByRole("menuitem", { name: "AI" }));
-    expect(screen.getByRole("menuitem", { name: "Ask AI about this note" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Ask AI about this note" })).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: "Send to AI Chat" }));
     await waitFor(() => expect(useSidebarChat.getState().open).toBe(true));
     expect(useSidebarChat.getState().context).toMatchObject({
@@ -717,7 +717,7 @@ describe("FileTree: copy, cut and paste (T-194)", () => {
   it("copies a folder with everything in it from the menu, but not into itself", async () => {
     await setup({ "School/Maths.md": "sums", "School/Week 1/Notes.md": "w1" });
     fireEvent.contextMenu(row("School"));
-    fireEvent.click(menuItem("Copy"));
+    fireEvent.click(screen.getAllByRole("menuitem", { name: "Copy" }).at(-1)!);
     fireEvent.contextMenu(tree());
     fireEvent.click(menuItem("Paste"));
     await waitFor(() =>
@@ -821,21 +821,24 @@ describe("FileTree menus (T-287)", () => {
     expect(groups()).toEqual([
       ["Open in new tab", "Open in split screen", "Open in new window"],
       ["New Note", "New Grid", "New Canvas", "New Folder"],
-      ["Make a copy", "Move file", "Favorite"],
+      ["Copy", "Move file", "Favorite"],
       ["AI"],
       ["Change Icon", "Change Colors"],
       ["Delete", "Copy", "Cut", "Rename"],
     ]);
     fireEvent.click(menuItem("AI"));
     const ai = screen.getByRole("menu", { name: "AI" });
-    expect(within(ai).getByRole("menuitem", { name: "Send to AI Chat" })).toBeInTheDocument();
-    expect(within(ai).getByRole("menuitem", { name: "AI Skills" })).toBeInTheDocument();
+    expect(labels(ai).slice(0, 2)).toEqual(["Send to AI Chat", "AI Skills"]);
+    expect(labels(ai).at(-1)).toBe("AI Access");
+    expect(
+      [...ai.querySelectorAll("[role^=menuitem]")].filter((i) => i.closest("[role=menu]") === ai),
+    ).toHaveLength(3);
     fireEvent.click(within(ai).getByRole("menuitem", { name: "AI Access" }));
     expect(labels(screen.getByRole("menu", { name: "AI Access" }))).toEqual([
       "Inherit",
       "Never",
       "Local models only",
-      "Allowed models…",
+      "Allowed models",
     ]);
   });
 
@@ -844,7 +847,7 @@ describe("FileTree menus (T-287)", () => {
     fireEvent.contextMenu(row("School"));
     expect(groups()).toEqual([
       ["New Note", "New Grid", "New Canvas", "New Folder"],
-      ["Make a copy", "Move folder", "Search in folder", "Favorite"],
+      ["Copy", "Move folder", "Search in folder", "Favorite"],
       ["AI"],
       ["Change Icon", "Change Colors"],
       ["Add dashboard"],
@@ -902,7 +905,8 @@ describe("FileTree menus (T-287)", () => {
     await setup({ "School/Bio.md": "cells" });
     fireEvent.click(row("School"));
     fireEvent.contextMenu(row("Bio"));
-    fireEvent.click(menuItem("Make a copy"));
+    // The first Copy duplicates beside the item; the last group's Copy is the clipboard.
+    fireEvent.click(screen.getAllByRole("menuitem", { name: "Copy" })[0]!);
     await waitFor(() => expect(h.b.files()).toHaveProperty(["School/Bio copy.md"], "cells"));
     await waitFor(() => expect(row("Bio copy")).toHaveAttribute("aria-selected", "true"));
     fireEvent.keyDown(tree(), { key: "z", ctrlKey: true });

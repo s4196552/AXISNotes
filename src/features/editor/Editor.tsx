@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NoteContextMenu } from "./NoteContextMenu";
-import type { ChatContext } from "../ai/sidebarChatState";
 import { commandMenuTabs } from "./commandMenuTabs";
 import { createPortal } from "react-dom";
 import { ListTree, Sparkles, WandSparkles } from "lucide-react";
@@ -165,14 +164,40 @@ function pageStyle(props: Props): string {
 /** The page style class, plus `page-paper` for the ruled, dotted, graph and Cornell pages. */
 const paperClass = (style: string) => `page-${style}${style === "plain" ? "" : " page-paper"}`;
 
+interface NoteMenu {
+  x: number;
+  y: number;
+  view: EditorView;
+  path: string;
+  spelling: SpellingFix | null;
+}
+
+/**
+ * The note's right-click menu for `event` in note `path`. On the text (`inText`), a click
+ * outside the selection puts the caret there first, as in other editors, so the items act
+ * where the pointer is, and a misspelled word brings its fixes. The menu key or Shift+F10
+ * opens it at the caret. Elsewhere on the page (title row, margins) it acts at the caret.
+ */
+function noteMenuAt(v: EditorView, event: MouseEvent, path: string, inText: boolean): NoteMenu {
+  const keyboard =
+    ("pointerType" in event && (event as PointerEvent).pointerType === "") ||
+    (event.clientX === 0 && event.clientY === 0);
+  const caret = keyboard ? v.coordsAtPos(v.state.selection.main.head) : null;
+  const x = caret ? caret.left : event.clientX;
+  const y = caret ? caret.bottom : event.clientY;
+  const at = keyboard || !inText ? null : v.posAtCoords({ x, y });
+  const was = v.state.selection.main;
+  if (at !== null && (was.empty || at < was.from || at > was.to))
+    v.dispatch({ selection: { anchor: at } });
+  return { x, y, view: v, path, spelling: at === null ? null : spellingAt(v, at) };
+}
+
+/** Where a right-click keeps its own behaviour instead of opening the note's menu. */
+const OWN_MENU =
+  "input, textarea, select, button, a, [contenteditable=true], [role=menu], .editor-banner";
+
 export function Editor({ path }: EditorProps) {
-  const [noteMenu, setNoteMenu] = useState<{
-    x: number;
-    y: number;
-    view: EditorView;
-    spelling: SpellingFix | null;
-    context: ChatContext;
-  } | null>(null);
+  const [noteMenu, setNoteMenu] = useState<NoteMenu | null>(null);
   const closeNoteMenu = useCallback(() => setNoteMenu(null), []);
   const host = useRef<HTMLDivElement>(null);
   // Keep React-owned metadata outside the editable document, but inside its scroller.
@@ -457,43 +482,11 @@ export function Editor({ path }: EditorProps) {
             ]),
             EditorView.domEventHandlers({
               contextmenu(event, v) {
-                const root = useAppStore.getState().vault?.root;
                 // A table cell or image has its own menu.
-                if (!root || event.defaultPrevented) return false;
+                if (!useAppStore.getState().vault || event.defaultPrevented) return false;
                 event.preventDefault();
                 setActiveEditor(v, path);
-                // Right-clicking outside the selection puts the caret there, as in other
-                // editors, so the menu's items act where the pointer is.
-                // The menu key or Shift+F10 opens it at the caret instead.
-                const keyboard =
-                  ("pointerType" in event && (event as PointerEvent).pointerType === "") ||
-                  (event.clientX === 0 && event.clientY === 0);
-                const caret = keyboard ? v.coordsAtPos(v.state.selection.main.head) : null;
-                const x = caret ? caret.left : event.clientX;
-                const y = caret ? caret.bottom : event.clientY;
-                const at = keyboard ? null : v.posAtCoords({ x, y });
-                const was = v.state.selection.main;
-                if (at !== null && (was.empty || at < was.from || at > was.to))
-                  v.dispatch({ selection: { anchor: at } });
-                const doc = v.state.doc.toString();
-                const sel = v.state.selection.main;
-                const from = sel.empty ? 0 : sel.from;
-                const to = sel.empty ? doc.length : sel.to;
-                setNoteMenu({
-                  x,
-                  y,
-                  view: v,
-                  spelling: at === null ? null : spellingAt(v, at),
-                  context: {
-                    root,
-                    path,
-                    doc,
-                    from,
-                    to,
-                    text: doc.slice(from, to),
-                    selection: !sel.empty,
-                  },
-                });
+                setNoteMenu(noteMenuAt(v, event, path, true));
                 return true;
               },
             }),
@@ -752,7 +745,19 @@ export function Editor({ path }: EditorProps) {
   );
 
   return (
-    <div className="editor">
+    <div
+      className="editor"
+      // Right-clicking the rest of the note's page (its title row, properties, margins)
+      // opens the same menu as the text; the text's own handler has run by then.
+      onContextMenu={(e) => {
+        const v = view.current;
+        if (!v || e.defaultPrevented || !useAppStore.getState().vault) return;
+        if ((e.target as HTMLElement).closest(OWN_MENU)) return;
+        e.preventDefault();
+        setActiveEditor(v, path);
+        setNoteMenu(noteMenuAt(v, e.nativeEvent, path, false));
+      }}
+    >
       {noteMenu && <NoteContextMenu {...noteMenu} onClose={closeNoteMenu} />}
       {createPortal(pageTop, pageTopHost)}
       {statusSlot && focused && createPortal(docStatus, statusSlot)}
