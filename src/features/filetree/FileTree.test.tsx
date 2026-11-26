@@ -824,7 +824,7 @@ describe("FileTree menus (T-287)", () => {
       ["Copy", "Move file", "Favorite"],
       ["AI"],
       ["Change Icon", "Change Colors"],
-      ["Delete", "Copy", "Cut", "Rename"],
+      ["Rename", "Copy", "Cut", "Delete"],
     ]);
     fireEvent.click(menuItem("AI"));
     const ai = screen.getByRole("menu", { name: "AI" });
@@ -851,7 +851,7 @@ describe("FileTree menus (T-287)", () => {
       ["AI"],
       ["Change Icon", "Change Colors"],
       ["Add dashboard"],
-      ["Delete", "Copy", "Cut", "Rename"],
+      ["Rename", "Copy", "Cut", "Delete"],
     ]);
   });
 
@@ -940,8 +940,8 @@ describe("FileTree menus (T-287)", () => {
     press("ArrowDown");
     expect(menuItem("Open in new tab")).toHaveFocus();
     press("End");
-    expect(menuItem("Rename")).toHaveFocus();
-    // Up from Rename to AI: Cut, Copy, Delete, Change Colors, Change Icon, AI.
+    expect(menuItem("Delete")).toHaveFocus();
+    // Up from Delete to AI: Cut, Copy, Rename, Change Colors, Change Icon, AI.
     for (let i = 0; i < 6; i++) press("ArrowUp");
     expect(menuItem("AI")).toHaveFocus();
     press("ArrowRight");

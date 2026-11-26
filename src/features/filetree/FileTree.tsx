@@ -1121,12 +1121,6 @@ export function FileTree() {
               </MenuGroup>
               <MenuGroup>
                 <MenuItem
-                  label={`Delete ${many.length} items`}
-                  icon={Trash2}
-                  danger
-                  onClick={() => void trashMany(many)}
-                />
-                <MenuItem
                   label={`Copy ${many.length} items`}
                   icon={Copy}
                   onClick={() => copyOrCut(many, "copy")}
@@ -1135,6 +1129,12 @@ export function FileTree() {
                   label={`Cut ${many.length} items`}
                   icon={Scissors}
                   onClick={() => copyOrCut(many, "cut")}
+                />
+                <MenuItem
+                  label={`Delete ${many.length} items`}
+                  icon={Trash2}
+                  danger
+                  onClick={() => void trashMany(many)}
                 />
               </MenuGroup>
             </>
@@ -1282,11 +1282,12 @@ function EntryMenu(props: {
         </MenuGroup>
       )}
       <MenuGroup>
-        <MenuItem label="Delete" icon={Trash2} danger onClick={props.trash} />
+        {/* The human's order (T-290): Rename, Copy, Cut, then Delete last. */}
+        <MenuItem label="Rename" icon={Pencil} onClick={props.rename} />
         <MenuItem label="Copy" icon={Copy} onClick={() => props.copyOrCut("copy")} />
         <MenuItem label="Cut" icon={Scissors} onClick={() => props.copyOrCut("cut")} />
         <PasteItem count={props.pasteCount} onPaste={props.paste} />
-        <MenuItem label="Rename" icon={Pencil} onClick={props.rename} />
+        <MenuItem label="Delete" icon={Trash2} danger onClick={props.trash} />
       </MenuGroup>
     </>
   );
