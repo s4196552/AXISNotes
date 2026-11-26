@@ -133,7 +133,8 @@ function completeObjects(text: string, from: number): unknown[] {
   return out;
 }
 
-function arrayAfter(text: string, key: string): unknown[] {
+/** The complete objects so far in the JSON array under `"key"` (an answer still arriving). */
+export function arrayAfter(text: string, key: string): unknown[] {
   const m = new RegExp(`"${key}"\\s*:\\s*\\[`).exec(text);
   return m ? completeObjects(text, m.index + m[0].length) : [];
 }

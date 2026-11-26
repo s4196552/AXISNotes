@@ -25,6 +25,8 @@ import type { Image } from "../handwriting/recognize";
 import { NoteCard } from "./NoteCard";
 import { type Lib, loadExcalidraw } from "./loadExcalidraw";
 import { mergeOutside, needsRemeasure, remeasure } from "./liveMerge";
+import { type CanvasHandle, registerCanvas } from "./activeCanvas";
+import { applyOps, type DrawOp, type El, overlay, stableIds, touchedIds } from "./canvasOps";
 import "./canvas.css";
 
 type Api = import("./excalidraw").ExcalidrawImperativeAPI;
@@ -67,6 +69,40 @@ function inView(
     y + (e.height ?? 0) > top &&
     y < top + st.height / z
   );
+}
+
+type View = {
+  scrollX: number;
+  scrollY: number;
+  zoom: { value: number };
+  width: number;
+  height: number;
+};
+
+/**
+ * How to show a drawing: null when it's all in view already (clear of the toolbar along the
+ * top), else centered, fitting it to the view only when it is larger than the view.
+ */
+function scrollFor(boxes: Box[], st: View): { fitToContent: boolean } | null {
+  if (!boxes.length) return null;
+  const z = st.zoom?.value || 1;
+  const left = -st.scrollX;
+  const top = -st.scrollY;
+  const w = st.width / z;
+  const h = st.height / z;
+  const minX = Math.min(...boxes.map((b) => b.x ?? 0));
+  const minY = Math.min(...boxes.map((b) => b.y ?? 0));
+  const maxX = Math.max(...boxes.map((b) => (b.x ?? 0) + (b.width ?? 0)));
+  const maxY = Math.max(...boxes.map((b) => (b.y ?? 0) + (b.height ?? 0)));
+  const margin = 24 / z;
+  const toolbar = 80 / z; // Excalidraw's tool bar floats over the top of the view
+  const shown =
+    minX >= left + margin &&
+    maxX <= left + w - margin &&
+    minY >= top + toolbar &&
+    maxY <= top + h - margin;
+  if (shown) return null;
+  return { fitToContent: maxX - minX > w - 2 * margin || maxY - minY > h - toolbar - 2 * margin };
 }
 
 function titleOf(path: string) {
@@ -216,6 +252,84 @@ export function Canvas({ path }: { path: string }) {
       live = false;
     };
   }, [lib, mounted, loaded.version, readOnly]);
+
+  // The sidebar chat draws on this canvas through its handle (T-295).
+  useEffect(() => {
+    if (!lib || mounted !== loaded.version) return;
+    const handle: CanvasHandle = {
+      path,
+      elements: () => api.current?.getSceneElementsIncludingDeleted() ?? null,
+      begin: (given) => {
+        const a = api.current;
+        if (!a || readOnly) return null;
+        const alive = () => api.current === a;
+        const base = a.getSceneElementsIncludingDeleted() as unknown as El[];
+        // Each redraw of the draft gives unnamed labels and shapes the same ids.
+        const opts = { ...given, idFor: given.idFor ?? stableIds() };
+        // Measure text with the real font, as for drawings that arrive from outside.
+        const compute = (ops: readonly DrawOp[]) => {
+          const r = applyOps(base, ops, opts);
+          const elements = remeasure(
+            lib,
+            lib.restoreElements(r.elements as never, null, {
+              repairBindings: true,
+            }) as unknown as CanvasElement[],
+          ) as El[];
+          return { ...r, elements, touched: touchedIds(base, elements) };
+        };
+        let shown = new Set<string>();
+        let ended = false;
+        const show = (
+          drawn: readonly CanvasElement[],
+          touched: Set<string>,
+          capture: "EVENTUALLY" | "IMMEDIATELY",
+          scroll = true,
+        ) => {
+          const current = a.getSceneElementsIncludingDeleted() as unknown as CanvasElement[];
+          a.updateScene({
+            elements: overlay(current, base, drawn, touched, shown) as never,
+            captureUpdate: lib.CaptureUpdateAction[capture],
+          });
+          shown = touched;
+          if (!scroll) return;
+          // Keep the drawing in view as it grows (not when it's all showing already).
+          const visible = drawn.filter(
+            (e) => touched.has(e.id!) && !e.isDeleted && !e.containerId,
+          ) as (CanvasElement & Box)[];
+          const how = scrollFor(visible, a.getAppState());
+          if (how) a.scrollToContent(visible as never, { ...how, animate: true, duration: 300 });
+        };
+        return {
+          check: (ops) => applyOps(base, ops, opts).problems,
+          preview: (ops) => {
+            if (ended || !alive()) return;
+            const r = compute(ops);
+            // Not an undo step of its own: undo takes back the finished drawing as a whole.
+            show(r.elements, r.touched, "EVENTUALLY");
+          },
+          commit: (ops) => {
+            if (ended || !alive())
+              throw new Error("The canvas was reloaded or closed while the AI was drawing.");
+            const r = compute(ops);
+            if (r.problems.length) throw new Error(r.problems.slice(0, 3).join("; "));
+            ended = true;
+            // Excalidraw leaves elements it hasn't committed yet out of an undo step (it takes
+            // them for local edits in progress), and the draft is such elements. So the draft
+            // is taken back first, and the finished drawing then arrives as one undo step.
+            if (shown.size) show(base, new Set(), "EVENTUALLY", false);
+            show(r.elements, r.touched, "IMMEDIATELY");
+            return r;
+          },
+          discard: () => {
+            if (ended) return;
+            ended = true;
+            if (alive() && shown.size) show(base, new Set(), "EVENTUALLY");
+          },
+        };
+      },
+    };
+    return registerCanvas(handle);
+  }, [lib, mounted, loaded.version, path, readOnly]);
 
   const onChange = (
     elements: readonly CanvasElement[],

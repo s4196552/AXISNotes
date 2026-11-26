@@ -197,6 +197,20 @@ const SEEDS: Record<string, (dir: string) => void> = {
       }) + "\n",
     );
   },
+  "canvas-chat"(dir) {
+    const empty =
+      JSON.stringify({
+        type: "excalidraw",
+        version: 2,
+        source: "axis",
+        elements: [],
+        appState: { gridModeEnabled: false },
+        files: {},
+      }) + "\n";
+    write(dir, "Boards/Mitosis.axcanvas", empty);
+    write(dir, "Private/Secret.axcanvas", empty);
+    write(dir, ".axisnotes/config.json", JSON.stringify({ ai: { folders: { Private: "never" } } }));
+  },
   phase6(dir) {
     const png = fs.readFileSync(path.join(root, "src-tauri", "icons", "32x32.png"));
     write(dir, "Notes/Photo.md", "# Photo\n\nOur logo:\n\n![[logo.png]]\n");

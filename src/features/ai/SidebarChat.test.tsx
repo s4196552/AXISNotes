@@ -9,6 +9,9 @@ import { useAppStore } from "../../app/store";
 import { noteMark } from "../../lib/aiAccess";
 import { clearActiveEditor, setActiveEditor, activeEditorChanged } from "../editor/activeEditor";
 import { SidebarChat } from "./SidebarChat";
+import { useConfig } from "../../app/config";
+import { type CanvasHandle, registerCanvas } from "../canvas/activeCanvas";
+import { applyOps, type DrawOp } from "../canvas/canvasOps";
 import {
   editorChatContext,
   openSidebarChat,
@@ -453,4 +456,170 @@ it("removes the selection, then the open note, until the user picks something el
   });
   fireEvent.click(screen.getByRole("button", { name: "Remove Bio" }));
   expect(screen.queryByRole("button", { name: "Remove Bio" })).toBeNull();
+});
+
+// ---- Drawing on the open canvas (T-295) ----
+
+const BOARD_PATH = "Boards/Mitosis.axcanvas";
+const SCENE = [
+  { id: "meta", type: "rectangle", x: 0, y: 0, width: 160, height: 70, version: 1 },
+  { id: "ana", type: "rectangle", x: 300, y: 0, width: 160, height: 70, version: 1 },
+];
+
+function fakeCanvas(path = BOARD_PATH) {
+  const calls = { begun: 0, previews: [] as number[], commits: [] as DrawOp[][], discards: 0 };
+  const opts = { noteOk: (p: string) => ({ path: p }) };
+  const handle: CanvasHandle = {
+    path,
+    elements: () => SCENE,
+    begin: () => {
+      calls.begun++;
+      return {
+        check: (ops) => applyOps(SCENE, ops, opts).problems,
+        preview: (ops) => void calls.previews.push(ops.length),
+        commit: (ops) => {
+          calls.commits.push([...ops]);
+          return applyOps(SCENE, ops, opts);
+        },
+        discard: () => void calls.discards++,
+      };
+    },
+  };
+  const unregister = registerCanvas(handle);
+  useAppStore.setState({ activePath: path });
+  return { calls, unregister };
+}
+
+const drawAnswer = (ops: DrawOp[], reply = "Done drawing.") =>
+  // Spaced out, so the test backend streams it a piece at a time.
+  JSON.stringify({ ops, reply }, null, 1);
+
+const FLOW: DrawOp[] = [
+  { op: "add", id: "pro", text: "Prophase", x: 0, y: -150 },
+  { op: "arrow", id: "p-m", from: "pro", to: "meta" },
+  { op: "change", id: "ana", x: 0, y: 150, backgroundColor: "#b2f2bb" },
+];
+
+function setRules(folders: Record<string, "local" | "never">) {
+  h.b.externalWrite(".axisnotes/config.json", JSON.stringify({ ai: { folders } }));
+  useConfig.setState((s) => ({ config: { ...s.config, ai: { ...s.config.ai, folders } } }));
+}
+afterEach(() => setRules({}));
+
+it("draws on the open canvas while the answer streams, then keeps it as one change", async () => {
+  const { calls, unregister } = fakeCanvas();
+  setAiResponder((req) => {
+    requests.push(req);
+    return drawAnswer(FLOW, "Added Prophase and moved Anaphase under Metaphase.");
+  });
+  try {
+    render(<SidebarChat />);
+    expect(screen.getByLabelText("Chat action")).toHaveValue("draw");
+    expect(screen.getByRole("button", { name: "Remove Mitosis" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Chat message"), {
+      target: { value: "Move the Anaphase box under Metaphase and color it green" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    expect(
+      await screen.findByText("Added Prophase and moved Anaphase under Metaphase."),
+    ).toBeInTheDocument();
+    // Drawn as each operation arrived, then committed once with all of them.
+    expect(calls.previews.slice(0, 4)).toEqual([0, 1, 2, 3]);
+    expect(calls.commits).toEqual([FLOW]);
+    expect(screen.getByText(/Canvas: added 2, changed 1/)).toBeInTheDocument();
+    const req = requests[0]!;
+    expect(req.json).toBe(true);
+    expect(req.sources).toEqual([BOARD_PATH]);
+    const sent = JSON.stringify(req.messages);
+    expect(sent).toContain('\\"id\\":\\"ana\\"'); // the canvas's contents, as a summary
+    expect(sent).toContain("op");
+    expect(sent).not.toContain("versionNonce"); // never the raw Excalidraw JSON
+  } finally {
+    unregister();
+  }
+});
+
+it("retries an answer that can't be applied, and takes the draft back when stopped", async () => {
+  const { calls, unregister } = fakeCanvas();
+  let n = 0;
+  setAiResponder((req) => {
+    requests.push(req);
+    return n++ === 0 ? drawAnswer([{ op: "change", id: "nope", x: 1 }]) : drawAnswer(FLOW);
+  });
+  try {
+    render(<SidebarChat />);
+    fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Fix it" } });
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    expect(await screen.findByText("Done drawing.")).toBeInTheDocument();
+    expect(JSON.stringify(requests[1]!.messages.at(-1))).toContain('\\"nope\\"');
+    expect(calls.commits).toEqual([FLOW]);
+
+    // Stopped part-way: nothing is kept.
+    setAiResponder(() =>
+      drawAnswer([...FLOW, ...FLOW.map((o) => ({ ...o, id: `${String(o.id)}2` }))]),
+    );
+    fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Again" } });
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    await waitFor(() => expect(calls.begun).toBe(2));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Draw" })).toBeInTheDocument());
+    expect(calls.commits).toHaveLength(1);
+    expect(calls.discards).toBeGreaterThanOrEqual(2);
+  } finally {
+    unregister();
+  }
+});
+
+it("refuses to draw on an AI: never canvas, or from notes stricter than the canvas", async () => {
+  setRules({ Boards: "never" });
+  const { calls, unregister } = fakeCanvas();
+  try {
+    const view = render(<SidebarChat />);
+    fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Draw cells" } });
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    expect(await screen.findByText(/marked AI: never/)).toBeInTheDocument();
+    await act(async () => new Promise((r) => setTimeout(r, 20)));
+    expect(requests).toHaveLength(0);
+    expect(calls.begun).toBe(0);
+    view.unmount();
+
+    // A local-only note can't be drawn onto a canvas that any AI may read.
+    setRules({ Journal: "local" });
+    useSidebarChat.setState({
+      context: {
+        root: useAppStore.getState().vault!.root,
+        path: "Journal/day.md",
+        doc: "private",
+        from: 0,
+        to: 7,
+        text: "private",
+        selection: false,
+        rule: "local",
+      },
+    });
+    render(<SidebarChat />);
+    fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "Draw it" } });
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    expect(await screen.findByText(/AI can't draw them on it/)).toBeInTheDocument();
+    expect(requests).toHaveLength(0);
+    expect(calls.begun).toBe(0);
+  } finally {
+    unregister();
+  }
+});
+
+it("asks about the canvas in Ask mode without drawing", async () => {
+  const { calls, unregister } = fakeCanvas();
+  try {
+    render(<SidebarChat />);
+    fireEvent.change(screen.getByLabelText("Chat action"), { target: { value: "ask" } });
+    fireEvent.change(screen.getByLabelText("Chat message"), { target: { value: "What's here?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByText("Updated cells.")).toBeInTheDocument();
+    expect(requests[0]!.json).toBeUndefined();
+    expect(JSON.stringify(requests[0]!.messages)).toContain("Canvas: Boards/Mitosis.axcanvas");
+    expect(calls.begun).toBe(0);
+  } finally {
+    unregister();
+  }
 });
