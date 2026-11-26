@@ -6,6 +6,7 @@ import { AUTOSAVE_DELAY_MS } from "../files/useFileDocument";
 import { serializeCanvas } from "../../lib/canvas";
 import { setAiResponder } from "../../ipc/memoryAi";
 import { Canvas } from "./Canvas";
+import { getCanvas } from "./activeCanvas";
 
 type El = {
   id: string;
@@ -38,11 +39,13 @@ const h = vi.hoisted(() => ({
   props: null as FakeProps | null,
   api: null as null | {
     getSceneElements(): El[];
-    updateScene(u: { elements: El[] }): void;
+    updateScene(u: { elements: El[]; captureUpdate?: string }): void;
+    undo(): boolean;
   },
   mounts: 0,
   selected: {} as Record<string, boolean>,
   exported: [] as El[][],
+  captures: [] as (string | undefined)[],
 }));
 
 vi.mock("../../ipc", async (orig) => {
@@ -77,13 +80,49 @@ vi.mock("./excalidraw", async () => {
         getSceneElementsIncludingDeleted: () => current,
         addFiles: () => {},
         scrollToContent: () => {},
-        updateScene: ({ elements }: { elements: El[] }) => {
+        updateScene: ({ elements, captureUpdate }: { elements: El[]; captureUpdate?: string }) => {
+          h.captures.push(captureUpdate);
+          if (captureUpdate === "IMMEDIATELY" || captureUpdate === "NEVER") {
+            // As Excalidraw's store: elements in the scene that aren't committed yet (local
+            // edits in progress) are left out of what this update commits.
+            const next = new Map(elements.map((e) => [e.id, e]));
+            for (const prev of current) {
+              if (!next.has(prev.id)) continue;
+              const was = snapshot.get(prev.id);
+              if (!was) next.delete(prev.id);
+              else if ((was.version ?? 1) < (prev.version ?? 1)) next.set(prev.id, was);
+            }
+            if (captureUpdate === "IMMEDIATELY") {
+              // The undo step: how each element it changes was before.
+              const step = new Map<string, El | undefined>();
+              for (const id of new Set([...snapshot.keys(), ...next.keys()]))
+                if (snapshot.get(id)?.version !== next.get(id)?.version)
+                  step.set(id, snapshot.get(id));
+              if (step.size) undoStack.push(step);
+            }
+            snapshot = next;
+          }
           current = elements;
           setScene(elements);
           props.onChange(elements, st, props.initialData.files);
         },
+        /** Ctrl+Z: put back what the last undo step changed. */
+        undo: () => {
+          const step = undoStack.pop();
+          if (!step) return false;
+          let els = current.filter((e) => !step.has(e.id) || step.get(e.id));
+          els = els.map((e) => (step.has(e.id) ? step.get(e.id)! : e));
+          for (const [id, was] of step) if (was && !els.some((e) => e.id === id)) els.push(was);
+          snapshot = new Map(els.map((e) => [e.id, e]));
+          current = els;
+          setScene(els);
+          props.onChange(els, st, props.initialData.files);
+          return true;
+        },
       };
       let current = props.initialData.elements;
+      let snapshot = new Map(current.map((e) => [e.id, e]));
+      const undoStack: Map<string, El | undefined>[] = [];
       h.api = api;
       props.excalidrawAPI(api);
       props.onChange(current, st, props.initialData.files);
@@ -153,6 +192,7 @@ beforeEach(() => {
   h.mounts = 0;
   h.selected = {};
   h.exported = [];
+  h.captures = [];
   useAppStore.setState({
     error: null,
     activePath: "Board.axcanvas",
@@ -252,6 +292,72 @@ describe("Canvas", () => {
     await settle();
     expect(saved().elements.map((e) => e.id)).toEqual(["c", "ink", "claude"]);
     expect(h.mounts).toBe(1);
+  });
+
+  it("lets the AI chat draw: previews aren't undo steps, the finished drawing is one", async () => {
+    const { unmount } = await open();
+    const handle = getCanvas("Board.axcanvas")!;
+    expect(handle.elements()!.map((e) => e.id)).toEqual(["t", "c"]);
+    const ops = [
+      { op: "add", id: "a", text: "Prophase", x: 0, y: 0 },
+      { op: "add", id: "b", text: "Metaphase", x: 0, y: 150 },
+      { op: "arrow", id: "ab", from: "a", to: "b" },
+    ];
+    const ids = () => h.api!.getSceneElements().map((e) => e.id);
+    const draw = handle.begin({ noteOk: (p) => ({ path: p }) })!;
+    h.captures = [];
+    act(() => draw.preview(ops.slice(0, 1)));
+    expect(ids()).toContain("a");
+    const label = ids().find((id) => !["t", "c", "a"].includes(id))!;
+    act(() => draw.preview(ops));
+    expect(ids()).toContain(label); // a redrawn draft keeps its labels' ids
+    // The user draws meanwhile; the drawing goes over the scene as it is now.
+    act(() =>
+      h.api!.updateScene({
+        elements: [...h.api!.getSceneElements(), { id: "ink", type: "freedraw", version: 1 }],
+      }),
+    );
+    expect(h.captures.every((c) => c === "EVENTUALLY" || c === undefined)).toBe(true);
+    expect(draw.check([{ op: "change", id: "zz" }])[0]).toMatch(/nothing on the canvas/);
+    act(() => void draw.commit(ops));
+    expect(h.captures.at(-1)).toBe("IMMEDIATELY");
+    const drawn = ids();
+    expect(drawn).toEqual(expect.arrayContaining(["t", "c", "ink", "a", "b", "ab", label]));
+    draw.discard(); // nothing after commit
+    expect(ids()).toEqual(drawn);
+    await settle();
+    expect(saved().elements.find((e) => e.id === "ab")).toMatchObject({ type: "arrow" });
+
+    // Ctrl+Z takes back the whole drawing in one step, and nothing else.
+    act(() => void h.api!.undo());
+    expect(ids()).toEqual(["t", "c", "ink"]);
+
+    // A change to what's there is one step too.
+    act(() => {
+      const move = handle.begin({ noteOk: (p) => ({ path: p }) })!;
+      move.preview([{ op: "change", id: "t", x: 40, y: 50 }]);
+      move.commit([{ op: "change", id: "t", x: 40, y: 50 }]);
+    });
+    expect(h.api!.getSceneElements().find((e) => e.id === "t")).toMatchObject({ x: 40, y: 50 });
+    act(() => void h.api!.undo());
+    expect(h.api!.getSceneElements().find((e) => e.id === "t")?.x).toBeUndefined();
+
+    // A stopped drawing is taken back, without an undo step.
+    const before = ids();
+    const stopped = handle.begin({ noteOk: (p) => ({ path: p }) })!;
+    h.captures = [];
+    act(() =>
+      stopped.preview([
+        { op: "delete", id: "c" },
+        { op: "add", id: "x", text: "X" },
+      ]),
+    );
+    expect(ids()).not.toContain("c");
+    act(() => stopped.discard());
+    expect(h.captures).toEqual(["EVENTUALLY", "EVENTUALLY"]);
+    expect(ids()).toEqual(before);
+    unmount();
+    expect(getCanvas("Board.axcanvas")).toBeUndefined();
   });
 
   it("still reloads when the outside version can't be read", async () => {

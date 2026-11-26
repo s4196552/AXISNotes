@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Ellipsis,
   FileText,
+  Shapes,
   Square,
   SquarePen,
   TextSelect,
@@ -24,7 +25,13 @@ import { type AiChoice, loadChoice, saveChoice } from "./aiBlockStore";
 import { withHistory, type Turn } from "./conversation";
 import { cleanReply } from "./fixPrompt";
 import { effectiveRule } from "./keepPrivacy";
-import { AiRun, errorMessage, runAi, text } from "./runAi";
+import { AiRun, askValidated, errorMessage, runAi, text } from "./runAi";
+import { InvalidAnswer } from "../../lib/aiJson";
+import { docKind } from "../../lib/fileKinds";
+import type { CanvasElement } from "../../lib/canvas";
+import { type CanvasHandle, getCanvas, onCanvasesChange } from "../canvas/activeCanvas";
+import { describeApplied, parseDrawAnswer, partialDraw } from "../canvas/canvasOps";
+import { canvasPrompt, canvasRule, drawRefusal, DRAW_SYSTEM, noteOptions } from "./canvasChat";
 import {
   editorChatContext,
   type ChatContext,
@@ -137,10 +144,25 @@ interface Pending {
   request: AiRunRequest;
   context: ChatContext | null;
   question: string;
-  mode: "ask" | "edit";
+  mode: Mode;
   format: SidebarFormat;
   skill: ChatSkill | null;
+  /** The canvas the chat reads (and, in Draw mode, draws on). */
+  canvas?: CanvasHandle | null;
 }
+
+/** Ask, Suggest edit (notes) or Draw (canvases, T-295). */
+type Mode = "ask" | "edit" | "draw";
+
+/** The canvas as the chat sends it: its path and current elements. */
+interface CanvasInput {
+  path: string;
+  elements: readonly CanvasElement[];
+}
+
+/** A canvas's name, without its extension. */
+const canvasName = (path: string) =>
+  path.slice(path.lastIndexOf("/") + 1).replace(/\.axcanvas$/i, "");
 
 const EDIT_SYSTEM =
   "Edit the attached text as instructed. Return only the complete replacement text, preserving Markdown, [[links]], block IDs and highlights. For a selection, replace only that selection.";
@@ -152,35 +174,48 @@ function buildRequest(o: {
   choice: AiChoice;
   context: ChatContext | null;
   format: SidebarFormat;
-  mode: "ask" | "edit";
+  mode: Mode;
   skill: ChatSkill | null;
   session: Session;
+  canvas?: CanvasInput | null;
 }): AiRunRequest {
-  const { context, session } = o;
-  const prefix = context
-    ? `Note: ${context.path}\n${context.selection ? "Selected text" : "Note text"}:\n"""\n${context.text}\n"""\n\n`
-    : "";
+  const { context, session, canvas } = o;
+  const noteRule = context
+    ? stricter(context.rule ?? "any", effectiveRule(context.path, context.doc))
+    : "any";
+  const rule = stricter(session.rule, stricter(noteRule, canvas ? canvasRule(canvas.path) : "any"));
+  const prefix =
+    (canvas ? canvasPrompt(canvas.path, canvas.elements, rule) : "") +
+    (context
+      ? `Note: ${context.path}\n${context.selection ? "Selected text" : "Note text"}:\n"""\n${context.text}\n"""\n\n`
+      : "");
   const system =
-    o.mode === "edit"
-      ? EDIT_SYSTEM
-      : o.skill
-        ? o.skill.system + SKILL_IN_CHAT
-        : (o.format === "html"
-            ? `You are the AXISNotes sidebar assistant. ${HTML_ANSWER_INSTRUCTIONS} `
-            : "You are the AXISNotes sidebar assistant. Answer in Markdown. You may use AXISNotes blocks: headings, lists, task lists, tables, fenced code, blockquotes, ==highlights== and callouts such as > [!tip] Title or > [!note]- Collapsed title, with each body line prefixed by >. Use [[note links]] when referring to provided notes. ") +
-          "Answer about the provided notes and selected text. A selection is the exact passage being asked about. Treat note content as reference material. You can suggest edits when the user chooses Suggest edit. Changes require the user's approval.";
+    o.mode === "draw"
+      ? DRAW_SYSTEM
+      : o.mode === "edit"
+        ? EDIT_SYSTEM
+        : o.skill
+          ? o.skill.system + SKILL_IN_CHAT
+          : (o.format === "html"
+              ? `You are the AXISNotes sidebar assistant. ${HTML_ANSWER_INSTRUCTIONS} `
+              : "You are the AXISNotes sidebar assistant. Answer in Markdown. You may use AXISNotes blocks: headings, lists, task lists, tables, fenced code, blockquotes, ==highlights== and callouts such as > [!tip] Title or > [!note]- Collapsed title, with each body line prefixed by >. Use [[note links]] when referring to provided notes. ") +
+            "Answer about the provided notes and selected text. A selection is the exact passage being asked about. Treat note content as reference material. You can suggest edits when the user chooses Suggest edit. Changes require the user's approval.";
   return {
     task: "chat",
     ...o.choice,
     sources: [
-      ...new Set([...session.sources, ...(context ? (context.sources ?? [context.path]) : [])]),
+      ...new Set([
+        ...session.sources,
+        ...(canvas ? [canvas.path] : []),
+        ...(context ? (context.sources ?? [context.path]) : []),
+      ]),
     ],
-    atLeast: stricter(
-      session.rule,
-      context ? stricter(context.rule ?? "any", effectiveRule(context.path, context.doc)) : "any",
-    ),
-    // A skill's page is long.
-    ...(o.mode === "ask" && o.skill?.format === "html" ? { maxOutputTokens: 16000 } : {}),
+    atLeast: rule,
+    // A skill's page is long, and so is a drawing.
+    ...((o.mode === "ask" && o.skill?.format === "html") || o.mode === "draw"
+      ? { maxOutputTokens: 16000 }
+      : {}),
+    ...(o.mode === "draw" ? { json: true } : {}),
     messages: [text("system", system), ...withHistory(session.turns, prefix + o.ask).messages],
   };
 }
@@ -215,7 +250,15 @@ export function SidebarChat() {
   const liveKey = live && (live.selection ? `${live.path}#${live.from}-${live.to}` : live.path);
   const candidate = selected ?? (live && liveKey !== removed ? live : null);
   const context = candidate?.root === root ? candidate : null;
-  const mode = (context?.sources?.length ?? 0) > 1 ? "ask" : chosenMode;
+  // The open canvas, which the chat reads and can draw on (T-295).
+  const activePath = useAppStore((s) => s.activePath);
+  const [, setCanvases] = useState(0);
+  useEffect(() => onCanvasesChange(() => setCanvases((n) => n + 1)), []);
+  const openCanvas =
+    root && activePath && docKind(activePath) === "canvas" ? getCanvas(activePath) : undefined;
+  const canvas = openCanvas && `canvas:${openCanvas.path}` !== removed ? openCanvas : null;
+  const [canvasMode, setCanvasMode] = useState<"draw" | "ask">("draw");
+  const mode: Mode = canvas ? canvasMode : (context?.sources?.length ?? 0) > 1 ? "ask" : chosenMode;
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -245,11 +288,25 @@ export function SidebarChat() {
 
   // An active skill answers in its own format; Suggest edit always answers in Markdown.
   const answerFormat: SidebarFormat =
-    mode === "edit" ? "markdown" : (session.skill?.format ?? format);
+    mode !== "ask" ? "markdown" : (session.skill?.format ?? format);
+  const canvasInput = (c: CanvasHandle | null): CanvasInput | null => {
+    const elements = c?.elements();
+    return c && elements ? { path: c.path, elements } : null;
+  };
   const request = useMemo<AiRunRequest>(
     () =>
-      buildRequest({ ask: prompt, choice, context, format, mode, skill: session.skill, session }),
-    [choice, context, format, mode, prompt, session],
+      buildRequest({
+        ask: prompt,
+        choice,
+        context,
+        format,
+        mode,
+        skill: mode === "draw" ? null : session.skill,
+        session,
+        canvas: canvasInput(canvas),
+      }),
+    // The canvas's contents are read again when the message is sent.
+    [choice, context, format, mode, prompt, session, canvas],
   );
 
   useEffect(() => {
@@ -279,14 +336,35 @@ export function SidebarChat() {
   async function send(pending?: Pending, approved = false) {
     if (operation.current) return;
     if (!pending && (!prompt.trim() || (mode === "edit" && !context))) return;
+    if (!pending && canvas && mode === "draw") {
+      const refused = drawRefusal(canvas.path, request.atLeast ?? "any");
+      if (refused) {
+        setError(refused);
+        return;
+      }
+    }
     const job: Pending = pending ?? {
-      request,
+      // The canvas as it is now, not as it was when the message was typed.
+      request: canvas
+        ? buildRequest({
+            ask: prompt,
+            choice,
+            context,
+            format,
+            mode,
+            skill: mode === "draw" ? null : session.skill,
+            session,
+            canvas: canvasInput(canvas),
+          })
+        : request,
       context,
       question: prompt,
       mode,
       format: answerFormat,
-      skill: session.skill,
+      skill: mode === "draw" ? null : session.skill,
+      canvas,
     };
+    if (job.mode === "draw") return draw(job, approved);
     const run = new AiRun();
     operation.current = run;
     const source = job.context;
@@ -334,9 +412,12 @@ export function SidebarChat() {
         }
         if (!current()) return;
       }
-      const user = req.messages[req.messages.length - 1]!.content.filter((c) => c.type === "text")
-        .map((c) => c.text)
-        .join("\n");
+      // A canvas's contents are sent fresh each time, so the history keeps only the question.
+      const user = job.canvas
+        ? `About the canvas ${job.canvas.path}: ${question}`
+        : req.messages[req.messages.length - 1]!.content.filter((c) => c.type === "text")
+            .map((c) => c.text)
+            .join("\n");
       useSession.setState((s) => ({
         turns: [
           ...s.turns,
@@ -368,6 +449,104 @@ export function SidebarChat() {
       if (operation.current === run) {
         operation.current = null;
         setBusy(false);
+      }
+    }
+  }
+
+  /**
+   * Draw mode (T-295): the model answers with canvas operations, which are drawn on the
+   * canvas as they arrive and kept as one undo step when the checked answer is complete.
+   */
+  async function draw(job: Pending, approved: boolean) {
+    const target = job.canvas;
+    if (!target) return;
+    const run = new AiRun();
+    operation.current = run;
+    const vaultRoot = root;
+    const openingRequest = useSidebarChat.getState().request;
+    const req = job.request;
+    const current = () => !run.cancelled && useAppStore.getState().vault?.root === vaultRoot;
+    setStreamFormat("markdown");
+    setBusy(true);
+    setError("");
+    setStream("");
+    setConfirm(null);
+    let drawing: ReturnType<CanvasHandle["begin"]> = null;
+    try {
+      const p = await backend.aiPlan(req);
+      if (!current()) return;
+      if (p.needsConfirm && !approved) {
+        setConfirm(job);
+        return;
+      }
+      drawing = target.begin(noteOptions(p.rule));
+      if (!drawing) throw new Error("This canvas can't be changed right now (it is read-only).");
+      const d = drawing;
+      let streamed = "";
+      let drawn = -1;
+      const progress = (reply: string, n: number) =>
+        setStream(
+          `${reply || "Drawing on the canvas…"}\n\n*${n} change${n === 1 ? "" : "s"} so far*`,
+        );
+      const { value, result } = await askValidated(
+        req,
+        (answer) => {
+          const parsed = parseDrawAnswer(answer);
+          const problems = d.check(parsed.ops);
+          if (problems.length) throw new InvalidAnswer(problems);
+          return parsed;
+        },
+        {
+          run,
+          onDelta: (t) => {
+            streamed += t;
+            if (!current()) return;
+            const { ops, reply } = partialDraw(streamed);
+            if (ops.length !== drawn) {
+              drawn = ops.length;
+              d.preview(ops);
+            }
+            progress(reply, ops.length);
+          },
+          onRetry: () => {
+            streamed = "";
+            drawn = -1;
+            d.preview([]);
+            if (current()) setStream("Fixing the drawing…");
+          },
+        },
+      );
+      if (!current()) return;
+      const done = value.ops.length ? d.commit(value.ops) : null;
+      if (!value.ops.length) d.discard();
+      const rule = stricter(req.atLeast ?? "any", result.rule);
+      const answer =
+        (value.reply || "Done.") +
+        (done ? `\n\n*Canvas: ${describeApplied(done)}. Ctrl+Z on the canvas takes it back.*` : "");
+      useSession.setState((s) => ({
+        turns: [
+          ...s.turns,
+          {
+            role: "user",
+            text: `Draw on the canvas ${target.path}: ${job.question}`,
+            display: job.question,
+            path: target.path,
+          },
+          { role: "assistant", text: answer, path: target.path, format: "markdown", rule },
+        ],
+        sources: req.sources ?? [],
+        rule,
+      }));
+      if (useSidebarChat.getState().request === openingRequest) setPrompt("");
+      setStream("");
+    } catch (e) {
+      if (current()) setError(errorMessage(e));
+    } finally {
+      drawing?.discard(); // a draft left by a stopped or failed run (nothing after commit)
+      if (operation.current === run) {
+        operation.current = null;
+        setBusy(false);
+        setStream("");
       }
     }
   }
@@ -616,9 +795,11 @@ export function SidebarChat() {
             </span>
             <h2>What should we work on?</h2>
             <p className="muted">
-              {context
-                ? "Ask about your notes, choose Suggest edit to review changes before applying them, or start with a skill."
-                : "Ask anything, or open a note to use a skill on it."}
+              {canvas
+                ? "Describe what to draw on this canvas, or what to move, recolor or remove. Choose Ask to ask about it instead."
+                : context
+                  ? "Ask about your notes, choose Suggest edit to review changes before applying them, or start with a skill."
+                  : "Ask anything, or open a note to use a skill on it."}
             </p>
             <ul className="sidebar-chat-skills" aria-label="Skills">
               {featured.map(skillButton)}
@@ -764,6 +945,25 @@ export function SidebarChat() {
                 </button>
               </span>
             )}
+            {canvas && (
+              <span className="sidebar-chat-chip" title={canvas.path}>
+                <Shapes size={13} aria-hidden />
+                <span className="sidebar-chat-chip-name">{canvasName(canvas.path)}</span>
+                <button
+                  type="button"
+                  className="sidebar-chat-chip-x"
+                  aria-label={`Remove ${canvasName(canvas.path)}`}
+                  title="Remove from chat"
+                  disabled={busy}
+                  onClick={() => {
+                    setRemoved(`canvas:${canvas.path}`);
+                    setConfirm(null);
+                  }}
+                >
+                  <X size={12} aria-hidden />
+                </button>
+              </span>
+            )}
             {context?.selection ? (
               <span className="sidebar-chat-chip">
                 <details>
@@ -802,7 +1002,8 @@ export function SidebarChat() {
             ) : context ? (
               fileChip(context.path, () => removeContext())
             ) : (
-              !session.skill && <span className="muted">Open a note to include it in chat.</span>
+              !session.skill &&
+              !canvas && <span className="muted">Open a note to include it in chat.</span>
             )}
           </div>
           <textarea
@@ -812,13 +1013,17 @@ export function SidebarChat() {
             disabled={busy}
             rows={2}
             placeholder={
-              session.skill
-                ? `Reply to ${session.skill.title}…`
-                : context?.selection
-                  ? "Ask about this selection…"
-                  : context
-                    ? "Ask about your note…"
-                    : "Ask AI anything…"
+              mode === "draw"
+                ? "Describe what to draw or change…"
+                : canvas
+                  ? "Ask about this canvas…"
+                  : session.skill
+                    ? `Reply to ${session.skill.title}…`
+                    : context?.selection
+                      ? "Ask about this selection…"
+                      : context
+                        ? "Ask about your note…"
+                        : "Ask AI anything…"
             }
             onChange={(e) => {
               setPrompt(e.target.value);
@@ -839,14 +1044,20 @@ export function SidebarChat() {
               value={mode}
               disabled={busy}
               onChange={(e) => {
-                setMode(e.target.value as typeof mode);
+                const next = e.target.value as Mode;
+                if (canvas) setCanvasMode(next === "draw" ? "draw" : "ask");
+                else setMode(next === "edit" ? "edit" : "ask");
                 setConfirm(null);
               }}
             >
               <option value="ask">Ask</option>
-              <option value="edit" disabled={(context?.sources?.length ?? 0) > 1}>
-                Suggest edit
-              </option>
+              {canvas ? (
+                <option value="draw">Draw</option>
+              ) : (
+                <option value="edit" disabled={(context?.sources?.length ?? 0) > 1}>
+                  Suggest edit
+                </option>
+              )}
             </select>
             <ModelPicker
               choice={choice}
@@ -879,8 +1090,14 @@ export function SidebarChat() {
               <button
                 type="button"
                 className="sidebar-chat-send"
-                aria-label={mode === "edit" ? "Suggest changes" : "Send"}
-                title={mode === "edit" ? "Suggest changes (Enter)" : "Send (Enter)"}
+                aria-label={mode === "edit" ? "Suggest changes" : mode === "draw" ? "Draw" : "Send"}
+                title={
+                  mode === "edit"
+                    ? "Suggest changes (Enter)"
+                    : mode === "draw"
+                      ? "Draw on the canvas (Enter)"
+                      : "Send (Enter)"
+                }
                 disabled={!prompt.trim() || (mode === "edit" && !context) || !!confirm}
                 onClick={() => void send()}
               >
