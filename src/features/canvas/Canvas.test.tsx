@@ -76,6 +76,7 @@ vi.mock("./excalidraw", async () => {
         getSceneElements: () => current.filter((e) => !e.isDeleted),
         getSceneElementsIncludingDeleted: () => current,
         addFiles: () => {},
+        scrollToContent: () => {},
         updateScene: ({ elements }: { elements: El[] }) => {
           current = elements;
           setScene(elements);
@@ -100,7 +101,7 @@ vi.mock("./excalidraw", async () => {
     Excalidraw,
     MainMenu: Object.assign(Noop, { DefaultItems: any }),
     WelcomeScreen: Object.assign(Noop, { Hints: any, Center: Object.assign(Noop, any) }),
-    CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER" },
+    CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER", EVENTUALLY: "EVENTUALLY" },
     // Each element: the side with the higher version wins.
     reconcileElements: (local: El[], remote: El[]) => {
       const out = new Map(local.map((e) => [e.id, e]));

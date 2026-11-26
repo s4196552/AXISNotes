@@ -19,7 +19,7 @@ import { DocBanner } from "../files/DocBanner";
 import { STATUS_TEXT, useFileDocument } from "../files/useFileDocument";
 import { HandwritingDialog } from "../handwriting/HandwritingDialog";
 import { DiagramMaker, type DiagramResult } from "../diagrams/DiagramMaker";
-import { graphToSkeleton, layoutGraph } from "../../lib/diagram";
+import { type DiagramGraph, graphToSkeleton, layoutGraph } from "../../lib/diagram";
 import { blobToBase64 } from "../handwriting/pad";
 import type { Image } from "../handwriting/recognize";
 import { NoteCard } from "./NoteCard";
@@ -317,30 +317,66 @@ export function Canvas({ path }: { path: string }) {
     });
   };
 
-  /** Add a generated diagram as shapes and arrows, centered in the view. */
-  const addDiagram = (result: DiagramResult) => {
-    const a = api.current;
-    if (!a || !lib || !("graph" in result)) return;
+  /** The diagram being drawn while the model writes it (T-293). */
+  const draft = useRef<{ ids: Set<string>; origin: { x: number; y: number } } | null>(null);
+
+  /** Where a diagram goes: in the middle of the view, or to the right of what's there. */
+  const diagramOrigin = (
+    graph: DiagramGraph,
+    existing: readonly { x: number; y: number; width: number; height: number }[],
+  ) => {
+    const a = api.current!;
     const st = a.getAppState();
-    const center = lib.viewportCoordsToSceneCoords(
+    const center = lib!.viewportCoordsToSceneCoords(
       { clientX: st.offsetLeft + st.width / 2, clientY: st.offsetTop + st.height / 2 },
       st,
     );
-    const placed = layoutGraph(result.graph);
+    const placed = layoutGraph(graph);
     const w = Math.max(...placed.map((n) => n.x + n.width));
     const h = Math.max(...placed.map((n) => n.y + n.height));
-    // In the middle of the view, or to the right of what's already there.
-    const existing = a.getSceneElements().filter((el) => !el.isDeleted);
-    const origin = existing.length
+    return existing.length
       ? {
           x: Math.max(...existing.map((el) => el.x + el.width)) + 120,
           y: Math.min(...existing.map((el) => el.y)),
         }
       : { x: center.x - w / 2, y: center.y - h / 2 };
+  };
+
+  /** Draw (or, with null, remove) the part of a diagram that has arrived. */
+  const drawDraft = (graph: DiagramGraph | null) => {
+    const a = api.current;
+    if (!a || !lib || readOnly) return;
+    const prev = draft.current;
+    const others = a.getSceneElements().filter((el) => !prev?.ids.has(el.id));
+    if (!graph) {
+      draft.current = null;
+      if (prev)
+        a.updateScene({ elements: others, captureUpdate: lib.CaptureUpdateAction.EVENTUALLY });
+      return;
+    }
+    const origin = prev?.origin ?? diagramOrigin(graph, others);
+    const els = lib.convertToExcalidrawElements(graphToSkeleton(graph, origin) as never);
+    draft.current = { ids: new Set(els.map((el) => el.id)), origin };
+    // Not an undo step of its own: undo takes back the finished diagram as a whole.
+    a.updateScene({
+      elements: [...others, ...els],
+      captureUpdate: lib.CaptureUpdateAction.EVENTUALLY,
+    });
+    a.scrollToContent(els, { fitToContent: true, animate: true, duration: 300 });
+  };
+
+  /** Add a generated diagram as shapes and arrows (where its draft was, if it was drawn live). */
+  const addDiagram = (result: DiagramResult) => {
+    const a = api.current;
+    if (!a || !lib || !("graph" in result)) return;
+    const prev = draft.current;
+    draft.current = null;
+    const existing = a.getSceneElements().filter((el) => !el.isDeleted && !prev?.ids.has(el.id));
+    const origin = prev?.origin ?? diagramOrigin(result.graph, existing);
     const skeleton = graphToSkeleton(result.graph, origin);
     const els = lib.convertToExcalidrawElements(skeleton as never);
     a.updateScene({
-      elements: [...a.getSceneElements(), ...els],
+      elements: [...existing, ...els],
       captureUpdate: lib.CaptureUpdateAction.IMMEDIATELY,
     });
     a.scrollToContent(els, { fitToContent: true, animate: false });
@@ -510,7 +546,11 @@ export function Canvas({ path }: { path: string }) {
           target="canvas"
           path={path}
           onInsert={addDiagram}
-          onClose={() => setDiagramOpen(false)}
+          onDraft={drawDraft}
+          onClose={() => {
+            drawDraft(null); // a draft left by a stopped run
+            setDiagramOpen(false);
+          }}
         />
       )}
 

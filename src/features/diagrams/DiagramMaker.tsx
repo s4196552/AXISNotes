@@ -10,6 +10,7 @@ import {
   linksToGraph,
   outlineToGraph,
   parseGraph,
+  partialGraph,
 } from "../../lib/diagram";
 import { AiRun, askValidated, errorMessage, isCancelled } from "../ai/runAi";
 import {
@@ -37,6 +38,11 @@ export interface DiagramMakerProps {
   /** Text selected in the note, used as the description. */
   selection?: string;
   onInsert(result: DiagramResult): void | Promise<void>;
+  /**
+   * Canvases: draw the diagram while the model writes it. Called with the part that has
+   * arrived, and with null when the run stops without a result (the draft is removed).
+   */
+  onDraft?(graph: DiagramGraph | null): void;
   onClose(): void;
 }
 
@@ -77,7 +83,14 @@ function Preview({ code }: { code: string }) {
   );
 }
 
-export function DiagramMaker({ target, path, selection, onInsert, onClose }: DiagramMakerProps) {
+export function DiagramMaker({
+  target,
+  path,
+  selection,
+  onInsert,
+  onDraft,
+  onClose,
+}: DiagramMakerProps) {
   const notes = useAppStore((s) => s.notes);
   const [tab, setTab] = useState<Tab>("ai");
   const [prompt, setPrompt] = useState(selection?.trim() ?? "");
@@ -91,6 +104,9 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
   const [source, setSource] = useState<"outline" | "links">("outline");
   const [notePath, setNotePath] = useState(target === "note" ? path : "");
   const run = useRef<AiRun | null>(null);
+  // Canvases: draw on the canvas as the answer arrives (T-293).
+  const [live, setLive] = useState(Boolean(onDraft));
+  const drawLive = live && Boolean(onDraft);
 
   const canvasKind: "auto" | "flowchart" | "mindmap" =
     kind === "flowchart" || kind === "mindmap" ? kind : "auto";
@@ -123,19 +139,42 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
     const r = new AiRun();
     run.current = r;
     setPhase({ kind: "running", retrying: false });
-    const onRetry = () => setPhase({ kind: "running", retrying: true });
+    let streamed = "";
+    let drawn = "";
+    const onDelta = drawLive
+      ? (t: string) => {
+          streamed += t;
+          const g = partialGraph(streamed);
+          const key = g ? `${g.nodes.length}/${g.edges.length}` : "";
+          if (g && key !== drawn) {
+            drawn = key;
+            onDraft?.(g);
+          }
+        }
+      : undefined;
+    const onRetry = () => {
+      streamed = "";
+      setPhase({ kind: "running", retrying: true });
+    };
     try {
       if (target === "note") {
         const { value } = await askValidated(request, parseMermaidAnswer, { run: r, onRetry });
         setGraph(null);
         setCode(value);
       } else {
-        const { value } = await askValidated(request, parseGraph, { run: r, onRetry });
+        const { value } = await askValidated(request, parseGraph, { run: r, onRetry, onDelta });
+        if (drawLive) {
+          // Drawn already: put the checked diagram in the draft's place and close.
+          await onInsert({ graph: value });
+          onClose();
+          return;
+        }
         setGraph(value);
         setCode(graphToMermaid(value));
       }
       setPhase({ kind: "idle" });
     } catch (e) {
+      if (drawLive) onDraft?.(null);
       setPhase(isCancelled(e) ? { kind: "idle" } : { kind: "error", message: errorMessage(e) });
     }
   }
@@ -171,11 +210,16 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
   };
 
   const running = phase.kind === "running";
+  // While drawing live the dialog steps aside, so the canvas shows.
+  const aside = running && drawLive;
   const noteChoices = useMemo(() => notes.filter((n) => isNotePath(n.path)), [notes]);
   const canInsert = target === "note" ? Boolean(code.trim()) : graph !== null;
 
   return (
-    <div className="modal-backdrop" onMouseDown={() => !running && onClose()}>
+    <div
+      className={`modal-backdrop${aside ? " dg-aside" : ""}`}
+      onMouseDown={() => !running && onClose()}
+    >
       <div
         className="modal ask-ai dg-dialog"
         role="dialog"
@@ -252,6 +296,17 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
                     ? "Inserted as a Mermaid code block you can edit."
                     : "Added as shapes and arrows you can move and edit."}
                 </span>
+                {onDraft && (
+                  <label className="dg-live">
+                    <input
+                      type="checkbox"
+                      checked={live}
+                      disabled={running}
+                      onChange={(e) => setLive(e.target.checked)}
+                    />{" "}
+                    Draw on the canvas as it's written
+                  </label>
+                )}
               </div>
               <div className="ask-ai-plan" aria-live="polite" aria-label="Destination">
                 {plan && (
@@ -305,7 +360,9 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
             <p className="dg-status" role="status">
               {phase.retrying
                 ? "The diagram wasn't valid; asking once more with the errors…"
-                : "Drawing the diagram…"}
+                : drawLive
+                  ? "Drawing on the canvas…"
+                  : "Drawing the diagram…"}
             </p>
           )}
 

@@ -128,3 +128,28 @@
   margin: 4px 0;
   font-size: 13px;
 }
+
+/* Live drawing on a canvas (T-293): the dialog shrinks to a status card in the corner. */
+.dg-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.modal-backdrop.dg-aside {
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 16px;
+  background: transparent;
+  pointer-events: none;
+}
+.dg-aside .dg-dialog {
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: auto;
+}
+.dg-aside .dg-tabs,
+.dg-aside .ask-ai-input,
+.dg-aside .dg-row,
+.dg-aside .ask-ai-plan {
+  display: none;
+}

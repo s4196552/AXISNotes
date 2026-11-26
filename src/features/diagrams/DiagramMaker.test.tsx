@@ -158,4 +158,65 @@ describe("Diagram maker (canvas)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add to canvas" }));
     await waitFor(() => expect(onInsert).toHaveBeenCalledWith({ graph }));
   });
+
+  it("draws on the canvas while the answer arrives, then adds the checked diagram", async () => {
+    const graph = {
+      kind: "flowchart",
+      nodes: [
+        { id: "p", label: "Prophase" },
+        { id: "m", label: "Metaphase" },
+        { id: "a", label: "Anaphase" },
+      ],
+      edges: [
+        { from: "p", to: "m" },
+        { from: "m", to: "a" },
+      ],
+    };
+    answer(JSON.stringify(graph, null, 1)); // streamed a word at a time
+    const onDraft = vi.fn();
+    const onInsert = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <DiagramMaker
+        target="canvas"
+        path="Board.axcanvas"
+        onInsert={onInsert}
+        onDraft={onDraft}
+        onClose={onClose}
+      />,
+    );
+    expect(screen.getByLabelText(/Draw on the canvas as it's written/)).toBeChecked();
+    fireEvent.change(screen.getByLabelText("Describe the diagram"), {
+      target: { value: "mitosis" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Generate/ }));
+    await waitFor(() => expect(onInsert).toHaveBeenCalledWith({ graph }));
+    expect(onClose).toHaveBeenCalled();
+    // Drafts grew node by node, then edge by edge.
+    const sizes = onDraft.mock.calls.map(([g]: [{ nodes: unknown[]; edges: unknown[] }]) =>
+      [g.nodes.length, g.edges.length].join("/"),
+    );
+    expect(sizes).toEqual(["1/0", "2/0", "3/0", "3/1", "3/2"]);
+  });
+
+  it("removes the draft when the answer can't be used", async () => {
+    answer(
+      '{"kind":"flowchart","nodes":[{"id":"p","label":"P"}], "edges":[{"from":"p","to":"x"}]}',
+      "no",
+    );
+    const onDraft = vi.fn();
+    render(
+      <DiagramMaker
+        target="canvas"
+        path="Board.axcanvas"
+        onInsert={vi.fn()}
+        onDraft={onDraft}
+        onClose={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Describe the diagram"), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: /Generate/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/answer wasn't usable/);
+    expect(onDraft).toHaveBeenLastCalledWith(null);
+  });
 });
