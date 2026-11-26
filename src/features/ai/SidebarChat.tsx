@@ -1,5 +1,14 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, ChevronDown, Ellipsis, Square, SquarePen, X } from "lucide-react";
+import {
+  ArrowUp,
+  ChevronDown,
+  Ellipsis,
+  FileText,
+  Square,
+  SquarePen,
+  TextSelect,
+  X,
+} from "lucide-react";
 import { AiIcon } from "./AiIcon";
 import { create } from "zustand";
 import { type AiPlan, type AiRule, type AiRunRequest, backend } from "../../ipc";
@@ -16,7 +25,12 @@ import { withHistory, type Turn } from "./conversation";
 import { cleanReply } from "./fixPrompt";
 import { effectiveRule } from "./keepPrivacy";
 import { AiRun, errorMessage, runAi, text } from "./runAi";
-import { editorChatContext, type ChatContext, useSidebarChat } from "./sidebarChatState";
+import {
+  editorChatContext,
+  type ChatContext,
+  useSidebarChat,
+  withoutAttached,
+} from "./sidebarChatState";
 import { PAGE_SANDBOX } from "../drafts/WebFileView";
 import { copyPageText } from "../skills/copyable";
 import { folderOf } from "../drafts/drafts";
@@ -196,7 +210,10 @@ export function SidebarChat() {
   const input = useRef<HTMLTextAreaElement>(null);
   const log = useRef<HTMLDivElement>(null);
   const options = useRef<HTMLDivElement>(null);
-  const candidate = selected ?? live;
+  // What the user removed from the chat with a chip's ×, until they pick something else.
+  const [removed, setRemoved] = useState<string | null>(null);
+  const liveKey = live && (live.selection ? `${live.path}#${live.from}-${live.to}` : live.path);
+  const candidate = selected ?? (live && liveKey !== removed ? live : null);
   const context = candidate?.root === root ? candidate : null;
   const mode = (context?.sources?.length ?? 0) > 1 ? "ask" : chosenMode;
 
@@ -208,6 +225,7 @@ export function SidebarChat() {
     input.current?.focus();
     return useSidebarChat.subscribe((s, prev) => {
       if (s.request !== prev.request) {
+        setRemoved(null);
         setPrompt(s.prompt);
         setConfirm(null);
         input.current?.focus();
@@ -354,6 +372,44 @@ export function SidebarChat() {
     }
   }
 
+  /** Take the note or selection out of the chat; the editor's next note or selection comes back. */
+  function removeContext() {
+    if (selected) useSidebarChat.setState({ context: null });
+    // Also hide the open note the chat would fall back to, until the user picks something else.
+    setRemoved(liveKey);
+    setConfirm(null);
+  }
+
+  function wholeNote() {
+    if (!context) return;
+    useSidebarChat.setState({
+      context: {
+        ...context,
+        selection: false,
+        from: 0,
+        to: context.doc.length,
+        text: context.doc,
+      },
+    });
+  }
+
+  const fileChip = (path: string, remove: () => void) => (
+    <span className="sidebar-chat-chip" key={path} title={path}>
+      <FileText size={13} aria-hidden />
+      <span className="sidebar-chat-chip-name">{noteName(path)}</span>
+      <button
+        type="button"
+        className="sidebar-chat-chip-x"
+        aria-label={`Remove ${noteName(path)}`}
+        title="Remove from chat"
+        disabled={busy}
+        onClick={remove}
+      >
+        <X size={12} aria-hidden />
+      </button>
+    </span>
+  );
+
   /** Run a skill from the welcome screen on the note in context (and any typed request). */
   function startSkill(skill: Skill) {
     if (operation.current) return;
@@ -430,6 +486,7 @@ export function SidebarChat() {
     operation.current = null;
     useSession.setState(emptySession());
     useSidebarChat.setState({ context: null });
+    setRemoved(null);
     setBusy(false);
     setStream("");
     setError("");
@@ -692,11 +749,12 @@ export function SidebarChat() {
         <div className="sidebar-chat-box">
           <div className="sidebar-chat-context" aria-label="AI context">
             {session.skill && (
-              <span className="sidebar-chat-skill-chip">
-                <SkillGlyph id={session.skill.id} size={12} />
-                {session.skill.title}
+              <span className="sidebar-chat-chip skill">
+                <SkillGlyph id={session.skill.id} size={13} />
+                <span className="sidebar-chat-chip-name">{session.skill.title}</span>
                 <button
                   type="button"
+                  className="sidebar-chat-chip-x"
                   aria-label={`Stop using ${session.skill.title}`}
                   title="Stop using this skill"
                   disabled={busy}
@@ -706,54 +764,45 @@ export function SidebarChat() {
                 </button>
               </span>
             )}
-            {context ? (
-              <>
-                {context.selection ? (
-                  <details>
-                    <summary>Selected text · {noteName(context.path)}</summary>
+            {context?.selection ? (
+              <span className="sidebar-chat-chip">
+                <details>
+                  <summary title={`Selected text in ${context.path}`}>
+                    <TextSelect size={13} aria-hidden />
+                    <span className="sidebar-chat-chip-name">
+                      Selected text · {noteName(context.path)}
+                    </span>
+                  </summary>
+                  <div className="sidebar-chat-preview">
                     <blockquote>{context.text}</blockquote>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() =>
-                        useSidebarChat.setState({
-                          context: {
-                            ...context,
-                            selection: false,
-                            from: 0,
-                            to: context.doc.length,
-                            text: context.doc,
-                          },
-                        })
-                      }
-                    >
+                    <button type="button" disabled={busy} onClick={wholeNote}>
                       Use whole note
                     </button>
-                  </details>
-                ) : context.sources ? (
-                  <details>
-                    <summary>Attached notes · {context.sources.length}</summary>
-                    <ul>
-                      {context.sources.map((path) => (
-                        <li key={path}>{path}</li>
-                      ))}
-                    </ul>
-                  </details>
-                ) : (
-                  <strong>Open note · {noteName(context.path)}</strong>
-                )}
-                {selected && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => useSidebarChat.setState({ context: null })}
-                  >
-                    Follow editor selection
-                  </button>
-                )}
-              </>
+                  </div>
+                </details>
+                <button
+                  type="button"
+                  className="sidebar-chat-chip-x"
+                  aria-label="Remove selected text"
+                  title="Remove from chat"
+                  disabled={busy}
+                  onClick={() => removeContext()}
+                >
+                  <X size={12} aria-hidden />
+                </button>
+              </span>
+            ) : context?.files?.length ? (
+              context.files.map((f) =>
+                fileChip(f.path, () => {
+                  const next = withoutAttached(context, f.path);
+                  if (next) useSidebarChat.setState({ context: next });
+                  else removeContext();
+                }),
+              )
+            ) : context ? (
+              fileChip(context.path, () => removeContext())
             ) : (
-              <span className="muted">Open a note to include it in chat.</span>
+              !session.skill && <span className="muted">Open a note to include it in chat.</span>
             )}
           </div>
           <textarea

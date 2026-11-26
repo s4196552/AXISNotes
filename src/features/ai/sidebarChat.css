@@ -160,35 +160,100 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: 4px;
   color: var(--fg-muted);
   font-size: 12px;
-  overflow-wrap: anywhere;
 }
-.sidebar-chat-context > details {
-  min-width: 0;
+/* What the chat reads, as tabs like the editor's: icon, name and × (T-294). */
+.sidebar-chat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   max-width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 0 2px 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-hover);
+  color: var(--fg);
+  font-size: 12px;
 }
-.sidebar-chat-context button {
-  font-size: 11px;
+.sidebar-chat-chip > svg,
+.sidebar-chat-chip summary > svg {
+  flex: none;
+  color: var(--fg-muted);
 }
-.sidebar-chat-context blockquote {
-  margin: 6px 0;
-  padding-left: 8px;
-  border-left: 2px solid var(--accent);
-  max-height: 110px;
-  overflow: auto;
-  white-space: pre-wrap;
+.sidebar-chat-chip.skill {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
-.sidebar-chat-context summary {
-  cursor: pointer;
+.sidebar-chat-chip.skill > svg {
+  color: var(--accent);
+}
+.sidebar-chat-chip-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sidebar-chat-context summary,
-.sidebar-chat-context strong {
-  font-weight: 500;
+.sidebar-chat-chip-x {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.sidebar-chat-chip-x:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+  color: var(--fg);
+}
+.sidebar-chat-chip details {
+  display: flex;
+  min-width: 0;
+}
+.sidebar-chat-chip summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  list-style: none;
+  cursor: pointer;
+}
+.sidebar-chat-chip summary::-webkit-details-marker {
+  display: none;
+}
+/* The selection's text opens above the message box. */
+.sidebar-chat-preview {
+  position: absolute;
+  z-index: 15;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 4px);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-pop);
+}
+.sidebar-chat-preview blockquote {
+  margin: 0 0 6px;
+  padding-left: 8px;
+  border-left: 2px solid var(--accent);
+  max-height: 140px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sidebar-chat-preview button {
+  font-size: 11px;
 }
 .sidebar-chat-compose {
   display: flex;
@@ -266,24 +331,6 @@
   background: var(--bg-hover);
   color: var(--fg-muted);
   cursor: default;
-}
-.sidebar-chat-skill-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 4px 1px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  color: var(--fg);
-}
-.sidebar-chat-skill-chip button {
-  display: inline-flex;
-  padding: 2px;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--fg-muted);
-  cursor: pointer;
 }
 .sidebar-chat-compose p {
   margin: 0;

@@ -189,9 +189,7 @@ describe("Sidebar AI chat", () => {
     await $('.filetree [data-path="School/Biology.md"]').click({ button: "right" });
     await $('[role="menuitem"]=AI').click();
     await $('[role="menuitem"]=Send to AI Chat').click();
-    await expect($(".sidebar-chat-context")).toHaveText(
-      expect.stringContaining("Attached notes · 1"),
-    );
+    await expect($('.sidebar-chat-context [aria-label="Remove Biology"]')).toBeDisplayed();
     expect(requests).toHaveLength(count);
     await $('[aria-label="Chat message"]').setValue("Explain this attached note");
     answer = "Attached biology note reviewed.";

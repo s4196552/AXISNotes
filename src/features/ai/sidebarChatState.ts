@@ -18,6 +18,44 @@ export interface ChatContext {
   selection: boolean;
   sources?: string[];
   rule?: AiRule;
+  /** Each attached note, so one can be removed from the chat on its own (T-294). */
+  files?: AttachedFile[];
+}
+
+export interface AttachedFile {
+  path: string;
+  content: string;
+  rule: AiRule;
+}
+
+/** The chat context for attached notes: one note's text as is, several labelled by path. */
+export function attachedContext(root: string, files: AttachedFile[]): ChatContext | null {
+  const first = files[0];
+  if (!first) return null;
+  const text =
+    files.length === 1
+      ? first.content
+      : files.map((f) => `Note: ${f.path}\n${f.content}`).join("\n\n");
+  return {
+    root,
+    path: first.path,
+    doc: text,
+    from: 0,
+    to: text.length,
+    text,
+    selection: false,
+    sources: files.map((f) => f.path),
+    rule: files.reduce<AiRule>((r, f) => stricter(r, f.rule), "any"),
+    files,
+  };
+}
+
+/** The context without one attached note (null when none are left). */
+export function withoutAttached(context: ChatContext, path: string): ChatContext | null {
+  return attachedContext(
+    context.root,
+    (context.files ?? []).filter((f) => f.path !== path),
+  );
 }
 
 /** Read the live editor, including unsaved text and the exact selection. */
@@ -87,9 +125,8 @@ export async function sendFilesToSidebar(paths: string[]) {
     if (!candidates.size) throw new Error("There are no Markdown notes in this selection.");
     if (candidates.size > MAX_FOLDER_NOTES)
       throw new Error(`Choose at most ${MAX_FOLDER_NOTES} notes for AI chat.`);
-    const files: { path: string; content: string }[] = [];
-    let rule: AiRule = "any",
-      size = 0;
+    const files: AttachedFile[] = [];
+    let size = 0;
     for (const path of candidates) {
       if (!current()) return;
       const { content } = await backend.readFile(path);
@@ -97,29 +134,12 @@ export async function sendFilesToSidebar(paths: string[]) {
       const sourceRule = effectiveRule(path, content);
       if (sourceRule === "never")
         throw new Error(`${path} is marked AI: never. No notes were attached.`);
-      rule = stricter(rule, sourceRule);
       size += content.length;
       if (size > 250_000)
         throw new Error("These notes are too large for one chat attachment. Choose fewer notes.");
-      files.push({ path, content });
+      files.push({ path, content, rule: sourceRule });
     }
-    const first = files[0]!;
-    const text =
-      files.length === 1
-        ? first.content
-        : files.map((f) => `Note: ${f.path}\n${f.content}`).join("\n\n");
-    if (current())
-      openSidebarChat({
-        root,
-        path: first.path,
-        doc: text,
-        from: 0,
-        to: text.length,
-        text,
-        selection: false,
-        sources: files.map((f) => f.path),
-        rule,
-      });
+    if (current()) openSidebarChat(attachedContext(root, files));
   } catch (error) {
     if (current())
       useAppStore
