@@ -1,13 +1,15 @@
 //! The tools Claude can call. Reads are always offered once access is on; the tools that
 //! change notes are listed only while "Allow changes" is on, and every call checks again.
 
+use std::collections::HashMap;
+
 use serde_json::{json, Value};
 
 use super::access::{not_shared, real_path, Access};
-use super::Server;
+use super::{canvas, Server};
 use crate::ai::privacy::{self, AiRule};
 use crate::error::AppError;
-use crate::index::{is_indexed, is_note};
+use crate::index::{is_canvas, is_indexed, is_note};
 
 const MAX_NOTE_BYTES: usize = 1_000_000;
 
@@ -137,7 +139,90 @@ const TOOLS: &[Tool] = &[
             "date": { "type": "string", "description": "YYYY-MM-DD" }, "text": { "type": "string" }
         } }),
     },
+    Tool {
+        name: "read_canvas",
+        title: "Read a canvas",
+        description: "What is on a canvas (.axcanvas, an infinite whiteboard): each shape, text, note card and arrow with its id, type, position (x, y = top-left; y grows downward), size, text or label, colors, and for arrows the ids they connect. Call it before changing a canvas. If the user has the canvas open, they see changes as soon as they are made.",
+        write: false,
+        destructive: false,
+        schema: || json!({ "type": "object", "required": ["path"], "properties": { "path": canvas_path_prop() } }),
+    },
+    Tool {
+        name: "create_canvas",
+        title: "Create a canvas",
+        description: "Create a new canvas (\".axcanvas\" is added unless the path ends with it), optionally drawing shapes and arrows on it at once (same format as add_to_canvas). Fails if it already exists.",
+        write: true,
+        destructive: false,
+        schema: || json!({ "type": "object", "required": ["path"], "properties": {
+            "path": canvas_path_prop(), "shapes": shapes_prop(), "arrows": arrows_prop()
+        } }),
+    },
+    Tool {
+        name: "add_to_canvas",
+        title: "Draw on a canvas",
+        description: "Add shapes (labelled boxes, ellipses, diamonds), free text, note cards (live previews of a note) and arrows between shapes to a canvas. Give shapes your own short ids to connect them with arrows in the same call; arrows may also connect to ids already on the canvas. Shapes without x and y are placed in a tidy grid to the right of what is there; for a diagram, give positions (about 80 px apart). Sizes fit the label when left out. Returns the new ids.",
+        write: true,
+        destructive: false,
+        schema: || json!({ "type": "object", "required": ["path"], "properties": {
+            "path": canvas_path_prop(), "shapes": shapes_prop(), "arrows": arrows_prop()
+        } }),
+    },
+    Tool {
+        name: "change_canvas",
+        title: "Change a canvas",
+        description: "Move, resize, relabel or recolor elements on a canvas by id (from read_canvas), and delete others. Arrows follow the shapes they connect. Deleting a shape also deletes its label and the arrows connected to it. An empty \"text\" removes a shape's or arrow's label.",
+        write: true,
+        destructive: true,
+        schema: || json!({ "type": "object", "required": ["path"], "properties": {
+            "path": canvas_path_prop(),
+            "changes": { "type": "array", "items": { "type": "object", "required": ["id"], "properties": {
+                "id": { "type": "string" },
+                "x": { "type": "number" }, "y": { "type": "number" },
+                "width": { "type": "number" }, "height": { "type": "number" },
+                "text": { "type": "string", "description": "New text or label." },
+                "fontSize": { "type": "number", "description": "Free text only." },
+                "strokeColor": { "type": "string" }, "backgroundColor": { "type": "string" }
+            } } },
+            "delete": { "type": "array", "items": { "type": "string" }, "description": "Ids to delete." }
+        } }),
+    },
 ];
+
+fn canvas_path_prop() -> Value {
+    json!({ "type": "string", "description": "Vault-relative path of the canvas, e.g. \"School/Mitosis.axcanvas\"." })
+}
+
+fn shapes_prop() -> Value {
+    json!({ "type": "array", "items": { "type": "object", "properties": {
+        "type": { "type": "string", "enum": ["rectangle", "ellipse", "diamond", "text", "noteCard"], "description": "Default rectangle." },
+        "id": { "type": "string", "description": "Optional id of your choosing (letters, digits, - _ . :), unique on the canvas, for arrows and later changes." },
+        "text": { "type": "string", "description": "The label inside a shape, or the words of a text element (\\n for new lines)." },
+        "note": { "type": "string", "description": "noteCard only: the note's path." },
+        "x": { "type": "number" }, "y": { "type": "number" },
+        "width": { "type": "number" }, "height": { "type": "number" },
+        "fontSize": { "type": "number", "description": "Default 16 in shapes, 20 for text." },
+        "strokeColor": { "type": "string", "description": "Outline and text color, e.g. \"#1971c2\"." },
+        "backgroundColor": { "type": "string", "description": "Fill, e.g. \"#a5d8ff\" (default transparent)." }
+    } } })
+}
+
+fn arrows_prop() -> Value {
+    json!({ "type": "array", "items": { "type": "object", "required": ["from", "to"], "properties": {
+        "from": { "type": "string", "description": "Id of the shape it starts at." },
+        "to": { "type": "string", "description": "Id of the shape it points to." },
+        "label": { "type": "string" },
+        "id": { "type": "string" },
+        "strokeColor": { "type": "string" }
+    } } })
+}
+
+fn array_arg(args: &Value, key: &str) -> Result<Vec<Value>, String> {
+    match args.get(key) {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::Array(a)) => Ok(a.clone()),
+        Some(_) => Err(format!("\"{key}\" must be a list.")),
+    }
+}
 
 pub fn exists(name: &str) -> bool {
     TOOLS.iter().any(|t| t.name == name)
@@ -197,6 +282,7 @@ impl Server {
             "read_note" => self.read_note(&access, args),
             "backlinks" => self.backlinks(&access, args),
             "list_tasks" => self.list_tasks(&access, args),
+            "read_canvas" => self.read_canvas(&access, args),
             _ => {
                 access.require_write()?;
                 match name {
@@ -208,6 +294,9 @@ impl Server {
                         self.append(&path, text_arg(args, "text")?)
                     }
                     "append_to_daily_note" => self.append_to_daily(&access, args),
+                    "create_canvas" => self.create_canvas(&access, args),
+                    "add_to_canvas" => self.add_to_canvas(&access, args),
+                    "change_canvas" => self.change_canvas(&access, args),
                     _ => Err(format!("Unknown tool: {name}")),
                 }
             }
@@ -546,6 +635,187 @@ impl Server {
         };
         let path = self.writable(a, &format!("{rel}.md"))?;
         self.append(&path, text_arg(args, "text")?)
+    }
+
+    // ---- Canvases ----
+
+    /// A canvas path as asked (".axcanvas" optional), spelled as on disk.
+    fn canvas_path(&self, asked: &str) -> Result<String, String> {
+        let trimmed = asked.trim().trim_end_matches('/');
+        let with_ext = if trimmed.to_lowercase().ends_with(".axcanvas") {
+            trimmed.to_string()
+        } else {
+            format!("{trimmed}.axcanvas")
+        };
+        real_path(&self.vault, &with_ext)
+    }
+
+    /// An existing canvas Claude may see (the same answer for missing and kept-away ones).
+    fn readable_canvas(&self, a: &Access, asked: &str) -> Result<String, String> {
+        let missing = || {
+            format!("No canvas at \"{asked}\" that Claude can open (it doesn't exist, or AXISNotes keeps it from cloud AI).")
+        };
+        let path = self.canvas_path(asked).map_err(|_| missing())?;
+        let exists = self.vault.resolve(&path).is_ok_and(|abs| abs.is_file());
+        if exists && is_canvas(&path) && a.can_see(&path) && !self.marked(&path) {
+            Ok(path)
+        } else {
+            Err(missing())
+        }
+    }
+
+    /// A canvas Claude may write.
+    fn writable_canvas(&self, a: &Access, asked: &str) -> Result<String, String> {
+        let path = self.canvas_path(asked)?;
+        if !a.can_see(&path) || self.marked(&path) {
+            return Err(format!(
+                "\"{asked}\" is in a folder AXISNotes keeps from cloud AI, so Claude can't write there."
+            ));
+        }
+        Ok(path)
+    }
+
+    /// The note a card may show: an existing Markdown note shared with Claude.
+    fn card_note(&self, a: &Access, asked: &str) -> Result<String, String> {
+        let trimmed = asked.trim();
+        let mut tries = vec![trimmed.to_string()];
+        if !trimmed.to_lowercase().ends_with(".md") {
+            tries.push(format!("{trimmed}.md"));
+        }
+        for t in &tries {
+            if let Ok(p) = real_path(&self.vault, t) {
+                if is_note(&p) && self.vault.resolve(&p).is_ok_and(|abs| abs.is_file()) {
+                    return self.shared_note(a, &p, asked);
+                }
+            }
+        }
+        Err(format!(
+            "{} Note cards need the path of an existing note, like \"School/Biology.md\".",
+            not_shared(asked)
+        ))
+    }
+
+    fn read_canvas(&mut self, a: &Access, args: &Value) -> Result<Value, String> {
+        let path = self.readable_canvas(a, text_arg(args, "path")?)?;
+        let file = self.vault.read_file(&path).map_err(app)?;
+        let scene = canvas::parse(&file.content)?;
+        let (elements, truncated) = canvas::summary(&scene);
+        Ok(json!({
+            "path": path,
+            "modifiedMs": file.modified_ms,
+            "coordinates": "Canvas pixels; x, y is an element's top-left corner and y grows downward.",
+            "elements": elements,
+            "truncated": truncated,
+        }))
+    }
+
+    /// Note cards' notes, checked before the canvas is read and changed.
+    fn card_notes(&self, a: &Access, shapes: &[Value]) -> Result<HashMap<String, String>, String> {
+        let mut out = HashMap::new();
+        for sh in shapes {
+            if sh.get("type").and_then(Value::as_str) == Some("noteCard") {
+                if let Some(asked) = sh.get("note").and_then(Value::as_str) {
+                    out.insert(asked.to_string(), self.card_note(a, asked)?);
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// Read the canvas, apply `edit`, and write it back if nobody wrote in between (a write
+    /// in between is retried on the new version, since edits are by id).
+    fn edit_canvas(
+        &mut self,
+        path: &str,
+        create: bool,
+        edit: impl Fn(&mut Value, &canvas::Rng) -> Result<Value, String>,
+    ) -> Result<Value, String> {
+        let rng = canvas::Rng::new();
+        for attempt in 0..3 {
+            let (mut scene, expected) = match self.vault.read_file(path) {
+                Ok(_) if create => {
+                    return Err(format!(
+                        "\"{path}\" already exists. Use read_canvas and add_to_canvas."
+                    ))
+                }
+                Ok(file) => (canvas::parse(&file.content)?, Some(file.modified_ms)),
+                Err(AppError::NotFound(_)) if create => (canvas::empty(), None),
+                Err(AppError::NotFound(_)) => {
+                    return Err(format!("\"{path}\" doesn't exist; use create_canvas."))
+                }
+                Err(e) => return Err(app(e)),
+            };
+            let mut report = edit(&mut scene, &rng)?;
+            let text = canvas::serialize(&scene);
+            let written = match expected {
+                None => self.vault.create_file(path, &text).map(|_| ()),
+                Some(m) => self.vault.write_file(path, &text, Some(m)).map(|_| ()),
+            };
+            match written {
+                Ok(()) => {
+                    self.after_write(path);
+                    let modified = self.vault.read_file(path).map_err(app)?.modified_ms;
+                    report["path"] = json!(path);
+                    report["modifiedMs"] = json!(modified);
+                    return Ok(report);
+                }
+                Err(AppError::Conflict(_)) if attempt < 2 => continue,
+                Err(AppError::Conflict(_)) => {
+                    return Err(format!(
+                        "\"{path}\" keeps changing (it is being edited), so nothing was written. Try again in a moment."
+                    ))
+                }
+                Err(e) => return Err(app(e)),
+            }
+        }
+        unreachable!("the last attempt returns")
+    }
+
+    fn draw(&mut self, a: &Access, args: &Value, create: bool) -> Result<Value, String> {
+        let asked = text_arg(args, "path")?;
+        let path = if create {
+            self.writable_canvas(a, asked)?
+        } else {
+            let p = self.readable_canvas(a, asked)?;
+            self.writable_canvas(a, &p)?
+        };
+        let shapes = array_arg(args, "shapes")?;
+        let arrows = array_arg(args, "arrows")?;
+        let notes = self.card_notes(a, &shapes)?;
+        self.edit_canvas(&path, create, |scene, rng| {
+            if create && shapes.is_empty() && arrows.is_empty() {
+                return Ok(json!({ "added": { "shapes": [], "arrows": [] } }));
+            }
+            let note_ok = |asked: &str| notes.get(asked).cloned().ok_or_else(|| not_shared(asked));
+            let added = canvas::add(scene, &shapes, &arrows, &note_ok, rng)?;
+            Ok(json!({ "added": { "shapes": added.shapes, "arrows": added.arrows } }))
+        })
+    }
+
+    fn create_canvas(&mut self, a: &Access, args: &Value) -> Result<Value, String> {
+        self.draw(a, args, true)
+    }
+
+    fn add_to_canvas(&mut self, a: &Access, args: &Value) -> Result<Value, String> {
+        self.draw(a, args, false)
+    }
+
+    fn change_canvas(&mut self, a: &Access, args: &Value) -> Result<Value, String> {
+        let p = self.readable_canvas(a, text_arg(args, "path")?)?;
+        let path = self.writable_canvas(a, &p)?;
+        let changes = array_arg(args, "changes")?;
+        let delete: Vec<String> = array_arg(args, "delete")?
+            .into_iter()
+            .map(|v| {
+                v.as_str()
+                    .map(str::to_string)
+                    .ok_or("\"delete\" must list ids (text).")
+            })
+            .collect::<Result<_, _>>()?;
+        self.edit_canvas(&path, false, |scene, rng| {
+            let done = canvas::change(scene, &changes, &delete, rng)?;
+            Ok(json!({ "changed": done.changed, "deleted": done.deleted }))
+        })
     }
 }
 

@@ -10,6 +10,7 @@ import {
   linksToGraph,
   outlineToGraph,
   parseGraph,
+  partialGraph,
   plainLabel,
 } from "./diagram";
 
@@ -212,5 +213,39 @@ describe("canvas layout", () => {
     expect(arrow.y).toBeGreaterThan(first.y + first.height);
     expect(arrow.y + arrow.height).toBeLessThan((shapes[1] as unknown as { y: number }).y);
     expect(Math.min(...shapes.map((e) => e.x))).toBe(100);
+  });
+});
+
+describe("partialGraph", () => {
+  const full =
+    '{"kind":"flowchart","direction":"right","nodes":[{"id":"a","label":"Start {here}"},' +
+    '{"id":"b","label":"Next \\"one\\""},{"id":"c","label":"End"}],"edges":[{"from":"a","to":"b"},{"from":"b","to":"c","label":"ok"}]}';
+
+  it("returns what has arrived: complete nodes, then edges between them", () => {
+    expect(partialGraph('{"kind":"flowchart","nodes":[{"id":"a","lab')).toBeNull();
+    const cut = full.indexOf('{"id":"c"');
+    expect(partialGraph(full.slice(0, cut + 5))).toEqual({
+      kind: "flowchart",
+      direction: "right",
+      nodes: [
+        { id: "a", label: "Start {here}" },
+        { id: "b", label: 'Next "one"' },
+      ],
+      edges: [],
+    });
+    const g = partialGraph(full.slice(0, full.indexOf('{"from":"b"')))!;
+    expect([g.nodes.length, g.edges]).toEqual([3, [{ from: "a", to: "b" }]]);
+    expect(partialGraph(full)!.edges).toHaveLength(2);
+    // Code fences and prose around the JSON don't matter.
+    expect(partialGraph("```json\n" + full + "\n```")!.nodes).toHaveLength(3);
+  });
+
+  it("shows a mind map's nodes only once they hang off the center", () => {
+    const mm =
+      '{"kind":"mindmap","nodes":[{"id":"r","label":"Cell"},{"id":"n","label":"Nucleus"},{"id":"m","label":"Mito"}],' +
+      '"edges":[{"from":"r","to":"n"}';
+    const g = partialGraph(mm)!;
+    expect(g.nodes.map((n) => n.id)).toEqual(["r", "n"]);
+    expect(g.edges).toEqual([{ from: "r", to: "n" }]);
   });
 });

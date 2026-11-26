@@ -49,11 +49,17 @@ export interface FileDocument {
 /**
  * `serialize` is called at save time to produce the file content; `enabled` false
  * suspends saving (e.g. while the file failed to parse, so it is never clobbered).
+ *
+ * `absorb`, if given, takes a version of the file written outside the app into the open
+ * document in place (canvases merge it, T-293). It returns false when it can't, and the
+ * usual reload or "changed on disk" banner follows. Unsaved local edits stay unsaved and
+ * are saved on top of the new version.
  */
 export function useFileDocument(
   path: string,
   serialize: () => string,
   enabled = true,
+  absorb?: (content: string) => boolean,
 ): FileDocument {
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [banner, setBannerState] = useState<Banner>(null);
@@ -68,12 +74,15 @@ export function useFileDocument(
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const serializeRef = useRef(serialize);
   const enabledRef = useRef(enabled);
+  const absorbRef = useRef(absorb);
+  const saveSoon = useRef<() => void>(() => {});
   /** Counts edits, to tell whether the document changed while a write was in flight. */
   const edits = useRef(0);
 
   useEffect(() => {
     serializeRef.current = serialize;
     enabledRef.current = enabled;
+    absorbRef.current = absorb;
   });
 
   const setBanner = useCallback((b: Banner) => {
@@ -112,8 +121,20 @@ export function useFileDocument(
           }
         } catch (e) {
           if (isBackendError(e) && e.code === "Conflict") {
-            setBanner("conflict");
             setStatus("dirty");
+            // Written outside the app just before this save: merge it in, then save again.
+            if (absorbRef.current) {
+              const absorbed = await backend.readFile(path).then(
+                (file) =>
+                  absorbRef.current?.(file.content) && ((mtime.current = file.modifiedMs), true),
+                () => false,
+              );
+              if (absorbed) {
+                saveSoon.current();
+                return;
+              }
+            }
+            setBanner("conflict");
           } else {
             setStatus("error");
             useAppStore.getState().setError(isBackendError(e) ? e.message : String(e));
@@ -126,6 +147,14 @@ export function useFileDocument(
     },
     [path, setBanner],
   );
+
+  // For a save that has to try again (after merging an outside change).
+  useEffect(() => {
+    saveSoon.current = () => {
+      clearTimer();
+      timer.current = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
+    };
+  }, [save]);
 
   /** Save now, waiting for the write; reports changes that still aren't on disk. */
   const flush = useCallback(async (): Promise<UnsavedDocument | null> => {
@@ -205,6 +234,24 @@ export function useFileDocument(
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     let disposed = false;
+    const absorbOutside = async () => {
+      while (saving.current) await saving.current;
+      const file = await backend.readFile(path);
+      if (disposed || file.modifiedMs === mtime.current) return; // our own write
+      if (absorbRef.current?.(file.content)) {
+        mtime.current = file.modifiedMs;
+        if (bannerRef.current === "conflict") setBanner(null);
+        if (dirty.current && !timer.current)
+          timer.current = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
+        return;
+      }
+      if (dirty.current) {
+        clearTimer();
+        setBanner("conflict");
+      } else {
+        await reload();
+      }
+    };
     const onChanges = (changes: VaultChange[]) => {
       for (const c of changes) {
         if (!c.paths.includes(path)) continue;
@@ -212,6 +259,8 @@ export function useFileDocument(
         if (c.kind === "removed" || movedAway) {
           clearTimer();
           setBanner("removed");
+        } else if (absorbRef.current && bannerRef.current !== "removed") {
+          void absorbOutside().catch(() => setBanner("removed"));
         } else if (dirty.current) {
           clearTimer();
           setBanner("conflict");
@@ -228,7 +277,7 @@ export function useFileDocument(
       disposed = true;
       unlisten?.();
     };
-  }, [path, reload, setBanner]);
+  }, [path, reload, setBanner, save]);
 
   return { status, banner, text, loadVersion, markDirty, save, reload, dismissBanner };
 }

@@ -98,6 +98,88 @@ export function parseGraph(answer: string): DiagramGraph {
   return g;
 }
 
+// ---- While the answer is still arriving ----
+
+/** The complete `{…}` objects at the start of the JSON array that opens at `from`. */
+function completeObjects(text: string, from: number): unknown[] {
+  const out: unknown[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  for (let i = from; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (c === "\\") i++;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{" || c === "[") {
+      if (c === "{" && depth === 0) start = i;
+      depth++;
+    } else if (c === "}" || c === "]") {
+      depth--;
+      if (depth < 0) break; // the array ended
+      if (c === "}" && depth === 0 && start >= 0) {
+        try {
+          out.push(JSON.parse(text.slice(start, i + 1)));
+        } catch {
+          return out;
+        }
+        start = -1;
+      }
+    }
+  }
+  return out;
+}
+
+function arrayAfter(text: string, key: string): unknown[] {
+  const m = new RegExp(`"${key}"\\s*:\\s*\\[`).exec(text);
+  return m ? completeObjects(text, m.index + m[0].length) : [];
+}
+
+/**
+ * The part of a graph answer that has arrived: its complete nodes, and the complete edges
+ * between them. Null until there is a node. Used to draw a diagram while it is written; the
+ * finished answer is still checked with `parseGraph`.
+ */
+export function partialGraph(answer: string): DiagramGraph | null {
+  const nodes: DiagramNode[] = [];
+  const ids = new Set<string>();
+  for (const n of arrayAfter(answer, "nodes")) {
+    const { id, label, shape } = (n ?? {}) as Partial<DiagramNode>;
+    if (typeof id !== "string" || typeof label !== "string" || !id.trim() || ids.has(id)) continue;
+    if (nodes.length >= MAX_NODES) break;
+    ids.add(id);
+    nodes.push({
+      id,
+      label,
+      ...(shape && ["box", "round", "diamond", "circle"].includes(shape) ? { shape } : {}),
+    });
+  }
+  if (!nodes.length) return null;
+  const edges: DiagramEdge[] = [];
+  for (const e of arrayAfter(answer, "edges")) {
+    const { from, to, label } = (e ?? {}) as Partial<DiagramEdge>;
+    if (typeof from !== "string" || typeof to !== "string" || !ids.has(from) || !ids.has(to))
+      continue;
+    edges.push({ from, to, ...(typeof label === "string" && label.trim() ? { label } : {}) });
+  }
+  const kind = /"kind"\s*:\s*"mindmap"/.test(answer) ? "mindmap" : "flowchart";
+  const direction = /"direction"\s*:\s*"right"/.test(answer) ? "right" : undefined;
+  const g: DiagramGraph = { kind, ...(direction ? { direction } : {}), nodes, edges };
+  // A mind map is drawn as a tree from its first node: one parent per node, and only the
+  // nodes already linked to the center (the rest appear as their links arrive).
+  if (kind === "mindmap") {
+    const parented = new Set([nodes[0]!.id]);
+    g.edges = edges.filter((e) => !parented.has(e.to) && (parented.add(e.to), true));
+    const reached = new Set(treeOrder(g).map((t) => t.node.id));
+    g.nodes = nodes.filter((n) => reached.has(n.id));
+    g.edges = g.edges.filter((e) => reached.has(e.from) && reached.has(e.to));
+  }
+  return g;
+}
+
 // ---- Mermaid ----
 
 const clean = (s: string) => s.replace(/\s+/g, " ").trim();
@@ -400,9 +482,12 @@ const EXCALIDRAW_SHAPE: Record<Shape, "rectangle" | "ellipse" | "diamond"> = {
  * Excalidraw element skeletons (for `convertToExcalidrawElements`): labelled shapes and
  * arrows bound to them, with the diagram's top-left at `origin`.
  */
-export function graphToSkeleton(g: DiagramGraph, origin: { x: number; y: number }): object[] {
+export function graphToSkeleton(
+  g: DiagramGraph,
+  origin: { x: number; y: number },
+  prefix = `dg${Date.now().toString(36)}`,
+): object[] {
   const placed = layoutGraph(g);
-  const prefix = `dg${Date.now().toString(36)}`;
   const idOf = new Map(placed.map((n, i) => [n.id, `${prefix}-${i}`]));
   const at = new Map(placed.map((n) => [n.id, n]));
   const shapes = placed.map((n) => ({

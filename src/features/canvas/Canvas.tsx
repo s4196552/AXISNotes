@@ -19,11 +19,12 @@ import { DocBanner } from "../files/DocBanner";
 import { STATUS_TEXT, useFileDocument } from "../files/useFileDocument";
 import { HandwritingDialog } from "../handwriting/HandwritingDialog";
 import { DiagramMaker, type DiagramResult } from "../diagrams/DiagramMaker";
-import { graphToSkeleton, layoutGraph } from "../../lib/diagram";
+import { type DiagramGraph, graphToSkeleton, layoutGraph } from "../../lib/diagram";
 import { blobToBase64 } from "../handwriting/pad";
 import type { Image } from "../handwriting/recognize";
 import { NoteCard } from "./NoteCard";
 import { type Lib, loadExcalidraw } from "./loadExcalidraw";
+import { mergeOutside, needsRemeasure, remeasure } from "./liveMerge";
 import "./canvas.css";
 
 type Api = import("./excalidraw").ExcalidrawImperativeAPI;
@@ -46,6 +47,26 @@ interface Tracking {
   /** File content on disk as far as we know (last load or save). */
   onDisk: string;
   dirty: boolean;
+}
+
+type Box = { x?: number; y?: number; width?: number; height?: number };
+
+/** Whether an element shows in the view (Excalidraw's scroll is the scene offset). */
+function inView(
+  e: Box,
+  st: { scrollX: number; scrollY: number; zoom: { value: number }; width: number; height: number },
+) {
+  const z = st.zoom?.value || 1;
+  const left = -st.scrollX;
+  const top = -st.scrollY;
+  const x = e.x ?? 0;
+  const y = e.y ?? 0;
+  return (
+    x + (e.width ?? 0) > left &&
+    x < left + st.width / z &&
+    y + (e.height ?? 0) > top &&
+    y < top + st.height / z
+  );
 }
 
 function titleOf(path: string) {
@@ -86,6 +107,58 @@ export function Canvas({ path }: { path: string }) {
     }
     return track.current;
   };
+  /** A version of the file written outside the app, merged into the open scene (T-293). */
+  const absorb = (content: string): boolean => {
+    const a = api.current;
+    if (!a || !lib || loaded.error !== undefined) return false;
+    let next: CanvasFile;
+    try {
+      next = parseCanvas(content);
+    } catch {
+      return false; // unreadable: the usual reload shows it read-only
+    }
+    const t = tracking();
+    let previous: CanvasElement[] = [];
+    try {
+      previous = parseCanvas(t.onDisk).elements;
+    } catch {
+      /* nothing known about the old version */
+    }
+    const elements = mergeOutside(
+      lib,
+      a.getSceneElementsIncludingDeleted() as unknown as CanvasElement[],
+      previous,
+      next.elements,
+      a.getAppState(),
+      t.dirty,
+    );
+    t.onDisk = content;
+    const files = Object.values(next.files);
+    if (files.length) a.addFiles(files as never);
+    a.updateScene({
+      elements: elements as never,
+      appState: {
+        ...(next.appState.viewBackgroundColor
+          ? { viewBackgroundColor: next.appState.viewBackgroundColor }
+          : {}),
+        ...(next.appState.gridSize ? { gridSize: next.appState.gridSize } : {}),
+        ...(next.appState.gridStep ? { gridStep: next.appState.gridStep } : {}),
+        gridModeEnabled: next.appState.gridModeEnabled ?? false,
+      } as never,
+      // One undo step, so an outside change (Claude's drawing) can be taken back.
+      captureUpdate: lib.CaptureUpdateAction.IMMEDIATELY,
+    });
+    // New elements that are all out of view: bring them into view (not when any shows,
+    // so the view doesn't jump about while someone works).
+    const had = new Set(previous.map((e) => e.id));
+    const added = (elements as (CanvasElement & Box & { isDeleted?: boolean })[]).filter(
+      (e) => !e.isDeleted && e.id && !had.has(e.id),
+    );
+    if (added.length && !added.some((e) => inView(e, a.getAppState()))) {
+      a.scrollToContent(added as never, { fitToContent: false, animate: true, duration: 300 });
+    }
+    return true;
+  };
   const file = useFileDocument(
     path,
     () => {
@@ -97,6 +170,7 @@ export function Canvas({ path }: { path: string }) {
       return text;
     },
     loaded.error === undefined,
+    absorb,
   );
   if (file.text !== null && file.loadVersion !== loaded.version) {
     try {
@@ -121,6 +195,27 @@ export function Canvas({ path }: { path: string }) {
   const themeSetting = useConfig((s) => s.config.theme);
   const theme = effectiveMode(themeSetting);
   const readOnly = loaded.error !== undefined;
+
+  // Which load of the file Excalidraw has mounted (its API is set then).
+  const [mounted, setMounted] = useState(-1);
+  // Text written outside the app while the canvas was closed is measured once it shows.
+  useEffect(() => {
+    const a = api.current;
+    if (!lib || !a || mounted !== loaded.version || readOnly) return;
+    if (!needsRemeasure(a.getSceneElementsIncludingDeleted() as unknown as CanvasElement[])) return;
+    let live = true;
+    void (document.fonts?.ready ?? Promise.resolve()).then(() => {
+      if (!live || api.current !== a) return;
+      const els = a.getSceneElementsIncludingDeleted() as unknown as CanvasElement[];
+      a.updateScene({
+        elements: remeasure(lib, els) as never,
+        captureUpdate: lib.CaptureUpdateAction.NEVER,
+      });
+    });
+    return () => {
+      live = false;
+    };
+  }, [lib, mounted, loaded.version, readOnly]);
 
   const onChange = (
     elements: readonly CanvasElement[],
@@ -251,30 +346,66 @@ export function Canvas({ path }: { path: string }) {
     });
   };
 
-  /** Add a generated diagram as shapes and arrows, centered in the view. */
-  const addDiagram = (result: DiagramResult) => {
-    const a = api.current;
-    if (!a || !lib || !("graph" in result)) return;
+  /** The diagram being drawn while the model writes it (T-293). */
+  const draft = useRef<{ ids: Set<string>; origin: { x: number; y: number } } | null>(null);
+
+  /** Where a diagram goes: in the middle of the view, or to the right of what's there. */
+  const diagramOrigin = (
+    graph: DiagramGraph,
+    existing: readonly { x: number; y: number; width: number; height: number }[],
+  ) => {
+    const a = api.current!;
     const st = a.getAppState();
-    const center = lib.viewportCoordsToSceneCoords(
+    const center = lib!.viewportCoordsToSceneCoords(
       { clientX: st.offsetLeft + st.width / 2, clientY: st.offsetTop + st.height / 2 },
       st,
     );
-    const placed = layoutGraph(result.graph);
+    const placed = layoutGraph(graph);
     const w = Math.max(...placed.map((n) => n.x + n.width));
     const h = Math.max(...placed.map((n) => n.y + n.height));
-    // In the middle of the view, or to the right of what's already there.
-    const existing = a.getSceneElements().filter((el) => !el.isDeleted);
-    const origin = existing.length
+    return existing.length
       ? {
           x: Math.max(...existing.map((el) => el.x + el.width)) + 120,
           y: Math.min(...existing.map((el) => el.y)),
         }
       : { x: center.x - w / 2, y: center.y - h / 2 };
+  };
+
+  /** Draw (or, with null, remove) the part of a diagram that has arrived. */
+  const drawDraft = (graph: DiagramGraph | null) => {
+    const a = api.current;
+    if (!a || !lib || readOnly) return;
+    const prev = draft.current;
+    const others = a.getSceneElements().filter((el) => !prev?.ids.has(el.id));
+    if (!graph) {
+      draft.current = null;
+      if (prev)
+        a.updateScene({ elements: others, captureUpdate: lib.CaptureUpdateAction.EVENTUALLY });
+      return;
+    }
+    const origin = prev?.origin ?? diagramOrigin(graph, others);
+    const els = lib.convertToExcalidrawElements(graphToSkeleton(graph, origin) as never);
+    draft.current = { ids: new Set(els.map((el) => el.id)), origin };
+    // Not an undo step of its own: undo takes back the finished diagram as a whole.
+    a.updateScene({
+      elements: [...others, ...els],
+      captureUpdate: lib.CaptureUpdateAction.EVENTUALLY,
+    });
+    a.scrollToContent(els, { fitToContent: true, animate: true, duration: 300 });
+  };
+
+  /** Add a generated diagram as shapes and arrows (where its draft was, if it was drawn live). */
+  const addDiagram = (result: DiagramResult) => {
+    const a = api.current;
+    if (!a || !lib || !("graph" in result)) return;
+    const prev = draft.current;
+    draft.current = null;
+    const existing = a.getSceneElements().filter((el) => !el.isDeleted && !prev?.ids.has(el.id));
+    const origin = prev?.origin ?? diagramOrigin(result.graph, existing);
     const skeleton = graphToSkeleton(result.graph, origin);
     const els = lib.convertToExcalidrawElements(skeleton as never);
     a.updateScene({
-      elements: [...a.getSceneElements(), ...els],
+      elements: [...existing, ...els],
       captureUpdate: lib.CaptureUpdateAction.IMMEDIATELY,
     });
     a.scrollToContent(els, { fitToContent: true, animate: false });
@@ -376,7 +507,10 @@ export function Canvas({ path }: { path: string }) {
           <Ex
             key={loaded.version}
             initialData={initialData}
-            excalidrawAPI={(a) => (api.current = a)}
+            excalidrawAPI={(a) => {
+              api.current = a;
+              setMounted(loaded.version);
+            }}
             onChange={(els, st, files) =>
               onChange(els as readonly CanvasElement[], st, files as Record<string, unknown>)
             }
@@ -441,7 +575,11 @@ export function Canvas({ path }: { path: string }) {
           target="canvas"
           path={path}
           onInsert={addDiagram}
-          onClose={() => setDiagramOpen(false)}
+          onDraft={drawDraft}
+          onClose={() => {
+            drawDraft(null); // a draft left by a stopped run
+            setDiagramOpen(false);
+          }}
         />
       )}
 

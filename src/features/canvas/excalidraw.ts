@@ -18,6 +18,7 @@ export {
   exportToBlob,
   getSceneVersion,
   MainMenu,
+  reconcileElements,
   restoreElements,
   viewportCoordsToSceneCoords,
   WelcomeScreen,
