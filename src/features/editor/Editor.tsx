@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { NoteContextMenu } from "./NoteContextMenu";
 import { commandMenuTabs } from "./commandMenuTabs";
 import { createPortal } from "react-dom";
-import { ListTree, Sparkles, WandSparkles } from "lucide-react";
+import { ListTree, WandSparkles } from "lucide-react";
+import { AiIcon } from "../ai/AiIcon";
 import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
@@ -725,7 +726,7 @@ export function Editor({ path }: EditorProps) {
             title="Ask AI about this note (Ctrl+J)"
             onClick={openAskAi}
           >
-            <Sparkles size={15} />
+            <AiIcon size={15} />
           </button>
           <button
             className="editor-tool"

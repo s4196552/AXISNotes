@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { HardDrive, Network, Sparkles, Square, X } from "lucide-react";
+import { HardDrive, Network, Square, X } from "lucide-react";
+import { AiIcon } from "../ai/AiIcon";
 import { type AiPlan, backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { isNotePath, noteName } from "../../lib/markdown";
@@ -338,7 +339,7 @@ export function DiagramMaker({ target, path, selection, onInsert, onClose }: Dia
                   disabled={!prompt.trim()}
                   title="Ctrl+Enter"
                 >
-                  <Sparkles size={13} /> {code ? "Regenerate" : "Generate"}
+                  <AiIcon size={13} /> {code ? "Regenerate" : "Generate"}
                 </button>
               )}
               <button

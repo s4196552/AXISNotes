@@ -1,5 +1,6 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, ChevronDown, Ellipsis, Sparkles, Square, SquarePen, X } from "lucide-react";
+import { ArrowUp, ChevronDown, Ellipsis, Square, SquarePen, X } from "lucide-react";
+import { AiIcon } from "./AiIcon";
 import { create } from "zustand";
 import { type AiPlan, type AiRule, type AiRunRequest, backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
@@ -554,7 +555,7 @@ export function SidebarChat() {
         {empty && (
           <div className="sidebar-chat-welcome">
             <span className="sidebar-chat-avatar" aria-hidden>
-              <Sparkles size={22} />
+              <AiIcon size={22} />
             </span>
             <h2>What should we work on?</h2>
             <p className="muted">

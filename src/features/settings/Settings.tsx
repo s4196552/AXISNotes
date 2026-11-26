@@ -23,7 +23,6 @@ import {
   Puzzle,
   RefreshCw,
   Scissors,
-  Sparkles,
   WandSparkles,
   SpellCheck,
   SquareSlash,
@@ -31,6 +30,7 @@ import {
   Type,
   X,
 } from "lucide-react";
+import { AiIcon } from "../ai/AiIcon";
 import { backend } from "../../ipc";
 import { type AxisConfig, type EditorWidth, NO_APP_COLORS, useConfig } from "../../app/config";
 import {
@@ -105,7 +105,7 @@ const SECTIONS: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "files", label: "Files & links", icon: Paperclip },
   { id: "commands", label: "Quick commands", icon: SquareSlash },
   { id: "hotkeys", label: "Keyboard shortcuts", icon: Keyboard },
-  { id: "ai", label: "AI", icon: Sparkles },
+  { id: "ai", label: "AI", icon: AiIcon },
   { id: "skills", label: "Skills", icon: WandSparkles },
   { id: "agent", label: "Agent", icon: Bot },
   { id: "claude", label: "Claude", icon: Cable },
@@ -131,7 +131,7 @@ const PAGES: { label: string; icon: LucideIcon; parts: Section[] }[] = [
   { label: "Templates", icon: LayoutTemplate, parts: ["templates"] },
   { label: "Files & links", icon: Paperclip, parts: ["files"] },
   { label: "Commands & shortcuts", icon: SquareSlash, parts: ["commands", "hotkeys"] },
-  { label: "AI", icon: Sparkles, parts: ["ai", "skills", "agent", "claude"] },
+  { label: "AI", icon: AiIcon, parts: ["ai", "skills", "agent", "claude"] },
   { label: "Web clipper", icon: Scissors, parts: ["clipper"] },
   { label: "Plugins", icon: Puzzle, parts: ["plugins"] },
   { label: "Updates", icon: RefreshCw, parts: ["updates"] },

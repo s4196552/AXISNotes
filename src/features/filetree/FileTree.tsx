@@ -44,13 +44,13 @@ import {
   Sheet,
   ShieldCheck,
   Smile,
-  Sparkles,
   SquarePlus,
   Star,
   StarOff,
   Trash2,
   Wand2,
 } from "lucide-react";
+import { AiIcon } from "../ai/AiIcon";
 import { ContextMenu, MenuGroup, MenuItem, SubMenu } from "./ContextMenu";
 import { type AiRule, backend, isBackendError, type VaultEntry } from "../../ipc";
 import { CANVAS_EXT, docKind, GRID_EXT } from "../../lib/fileKinds";
@@ -1100,7 +1100,7 @@ export function FileTree() {
           {many ? (
             <>
               <MenuGroup>
-                <SubMenu label="AI" icon={Sparkles}>
+                <SubMenu label="AI" icon={AiIcon}>
                   <MenuItem
                     label="Send selected notes to AI Chat"
                     icon={MessageSquare}
@@ -1314,7 +1314,7 @@ function AiMenu({ entry }: { entry: VaultEntry }) {
   const readable = entry.kind === "dir" || isNotePath(entry.path);
   const path = entry.path;
   return (
-    <SubMenu label="AI" icon={Sparkles}>
+    <SubMenu label="AI" icon={AiIcon}>
       {readable && (
         <>
           <MenuItem
@@ -1400,7 +1400,7 @@ function AiAccessMenu({ path }: { path: string }) {
       }),
     );
   const items: [AiRule | null, string, LucideIcon][] = [
-    [null, "Inherit", Sparkles],
+    [null, "Inherit", AiIcon],
     ["never", "Never", Ban],
     ["local", "Local models only", Cpu],
   ];

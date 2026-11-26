@@ -8,11 +8,11 @@ import {
   HardDrive,
   MessagesSquare,
   RotateCcw,
-  Sparkles,
   Square,
   Trash2,
   X,
 } from "lucide-react";
+import { AiIcon } from "./AiIcon";
 import { type AiPlan, type AiRunRequest, backend, isBackendError } from "../../ipc";
 import { markText, stricter } from "../../lib/aiAccess";
 import { useAppStore } from "../../app/store";
@@ -456,7 +456,7 @@ export function AiBlock({ id, path, view }: AiBlockProps) {
       }}
     >
       <div className="ai-block-head">
-        <Sparkles size={14} aria-hidden />
+        <AiIcon size={14} aria-hidden />
         <textarea
           ref={input}
           className="ai-block-input"

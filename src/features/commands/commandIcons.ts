@@ -45,7 +45,6 @@ import {
   SquareCode,
   SquareSlash,
   Square,
-  Sparkles,
   Trash2,
   Ungroup,
   Waypoints,
@@ -54,6 +53,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { AiIcon } from "../ai/AiIcon";
 
 /** The Lucide icon the command palette shows beside each command. */
 export const COMMAND_ICONS: Record<string, LucideIcon> = {
@@ -67,8 +67,8 @@ export const COMMAND_ICONS: Record<string, LucideIcon> = {
   "new-note": FilePlus,
   home: Home,
   tasks: ListChecks,
-  "ask-ai": Sparkles,
-  "ai-block": Sparkles,
+  "ask-ai": AiIcon,
+  "ai-block": AiIcon,
   "toggle-agent": Bot,
   "skills-copy": WandSparkles,
   "skill-from-note": WandSparkles,

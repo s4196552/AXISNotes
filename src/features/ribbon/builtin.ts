@@ -7,9 +7,9 @@ import {
   ListChecks,
   Network,
   Search,
-  Sparkles,
   SquareArrowOutUpRight,
 } from "lucide-react";
+import { AiIcon } from "../ai/AiIcon";
 import { allCommands } from "../commands/registry";
 import { useAppStore } from "../../app/store";
 import { showLeftPanel, useLayout } from "../../app/layout";
@@ -54,7 +54,7 @@ for (const item of [
   {
     id: "core:ai",
     label: "AI chat",
-    Icon: Sparkles,
+    Icon: AiIcon,
     // Opens AI chat about the open note; pressed again while it's showing, closes it.
     run: () => {
       const right = useLayout.getState();

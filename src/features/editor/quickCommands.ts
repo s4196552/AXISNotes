@@ -55,7 +55,6 @@ import {
   Presentation,
   Search,
   SeparatorHorizontal,
-  Sparkles,
   SquareCode,
   SquarePlus,
   Strikethrough,
@@ -66,6 +65,7 @@ import {
   Library,
   Zap,
 } from "lucide-react";
+import { AiIcon } from "../ai/AiIcon";
 import type { CustomQuickCommand } from "../../app/config";
 import { formatDate } from "../../lib/dates";
 import { splitFrontmatter, withFrontmatter } from "../../lib/markdown";
@@ -549,7 +549,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: "ai",
     label: "AI",
-    icon: Sparkles,
+    icon: AiIcon,
     description: "Ask AI, then insert its answer here",
     run: (v, f, t) => {
       v.dispatch({ changes: { from: f, to: t, insert: "" }, selection: { anchor: f } });
@@ -713,13 +713,13 @@ export const SECTION_ICONS: Record<string, LucideIcon> = {
   Study: BookOpenCheck,
   "Page style": Notebook,
   [CUSTOM_GROUP]: Zap,
-  [SKILLS_GROUP]: Sparkles,
+  [SKILLS_GROUP]: AiIcon,
   [skillSection("Notes & summaries")]: NotebookPen,
   [skillSection("Learn & understand")]: GraduationCap,
   [skillSection("Practice & remember")]: Zap,
   [skillSection("Visualize & present")]: Presentation,
   [skillSection("Plan & collaborate")]: Workflow,
-  [skillSection("Other skills")]: Sparkles,
+  [skillSection("Other skills")]: AiIcon,
   "Filtered results": Search,
 };
 

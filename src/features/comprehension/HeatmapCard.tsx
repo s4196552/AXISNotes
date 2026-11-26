@@ -7,7 +7,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { Brain, Paintbrush, Sparkles } from "lucide-react";
+import { Brain, Paintbrush } from "lucide-react";
+import { AiIcon } from "../ai/AiIcon";
 import { backend } from "../../ipc";
 import { useAppStore } from "../../app/store";
 import { useConfig } from "../../app/config";
@@ -374,7 +375,7 @@ export function HeatmapCard(p: {
                 : "Nothing is marked Bad or Weak yet."
             }
           >
-            <Sparkles size={14} aria-hidden /> Practise weak spots
+            <AiIcon size={14} aria-hidden /> Practise weak spots
           </button>
         )}
       </footer>
