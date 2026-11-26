@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { backend, isBackendError, type NoteRef, type VaultEntry, type VaultInfo } from "../ipc";
 import { parseWikilinkInner } from "../lib/markdown";
 import { useConfig } from "./config";
+import { noteWindowPath } from "./windows";
 import { markNewVault, rememberVault } from "./recentVaults";
 import { showPanel } from "./sidebarLayout";
 import * as T from "./tabs";
@@ -552,16 +553,20 @@ function loadPanes(root: string): Workspace {
   }
 }
 
+// A window opened on one note (T-287) starts with just that note and keeps its tabs to itself,
+// so the main window's tabs come back as they were.
+const ownTabs = noteWindowPath() !== null;
+
 useAppStore.subscribe((s, prev) => {
   const root = s.vault?.root;
   if (root !== prev.vault?.root) {
     // Another vault (or none): its own tabs, checked against its files once they're listed.
-    pruneRestoredTabs = root !== undefined;
+    pruneRestoredTabs = root !== undefined && !ownTabs;
     useAppStore.setState({
-      ...withPanes(root ? loadPanes(root) : P.singlePane()),
+      ...withPanes(root && !ownTabs ? loadPanes(root) : P.singlePane()),
       pendingTarget: null,
     });
-  } else if (root && (s.tabs !== prev.tabs || s.panes !== prev.panes)) {
+  } else if (root && !ownTabs && (s.tabs !== prev.tabs || s.panes !== prev.panes)) {
     try {
       localStorage.setItem(TABS_KEY + root, T.serialize(s.tabs));
       localStorage.setItem(PANES_KEY + root, P.serialize(workspaceOf(s)));

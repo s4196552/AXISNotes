@@ -179,7 +179,8 @@ describe("Sidebar AI chat", () => {
     const count = requests.length;
     await $('.filetree [data-path="School"]').click();
     await $('.filetree [data-path="School/Biology.md"]').click({ button: "right" });
-    await $('[role="menuitem"]=Send to AI chat').click();
+    await $('[role="menuitem"]=AI').click();
+    await $('[role="menuitem"]=Send to AI Chat').click();
     await expect($(".sidebar-chat-context")).toHaveText(
       expect.stringContaining("Attached notes · 1"),
     );

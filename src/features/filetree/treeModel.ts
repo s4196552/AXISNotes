@@ -181,3 +181,12 @@ export function remapPaths(paths: Iterable<string>, from: string, to: string): S
   }
   return out;
 }
+
+/**
+ * "Search in folder" (T-287): a search for the notes under `folder`, ready for more words.
+ * Quoted when the path has spaces, which would otherwise end the term.
+ */
+export function folderQuery(folder: string): string {
+  const path = `${folder}/`;
+  return path.includes(" ") ? `path:"${path}" ` : `path:${path} `;
+}

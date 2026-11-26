@@ -595,6 +595,8 @@ export interface Backend {
    * browser, where the Agent floats inside the page instead.
    */
   agentHost?: AgentWindowHost;
+  /** Another app window on one note ("Open in new window", T-287). Absent in a browser. */
+  appWindows?: AppWindows;
   /** For the code running inside the Agent's window. */
   agentSide?: AgentWindowSide;
   /** Font families installed on this computer, sorted. */
@@ -790,6 +792,11 @@ export type AgentMessage =
   | { kind: "chat-stop" }
   | { kind: "chat-use-note"; on: boolean }
   | { kind: "chat-draft" };
+
+export interface AppWindows {
+  /** Open a new app window showing the file at vault-relative `path`. */
+  openNote(path: string): Promise<void>;
+}
 
 export interface AgentWindowHost {
   /** Open the Agent's window (if it isn't open) at a screen position, or the default. */

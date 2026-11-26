@@ -149,7 +149,9 @@ describe("Undo in the file tree", () => {
   it("undoes AI access and row colors (one step per colors dialog)", async () => {
     await setup({ "School/x.md": "" });
     fireEvent.contextMenu(row("School"));
-    fireEvent.click(screen.getByRole("menuitem", { name: "AI access: never" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "AI" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "AI Access" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Never" }));
     await waitFor(() =>
       expect(useConfig.getState().config.ai.folders).toEqual({ School: "never" }),
     );

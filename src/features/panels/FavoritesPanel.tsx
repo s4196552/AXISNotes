@@ -41,7 +41,7 @@ export function FavoritesList() {
   if (favorites.length === 0) {
     return (
       <p className="panel-note muted fav-empty">
-        Right-click a note or folder in the file tree and choose Add to favorites.
+        Right-click a note or folder in the file tree and choose Favorite.
       </p>
     );
   }

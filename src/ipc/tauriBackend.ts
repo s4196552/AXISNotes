@@ -18,10 +18,12 @@ import type {
   ImportReport,
   IndexProgress,
   VaultChange,
+  VaultEntry,
   VaultInfo,
 } from "./types";
 import { IMAGE_EXTENSIONS } from "../lib/attachments";
 import { FONT_EXTENSIONS } from "../lib/fonts";
+import { onOtherWindows, tellOtherWindows } from "../app/windows";
 
 /** Serves vault web pages to sandboxed frames: `SCHEME` in src-tauri/src/pages.rs. */
 const PAGE_PROTOCOL = "axispage";
@@ -44,21 +46,40 @@ export function createTauriBackend(): Backend {
     root = v?.root ?? null;
     return v;
   };
+  /** Another vault opened in this window: the backend now serves it to every window. */
+  const opened = async (p: Promise<VaultInfo>) => {
+    const v = await p;
+    root = v.root;
+    tellOtherWindows({ kind: "vault", root: v.root });
+    return v;
+  };
+  /** The app's own changes, which the watcher doesn't report, for the other windows (T-287). */
+  const announce = async <T>(p: Promise<T>, changes: (result: T) => VaultChange[]) => {
+    const result = await p;
+    tellOtherWindows({ kind: "changes", changes: changes(result) });
+    return result;
+  };
   return {
     async pickFolder() {
       const picked = await open({ directory: true, multiple: false });
       return typeof picked === "string" ? picked : null;
     },
-    openVault: (path) => track(invoke<VaultInfo>("open_vault", { path })) as Promise<VaultInfo>,
+    openVault: (path) => opened(invoke<VaultInfo>("open_vault", { path })),
     createVault: (parentDir, name) =>
-      track(invoke<VaultInfo>("create_vault", { parentDir, name })) as Promise<VaultInfo>,
+      opened(invoke<VaultInfo>("create_vault", { parentDir, name })),
     currentVault: () => track(invoke<VaultInfo | null>("current_vault")),
     listTree: () => invoke("list_tree"),
     readFile: (path) => invoke("read_file", { path }),
     writeFile: (path, content, expectedModifiedMs, vaultRoot) =>
-      invoke("write_file", { path, content, expectedModifiedMs, vaultRoot }),
-    createFile: (path, content, vaultRoot) => invoke("create_file", { path, content, vaultRoot }),
-    createDir: (path) => invoke("create_dir", { path }),
+      announce(invoke("write_file", { path, content, expectedModifiedMs, vaultRoot }), () => [
+        { kind: "modified", paths: [path] },
+      ]),
+    createFile: (path, content, vaultRoot) =>
+      announce(invoke("create_file", { path, content, vaultRoot }), () => [
+        { kind: "created", paths: [path] },
+      ]),
+    createDir: (path) =>
+      announce(invoke("create_dir", { path }), () => [{ kind: "created", paths: [path] }]),
     async pickImage() {
       const picked = await open({
         multiple: false,
@@ -105,10 +126,18 @@ export function createTauriBackend(): Backend {
     },
     importPack: (kind, source) => invoke("import_pack", { kind, source }),
     removePack: (kind, name) => invoke("remove_pack", { kind, name }),
-    renameEntry: (from, to) => invoke("rename_entry", { from, to }),
-    copyEntry: (from, dir) => invoke("copy_entry", { from, dir }),
-    trashEntry: (path) => invoke("trash_entry", { path }),
-    restoreEntries: (paths, sinceMs) => invoke("restore_entries", { paths, sinceMs }),
+    renameEntry: (from, to) =>
+      announce(invoke("rename_entry", { from, to }), () => [
+        { kind: "renamed", paths: [from, to] },
+      ]),
+    copyEntry: (from, dir) =>
+      announce(invoke<VaultEntry>("copy_entry", { from, dir }), (e) => [
+        { kind: "created", paths: [e.path] },
+      ]),
+    trashEntry: (path) =>
+      announce(invoke("trash_entry", { path }), () => [{ kind: "removed", paths: [path] }]),
+    restoreEntries: (paths, sinceMs) =>
+      announce(invoke("restore_entries", { paths, sinceMs }), () => [{ kind: "created", paths }]),
     revealEntry: (path) => invoke("reveal_entry", { path }),
     openInBrowser: (path) => invoke("open_in_browser", { path }),
     openWebLink: (url) => invoke("open_web_link", { url }),
@@ -209,7 +238,15 @@ export function createTauriBackend(): Backend {
       return typeof picked === "string" ? picked : null;
     },
     async onVaultChanged(cb) {
-      return listen<{ changes: VaultChange[] }>(VAULT_CHANGED_EVENT, (e) => cb(e.payload.changes));
+      const unlisten = await listen<{ changes: VaultChange[] }>(VAULT_CHANGED_EVENT, (e) =>
+        cb(e.payload.changes),
+      );
+      // Also what the app saved in its other windows.
+      const others = onOtherWindows((m) => m.kind === "changes" && cb(m.changes));
+      return () => {
+        unlisten();
+        others();
+      };
     },
     setZoom: (factor) => getCurrentWebview().setZoom(factor),
     // The window is created transparent (tauri.conf.json); WebView2 shows what's behind.
@@ -242,6 +279,27 @@ export function createTauriBackend(): Backend {
       isFullscreen: () => getCurrentWindow().isFullscreen(),
       startDragging: () => getCurrentWindow().startDragging(),
       onResized: (cb) => getCurrentWindow().onResized(() => cb()),
+    },
+    // "Open in new window" (T-287): this same app with `?note=<path>`, framed like the main
+    // window. Its capability is the main window's (capabilities/default.json, "note-*").
+    appWindows: {
+      async openNote(path) {
+        const name = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
+        const w = new WebviewWindow(`note-${Date.now().toString(36)}`, {
+          url: `index.html?note=${encodeURIComponent(path)}`,
+          title: `${name} - AXISNotes`,
+          width: 1040,
+          height: 760,
+          minWidth: 720,
+          minHeight: 480,
+          decorations: false,
+          transparent: true,
+        });
+        await new Promise<void>((resolve, reject) => {
+          void w.once("tauri://created", () => resolve());
+          void w.once("tauri://error", (e) => reject(new Error(String(e.payload))));
+        });
+      },
     },
     // The Agent's window loads this same app with `?agent` (see src/main.tsx). It is
     // see-through, borderless, always on top and kept off the taskbar; its capability

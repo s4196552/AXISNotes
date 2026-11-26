@@ -9,14 +9,15 @@ import {
   useState,
 } from "react";
 import {
-  ArrowDown,
+  AppWindow,
   ArrowDownAZ,
-  ArrowUp,
   Ban,
   ChevronRight,
   ChevronsDownUp,
   ClipboardPaste,
+  Columns2,
   Copy,
+  CopyPlus,
   Cpu,
   File,
   FolderInput,
@@ -34,17 +35,23 @@ import {
   ListChecks,
   Lock,
   type LucideIcon,
+  MessageSquare,
   Palette,
   Pencil,
   Scissors,
+  Search,
   Shapes,
   Sheet,
+  ShieldCheck,
   Smile,
   Sparkles,
+  SquarePlus,
   Star,
   StarOff,
   Trash2,
+  Wand2,
 } from "lucide-react";
+import { ContextMenu, MenuGroup, MenuItem, SubMenu } from "./ContextMenu";
 import { type AiRule, backend, isBackendError, type VaultEntry } from "../../ipc";
 import { CANVAS_EXT, docKind, GRID_EXT } from "../../lib/fileKinds";
 import { emptySheet, serializeSheet } from "../../lib/formula/sheet";
@@ -65,6 +72,7 @@ import {
   type DropSide,
   dropSide,
   findEntry,
+  folderQuery,
   isOpenable,
   joinPath,
   orderedChildren,
@@ -169,6 +177,14 @@ export function FileTree() {
   const menuRef = useRef<HTMLDivElement>(null);
   // Near the bottom or right of the window the menu opens above or left of the pointer.
   useFitToViewport(menuRef, menu?.x ?? 0, menu?.y ?? 0, menu);
+  /** Close the menu; focus used in it goes back to the tree. */
+  const closeMenu = useCallback(() => {
+    if (menuRef.current?.contains(document.activeElement)) treeRef.current?.focus();
+    setMenu(null);
+  }, []);
+  /** When the menu key or Shift+F10 last opened the menu (its own contextmenu event follows). */
+  const keyMenuAt = useRef(0);
+  const pasteCount = useTreeClipboard((s) => clipFor(s.clip, vault?.root)?.paths.length ?? 0);
   /** The item pressed, everything dragged with it, where it would land, and the pointer. */
   const [drag, setDrag] = useState<{
     path: string;
@@ -454,6 +470,20 @@ export function FileTree() {
     store.notify(`${verb} ${itemsLabel(list, name)}. Select a folder and press Ctrl+V to paste.`);
   }, []);
 
+  /** "Make a copy": a copy beside the item, named "Name copy" (T-287). */
+  const duplicate = useCallback(
+    (path: string) =>
+      run(async () => {
+        const dir = parentPath(path);
+        const copy = await backend.copyEntry(path, dir);
+        await useAppStore.getState().refreshTree();
+        const made = await copiesMade([copy.path]);
+        if (made) record(made);
+        setSelected(copy.path);
+      }),
+    [run],
+  );
+
   /** "Paste 3 items", for undo. */
   const pasteLabel = () => {
     const n = clipFor(useTreeClipboard.getState().clip, useAppStore.getState().vault?.root)?.paths
@@ -737,6 +767,8 @@ export function FileTree() {
       openMenu(e, entry) {
         e.preventDefault();
         e.stopPropagation();
+        // The contextmenu event after the menu key: the menu is already open.
+        if (Date.now() - keyMenuAt.current < 600) return;
         // On a row outside the picked ones, the menu is for that row alone.
         if (entry && !latest.current.picked?.paths.includes(entry.path)) {
           setSelected(entry.path);
@@ -882,6 +914,19 @@ export function FileTree() {
       else if (key === "v") void paste(targetDir());
       else return;
       e.preventDefault();
+      return;
+    }
+
+    // The menu key or Shift+F10 opens the selected row's menu (or the tree's, with none).
+    if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+      e.preventDefault();
+      keyMenuAt.current = Date.now();
+      const r = current
+        ? document.getElementById(rowId(current.path))?.getBoundingClientRect()
+        : undefined;
+      const box = r ?? treeRef.current?.getBoundingClientRect();
+      if (current && !picked?.paths.includes(current.path)) setPicked(null);
+      setMenu({ x: (box?.left ?? 0) + 24, y: r ? r.bottom : (box?.top ?? 0) + 8, entry: current });
       return;
     }
 
@@ -1037,235 +1082,283 @@ export function FileTree() {
       )}
 
       {menu && (
-        <div
-          ref={menuRef}
-          className="filetree-menu"
-          role="menu"
-          style={{ left: menu.x, top: menu.y }}
-          onMouseDown={(e) => e.stopPropagation()}
+        <ContextMenu
+          // A new right-click starts a new menu, with no submenu open.
+          key={`${menu.x},${menu.y},${menu.entry?.path ?? ""}`}
+          x={menu.x}
+          y={menu.y}
+          label={
+            many
+              ? `${many.length} selected items`
+              : menu.entry
+                ? displayName(menu.entry)
+                : "Vault files"
+          }
+          menuRef={menuRef}
+          close={closeMenu}
         >
           {many ? (
             <>
-              <MenuItem
-                label="Send selected notes to AI chat"
-                icon={Sparkles}
-                onClick={() => void sendFilesToSidebar(many)}
-                close={setMenu}
-              />
-              <SkillItems paths={many} close={setMenu} />
-              <MenuItem
-                label="Add to comprehension heatmap…"
-                icon={Grid3x3}
-                onClick={() => useUi.getState().open({ kind: "heatmap-topic", paths: many })}
-                close={setMenu}
-              />
-              <MenuItem
-                label={`Add ${many.length} items to favorites`}
-                icon={Star}
-                onClick={() => void addFavorites(many)}
-                close={setMenu}
-              />
-              <MenuItem
-                label={`Copy ${many.length} items`}
-                icon={Copy}
-                onClick={() => copyOrCut(many, "copy")}
-                close={setMenu}
-              />
-              <MenuItem
-                label={`Cut ${many.length} items`}
-                icon={Scissors}
-                onClick={() => copyOrCut(many, "cut")}
-                close={setMenu}
-              />
-              <MenuItem
-                label={`Delete ${many.length} items`}
-                icon={Trash2}
-                danger
-                onClick={() => void trashMany(many)}
-                close={setMenu}
-              />
+              <MenuGroup>
+                <SubMenu label="AI" icon={Sparkles}>
+                  <MenuItem
+                    label="Send selected notes to AI Chat"
+                    icon={MessageSquare}
+                    onClick={() => void sendFilesToSidebar(many)}
+                  />
+                  <MenuItem
+                    label="Add to comprehension heatmap…"
+                    icon={Grid3x3}
+                    onClick={() => useUi.getState().open({ kind: "heatmap-topic", paths: many })}
+                  />
+                  <SkillsMenu paths={many} />
+                </SubMenu>
+                <MenuItem
+                  label={`Add ${many.length} items to favorites`}
+                  icon={Star}
+                  onClick={() => void addFavorites(many)}
+                />
+              </MenuGroup>
+              <MenuGroup>
+                <MenuItem
+                  label={`Delete ${many.length} items`}
+                  icon={Trash2}
+                  danger
+                  onClick={() => void trashMany(many)}
+                />
+                <MenuItem
+                  label={`Copy ${many.length} items`}
+                  icon={Copy}
+                  onClick={() => copyOrCut(many, "copy")}
+                />
+                <MenuItem
+                  label={`Cut ${many.length} items`}
+                  icon={Scissors}
+                  onClick={() => copyOrCut(many, "cut")}
+                />
+              </MenuGroup>
             </>
           ) : (
             <>
-              <MenuItem
-                label="New note here"
-                icon={FilePlus}
-                onClick={() => void createNote(menuDir)}
-                close={setMenu}
-              />
-              <MenuItem
-                label="New grid here"
-                icon={Sheet}
-                onClick={() => void createNote(menuDir, "grid")}
-                close={setMenu}
-              />
-              <MenuItem
-                label="New canvas here"
-                icon={Shapes}
-                onClick={() => void createNote(menuDir, "canvas")}
-                close={setMenu}
-              />
-              <MenuItem
-                label="New folder here"
-                icon={FolderPlus}
-                onClick={() => void createFolder(menuDir)}
-                close={setMenu}
-              />
-              <PasteItem onPaste={() => void paste(menuDir)} close={setMenu} />
-              {menu.entry?.kind === "dir" && (
-                <DashboardItems path={menu.entry.path} close={setMenu} />
-              )}
-              {menu.entry?.kind !== "file" && fileOrder[menuDir] && (
-                <MenuItem
-                  label="Sort A–Z"
-                  icon={ArrowDownAZ}
-                  onClick={() => void resetOrder(menuDir)}
-                  close={setMenu}
-                />
-              )}
-              {menu.entry && (
-                <>
-                  {(menu.entry.kind === "dir" || isNotePath(menu.entry.path)) && (
-                    <MenuItem
-                      label="Send to AI chat"
-                      icon={Sparkles}
-                      onClick={() => void sendFilesToSidebar([menu.entry!.path])}
-                      close={setMenu}
-                    />
-                  )}
-                  {(menu.entry.kind === "dir" || isNotePath(menu.entry.path)) && (
-                    <MenuItem
-                      label={
-                        menu.entry.kind === "dir"
-                          ? "Ask AI about this folder"
-                          : "Ask AI about this note"
-                      }
-                      icon={Sparkles}
-                      onClick={() =>
-                        useUi
-                          .getState()
-                          .open(
-                            menu.entry!.kind === "dir"
-                              ? { kind: "ask", folder: menu.entry!.path }
-                              : { kind: "ask", path: menu.entry!.path },
-                          )
-                      }
-                      close={setMenu}
-                    />
-                  )}
-                  {menu.entry.kind === "dir" && (
-                    <SkillItems paths={[menu.entry.path]} close={setMenu} />
-                  )}
-                  {(menu.entry.kind === "dir" || isNotePath(menu.entry.path)) && (
-                    <MenuItem
-                      label="Add to comprehension heatmap…"
-                      icon={Grid3x3}
-                      onClick={() =>
-                        useUi.getState().open({ kind: "heatmap-topic", paths: [menu.entry!.path] })
-                      }
-                      close={setMenu}
-                    />
-                  )}
-                  <FavoriteItem path={menu.entry.path} close={setMenu} />
-                  <AiRuleItems path={menu.entry.path} close={setMenu} />
+              {menu.entry && isOpenable(menu.entry) && (
+                <MenuGroup>
                   <MenuItem
-                    label="Copy"
-                    icon={Copy}
-                    onClick={() => copyOrCut([menu.entry!.path], "copy")}
-                    close={setMenu}
-                  />
-                  <MenuItem
-                    label="Cut"
-                    icon={Scissors}
-                    onClick={() => copyOrCut([menu.entry!.path], "cut")}
-                    close={setMenu}
-                  />
-                  <MenuItem
-                    label="Rename"
-                    icon={Pencil}
-                    onClick={() => setRenaming(menu.entry!.path)}
-                    close={setMenu}
-                  />
-                  <MenuItem
-                    label="Move to…"
-                    icon={FolderInput}
-                    onClick={() => useUi.getState().open({ kind: "move", path: menu.entry!.path })}
-                    close={setMenu}
-                  />
-                  <MenuItem
-                    label="Move up"
-                    icon={ArrowUp}
-                    onClick={() => nudge(menu.entry!.path, -1)}
-                    close={setMenu}
-                  />
-                  <MenuItem
-                    label="Move down"
-                    icon={ArrowDown}
-                    onClick={() => nudge(menu.entry!.path, 1)}
-                    close={setMenu}
-                  />
-                  <MenuItem
-                    label="Change icon…"
-                    icon={Smile}
-                    onClick={() => useUi.getState().open({ kind: "icon", path: menu.entry!.path })}
-                    close={setMenu}
-                  />
-                  <MenuItem
-                    label="Change colors…"
-                    icon={Palette}
+                    label="Open in new tab"
+                    icon={SquarePlus}
                     onClick={() =>
-                      useUi.getState().open({ kind: "colors", path: menu.entry!.path })
+                      useAppStore.getState().openFile(menu.entry!.path, undefined, { newTab: true })
                     }
-                    close={setMenu}
                   />
                   <MenuItem
-                    label="Delete"
-                    icon={Trash2}
-                    danger
-                    onClick={() => void trash(menu.entry!)}
-                    close={setMenu}
+                    label="Open in split screen"
+                    icon={Columns2}
+                    onClick={() => openInSplit(menu.entry!.path)}
                   />
-                </>
+                  {backend.appWindows && (
+                    <MenuItem
+                      label="Open in new window"
+                      icon={AppWindow}
+                      onClick={() => void openInWindow(menu.entry!.path)}
+                    />
+                  )}
+                </MenuGroup>
+              )}
+              <MenuGroup>
+                <MenuItem
+                  label="New Note"
+                  icon={FilePlus}
+                  onClick={() => void createNote(menuDir)}
+                />
+                <MenuItem
+                  label="New Grid"
+                  icon={Sheet}
+                  onClick={() => void createNote(menuDir, "grid")}
+                />
+                <MenuItem
+                  label="New Canvas"
+                  icon={Shapes}
+                  onClick={() => void createNote(menuDir, "canvas")}
+                />
+                <MenuItem
+                  label="New Folder"
+                  icon={FolderPlus}
+                  onClick={() => void createFolder(menuDir)}
+                />
+              </MenuGroup>
+              {menu.entry === null ? (
+                (pasteCount > 0 || fileOrder[menuDir]) && (
+                  <MenuGroup>
+                    <PasteItem count={pasteCount} onPaste={() => void paste(menuDir)} />
+                    {fileOrder[menuDir] && (
+                      <MenuItem
+                        label="Sort A–Z"
+                        icon={ArrowDownAZ}
+                        onClick={() => void resetOrder(menuDir)}
+                      />
+                    )}
+                  </MenuGroup>
+                )
+              ) : (
+                <EntryMenu
+                  entry={menu.entry}
+                  sorted={!fileOrder[menuDir]}
+                  pasteCount={pasteCount}
+                  duplicate={() => void duplicate(menu.entry!.path)}
+                  copyOrCut={(mode) => copyOrCut([menu.entry!.path], mode)}
+                  paste={() => void paste(menuDir)}
+                  resetOrder={() => void resetOrder(menuDir)}
+                  rename={() => setRenaming(menu.entry!.path)}
+                  trash={() => void trash(menu.entry!)}
+                />
               )}
             </>
           )}
-        </div>
+        </ContextMenu>
       )}
     </div>
   );
 }
 
-/** Add a file or folder to the sidebar's Favorites, or take it out (T-275). */
-function FavoriteItem({ path, close }: { path: string; close(m: null): void }) {
-  const has = useConfig((s) => s.config.favorites.includes(path));
-  return has ? (
-    <MenuItem
-      label="Remove from favorites"
-      icon={StarOff}
-      onClick={() => void removeFavorite(path)}
-      close={close}
-    />
-  ) : (
-    <MenuItem
-      label="Add to favorites"
-      icon={Star}
-      onClick={() => void addFavorites([path])}
-      close={close}
-    />
+/**
+ * The groups after "New …" in a file's or folder's menu (T-287): make a copy, move,
+ * favorite; AI; icon and colors; then delete, the clipboard and rename. A folder adds
+ * "Search in folder", its dashboard and Sort A–Z.
+ */
+function EntryMenu(props: {
+  entry: VaultEntry;
+  /** The folder's items are in A–Z order (no order of their own). */
+  sorted: boolean;
+  pasteCount: number;
+  duplicate(): void;
+  copyOrCut(mode: "copy" | "cut"): void;
+  paste(): void;
+  resetOrder(): void;
+  rename(): void;
+  trash(): void;
+}) {
+  const { entry } = props;
+  const dir = entry.kind === "dir";
+  const open = useUi.getState().open;
+  return (
+    <>
+      <MenuGroup>
+        <MenuItem label="Make a copy" icon={CopyPlus} onClick={props.duplicate} />
+        <MenuItem
+          label={dir ? "Move folder" : "Move file"}
+          icon={FolderInput}
+          onClick={() => open({ kind: "move", path: entry.path })}
+        />
+        {dir && (
+          <MenuItem
+            label="Search in folder"
+            icon={Search}
+            onClick={() => useAppStore.getState().search(folderQuery(entry.path))}
+          />
+        )}
+        <FavoriteItem path={entry.path} />
+      </MenuGroup>
+      <MenuGroup>
+        <AiMenu entry={entry} />
+      </MenuGroup>
+      <MenuGroup>
+        <MenuItem
+          label="Change Icon"
+          icon={Smile}
+          onClick={() => open({ kind: "icon", path: entry.path })}
+        />
+        <MenuItem
+          label="Change Colors"
+          icon={Palette}
+          onClick={() => open({ kind: "colors", path: entry.path })}
+        />
+      </MenuGroup>
+      {dir && (
+        <MenuGroup>
+          <DashboardItems path={entry.path} />
+          {!props.sorted && (
+            <MenuItem label="Sort A–Z" icon={ArrowDownAZ} onClick={props.resetOrder} />
+          )}
+        </MenuGroup>
+      )}
+      <MenuGroup>
+        <MenuItem label="Delete" icon={Trash2} danger onClick={props.trash} />
+        <MenuItem label="Copy" icon={Copy} onClick={() => props.copyOrCut("copy")} />
+        <MenuItem label="Cut" icon={Scissors} onClick={() => props.copyOrCut("cut")} />
+        <PasteItem count={props.pasteCount} onPaste={props.paste} />
+        <MenuItem label="Rename" icon={Pencil} onClick={props.rename} />
+      </MenuGroup>
+    </>
   );
 }
 
-/** "Paste here", while something copied or cut in this vault waits to be pasted. */
-function PasteItem({ onPaste, close }: { onPaste(): void; close(m: null): void }) {
-  const root = useAppStore((s) => s.vault?.root);
-  const count = useTreeClipboard((s) => clipFor(s.clip, root)?.paths.length ?? 0);
+/** "Open in split screen": a new pane on the right showing the file. */
+function openInSplit(path: string) {
+  useAppStore.getState().splitPane("right");
+  // The new pane is the focused one, with the active tab again: show the file there.
+  useAppStore.getState().openFile(path);
+}
+
+/** "Open in new window": another app window on the file. */
+async function openInWindow(path: string) {
+  try {
+    await backend.appWindows?.openNote(path);
+  } catch (e) {
+    useAppStore.getState().setError(`Couldn't open a new window: ${errorMessage(e)}`);
+  }
+}
+
+/** "AI ▸": the AI chat, asking AI, the heatmap, skills, and who may read this item. */
+function AiMenu({ entry }: { entry: VaultEntry }) {
+  const readable = entry.kind === "dir" || isNotePath(entry.path);
+  const path = entry.path;
+  const open = useUi.getState().open;
+  return (
+    <SubMenu label="AI" icon={Sparkles}>
+      {readable && (
+        <>
+          <MenuItem
+            label="Send to AI Chat"
+            icon={MessageSquare}
+            onClick={() => void sendFilesToSidebar([path])}
+          />
+          <MenuItem
+            label={entry.kind === "dir" ? "Ask AI about this folder" : "Ask AI about this note"}
+            icon={Sparkles}
+            onClick={() =>
+              open(entry.kind === "dir" ? { kind: "ask", folder: path } : { kind: "ask", path })
+            }
+          />
+          <MenuItem
+            label="Add to comprehension heatmap…"
+            icon={Grid3x3}
+            onClick={() => open({ kind: "heatmap-topic", paths: [path] })}
+          />
+          <SkillsMenu paths={[path]} />
+        </>
+      )}
+      <AiAccessMenu path={path} />
+    </SubMenu>
+  );
+}
+
+/** Add a file or folder to the sidebar's Favorites, or take it out (T-275). */
+function FavoriteItem({ path }: { path: string }) {
+  const has = useConfig((s) => s.config.favorites.includes(path));
+  return has ? (
+    <MenuItem label="Unfavorite" icon={StarOff} onClick={() => void removeFavorite(path)} />
+  ) : (
+    <MenuItem label="Favorite" icon={Star} onClick={() => void addFavorites([path])} />
+  );
+}
+
+/** "Paste", while something copied or cut in this vault waits to be pasted. */
+function PasteItem({ count, onPaste }: { count: number; onPaste(): void }) {
   if (!count) return null;
   return (
     <MenuItem
-      label={count > 1 ? `Paste ${count} items here` : "Paste here"}
+      label={count > 1 ? `Paste ${count} items` : "Paste"}
       icon={ClipboardPaste}
       onClick={onPaste}
-      close={close}
     />
   );
 }
@@ -1280,17 +1373,16 @@ function useIsCut(path: string) {
 }
 
 /** Open, add or remove a folder's dashboard. */
-function DashboardItems({ path, close }: { path: string; close(v: null): void }) {
+function DashboardItems({ path }: { path: string }) {
   const has = useConfig((s) => hasDashboard(s.config.dashboards, path));
   const open = () => useAppStore.getState().openDashboard(path);
   return has ? (
     <>
-      <MenuItem label="Open dashboard" icon={LayoutDashboard} onClick={open} close={close} />
+      <MenuItem label="Open dashboard" icon={LayoutDashboard} onClick={open} />
       <MenuItem
         label="Remove dashboard"
         icon={LayoutDashboard}
         onClick={() => setDashboard(path, false)}
-        close={close}
       />
     </>
   ) : (
@@ -1301,13 +1393,12 @@ function DashboardItems({ path, close }: { path: string; close(v: null): void })
         setDashboard(path, true);
         open();
       }}
-      close={close}
     />
   );
 }
 
-/** "AI access" choices for an entry; the current rule is checked. */
-function AiRuleItems({ path, close }: { path: string; close(v: null): void }) {
+/** "AI Access ▸" for an entry; the current rule is checked. */
+function AiAccessMenu({ path }: { path: string }) {
   const rule = useConfig((s) => s.config.ai.folders[path]);
   const models = useConfig((s) => s.config.ai.models[path]);
   const set = (r: AiRule | null) =>
@@ -1320,78 +1411,46 @@ function AiRuleItems({ path, close }: { path: string; close(v: null): void }) {
       }),
     );
   const items: [AiRule | null, string, LucideIcon][] = [
-    [null, "AI access: inherit", Sparkles],
-    ["never", "AI access: never", Ban],
-    ["local", "AI access: local models only", Cpu],
+    [null, "Inherit", Sparkles],
+    ["never", "Never", Ban],
+    ["local", "Local models only", Cpu],
   ];
   return (
-    <>
+    <SubMenu label="AI Access" icon={ShieldCheck}>
       {items.map(([r, label, icon]) => (
         <MenuItem
           key={label}
           icon={icon}
-          label={(rule ?? null) === r ? `✓ ${label}` : label}
+          label={label}
+          checked={(rule ?? null) === r}
           onClick={() => set(r)}
-          close={close}
         />
       ))}
       <MenuItem
         icon={ListChecks}
         label={models ? `Allowed models… (${models.length})` : "Allowed models…"}
         onClick={() => useUi.getState().open({ kind: "allowed-models", path })}
-        close={close}
       />
-    </>
+    </SubMenu>
   );
 }
 
-/** "Make a practice test from these 12 notes" and the like: every AI skill, on what's picked. */
-function SkillItems({ paths, close }: { paths: string[]; close(v: null): void }) {
+/** "AI Skills ▸": every AI skill, on what's picked ("Make a practice test", …). */
+function SkillsMenu({ paths }: { paths: string[] }) {
   const skills = useSkills((s) => s.skills);
   const offered = skillsForPicked(skills, paths);
   if (!offered.length) return null;
-  const what =
-    paths.length === 1
-      ? `"${paths[0]!.slice(paths[0]!.lastIndexOf("/") + 1)}"`
-      : `${paths.length} items`;
   return (
-    <div role="group" aria-label={`AI skills on ${what}`} className="filetree-menu-group">
-      <div className="filetree-menu-label" aria-hidden>
-        AI skill on {what}
-      </div>
+    <SubMenu label="AI Skills" icon={Wand2}>
       {offered.map((s) => (
         <MenuItem
           key={s.id}
           label={s.title}
           icon={skillIcon(s.id)}
           onClick={() => void runSkillOnPicked(s, paths)}
-          close={close}
         />
       ))}
-    </div>
-  );
-}
-
-function MenuItem(props: {
-  label: string;
-  /** Shown before the label, like the command palette's icons. */
-  icon: LucideIcon;
-  danger?: boolean;
-  onClick(): void;
-  close(v: null): void;
-}) {
-  return (
-    <button
-      role="menuitem"
-      className={props.danger ? "danger" : undefined}
-      onClick={() => {
-        props.close(null);
-        props.onClick();
-      }}
-    >
-      <props.icon size={15} className="menu-icon" aria-hidden />
-      {props.label}
-    </button>
+    </SubMenu>
   );
 }
 
