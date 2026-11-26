@@ -89,10 +89,14 @@ fn round(x: f64) -> f64 {
     (x * 10.0).round() / 10.0
 }
 fn elements(file: &Value) -> &Vec<Value> {
-    file["elements"].as_array().expect("parse() makes it an array")
+    file["elements"]
+        .as_array()
+        .expect("parse() makes it an array")
 }
 fn elements_mut(file: &mut Value) -> &mut Vec<Value> {
-    file["elements"].as_array_mut().expect("parse() makes it an array")
+    file["elements"]
+        .as_array_mut()
+        .expect("parse() makes it an array")
 }
 fn card_note(e: &Value) -> Option<&str> {
     (s(e, "type") == Some("embeddable"))
@@ -138,9 +142,7 @@ pub fn summary(file: &Value) -> (Vec<Value>, bool) {
     for e in els.iter().filter(|e| live(e)) {
         let kind = s(e, "type").unwrap_or("");
         // Text inside a live shape or arrow is shown as that element's label.
-        if kind == "text"
-            && s(e, "containerId").is_some_and(|c| by_id.contains_key(c))
-        {
+        if kind == "text" && s(e, "containerId").is_some_and(|c| by_id.contains_key(c)) {
             continue;
         }
         total += 1;
@@ -210,7 +212,10 @@ pub fn summary(file: &Value) -> (Vec<Value>, bool) {
                 }
             }
         }
-        if matches!(kind, "rectangle" | "ellipse" | "diamond" | "text" | "arrow" | "line") {
+        if matches!(
+            kind,
+            "rectangle" | "ellipse" | "diamond" | "text" | "arrow" | "line"
+        ) {
             if let Some(c) = s(e, "strokeColor").filter(|c| *c != STROKE) {
                 item.insert("strokeColor".into(), json!(c));
             }
@@ -279,9 +284,17 @@ fn text_size(text: &str, size: f64, max_width: Option<f64>) -> (f64, f64) {
     (w, (lines.len() as f64 * size * LINE_HEIGHT).ceil())
 }
 
-fn text_element(id: &str, at: (f64, f64), text: &str, size: f64, stroke: &str, container: Option<&str>, max_width: Option<f64>, rng: &Rng) -> Value {
+fn text_element(
+    id: &str,
+    text: &str,
+    size: f64,
+    stroke: &str,
+    container: Option<&str>,
+    max_width: Option<f64>,
+    rng: &Rng,
+) -> Value {
     let (w, h) = text_size(text, size, max_width);
-    let mut e = base("text", id, (at.0, at.1, w, h), stroke, "transparent", rng);
+    let mut e = base("text", id, (0.0, 0.0, w, h), stroke, "transparent", rng);
     let centered = container.is_some();
     for (k, v) in [
         ("text", json!(text)),
@@ -289,7 +302,10 @@ fn text_element(id: &str, at: (f64, f64), text: &str, size: f64, stroke: &str, c
         ("fontSize", json!(size)),
         ("fontFamily", json!(FONT_FAMILY)),
         ("textAlign", json!(if centered { "center" } else { "left" })),
-        ("verticalAlign", json!(if centered { "middle" } else { "top" })),
+        (
+            "verticalAlign",
+            json!(if centered { "middle" } else { "top" }),
+        ),
         ("containerId", json!(container)),
         ("autoResize", json!(true)),
         ("lineHeight", json!(LINE_HEIGHT)),
@@ -326,17 +342,27 @@ fn center_label(text: &mut Value, container: &Value) {
 }
 
 fn center(e: &Value) -> (f64, f64) {
-    (f(e, "x") + f(e, "width") / 2.0, f(e, "y") + f(e, "height") / 2.0)
+    (
+        f(e, "x") + f(e, "width") / 2.0,
+        f(e, "y") + f(e, "height") / 2.0,
+    )
 }
 
 fn arrow_ends(e: &Value) -> ((f64, f64), (f64, f64)) {
     let pts = e.get("points").and_then(Value::as_array);
     let at = |p: Option<&Value>| {
         let xy = p.and_then(Value::as_array);
-        let c = |i: usize| xy.and_then(|v| v.get(i)).and_then(Value::as_f64).unwrap_or(0.0);
+        let c = |i: usize| {
+            xy.and_then(|v| v.get(i))
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0)
+        };
         (f(e, "x") + c(0), f(e, "y") + c(1))
     };
-    (at(pts.and_then(|p| p.first())), at(pts.and_then(|p| p.last())))
+    (
+        at(pts.and_then(|p| p.first())),
+        at(pts.and_then(|p| p.last())),
+    )
 }
 
 /// Where the line from `box_`'s center toward `to` leaves the box, plus a small gap.
@@ -347,8 +373,16 @@ fn border(box_: &Value, to: (f64, f64)) -> (f64, f64) {
         return c;
     }
     let (hw, hh) = (f(box_, "width") / 2.0, f(box_, "height") / 2.0);
-    let scale = (if dx != 0.0 { hw / dx.abs() } else { f64::INFINITY })
-        .min(if dy != 0.0 { hh / dy.abs() } else { f64::INFINITY });
+    let scale = (if dx != 0.0 {
+        hw / dx.abs()
+    } else {
+        f64::INFINITY
+    })
+    .min(if dy != 0.0 {
+        hh / dy.abs()
+    } else {
+        f64::INFINITY
+    });
     let gap = 6.0 / dx.hypot(dy);
     (c.0 + dx * (scale + gap), c.1 + dy * (scale + gap))
 }
@@ -377,8 +411,12 @@ fn push_bound(e: &mut Value, kind: &str, id: &str) {
 fn color(args: &Value, key: &str) -> Result<Option<String>, String> {
     match args.get(key) {
         None | Some(Value::Null) => Ok(None),
-        Some(Value::String(c)) if !c.trim().is_empty() && c.len() <= 40 => Ok(Some(c.trim().to_string())),
-        Some(_) => Err(format!("\"{key}\" must be a color such as \"#1971c2\", \"red\" or \"transparent\".")),
+        Some(Value::String(c)) if !c.trim().is_empty() && c.len() <= 40 => {
+            Ok(Some(c.trim().to_string()))
+        }
+        Some(_) => Err(format!(
+            "\"{key}\" must be a color such as \"#1971c2\", \"red\" or \"transparent\"."
+        )),
     }
 }
 
@@ -418,7 +456,9 @@ pub fn add(
     rng: &Rng,
 ) -> Result<Added, String> {
     if shapes.len() + arrows.len() > MAX_ADDED {
-        return Err(format!("Add at most {MAX_ADDED} shapes and arrows at a time."));
+        return Err(format!(
+            "Add at most {MAX_ADDED} shapes and arrows at a time."
+        ));
     }
     if shapes.is_empty() && arrows.is_empty() {
         return Err("Give at least one shape or arrow to add.".into());
@@ -430,7 +470,11 @@ pub fn add(
     let mut pick_id = |given: Option<&str>, what: &str| -> Result<String, String> {
         match given.map(str::trim).filter(|g| !g.is_empty()) {
             Some(g) => {
-                if g.len() > 64 || !g.chars().all(|c| c.is_ascii_alphanumeric() || "-_.:".contains(c)) {
+                if g.len() > 64
+                    || !g
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || "-_.:".contains(c))
+                {
                     return Err(format!("The {what} id \"{g}\" may only use letters, digits and - _ . : (up to 64)."));
                 }
                 if !taken.insert(g.to_string()) {
@@ -457,7 +501,11 @@ pub fn add(
         (0.0, 0.0)
     } else {
         (
-            live_boxes.iter().map(|b| b.0 + b.2).fold(f64::MIN, f64::max) + 120.0,
+            live_boxes
+                .iter()
+                .map(|b| b.0 + b.2)
+                .fold(f64::MIN, f64::max)
+                + 120.0,
             live_boxes.iter().map(|b| b.1).fold(f64::MAX, f64::min),
         )
     };
@@ -466,14 +514,19 @@ pub fn add(
     let mut in_row = 0;
 
     let mut new_els: Vec<Value> = Vec::new();
-    let mut added = Added { shapes: vec![], arrows: vec![] };
+    let mut added = Added {
+        shapes: vec![],
+        arrows: vec![],
+    };
     for (i, sh) in shapes.iter().enumerate() {
         let what = format!("shapes[{i}]");
         let kind = s(sh, "type").unwrap_or("rectangle");
         let text = s(sh, "text").map(str::trim_end).filter(|t| !t.is_empty());
         let stroke = color(sh, "strokeColor")?.unwrap_or_else(|| STROKE.into());
         let bg = color(sh, "backgroundColor")?.unwrap_or_else(|| "transparent".into());
-        let font = number(sh, "fontSize")?.unwrap_or(if kind == "text" { 20.0 } else { 16.0 }).clamp(8.0, 200.0);
+        let font = number(sh, "fontSize")?
+            .unwrap_or(if kind == "text" { 20.0 } else { 16.0 })
+            .clamp(8.0, 200.0);
         let id = pick_id(s(sh, "id"), &what)?;
         let (mut w, mut h) = (size_arg(sh, "width")?, size_arg(sh, "height")?);
         let mut el = match kind {
@@ -493,7 +546,7 @@ pub fn add(
             }
             "text" => {
                 let t = text.ok_or(format!("{what} is text, so it needs \"text\"."))?;
-                text_element(&id, (0.0, 0.0), t, font, &stroke, None, w, rng)
+                text_element(&id, t, font, &stroke, None, w, rng)
             }
             "noteCard" => {
                 let asked = s(sh, "note").ok_or(format!("{what} is a noteCard, so it needs \"note\" (a note's path)."))?;
@@ -524,13 +577,25 @@ pub fn add(
                 in_row += 1;
                 at
             }
-            _ => return Err(format!("{what}: give both \"x\" and \"y\", or neither to place it automatically.")),
+            _ => {
+                return Err(format!(
+                    "{what}: give both \"x\" and \"y\", or neither to place it automatically."
+                ))
+            }
         };
         el["x"] = json!(round(x));
         el["y"] = json!(round(y));
         if let (Some(t), true) = (text, SHAPE_TYPES.contains(&kind)) {
             let tid = pick_id(None, "label")?;
-            let mut te = text_element(&tid, (0.0, 0.0), t, font, &stroke, Some(&id), Some(label_width(&el)), rng);
+            let mut te = text_element(
+                &tid,
+                t,
+                font,
+                &stroke,
+                Some(&id),
+                Some(label_width(&el)),
+                rng,
+            );
             center_label(&mut te, &el);
             push_bound(&mut el, "text", &tid);
             new_els.push(el);
@@ -544,32 +609,48 @@ pub fn add(
     for (i, ar) in arrows.iter().enumerate() {
         let what = format!("arrows[{i}]");
         let end = |k: &str| -> Result<String, String> {
-            s(ar, k)
-                .map(str::to_string)
-                .ok_or(format!("{what} needs \"{k}\": the id of a shape (new or already on the canvas)."))
+            s(ar, k).map(str::to_string).ok_or(format!(
+                "{what} needs \"{k}\": the id of a shape (new or already on the canvas)."
+            ))
         };
         let (from, to) = (end("from")?, end("to")?);
         let find = |els: &Vec<Value>, id: &str| {
-            els.iter().position(|e| live(e) && s(e, "id") == Some(id) && is_target(e))
+            els.iter()
+                .position(|e| live(e) && s(e, "id") == Some(id) && is_target(e))
         };
         let a_new = find(&new_els, &from);
         let a_old = find(elements(file), &from);
         let b_new = find(&new_els, &to);
         let b_old = find(elements(file), &to);
         let get = |n: Option<usize>, o: Option<usize>, els: &Vec<Value>, file: &Value| {
-            n.map(|i| els[i].clone()).or_else(|| o.map(|i| elements(file)[i].clone()))
+            n.map(|i| els[i].clone())
+                .or_else(|| o.map(|i| elements(file)[i].clone()))
         };
-        let a = get(a_new, a_old, &new_els, file)
-            .ok_or(format!("{what}: no shape with id \"{from}\" to start from."))?;
+        let a = get(a_new, a_old, &new_els, file).ok_or(format!(
+            "{what}: no shape with id \"{from}\" to start from."
+        ))?;
         let b = get(b_new, b_old, &new_els, file)
             .ok_or(format!("{what}: no shape with id \"{to}\" to point to."))?;
         let id = pick_id(s(ar, "id"), &what)?;
         let stroke = color(ar, "strokeColor")?.unwrap_or_else(|| STROKE.into());
-        let mut el = base("arrow", &id, (0.0, 0.0, 0.0, 0.0), &stroke, "transparent", rng);
+        let mut el = base(
+            "arrow",
+            &id,
+            (0.0, 0.0, 0.0, 0.0),
+            &stroke,
+            "transparent",
+            rng,
+        );
         for (k, v) in [
             ("lastCommittedPoint", Value::Null),
-            ("startBinding", json!({ "elementId": from, "focus": 0, "gap": 6 })),
-            ("endBinding", json!({ "elementId": to, "focus": 0, "gap": 6 })),
+            (
+                "startBinding",
+                json!({ "elementId": from, "focus": 0, "gap": 6 }),
+            ),
+            (
+                "endBinding",
+                json!({ "elementId": to, "focus": 0, "gap": 6 }),
+            ),
             ("startArrowhead", Value::Null),
             ("endArrowhead", json!("arrow")),
             ("elbowed", json!(false)),
@@ -590,7 +671,7 @@ pub fn add(
         }
         if let Some(t) = s(ar, "label").map(str::trim).filter(|t| !t.is_empty()) {
             let tid = pick_id(None, "label")?;
-            let mut te = text_element(&tid, (0.0, 0.0), t, 14.0, &stroke, Some(&id), Some(200.0), rng);
+            let mut te = text_element(&tid, t, 14.0, &stroke, Some(&id), Some(200.0), rng);
             center_label(&mut te, &el);
             push_bound(&mut el, "text", &tid);
             new_els.push(el);
@@ -623,18 +704,30 @@ pub struct Changed {
 
 /// Move, resize, relabel or recolor elements, and delete others (with their labels and
 /// the arrows connected to them).
-pub fn change(file: &mut Value, changes: &[Value], delete: &[String], rng: &Rng) -> Result<Changed, String> {
+pub fn change(
+    file: &mut Value,
+    changes: &[Value],
+    delete: &[String],
+    rng: &Rng,
+) -> Result<Changed, String> {
     if changes.is_empty() && delete.is_empty() {
         return Err("Give \"changes\" or \"delete\".".into());
     }
-    let mut report = Changed { changed: vec![], deleted: vec![] };
+    let mut report = Changed {
+        changed: vec![],
+        deleted: vec![],
+    };
     let index_of = |file: &Value, id: &str| {
-        elements(file).iter().position(|e| live(e) && s(e, "id") == Some(id))
+        elements(file)
+            .iter()
+            .position(|e| live(e) && s(e, "id") == Some(id))
     };
     for (i, ch) in changes.iter().enumerate() {
         let what = format!("changes[{i}]");
         let asked = s(ch, "id").ok_or(format!("{what} needs \"id\"."))?;
-        let mut at = index_of(file, asked).ok_or(format!("{what}: nothing on the canvas has the id \"{asked}\". Use read_canvas for the ids."))?;
+        let mut at = index_of(file, asked).ok_or(format!(
+            "{what}: nothing on the canvas has the id \"{asked}\". Use read_canvas for the ids."
+        ))?;
         // A label's id stands for its shape or arrow.
         if let Some(c) = s(&elements(file)[at], "containerId").map(str::to_string) {
             if let Some(ci) = index_of(file, &c) {
@@ -646,7 +739,11 @@ pub fn change(file: &mut Value, changes: &[Value], delete: &[String], rng: &Rng)
         let linear = matches!(kind.as_str(), "arrow" | "line");
         let (x, y) = (number(ch, "x")?, number(ch, "y")?);
         let (w, h) = (size_arg(ch, "width")?, size_arg(ch, "height")?);
-        let text = ch.get("text").map(|t| t.as_str().map(str::to_string).ok_or(format!("{what}: \"text\" must be text.")));
+        let text = ch.get("text").map(|t| {
+            t.as_str()
+                .map(str::to_string)
+                .ok_or(format!("{what}: \"text\" must be text."))
+        });
         let text = text.transpose()?;
         let stroke = color(ch, "strokeColor")?;
         let bg = color(ch, "backgroundColor")?;
@@ -654,25 +751,43 @@ pub fn change(file: &mut Value, changes: &[Value], delete: &[String], rng: &Rng)
             return Err(format!("{what}: arrows follow the shapes they connect; move those instead (or delete the arrow and add a new one)."));
         }
         if kind == "embeddable" && text.is_some() {
-            return Err(format!("{what}: a note card shows its note; edit the note itself to change its text."));
+            return Err(format!(
+                "{what}: a note card shows its note; edit the note itself to change its text."
+            ));
         }
         {
             let e = &mut elements_mut(file)[at];
-            if let Some(x) = x { e["x"] = json!(round(x)); }
-            if let Some(y) = y { e["y"] = json!(round(y)); }
+            if let Some(x) = x {
+                e["x"] = json!(round(x));
+            }
+            if let Some(y) = y {
+                e["y"] = json!(round(y));
+            }
             if kind == "text" {
                 if w.is_some() || h.is_some() {
-                    return Err(format!("{what}: text sizes itself; change \"fontSize\" or the text instead."));
+                    return Err(format!(
+                        "{what}: text sizes itself; change \"fontSize\" or the text instead."
+                    ));
                 }
             } else {
-                if let Some(w) = w { e["width"] = json!(round(w)); }
-                if let Some(h) = h { e["height"] = json!(round(h)); }
+                if let Some(w) = w {
+                    e["width"] = json!(round(w));
+                }
+                if let Some(h) = h {
+                    e["height"] = json!(round(h));
+                }
             }
-            if let Some(c) = &stroke { e["strokeColor"] = json!(c); }
-            if let Some(c) = &bg { e["backgroundColor"] = json!(c); }
+            if let Some(c) = &stroke {
+                e["strokeColor"] = json!(c);
+            }
+            if let Some(c) = &bg {
+                e["backgroundColor"] = json!(c);
+            }
             let font = number(ch, "fontSize")?.map(|n| n.clamp(8.0, 200.0));
             if kind == "text" {
-                if let Some(n) = font { e["fontSize"] = json!(n); }
+                if let Some(n) = font {
+                    e["fontSize"] = json!(n);
+                }
                 if let Some(t) = &text {
                     if t.trim().is_empty() {
                         return Err(format!("{what}: to remove text, delete it."));
@@ -681,7 +796,8 @@ pub fn change(file: &mut Value, changes: &[Value], delete: &[String], rng: &Rng)
                     e["originalText"] = json!(t);
                 }
                 if font.is_some() || text.is_some() {
-                    let (tw, th) = text_size(s(e, "text").unwrap_or(""), f(e, "fontSize").max(8.0), None);
+                    let (tw, th) =
+                        text_size(s(e, "text").unwrap_or(""), f(e, "fontSize").max(8.0), None);
                     e["width"] = json!(tw);
                     e["height"] = json!(th);
                     e["customData"] = merge_flag(e.get("customData"));
@@ -703,14 +819,24 @@ pub fn change(file: &mut Value, changes: &[Value], delete: &[String], rng: &Rng)
                     }
                 }
                 (Some(li), _) => {
-                    let max = if linear { 200.0 } else { label_width(&container) };
+                    let max = if linear {
+                        200.0
+                    } else {
+                        label_width(&container)
+                    };
                     let t = &mut elements_mut(file)[li];
                     if let Some(newt) = &text {
                         t["text"] = json!(newt);
                         t["originalText"] = json!(newt);
                     }
-                    if let Some(c) = &stroke { t["strokeColor"] = json!(c); }
-                    let (tw, th) = text_size(s(t, "originalText").or(s(t, "text")).unwrap_or(""), f(t, "fontSize").max(8.0), Some(max));
+                    if let Some(c) = &stroke {
+                        t["strokeColor"] = json!(c);
+                    }
+                    let (tw, th) = text_size(
+                        s(t, "originalText").or(s(t, "text")).unwrap_or(""),
+                        f(t, "fontSize").max(8.0),
+                        Some(max),
+                    );
                     t["width"] = json!(tw);
                     t["height"] = json!(th);
                     t["customData"] = merge_flag(t.get("customData"));
@@ -720,8 +846,12 @@ pub fn change(file: &mut Value, changes: &[Value], delete: &[String], rng: &Rng)
                 (None, Some(t)) if !t.trim().is_empty() => {
                     let tid = new_id(rng);
                     let stroke = s(&container, "strokeColor").unwrap_or(STROKE).to_string();
-                    let (size, max) = if linear { (14.0, 200.0) } else { (16.0, label_width(&container)) };
-                    let mut te = text_element(&tid, (0.0, 0.0), t, size, &stroke, Some(&id), Some(max), rng);
+                    let (size, max) = if linear {
+                        (14.0, 200.0)
+                    } else {
+                        (16.0, label_width(&container))
+                    };
+                    let mut te = text_element(&tid, t, size, &stroke, Some(&id), Some(max), rng);
                     center_label(&mut te, &container);
                     push_bound(&mut elements_mut(file)[at], "text", &tid);
                     elements_mut(file).push(te);
@@ -764,7 +894,9 @@ pub fn change(file: &mut Value, changes: &[Value], delete: &[String], rng: &Rng)
         elements_mut(file).retain(|e| !s(e, "id").is_some_and(|id| gone.contains(id)));
         // Shapes that pointed at a removed arrow forget it.
         for e in elements_mut(file).iter_mut() {
-            let Some(b) = e.get_mut("boundElements").and_then(Value::as_array_mut) else { continue };
+            let Some(b) = e.get_mut("boundElements").and_then(Value::as_array_mut) else {
+                continue;
+            };
             let before = b.len();
             b.retain(|x| !s(x, "id").is_some_and(|id| gone.contains(id)));
             if b.len() != before {
@@ -781,7 +913,10 @@ pub fn change(file: &mut Value, changes: &[Value], delete: &[String], rng: &Rng)
 }
 
 fn merge_flag(custom: Option<&Value>) -> Value {
-    let mut m = custom.and_then(Value::as_object).cloned().unwrap_or_default();
+    let mut m = custom
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
     m.insert(REMEASURE.into(), json!(true));
     Value::Object(m)
 }
@@ -803,7 +938,8 @@ fn reroute(file: &mut Value, id: &str, rng: &Rng) {
         if a.as_deref() != Some(id) && b.as_deref() != Some(id) {
             continue;
         }
-        let (Some(a), Some(b)) = (a.and_then(|a| by_id.get(&a)), b.and_then(|b| by_id.get(&b))) else {
+        let (Some(a), Some(b)) = (a.and_then(|a| by_id.get(&a)), b.and_then(|b| by_id.get(&b)))
+        else {
             continue;
         };
         route(e, a, b);
@@ -813,7 +949,10 @@ fn reroute(file: &mut Value, id: &str, rng: &Rng) {
         }
     }
     for (label, arrow) in moved {
-        if let Some(t) = elements_mut(file).iter_mut().find(|e| s(e, "id") == Some(label.as_str())) {
+        if let Some(t) = elements_mut(file)
+            .iter_mut()
+            .find(|e| s(e, "id") == Some(label.as_str()))
+        {
             center_label(t, &arrow);
             touch(t, rng);
         }
@@ -829,7 +968,10 @@ mod tests {
     }
 
     fn by_id<'a>(file: &'a Value, id: &str) -> &'a Value {
-        elements(file).iter().find(|e| s(e, "id") == Some(id)).unwrap()
+        elements(file)
+            .iter()
+            .find(|e| s(e, "id") == Some(id))
+            .unwrap()
     }
 
     #[test]
@@ -851,7 +993,15 @@ mod tests {
         .unwrap();
         assert_eq!(&added.shapes[..2], ["a", "b"]);
         let a = by_id(&file, "a");
-        for k in ["seed", "versionNonce", "strokeColor", "fillStyle", "groupIds", "roundness", "updated"] {
+        for k in [
+            "seed",
+            "versionNonce",
+            "strokeColor",
+            "fillStyle",
+            "groupIds",
+            "roundness",
+            "updated",
+        ] {
             assert!(a.get(k).is_some(), "rectangle lacks {k}");
         }
         let label = by_id(&file, &bound_text(a).unwrap()).clone();
@@ -869,18 +1019,39 @@ mod tests {
         assert_eq!(arrow["startBinding"]["elementId"], "a");
         assert_eq!(arrow["endBinding"]["elementId"], "b");
         let start = f(arrow, "x");
-        assert!(start > f(a, "x") + f(a, "width") && start < f(b, "x"), "starts at a's border");
-        assert!(a["boundElements"].as_array().unwrap().iter().any(|x| x["id"] == arrow["id"]));
+        assert!(
+            start > f(a, "x") + f(a, "width") && start < f(b, "x"),
+            "starts at a's border"
+        );
+        assert!(a["boundElements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|x| x["id"] == arrow["id"]));
         let card = by_id(&file, &added.shapes[3]);
-        assert_eq!((card["type"].clone(), card["link"].clone()), (json!("embeddable"), json!("axis:School/Biology.md")));
+        assert_eq!(
+            (card["type"].clone(), card["link"].clone()),
+            (json!("embeddable"), json!("axis:School/Biology.md"))
+        );
 
         let (list, truncated) = summary(&file);
         assert!(!truncated);
         let kinds: Vec<&str> = list.iter().map(|x| s(x, "type").unwrap()).collect();
-        assert_eq!(kinds, ["rectangle", "diamond", "text", "noteCard", "arrow"], "labels fold into their shapes");
+        assert_eq!(
+            kinds,
+            ["rectangle", "diamond", "text", "noteCard", "arrow"],
+            "labels fold into their shapes"
+        );
         assert_eq!(list[0]["text"], "Prophase");
         assert_eq!(list[1]["backgroundColor"], "#ffec99");
-        assert_eq!((list[4]["from"].clone(), list[4]["to"].clone(), list[4]["label"].clone()), (json!("a"), json!("b"), json!("then")));
+        assert_eq!(
+            (
+                list[4]["from"].clone(),
+                list[4]["to"].clone(),
+                list[4]["label"].clone()
+            ),
+            (json!("a"), json!("b"), json!("then"))
+        );
     }
 
     #[test]
@@ -893,12 +1064,24 @@ mod tests {
         };
         assert!(err(&mut file, &[json!({ "id": "a" })], &[]).contains("already used"));
         assert!(err(&mut file, &[json!({ "type": "star" })], &[]).contains("isn't a shape type"));
-        assert!(err(&mut file, &[], &[json!({ "from": "a", "to": "zz" })]).contains("no shape with id \"zz\""));
+        assert!(err(&mut file, &[], &[json!({ "from": "a", "to": "zz" })])
+            .contains("no shape with id \"zz\""));
         assert!(err(&mut file, &[json!({ "x": 3 })], &[]).contains("both"));
         assert!(err(&mut file, &[json!({ "type": "text" })], &[]).contains("needs \"text\""));
-        assert!(add(&mut file, &[json!({ "type": "noteCard", "note": "Medical/x.md" })], &[], &|_| Err("hidden".into()), &rng).is_err());
+        assert!(add(
+            &mut file,
+            &[json!({ "type": "noteCard", "note": "Medical/x.md" })],
+            &[],
+            &|_| Err("hidden".into()),
+            &rng
+        )
+        .is_err());
         assert!(parse("[1,2]").is_err());
-        assert_eq!(elements(&file).len(), 1, "a refused call adds nothing it could fail on afterwards");
+        assert_eq!(
+            elements(&file).len(),
+            1,
+            "a refused call adds nothing it could fail on afterwards"
+        );
     }
 
     #[test]
@@ -907,8 +1090,15 @@ mod tests {
         let mut file = parse("").unwrap();
         add(
             &mut file,
-            &[json!({ "id": "a", "text": "One" }), json!({ "id": "b", "text": "Two" }), json!({ "id": "c", "text": "Three" })],
-            &[json!({ "id": "ab", "from": "a", "to": "b", "label": "next" }), json!({ "id": "bc", "from": "b", "to": "c" })],
+            &[
+                json!({ "id": "a", "text": "One" }),
+                json!({ "id": "b", "text": "Two" }),
+                json!({ "id": "c", "text": "Three" }),
+            ],
+            &[
+                json!({ "id": "ab", "from": "a", "to": "b", "label": "next" }),
+                json!({ "id": "bc", "from": "b", "to": "c" }),
+            ],
             &ok_note,
             &rng,
         )
@@ -928,25 +1118,52 @@ mod tests {
         .unwrap();
         let b = by_id(&file, "b");
         assert_eq!((f(b, "x"), f(b, "y"), f(b, "width")), (100.0, 400.0, 200.0));
-        assert!(b["version"].as_u64().unwrap() > v0, "versions rise so the app's merge takes the change");
+        assert!(
+            b["version"].as_u64().unwrap() > v0,
+            "versions rise so the app's merge takes the change"
+        );
         let lb = by_id(&file, &label_b);
-        assert!((f(lb, "y") + f(lb, "height") / 2.0 - center(b).1).abs() < 0.2, "the label moved with its shape");
+        assert!(
+            (f(lb, "y") + f(lb, "height") / 2.0 - center(b).1).abs() < 0.2,
+            "the label moved with its shape"
+        );
         let ab = by_id(&file, "ab");
         let (_, end) = arrow_ends(ab);
         assert!(end.1 > 390.0, "the arrow follows the moved shape");
         let la = by_id(&file, &bound_text(by_id(&file, "a")).unwrap());
-        assert_eq!((la["text"].clone(), la["customData"][REMEASURE].clone()), (json!("First step"), json!(true)));
+        assert_eq!(
+            (la["text"].clone(), la["customData"][REMEASURE].clone()),
+            (json!("First step"), json!(true))
+        );
         assert_eq!(by_id(&file, "a")["backgroundColor"], "#b2f2bb");
-        assert!(bound_text(by_id(&file, "bc")).is_some(), "an arrow can get a label");
-        assert!(change(&mut file, &[json!({ "id": "ab", "x": 1 })], &[], &rng).unwrap_err().contains("follow"));
-        assert!(change(&mut file, &[json!({ "id": "nope" })], &[], &rng).unwrap_err().contains("nothing"));
+        assert!(
+            bound_text(by_id(&file, "bc")).is_some(),
+            "an arrow can get a label"
+        );
+        assert!(
+            change(&mut file, &[json!({ "id": "ab", "x": 1 })], &[], &rng)
+                .unwrap_err()
+                .contains("follow")
+        );
+        assert!(change(&mut file, &[json!({ "id": "nope" })], &[], &rng)
+            .unwrap_err()
+            .contains("nothing"));
 
         let done = change(&mut file, &[], &["b".to_string()], &rng).unwrap();
-        assert!(done.deleted.contains(&"ab".to_string()) && done.deleted.contains(&"bc".to_string()));
+        assert!(
+            done.deleted.contains(&"ab".to_string()) && done.deleted.contains(&"bc".to_string())
+        );
         assert!(done.deleted.contains(&label_b));
         let ids: Vec<&str> = elements(&file).iter().filter_map(|e| s(e, "id")).collect();
         assert!(!ids.contains(&"b") && !ids.contains(&"ab") && !ids.contains(&"bc"));
         let a = by_id(&file, "a");
-        assert!(a["boundElements"].as_array().unwrap().iter().all(|x| x["type"] == "text"), "a forgets the deleted arrow");
+        assert!(
+            a["boundElements"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|x| x["type"] == "text"),
+            "a forgets the deleted arrow"
+        );
     }
 }

@@ -734,7 +734,9 @@ impl Server {
         for attempt in 0..3 {
             let (mut scene, expected) = match self.vault.read_file(path) {
                 Ok(_) if create => {
-                    return Err(format!("\"{path}\" already exists. Use read_canvas and add_to_canvas."))
+                    return Err(format!(
+                        "\"{path}\" already exists. Use read_canvas and add_to_canvas."
+                    ))
                 }
                 Ok(file) => (canvas::parse(&file.content)?, Some(file.modified_ms)),
                 Err(AppError::NotFound(_)) if create => (canvas::empty(), None),
@@ -784,12 +786,7 @@ impl Server {
             if create && shapes.is_empty() && arrows.is_empty() {
                 return Ok(json!({ "added": { "shapes": [], "arrows": [] } }));
             }
-            let note_ok = |asked: &str| {
-                notes
-                    .get(asked)
-                    .cloned()
-                    .ok_or_else(|| not_shared(asked))
-            };
+            let note_ok = |asked: &str| notes.get(asked).cloned().ok_or_else(|| not_shared(asked));
             let added = canvas::add(scene, &shapes, &arrows, &note_ok, rng)?;
             Ok(json!({ "added": { "shapes": added.shapes, "arrows": added.arrows } }))
         })
@@ -809,7 +806,11 @@ impl Server {
         let changes = array_arg(args, "changes")?;
         let delete: Vec<String> = array_arg(args, "delete")?
             .into_iter()
-            .map(|v| v.as_str().map(str::to_string).ok_or("\"delete\" must list ids (text)."))
+            .map(|v| {
+                v.as_str()
+                    .map(str::to_string)
+                    .ok_or("\"delete\" must list ids (text).")
+            })
             .collect::<Result<_, _>>()?;
         self.edit_canvas(&path, false, |scene, rng| {
             let done = canvas::change(scene, &changes, &delete, rng)?;

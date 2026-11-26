@@ -537,7 +537,9 @@ fn claude_draws_on_canvases_it_may_see() {
     let mut v = Vault::new(ON);
     let names = v.tool_names();
     assert!(names.contains(&"read_canvas".to_string()));
-    assert!(!names.iter().any(|n| n == "add_to_canvas" || n == "change_canvas"));
+    assert!(!names
+        .iter()
+        .any(|n| n == "add_to_canvas" || n == "change_canvas"));
     v.config(ON_RW);
     let made = v.ok(
         "create_canvas",
@@ -550,28 +552,45 @@ fn claude_draws_on_canvases_it_may_see() {
     assert_eq!(made["path"], "School/Mitosis.axcanvas");
     let on_disk: Value = serde_json::from_str(&v.file("School/Mitosis.axcanvas")).unwrap();
     assert_eq!(on_disk["type"], "excalidraw");
-    v.err("create_canvas", json!({ "path": "School/Mitosis.axcanvas" }));
+    v.err(
+        "create_canvas",
+        json!({ "path": "School/Mitosis.axcanvas" }),
+    );
 
     let read = v.ok("read_canvas", json!({ "path": "School/Mitosis.axcanvas" }));
     let els = read["elements"].as_array().unwrap();
     assert_eq!(els.len(), 4, "{els:?}");
     assert_eq!(els[2]["note"], "School/Biology.md");
     // Searchable like other canvases.
-    let found = paths(&v.ok("search_notes", json!({ "query": "metaphase" })), "results", "path");
+    let found = paths(
+        &v.ok("search_notes", json!({ "query": "metaphase" })),
+        "results",
+        "path",
+    );
     assert_eq!(found, ["School/Mitosis.axcanvas"]);
 
     v.ok("add_to_canvas", json!({ "path": "School/Mitosis", "shapes": [{ "id": "a", "text": "Anaphase" }], "arrows": [{ "from": "m", "to": "a" }] }));
     let changed = v.ok("change_canvas", json!({ "path": "School/Mitosis", "changes": [{ "id": "a", "text": "Anaphase!" }], "delete": ["p"] }));
     assert_eq!(changed["changed"], json!(["a"]));
-    let els = v.ok("read_canvas", json!({ "path": "School/Mitosis" }))["elements"].as_array().unwrap().clone();
+    let els = v.ok("read_canvas", json!({ "path": "School/Mitosis" }))["elements"]
+        .as_array()
+        .unwrap()
+        .clone();
     let ids: Vec<&str> = els.iter().map(|e| e["id"].as_str().unwrap()).collect();
     assert!(!ids.contains(&"p") && ids.contains(&"a"));
-    assert_eq!(els.iter().filter(|e| e["type"] == "arrow").count(), 1, "p's arrow went with it");
+    assert_eq!(
+        els.iter().filter(|e| e["type"] == "arrow").count(),
+        1,
+        "p's arrow went with it"
+    );
 
     // Never in folders kept from cloud AI, and no cards of their notes.
     fs::write(v.dir.path().join("Medical/Plan.axcanvas"), "").unwrap();
     v.err("read_canvas", json!({ "path": "Medical/Plan.axcanvas" }));
-    v.err("add_to_canvas", json!({ "path": "Medical/Plan", "shapes": [{ "text": "x" }] }));
+    v.err(
+        "add_to_canvas",
+        json!({ "path": "Medical/Plan", "shapes": [{ "text": "x" }] }),
+    );
     v.err("create_canvas", json!({ "path": "Medical/New" }));
     assert!(!v.dir.path().join("Medical/New.axcanvas").exists());
     let e = v.err("add_to_canvas", json!({ "path": "School/Mitosis", "shapes": [{ "type": "noteCard", "note": "Medical/Scan.md" }] }));
