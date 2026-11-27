@@ -63,8 +63,14 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     await browser.saveScreenshot(path.join(dir, "direct-cell-edit.png"));
     await browser.keys("Tab");
     await expect($('textarea[aria-label="Row 1, column 4"]')).toBeFocused();
+    // Since T-259 Enter goes to the cell below, as in Obsidian; Escape closes the editor.
     await browser.keys("Enter");
+    await expect($('textarea[aria-label="Row 2, column 4"]')).toBeFocused();
+    await browser.keys("Escape");
     await expect($$(".cm-markdown-table textarea")).toBeElementsArrayOfSize(0);
+    expect(fs.readFileSync(file("Costs.md"), "utf8")).toBe(
+      costs.replace("|—|Space", "|Reviewed administration|Space"),
+    );
     await expect($(".cm-markdown-table table")).toHaveText(
       expect.stringContaining("Reviewed administration"),
     );
@@ -91,13 +97,18 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     await expect($$(".cm-markdown-table th")).toBeElementsArrayOfSize(5);
     await expect($(".cm-markdown-table table")).toHaveText(expect.stringContaining("< 30 mins"));
     expect(fs.readFileSync(file("Plans.md"), "utf8")).toBe(plans);
+    // Since T-259 cells can shrink to 96px, so at the window's minimum width (720px) this
+    // table fits by wrapping. Beside another note it can't: that is the narrow note here.
+    await $('[data-path="Media.md"]').click({ button: "right" });
+    await $('[role="menuitem"]=Open in split screen').click();
+    await browser.waitUntil(async () => (await $$(".pane").length) === 2);
     const originalSize = await browser.getWindowSize();
     try {
       await browser.setWindowSize(720, 820);
       const measure = () =>
         browser.execute(() => {
           const scroll = document.querySelector<HTMLElement>(".cm-table-scroll")!;
-          const editor = document.querySelector<HTMLElement>(".cm-scroller")!;
+          const editor = scroll.closest<HTMLElement>(".cm-scroller")!;
           const rows = [...scroll.querySelectorAll("tr")].map((row) =>
             [...row.cells].map((cell) => cell.getBoundingClientRect().width),
           );
@@ -120,7 +131,12 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
       });
       await $('.cm-markdown-table td[aria-label="Row 2, column 4"]').click();
       expect((await measure()).aligned).toBe(true);
-      await $('textarea[aria-label="Row 2, column 4"]').setValue("$39/mo");
+      // Type over the cell as the user does: setValue's clear blurs the field, which closes
+      // the cell editor (T-134).
+      await expect($('textarea[aria-label="Row 2, column 4"]')).toBeFocused();
+      await browser.keys([Key.Ctrl, "a"]);
+      await browser.keys(Key.Ctrl);
+      await browser.keys("$39/mo");
       await browser.waitUntil(() => fs.readFileSync(file("Plans.md"), "utf8").includes("$39/mo"));
       await browser.keys("Escape");
       const dir = path.resolve(".agents/qa/T-126");
@@ -129,6 +145,13 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     } finally {
       await browser.setWindowSize(originalSize.width, originalSize.height);
     }
+    // Close the split: the other pane (focus is on Plans, after editing it) holds only Media.
+    const media = $('.pane:not(.focused) [role="tab"]');
+    await expect(media).toHaveText(expect.stringContaining("Media"));
+    await media.click();
+    await browser.keys([Key.Ctrl, "w"]);
+    await browser.keys(Key.Ctrl);
+    await browser.waitUntil(async () => (await $$(".pane").length) <= 1);
     await open("Costs");
     await open("Plans");
     await expect($(".cm-markdown-table table")).toHaveText(expect.stringContaining("$39/mo"));
@@ -170,11 +193,16 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     fs.mkdirSync(dir, { recursive: true });
     await browser.saveScreenshot(path.join(dir, "cell-tools-and-list-image.png"));
   });
+  /** Since T-154 crop and exact size are in the image's right-click menu (no toolbar). */
+  const openImageControls = async () => {
+    await $(".cm-image-embed[data-kind=image] .cm-image-frame").click({ button: "right" });
+    await $(".cm-image-menu").$("button*=Crop and exact size").click();
+  };
   it("saves image size/crop, preserves original bytes and restores on reopen", async () => {
     const original = fs.readFileSync(file("dot.png"));
     await open("Media");
     const image = $(".cm-image-embed[data-kind=image]");
-    await image.$("button=Edit image").click();
+    await openImageControls();
     await image.$("input[type=checkbox]").click();
     await image.$('input[aria-label="Width (px)"]').setValue("120");
     await image.$('input[aria-label="Height (px)"]').setValue("60");
@@ -192,7 +220,7 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
       "style",
       expect.stringContaining("width: 120px"),
     );
-    await $(".cm-image-embed[data-kind=image]").$("button=Edit image").click();
+    await openImageControls();
     await expect($('input[aria-label="Left crop (%)"]')).toHaveValue("10");
     await snapshot("02-image-controls");
   });

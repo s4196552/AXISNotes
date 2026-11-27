@@ -792,6 +792,11 @@ function embedWidgetFor(text: string, from: string, readOnly: boolean): WidgetTy
   return null;
 }
 
+/** Whether a line is drawn as an embed block (note, page or media) while the cursor is off it. */
+export function isEmbedLine(text: string): boolean {
+  return embedWidgetFor(text, "", false) !== null;
+}
+
 function embedDecorations(state: EditorState): DecorationSet {
   const doc = state.doc;
   if (!doc.toString().includes("![")) return Decoration.none;

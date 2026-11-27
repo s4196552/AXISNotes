@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { $, browser, expect } from "@wdio/globals";
+import { expectNoteTitle } from "../noteTitle";
 import { Key } from "webdriverio";
 
 // T-075: images, video and audio in notes, on the real app and disk. Dropping files from
@@ -16,7 +17,7 @@ const until = (cond: () => boolean | Promise<boolean>, msg: string) =>
 
 async function openNote(rel: string, title: string) {
   await row(rel).click();
-  await expect($(".editor-title")).toHaveText(title);
+  await expectNoteTitle(title);
 }
 
 describe("Images, video and audio in notes", () => {

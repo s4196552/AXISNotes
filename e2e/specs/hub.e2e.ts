@@ -292,6 +292,11 @@ windows("AXIS Hub plugin", () => {
     await hubControl(hub, `${projects} .group-open`);
     await hubText(hub, "#page-title", "Projects");
     await hubDrag(hub, tools, "[data-hub-parent]");
+    // The hub redraws once the save returns; the earlier "Moved Tools" notice is still in
+    // the page, so wait for the file itself rather than reading it straight away.
+    await browser.waitUntil(() => groups().length === 2, {
+      timeoutMsg: "Tools was not moved back to the top level on disk",
+    });
     await hubControl(hub, "#nav-home");
     await hubText(hub, '#content [data-hub-group="tools"]', "Tools");
     expect(groups().map(({ id }: { id: string }) => id)).toEqual(["projects", "tools"]);

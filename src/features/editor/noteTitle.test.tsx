@@ -6,6 +6,7 @@ import { createMemoryBackend, type MemoryBackend } from "../../ipc/memoryBackend
 import { useAppStore } from "../../app/store";
 import { DEFAULT_CONFIG, useConfig } from "../../app/config";
 import { Editor } from "./Editor";
+import { isEmbedLine } from "./embeds";
 import { requestEditorFocus } from "./focusRequest";
 import { startBelowTitle, titleHeading, titleHeadingRange } from "./titleHeading";
 import { countWords, wordCount } from "./wordCount";
@@ -79,6 +80,42 @@ describe("hiding a heading that repeats the title", () => {
     const s = stateWith("# Biology\n\nText", ["Biology"], 0);
     expect(startBelowTitle(s, 0)).toBe(11);
     expect(startBelowTitle(stateWith("Text", ["Biology"], 0), 0)).toBe(0);
+  });
+
+  it("starts below an embed under the hidden heading, so the embed is drawn (T-296)", () => {
+    // A clipped screenshot's note: the image comes straight after the title.
+    const doc = "# Shot\n\n![[Shot 2026-11-27 10.30.png]]\n\n[Shot](https://example.com)\n";
+    const s = stateWith(doc, ["Shot"], 0);
+    expect(startBelowTitle(s, 0)).toBe(8); // on the embed line, without the check
+    expect(startBelowTitle(s, 0, isEmbedLine)).toBe(doc.indexOf("\n\n[Shot]") + 1);
+    // Text below the title is where the cursor starts, as before.
+    expect(startBelowTitle(stateWith("# Biology\n\nText", ["Biology"], 0), 0, isEmbedLine)).toBe(
+      11,
+    );
+    // Only embeds below the title: start on the first one.
+    const only = "# Shot\n\n![[a.png]]\n![[b.png]]";
+    expect(startBelowTitle(stateWith(only, ["Shot"], 0), 0, isEmbedLine)).toBe(8);
+  });
+
+  it("recognizes lines drawn as embed blocks", () => {
+    expect(isEmbedLine("![[Shot 2026-11-27 10.30.png]]")).toBe(true);
+    expect(isEmbedLine("![[Other note]]")).toBe(true);
+    expect(isEmbedLine("![photo](pics/a.jpg)")).toBe(true);
+    expect(isEmbedLine("Text with ![[a.png]] inside")).toBe(false);
+    expect(isEmbedLine("")).toBe(false);
+  });
+
+  it("opens a note whose image follows the title with the image drawn (T-296)", async () => {
+    h.b = createMemoryBackend({
+      "Clippings/Shot.md": "# Shot\n\n![[shot.png]]\n\nSource\n",
+      "Clippings/shot.png": "png",
+    });
+    await useAppStore.getState().refreshTree();
+    const { view, container } = await open("Clippings/Shot.md");
+    expect(container.querySelector(".cm-image-embed")).not.toBeNull();
+    const head = view.state.selection.main.head;
+    expect(view.state.doc.lineAt(head).text).toBe("");
+    expect(view.state.doc.lineAt(head).number).toBe(4);
   });
 
   it("hides the heading in the editor until the cursor reaches it", async () => {

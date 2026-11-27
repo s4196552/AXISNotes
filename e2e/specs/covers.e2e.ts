@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { $, browser, expect } from "@wdio/globals";
+import { expectNoteTitle } from "../noteTitle";
 import { Key } from "webdriverio";
 
 // T-083 on the real app: PNG/JPEG covers served from the vault through the asset protocol,
@@ -78,7 +79,7 @@ describe("Page covers and icons on the real app (T-083)", () => {
   it("shows a JPEG cover from the frontmatter at its saved focus", async () => {
     await row("Trips").click();
     await row("Trips/Coast.md").click();
-    await expect($(".editor-title")).toHaveText("Coast");
+    await expectNoteTitle("Coast");
     const img = await imageLoaded(COVER_IMG);
     expect(img).toMatchObject({ w: 1200, h: 900 });
     expect(img.src).not.toMatch(/^data:/); // served from disk, not inlined
@@ -117,7 +118,7 @@ describe("Page covers and icons on the real app (T-083)", () => {
 
   it("picks a PNG from the vault as a new cover", async () => {
     await row("Plans.md").click();
-    await expect($(".editor-title")).toHaveText("Plans");
+    await expectNoteTitle("Plans");
     await (await headerButton("Add cover")).click();
     const picker = $('[role="dialog"][aria-label="Choose a cover"]');
     await picker.$("button=Images").click();

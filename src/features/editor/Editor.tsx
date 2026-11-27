@@ -34,7 +34,7 @@ import {
 } from "./activeEditor";
 import { usePane } from "../../app/paneContext";
 import { links, refreshLinks, wikilinkCompletions } from "./links";
-import { anchorCompletions, embeds } from "./embeds";
+import { anchorCompletions, embeds, isEmbedLine } from "./embeds";
 import { mediaInput } from "./media";
 import { findTarget, isKnownTarget, minimalChange } from "./targets";
 import { livePreview } from "./livePreview";
@@ -507,7 +507,7 @@ export function Editor({ path }: EditorProps) {
         });
         // A note opened fresh starts below a hidden title heading, so it stays hidden.
         const head = initial.selection.main.head;
-        const start = saved ? head : startBelowTitle(initial, head);
+        const start = saved ? head : startBelowTitle(initial, head, isEmbedLine);
         created = new EditorView({
           parent: host.current,
           state: start === head ? initial : initial.update({ selection: { anchor: start } }).state,

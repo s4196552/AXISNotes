@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { $, browser, expect } from "@wdio/globals";
+import { expectNoteTitle } from "../noteTitle";
 
 // T-091 on the real app: icon and image packs copied from a folder and a .zip into the
 // vault's hidden .axisnotes/packs/, served through the asset protocol, and used as a page
@@ -92,7 +93,7 @@ describe("Icon and image packs on the real app (T-091)", () => {
 
   it("uses a pack icon as the page icon, in the text colour", async () => {
     await row("Plans.md").click();
-    await expect($(".editor-title")).toHaveText("Plans");
+    await expectNoteTitle("Plans");
     await (await headerButton("Add icon")).click();
     const dialog = $('[role="dialog"][aria-label="Icon for Plans.md"]');
     await dialog.waitForDisplayed();

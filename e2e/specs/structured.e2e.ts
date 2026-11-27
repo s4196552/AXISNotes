@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { $, browser, expect } from "@wdio/globals";
+import { expectNoteTitle } from "../noteTitle";
 import { Key } from "webdriverio";
 
 // Phase 3 acceptance on the real app and disk: a grid with formulas saves and reloads
@@ -50,7 +51,7 @@ describe("Phase 3: grids, canvases and structured data on a real vault", () => {
     const saved = read("Budget.axgrid");
     const mtime = fs.statSync(onDisk("Budget.axgrid")).mtimeMs;
     await row("Bio.md").click();
-    await expect($(".editor-title")).toHaveText("Bio");
+    await expectNoteTitle("Bio");
     await row("Budget.axgrid").click();
     await expect(cell("C4")).toHaveText("29");
     await expect(cell("B4")).toHaveText("14.5");
@@ -117,7 +118,7 @@ describe("Phase 3: grids, canvases and structured data on a real vault", () => {
 
   it("shows the card and drawing again after reopening, and follows note edits", async () => {
     await row("Bio.md").click();
-    await expect($(".editor-title")).toHaveText("Bio");
+    await expectNoteTitle("Bio");
     fs.writeFileSync(onDisk("Bio.md"), "# Cells\n\nRibosomes build proteins.\n");
     await row("Board.axcanvas").click();
     const card = $('[data-card-path="Bio.md"]');

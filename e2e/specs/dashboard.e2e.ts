@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { $, browser, expect } from "@wdio/globals";
+import { expectNoteTitle } from "../noteTitle";
 import { Key } from "webdriverio";
 
 // T-100–T-105 on the real app: the Home dashboard opens from the keyboard, task text shows
@@ -53,7 +54,7 @@ describe("Dashboards on the real app (T-105)", () => {
 
   it("follows a [[link]] in a task to its note", async () => {
     await widget("Today's tasks").$("button.inline-wikilink=Welcome").click();
-    await expect($(".editor-title")).toHaveText("Welcome");
+    await expectNoteTitle("Welcome");
     await openHome();
   });
 

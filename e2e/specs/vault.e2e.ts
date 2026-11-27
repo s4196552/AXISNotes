@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { $, $$, browser, expect } from "@wdio/globals";
+import { expectNoteTitle } from "../noteTitle";
 import { Key } from "webdriverio";
 
 // Phase 0 acceptance: open a folder, create nested folders and notes, edit and save
@@ -36,7 +37,7 @@ describe("AXISNotes desktop app on a real vault", () => {
 
   it("opens a note with live preview", async () => {
     await row("Welcome.md").click();
-    await expect($(".editor-title")).toHaveText("Welcome");
+    await expectNoteTitle("Welcome");
     await browser.waitUntil(async () => (await editorText()).includes("Hello from disk"));
   });
 
@@ -103,17 +104,19 @@ describe("AXISNotes desktop app on a real vault", () => {
 
   it("creates nested folders and notes on disk", async () => {
     await row("School").click(); // select + expand
-    await $('button[aria-label="New folder"]').click();
+    await $('.filetree-toolbar button[aria-label="New folder"]').click();
     await renameTo("Math");
     await browser.waitUntil(() => fs.existsSync(onDisk("School/Math")));
 
     await row("School/Math").click();
-    await $('button[aria-label="New note"]').click();
+    // The ribbon (T-251) has a New note button too, which names the note in its title;
+    // this is the file tree's, which creates it in the selected folder.
+    await $('.filetree-toolbar button[aria-label="New note"]').click();
     await renameTo("Calculus");
     await browser.waitUntil(() => fs.existsSync(onDisk("School/Math/Calculus.md")), {
       timeoutMsg: "nested note not created",
     });
-    await expect($(".editor-title")).toHaveText("Calculus");
+    await expectNoteTitle("Calculus");
 
     await $(".cm-content").click();
     await browser.keys("# Limits");
@@ -127,7 +130,7 @@ describe("AXISNotes desktop app on a real vault", () => {
       "# Big\n\n" + para.repeat(Math.ceil(1_000_000 / para.length)),
     );
     await row("Big.md").click();
-    await expect($(".editor-title")).toHaveText("Big");
+    await expectNoteTitle("Big");
     await $(".cm-content").click();
 
     const text = "typing speed check";
@@ -146,7 +149,7 @@ describe("AXISNotes desktop app on a real vault", () => {
     await renameTo("Calculus I");
     await browser.waitUntil(() => fs.existsSync(onDisk("School/Math/Calculus I.md")));
     expect(fs.existsSync(onDisk("School/Math/Calculus.md"))).toBe(false);
-    await expect($(".editor-title")).toHaveText("Calculus I");
+    await expectNoteTitle("Calculus I");
   });
 
   it("zooms the whole app with Ctrl + = and Ctrl + 0, and lists installed fonts", async () => {

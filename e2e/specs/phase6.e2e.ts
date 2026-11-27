@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { $, browser, expect } from "@wdio/globals";
+import { expectNoteTitle } from "../noteTitle";
 import { Key } from "webdriverio";
 // The browser extension's delivery code, run here against the real app.
 import { deliver, flush, newClip, pair, queued } from "../../extension/lib/queue.js";
@@ -87,7 +88,7 @@ describe("Phase 6: web clipper, import and polish on the real app", () => {
   it("shows images embedded in a note", async () => {
     await row("Notes").click();
     await row("Notes/Photo.md").click();
-    await expect($(".editor-title")).toHaveText("Photo");
+    await expectNoteTitle("Photo");
     await $(".cm-image-embed img").waitForExist();
     await imageLoaded(".cm-image-embed img");
     // Images open on their own too.
@@ -118,7 +119,7 @@ describe("Phase 6: web clipper, import and polish on the real app", () => {
     await row("Old Vault").waitForExist();
     await row("Old Vault").click();
     await row("Old Vault/Ideas.md").click();
-    await expect($(".editor-title")).toHaveText("Ideas");
+    await expectNoteTitle("Ideas");
     await expect($(".cm-lp-highlight")).toHaveText("important");
     await expect($(".cm-callout-warning")).toExist();
     await snapshot("02-imported-note");
@@ -157,7 +158,7 @@ describe("Phase 6: web clipper, import and polish on the real app", () => {
     await row("Imported").click();
     await row("Imported/Notion").click();
     await row("Imported/Notion/Home.md").click();
-    await expect($(".editor-title")).toHaveText("Home");
+    await expectNoteTitle("Home");
     await $(".cm-lp-wikilink:not(.cm-lp-unresolved)").waitForExist();
     await snapshot("03b-imported-notion");
     fs.rmSync(src, { recursive: true, force: true });

@@ -51,11 +51,27 @@ export function titleHeadingRange(state: EditorState): { from: number; to: numbe
   return { from: line.from, to };
 }
 
-/** Where a note's cursor starts: below a hidden title heading, else at `fallback`. */
-export function startBelowTitle(state: EditorState, fallback: number): number {
+/**
+ * Where a note's cursor starts: below a hidden title heading, else at `fallback`. Lines
+ * `drawnAsBlock` (an image or note embed) show their source while the cursor is on them,
+ * so the cursor starts on the first line after them instead: a clipped screenshot's note
+ * opens showing the screenshot (T-296).
+ */
+export function startBelowTitle(
+  state: EditorState,
+  fallback: number,
+  drawnAsBlock?: (text: string) => boolean,
+): number {
   const r = titleHeadingRange(state);
   if (!r || fallback > r.to) return fallback;
-  return Math.min(r.to + 1, state.doc.length);
+  const doc = state.doc;
+  const at = Math.min(r.to + 1, doc.length);
+  if (!drawnAsBlock) return at;
+  for (let line = doc.lineAt(at); ; line = doc.line(line.number + 1)) {
+    if (!drawnAsBlock(line.text)) return line.from;
+    // Nothing but embeds below the title: start where it would have.
+    if (line.number === doc.lines) return at;
+  }
 }
 
 function decorations(state: EditorState): DecorationSet {

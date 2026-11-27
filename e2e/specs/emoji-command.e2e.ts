@@ -78,6 +78,23 @@ describe("Emoji command", () => {
     expect(fs.readFileSync(savedIcon, "utf8")).toBe(svg);
     await menu.$(".cm-completionLabel=Orbit Badge").waitForDisplayed();
     await browser.keys("orbit");
+    // The icon results arrive asynchronously and redraw the list; click once it has settled
+    // on the filtered results, as a person would, not on a row that is being replaced.
+    let last = "";
+    let steady = 0;
+    await browser.waitUntil(
+      async () => {
+        const now = await browser.execute(() =>
+          [...document.querySelectorAll(".cm-tooltip-autocomplete .cm-completionLabel")]
+            .map((l) => l.textContent)
+            .join("|"),
+        );
+        steady = now === last && now.includes("Orbit Badge") ? steady + 1 : 0;
+        last = now;
+        return steady >= 3;
+      },
+      { interval: 250 },
+    );
     await menu.$(".cm-completionLabel=Orbit Badge").click();
     await browser.waitUntil(() =>
       fs.readFileSync(note, "utf8").includes("/My%20icons/Orbit%20Badge.svg"),
