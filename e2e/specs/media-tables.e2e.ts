@@ -97,13 +97,18 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     await expect($$(".cm-markdown-table th")).toBeElementsArrayOfSize(5);
     await expect($(".cm-markdown-table table")).toHaveText(expect.stringContaining("< 30 mins"));
     expect(fs.readFileSync(file("Plans.md"), "utf8")).toBe(plans);
+    // Since T-259 cells can shrink to 96px, so at the window's minimum width (720px) this
+    // table fits by wrapping. Beside another note it can't: that is the narrow note here.
+    await $('[data-path="Media.md"]').click({ button: "right" });
+    await $('[role="menuitem"]=Open in split screen').click();
+    await browser.waitUntil(async () => (await $$(".pane").length) === 2);
     const originalSize = await browser.getWindowSize();
     try {
       await browser.setWindowSize(720, 820);
       const measure = () =>
         browser.execute(() => {
           const scroll = document.querySelector<HTMLElement>(".cm-table-scroll")!;
-          const editor = document.querySelector<HTMLElement>(".cm-scroller")!;
+          const editor = scroll.closest<HTMLElement>(".cm-scroller")!;
           const rows = [...scroll.querySelectorAll("tr")].map((row) =>
             [...row.cells].map((cell) => cell.getBoundingClientRect().width),
           );
@@ -126,7 +131,12 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
       });
       await $('.cm-markdown-table td[aria-label="Row 2, column 4"]').click();
       expect((await measure()).aligned).toBe(true);
-      await $('textarea[aria-label="Row 2, column 4"]').setValue("$39/mo");
+      // Type over the cell as the user does: setValue's clear blurs the field, which closes
+      // the cell editor (T-134).
+      await expect($('textarea[aria-label="Row 2, column 4"]')).toBeFocused();
+      await browser.keys([Key.Ctrl, "a"]);
+      await browser.keys(Key.Ctrl);
+      await browser.keys("$39/mo");
       await browser.waitUntil(() => fs.readFileSync(file("Plans.md"), "utf8").includes("$39/mo"));
       await browser.keys("Escape");
       const dir = path.resolve(".agents/qa/T-126");
@@ -135,6 +145,13 @@ describe("Obsidian tables and image layout on the real app (T-125)", () => {
     } finally {
       await browser.setWindowSize(originalSize.width, originalSize.height);
     }
+    // Close the split: the other pane (focus is on Plans, after editing it) holds only Media.
+    const media = $('.pane:not(.focused) [role="tab"]');
+    await expect(media).toHaveText(expect.stringContaining("Media"));
+    await media.click();
+    await browser.keys([Key.Ctrl, "w"]);
+    await browser.keys(Key.Ctrl);
+    await browser.waitUntil(async () => (await $$(".pane").length) <= 1);
     await open("Costs");
     await open("Plans");
     await expect($(".cm-markdown-table table")).toHaveText(expect.stringContaining("$39/mo"));

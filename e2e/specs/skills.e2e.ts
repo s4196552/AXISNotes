@@ -4,6 +4,7 @@ import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { $, $$, browser, expect } from "@wdio/globals";
 import { Key } from "webdriverio";
+import { pickCompletion } from "../completion";
 
 const skills = [
   { id: "mnemonic", title: "Mnemonic", format: "Markdown" },
@@ -139,7 +140,7 @@ describe("Categorized built-in AI skills (T-222)", () => {
       await browser.keys(skill.title);
       // Other commands match a skill's name too (T-257's collection, T-267's study
       // blocks), so pick the skill itself.
-      await $(".cm-tooltip-autocomplete").$(`.cm-completionLabel=${skill.title}`).click();
+      await pickCompletion(skill.title);
       const block = $('[role="group"][aria-label="AI block"]');
       await expect(block.$(".ai-skill")).toHaveText(
         expect.stringContaining(`Skill: ${skill.title}`),

@@ -4,6 +4,7 @@ import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { $, $$, browser, expect } from "@wdio/globals";
 import { Key } from "webdriverio";
+import { pickCompletion } from "../completion";
 
 const vault = process.env.AXIS_E2E_VAULT!;
 const qa = path.resolve(".agents/qa/T-223");
@@ -27,12 +28,11 @@ async function chooseSkill(name: string) {
   await $(".pane.focused .cm-content, .workspace.single .cm-content").click();
   await browser.keys([Key.Ctrl, "/"]);
   await browser.keys(Key.Ctrl);
-  const menu = $(".cm-tooltip-autocomplete");
-  await menu.waitForDisplayed();
+  await $(".cm-tooltip-autocomplete").waitForDisplayed();
   await browser.keys(name);
   // Since T-267 the study blocks ("Mind map block", "Flash cards block") match the skill's
   // name too, so pick the skill itself rather than expecting a single match.
-  await menu.$(`.cm-completionLabel=${name}`).click();
+  await pickCompletion(name);
   await $('[aria-label="Results in"]').waitForDisplayed();
 }
 const block = () => $('[role="group"][aria-label="AI block"]');

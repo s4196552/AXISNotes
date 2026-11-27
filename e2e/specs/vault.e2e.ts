@@ -104,12 +104,14 @@ describe("AXISNotes desktop app on a real vault", () => {
 
   it("creates nested folders and notes on disk", async () => {
     await row("School").click(); // select + expand
-    await $('button[aria-label="New folder"]').click();
+    await $('.filetree-toolbar button[aria-label="New folder"]').click();
     await renameTo("Math");
     await browser.waitUntil(() => fs.existsSync(onDisk("School/Math")));
 
     await row("School/Math").click();
-    await $('button[aria-label="New note"]').click();
+    // The ribbon (T-251) has a New note button too, which names the note in its title;
+    // this is the file tree's, which creates it in the selected folder.
+    await $('.filetree-toolbar button[aria-label="New note"]').click();
     await renameTo("Calculus");
     await browser.waitUntil(() => fs.existsSync(onDisk("School/Math/Calculus.md")), {
       timeoutMsg: "nested note not created",
